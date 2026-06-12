@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-V1.7 演示版：线束车间平板现场演示版，新增演示工具菜单、演示数据管理、演示前检查、演示资料说明和后续路线面板。
+V1.8 演示冻结候选版：线束车间平板现场演示冻结候选版，基于 V1.7 新增冻结前验收、Release Notes、合并前检查和冻结检查脚本。
 
 当前运行边界：
 
@@ -32,6 +32,7 @@ npm run dev
 ```bash
 npm run demo:assets
 npm run demo:check
+npm run demo:freeze-check
 npm run demo:release-check
 npm run dev:lan
 ```
@@ -47,7 +48,7 @@ npm run dev:lan
 5. 查看前段参数、后段资料、图纸/SOP/孔位图/成品图
 6. 上传 `demo-upload-assets` 下的 PDF 或图片演示资料
 7. 查看文件健康、版本历史和审计记录
-8. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、演示资料说明、后续路线
+8. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、冻结前验收、演示资料说明、后续路线
 9. 复制现场走查结果，必要时仅重置前端演示界面状态
 
 ## 演示界面截图占位
@@ -79,7 +80,8 @@ npm run dev:lan
 | `npm run dev:lan` | 启动局域网平板演示 |
 | `npm run demo:assets` | 生成合成演示上传资料 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
-| `npm run demo:release-check` | 只读检查 V1.7 演示版收口状态 |
+| `npm run demo:release-check` | 只读检查 V1.8 演示版收口状态 |
+| `npm run demo:freeze-check` | 只读检查 V1.8 冻结候选状态 |
 | `npm run file-flow:check` | 只读检查本地文件资料流 |
 | `npm run security:check` | 检查敏感文件和安全闸门 |
 | `npm run build` | 构建前端和后端 |
@@ -94,6 +96,9 @@ npm run dev:lan
 
 ## 文档
 
+- `docs/release-notes-v1.8.md`
+- `docs/pre-merge-checklist.md`
+- `docs/v1.8-demo-freeze-qa.md`
 - `docs/v1.7-demo-management.md`
 - `docs/v1.6-demo-release-polish.md`
 - `docs/v1.5-tablet-field-qa.md`

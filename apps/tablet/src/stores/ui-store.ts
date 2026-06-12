@@ -1,5 +1,6 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { APP_STAGE, APP_VERSION } from '@/config/app-version'
 
 const STORAGE_KEYS = {
   fieldMode: 'hanglian.ui.fieldMode',
@@ -9,6 +10,7 @@ const STORAGE_KEYS = {
 
 const DEMO_UI_STORAGE_KEYS = [
   'hanglian.fieldQaChecklist',
+  'hanglian.freezeChecklist',
   'hanglian.ui.fieldMode',
   'hanglian.ui.compactMode',
   'hanglian.ui.lastActiveTab',
@@ -76,7 +78,7 @@ export const useUiStore = defineStore('ui', () => {
     })
 
     return [
-      '线束车间生产计划资料管控系统 V1.6 演示走查结果',
+      `线束车间生产计划资料管控系统 ${APP_VERSION} ${APP_STAGE} 现场走查结果`,
       `时间：${time}`,
       `已完成：${completedCount} / ${items.length}`,
       `完成率：${progress}%`,

@@ -20,9 +20,27 @@ npm run build
 npm run check
 ```
 
-`npm run demo:release-check` 建议在推送演示分支前执行，用于确认 README、V1.7 演示数据管理文档、平板演示文档、演示检查脚本、忽略规则、版本配置和 GitHub Actions CI 都已准备好。`npm run check` 会依次执行安全检查、Prisma schema 校验和项目构建。
+`npm run demo:release-check` 建议在推送演示分支前执行，用于确认 README、V1.8 演示冻结文档、平板演示文档、演示检查脚本、忽略规则、版本配置和 GitHub Actions CI 都已准备好。`npm run demo:freeze-check` 用于冻结候选版专项检查。`npm run check` 会依次执行安全检查、Prisma schema 校验和项目构建。
 
 README 中的截图路径目前是占位说明。后续如果添加截图，只允许使用合成演示资料，不允许截入真实客户图纸、真实 SOP、数据库连接串或任何账号密钥。
+
+## V1.8 分支推送和 PR 前建议
+
+推送 `feature/v1-8-demo-freeze-qa` 前建议执行：
+
+```bash
+npm run demo:release-check
+npm run demo:check
+npm run file-flow:check
+npm run demo:freeze-check
+npm run security:check
+npm run build
+npm run check
+```
+
+PR 标题建议：`feat: release V1.8 tablet field demo candidate`。
+
+合并 main 前建议先创建 PR、等待 CI 通过、完成人工平板验收，再 Squash and merge。合并后可打 tag：`v1.8-demo-candidate`。
 
 ## 禁止提交的文件
 

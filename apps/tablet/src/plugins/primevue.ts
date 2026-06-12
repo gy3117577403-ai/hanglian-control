@@ -35,7 +35,7 @@ export function installPrimeVue(app: App) {
     theme: {
       preset: Aura,
       options: {
-        darkModeSelector: '.never-enable-prime-dark',
+        darkModeSelector: '.never-enable-prime-night-mode',
         cssLayer: {
           name: 'primevue',
           order: 'theme, base, primevue, components, utilities',

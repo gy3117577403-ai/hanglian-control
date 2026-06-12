@@ -16,6 +16,7 @@
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",
+    "demo:freeze-check": "node scripts/demo-freeze-check.mjs",
     "file-flow:check": "node scripts/file-flow-check.mjs",
     "security:check": "node scripts/security-check.mjs",
     "prisma:format": "npx prisma format --schema=apps/api/prisma/schema.prisma",

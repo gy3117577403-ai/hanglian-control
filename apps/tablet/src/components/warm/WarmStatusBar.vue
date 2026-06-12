@@ -19,6 +19,7 @@ const emit = defineEmits<{
   'open-demo-guide': []
   'open-demo-data-manager': []
   'open-demo-readiness': []
+  'open-freeze-checklist': []
   'open-demo-assets-guide': []
   'open-roadmap': []
   'open-migration': []
@@ -42,6 +43,7 @@ const demoToolItems = [
   { separator: true },
   { label: '演示数据管理', icon: 'pi pi-database', command: () => emit('open-demo-data-manager') },
   { label: '演示前检查', icon: 'pi pi-check-circle', command: () => emit('open-demo-readiness') },
+  { label: '冻结前验收', icon: 'pi pi-verified', command: () => emit('open-freeze-checklist') },
   { label: '演示资料说明', icon: 'pi pi-folder-open', command: () => emit('open-demo-assets-guide') },
   { label: '后续路线', icon: 'pi pi-compass', command: () => emit('open-roadmap') },
   { label: '迁移预览', icon: 'pi pi-server', command: () => emit('open-migration') },

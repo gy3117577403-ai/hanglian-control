@@ -10,6 +10,7 @@ import WarmDemoAssetsGuideDialog from '@/components/system/WarmDemoAssetsGuideDi
 import WarmDemoDataManagerDialog from '@/components/system/WarmDemoDataManagerDialog.vue'
 import WarmDemoGuideDialog from '@/components/system/WarmDemoGuideDialog.vue'
 import WarmDemoReadinessDialog from '@/components/system/WarmDemoReadinessDialog.vue'
+import WarmFreezeChecklistDialog from '@/components/system/WarmFreezeChecklistDialog.vue'
 import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
 import WarmRoadmapDialog from '@/components/system/WarmRoadmapDialog.vue'
 import WarmSystemInfoDialog from '@/components/system/WarmSystemInfoDialog.vue'
@@ -38,6 +39,7 @@ const dialogs = reactive({
   demoGuide: false,
   demoDataManager: false,
   demoReadiness: false,
+  freezeChecklist: false,
   demoAssetsGuide: false,
   roadmap: false,
 })
@@ -101,6 +103,7 @@ onUnmounted(() => {
         @open-demo-guide="dialogs.demoGuide = true"
         @open-demo-data-manager="dialogs.demoDataManager = true"
         @open-demo-readiness="dialogs.demoReadiness = true"
+        @open-freeze-checklist="dialogs.freezeChecklist = true"
         @open-demo-assets-guide="dialogs.demoAssetsGuide = true"
         @open-roadmap="dialogs.roadmap = true"
         @open-migration="openMigration"
@@ -165,6 +168,7 @@ onUnmounted(() => {
       @open-network="dialogs.network = true"
       @open-system-info="dialogs.systemInfo = true"
     />
+    <WarmFreezeChecklistDialog v-model:visible="dialogs.freezeChecklist" />
     <WarmDemoAssetsGuideDialog
       v-model:visible="dialogs.demoAssetsGuide"
       @open-upload="openUpload"

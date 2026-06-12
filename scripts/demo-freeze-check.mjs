@@ -1,7 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 
 const root = process.cwd();
 const blockers = [];
@@ -44,17 +43,15 @@ function hasGithubActionsCi() {
 const packageJson = JSON.parse(read('package.json'));
 const scripts = packageJson.scripts ?? {};
 const gitignore = read('.gitignore');
+const versionConfig = read('apps/tablet/src/config/app-version.ts');
 
 [
   'README.md',
-  'docs/tablet-field-test-guide.md',
-  'docs/file-flow-design.md',
-  'docs/v1.5-tablet-field-qa.md',
-  'docs/v1.6-demo-release-polish.md',
-  'docs/v1.7-demo-management.md',
-  'docs/v1.8-demo-freeze-qa.md',
   'docs/release-notes-v1.8.md',
   'docs/pre-merge-checklist.md',
+  'docs/tablet-field-test-guide.md',
+  'docs/file-flow-design.md',
+  'docs/v1.8-demo-freeze-qa.md',
   'apps/tablet/src/config/app-version.ts',
 ].forEach(requireFile);
 
@@ -64,7 +61,6 @@ const gitignore = read('.gitignore');
   'demo:release-check',
   'demo:freeze-check',
   'file-flow:check',
-  'dev:lan',
   'security:check',
   'build',
   'check',
@@ -78,8 +74,10 @@ const gitignore = read('.gitignore');
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
+if (!versionConfig.includes("APP_VERSION = 'V1.8'")) blockers.push('版本配置未检测到 V1.8。');
+if (!versionConfig.includes("APP_STAGE = '演示冻结候选版'")) blockers.push('版本阶段未检测到演示冻结候选版。');
 
-console.log('V1.8 demo release check');
+console.log('V1.8 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -94,8 +92,8 @@ if (blockers.length) {
   process.exit(1);
 }
 
-console.log('\nDemo release check passed.');
+console.log('\nDemo freeze check passed.');
 console.log('\nSuggested next steps:');
-console.log('- 平板真机验收');
-console.log('- push 分支');
-console.log('- 创建 PR 或继续开发');
+console.log('- 安卓平板真机验收 V1.8 冻结候选版');
+console.log('- push 分支后创建 PR');
+console.log('- CI 通过后人工验收，再决定是否合并 main 和打 v1.8-demo-candidate tag');

@@ -2,7 +2,6 @@
 
 @plugin "tailwindcss-primeui";
 @plugin "tailwindcss-animate";
-@custom-variant dark (&:is(.dark *));
 
 :root {
   font-family:

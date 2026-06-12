@@ -100,7 +100,7 @@ watch(
           <div class="mb-3 flex items-start justify-between gap-2">
             <button
               type="button"
-              class="grid h-11 w-11 place-items-center rounded-lg bg-[#d8752a] text-white shadow transition hover:-translate-y-0.5"
+              class="grid h-11 w-11 place-items-center rounded-lg bg-[#d8752a] text-[#fff8ea] shadow transition hover:-translate-y-0.5"
               @click="emit('select', document)"
             >
               <component :is="iconFor(document)" :size="22" />
