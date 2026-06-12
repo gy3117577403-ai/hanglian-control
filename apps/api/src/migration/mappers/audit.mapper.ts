@@ -1,0 +1,40 @@
+import type { AuditAction, AuditEntityType } from '../../common/enums/production.enum';
+import type { AuditLog } from '../../common/types/production.types';
+
+const entityToPrisma: Record<AuditEntityType, string> = {
+  document: 'DOCUMENT',
+  plan: 'PLAN',
+  feedback: 'FEEDBACK',
+  file: 'FILE',
+  system: 'SYSTEM',
+};
+
+const actionToPrisma: Record<AuditAction, string> = {
+  document_uploaded: 'DOCUMENT_UPLOADED',
+  document_status_changed: 'DOCUMENT_STATUS_CHANGED',
+  document_version_changed: 'DOCUMENT_VERSION_CHANGED',
+  document_set_effective: 'DOCUMENT_SET_EFFECTIVE',
+  document_archived: 'DOCUMENT_ARCHIVED',
+  document_previewed: 'DOCUMENT_PREVIEWED',
+  document_downloaded: 'DOCUMENT_DOWNLOADED',
+  readiness_recalculated: 'READINESS_RECALCULATED',
+  migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
+};
+
+export function mapAuditLogToPrisma(log: AuditLog) {
+  return {
+    id: log.auditId,
+    entityType: entityToPrisma[log.entityType],
+    entityId: log.entityId,
+    action: actionToPrisma[log.action],
+    beforeJson: log.before,
+    afterJson: log.after,
+    message: log.message,
+    operatorId: log.operatorId,
+    operatorName: log.operatorName,
+    operatorRole: log.operatorRole,
+    planId: log.planId,
+    productId: log.productId,
+    createdAt: new Date(log.createdAt),
+  };
+}

@@ -1,0 +1,347 @@
+// V0.7 data model and Prisma repository preparation.
+// Do not run migrations, db push, real seed, or connect to a production Sealos PostgreSQL database in this stage.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  FRONT_LEADER
+  BACK_LEADER
+  QUALITY
+  VIEWER
+}
+
+enum ProcessSegment {
+  FRONT
+  BACK
+  COMMON
+}
+
+enum PlanStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  EXCEPTION
+}
+
+enum ConfirmStatus {
+  UNCONFIRMED
+  CONFIRMED
+  NEED_REVIEW
+}
+
+enum DocumentType {
+  DRAWING_PDF
+  SOP_IMAGE
+  CONNECTOR_MANUAL
+  PINOUT_DIAGRAM
+  FINISHED_DETAIL_IMAGE
+  PROCESS_CARD
+}
+
+enum DocumentStatus {
+  EFFECTIVE
+  PENDING_REVIEW
+  EXPIRED
+  MISSING
+  INCONSISTENT
+}
+
+enum DocumentSource {
+  MOCK
+  WECOM_DISK
+  MANUAL_UPLOAD
+}
+
+enum ReadinessStatus {
+  READY
+  NEED_REVIEW
+  BLOCKED
+}
+
+enum FeedbackType {
+  MISSING_DOCUMENT
+  VERSION_EXCEPTION
+  PARAMETER_MISMATCH
+  UNCLEAR_DRAWING
+  SOP_SITE_MISMATCH
+  OTHER
+}
+
+enum AuditEntityType {
+  DOCUMENT
+  PLAN
+  FEEDBACK
+  FILE
+  SYSTEM
+}
+
+enum AuditAction {
+  DOCUMENT_UPLOADED
+  DOCUMENT_STATUS_CHANGED
+  DOCUMENT_VERSION_CHANGED
+  DOCUMENT_SET_EFFECTIVE
+  DOCUMENT_ARCHIVED
+  DOCUMENT_PREVIEWED
+  DOCUMENT_DOWNLOADED
+  READINESS_RECALCULATED
+  MIGRATION_PREVIEW_GENERATED
+}
+
+model User {
+  id              String               @id @default(cuid())
+  username        String               @unique
+  displayName     String
+  role            UserRole             @default(VIEWER)
+  teamName        String?
+  isActive        Boolean              @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  queryLogs       QueryLog[]
+  confirmations   ConfirmationRecord[]
+  feedbackRecords FeedbackRecord[]
+}
+
+model Customer {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  code       String?   @unique
+  salesOwner String?
+  deletedAt  DateTime?
+  products   Product[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([name])
+  @@index([deletedAt])
+}
+
+model Product {
+  id              String                  @id @default(cuid())
+  customerId      String
+  customer        Customer                @relation(fields: [customerId], references: [id])
+  productCode     String                  @unique
+  productName     String
+  currentVersion  String
+  processSegment  ProcessSegment          @default(COMMON)
+  isActive        Boolean                 @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  plans           ProductionPlan[]
+  documents       ProductDocument[]
+  frontParameters FrontProcessParameter[]
+  backPackages    BackProcessPackage[]
+
+  @@index([customerId])
+  @@index([processSegment])
+  @@index([deletedAt])
+}
+
+model ProductionPlan {
+  id                   String               @id @default(cuid())
+  planCode             String               @unique
+  planDate             DateTime
+  weekPlanCode         String
+  sales                String
+  productId            String
+  product              Product              @relation(fields: [productId], references: [id])
+  processSegment       ProcessSegment       @default(COMMON)
+  plannedQuantity      Int
+  completedQuantity    Int                  @default(0)
+  status               PlanStatus           @default(PENDING)
+  owner                String
+  materialCompleteness Int                  @default(0)
+  confirmStatus        ConfirmStatus        @default(UNCONFIRMED)
+  readinessStatus      ReadinessStatus      @default(NEED_REVIEW)
+  readinessScore       Int                  @default(0)
+  readinessSummary     String?
+  deletedAt            DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  documents            ProductDocument[]
+  queryLogs            QueryLog[]
+  confirmations        ConfirmationRecord[]
+  feedbackRecords      FeedbackRecord[]
+
+  @@index([planDate])
+  @@index([weekPlanCode])
+  @@index([productId])
+  @@index([status])
+  @@index([readinessStatus])
+  @@index([deletedAt])
+}
+
+model ProductDocument {
+  id                 String          @id @default(cuid())
+  productId          String
+  product            Product         @relation(fields: [productId], references: [id])
+  productionPlanId   String?
+  productionPlan     ProductionPlan? @relation(fields: [productionPlanId], references: [id])
+  documentType       DocumentType
+  versionGroupKey    String?
+  title              String
+  version            String
+  status             DocumentStatus  @default(PENDING_REVIEW)
+  source             DocumentSource  @default(MOCK)
+  requiredForProcess ProcessSegment  @default(COMMON)
+  previewType        String
+  originalFileName   String?
+  storedFileName     String?
+  mimeType           String?
+  fileSize           Int?
+  previewUrl         String?
+  downloadUrl        String?
+  storageProvider    String?
+  storageKey         String?
+  checksum           String?
+  mockPreviewText    String?
+  keywords           String[]
+  remark             String?
+  effectiveDate      DateTime?
+  archived           Boolean         @default(false)
+  archivedAt         DateTime?
+  archivedBy         String?
+  deletedAt          DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([productId, documentType, requiredForProcess, version])
+  @@index([productId, documentType])
+  @@index([versionGroupKey])
+  @@index([productionPlanId])
+  @@index([status])
+  @@index([source])
+  @@index([archived])
+  @@index([deletedAt])
+}
+
+model AuditLog {
+  id           String          @id @default(cuid())
+  entityType   AuditEntityType
+  entityId     String
+  action       AuditAction
+  beforeJson   Json?
+  afterJson    Json?
+  message      String
+  operatorId   String?
+  operatorName String?
+  operatorRole String?
+  planId       String?
+  productId    String?
+  createdAt    DateTime        @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([planId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model FrontProcessParameter {
+  id                String         @id @default(cuid())
+  productId         String
+  product           Product        @relation(fields: [productId], references: [id])
+  wireLength        String
+  strippingLength   String
+  terminalModel     String
+  pullForceStandard String
+  crimpHeight       String
+  drawingVersion    String
+  status            DocumentStatus @default(PENDING_REVIEW)
+  effectiveFrom     DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([productId])
+  @@index([terminalModel])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model BackProcessPackage {
+  id             String         @id @default(cuid())
+  productId      String
+  product        Product        @relation(fields: [productId], references: [id])
+  connectorModel String
+  assemblyManual String
+  pinMap         String
+  sop            String
+  imageCount     Int            @default(0)
+  drawingVersion String
+  sopVersion     String
+  status         DocumentStatus @default(PENDING_REVIEW)
+  effectiveFrom  DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([productId])
+  @@index([connectorModel])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model QueryLog {
+  id               String          @id @default(cuid())
+  productionPlanId String?
+  productionPlan   ProductionPlan? @relation(fields: [productionPlanId], references: [id])
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id])
+  keyword          String
+  querySource      String
+  resultSummary    String?
+  deviceInfo       String?
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+
+  @@index([productionPlanId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model ConfirmationRecord {
+  id               String         @id @default(cuid())
+  productionPlanId String
+  productionPlan   ProductionPlan @relation(fields: [productionPlanId], references: [id])
+  userId           String?
+  user             User?          @relation(fields: [userId], references: [id])
+  status           ConfirmStatus  @default(CONFIRMED)
+  role             String?
+  versionSnapshot  Json?
+  remark           String?
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+
+  @@index([productionPlanId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model FeedbackRecord {
+  id               String         @id @default(cuid())
+  productionPlanId String
+  productionPlan   ProductionPlan @relation(fields: [productionPlanId], references: [id])
+  userId           String?
+  user             User?          @relation(fields: [userId], references: [id])
+  feedbackType     FeedbackType
+  description      String
+  status           String         @default("OPEN")
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  resolvedAt       DateTime?
+
+  @@index([productionPlanId])
+  @@index([feedbackType])
+  @@index([createdAt])
+  @@index([deletedAt])
+}

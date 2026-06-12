@@ -1,0 +1,34 @@
+{
+  "name": "hanglian",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently -n tablet,api -c cyan,green \"npm run dev:tablet\" \"npm run dev:api\"",
+    "dev:tablet": "npm run dev -w tablet -- --host 0.0.0.0",
+    "dev:api": "npm run start:dev -w api",
+    "build": "npm run build:tablet && npm run build:api",
+    "build:tablet": "npm run build -w tablet",
+    "build:api": "npm run build -w api",
+    "security:check": "node scripts/security-check.mjs",
+    "prisma:format": "npx prisma format --schema=apps/api/prisma/schema.prisma",
+    "prisma:validate": "npx prisma validate --schema=apps/api/prisma/schema.prisma",
+    "prisma:generate": "npx prisma generate --schema=apps/api/prisma/schema.prisma",
+    "check": "npm run security:check && npm run prisma:validate && npm run build",
+    "lint": "npm run lint:tablet && npm run lint:api",
+    "lint:tablet": "npm run lint -w tablet",
+    "lint:api": "npm run lint -w api"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "vite": "6.4.3"
+  }
+}
