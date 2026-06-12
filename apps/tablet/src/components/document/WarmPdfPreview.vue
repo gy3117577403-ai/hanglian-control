@@ -4,6 +4,7 @@ import VuePdfEmbed from 'vue-pdf-embed'
 import { GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { Download, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next'
+import WarmErrorState from '@/components/common/WarmErrorState.vue'
 import { dateTimeLabel, documentTypeLabel, fileSizeLabel, resolveFileUrl } from '@/lib/format'
 import {
   documentSeverity,
@@ -133,6 +134,14 @@ function failLoading() {
     <PrimeMessage v-if="shouldShowFallback" :severity="effectiveHealthStatus === 'demo' ? 'info' : 'error'" :closable="false">
       文件健康状态：{{ fileHealthLabel(effectiveHealthStatus) }}。如果该资料来自演示数据，请先上传真实 PDF；如果文件异常，可重新加载或下载后查看。
     </PrimeMessage>
+
+    <WarmErrorState
+      v-if="failed"
+      title="PDF 预览失败"
+      description="可尝试重新加载、下载查看，或上传 demo-upload-assets 中的演示 PDF。"
+      action-label="重新加载"
+      @action="failed = false"
+    />
 
     <div class="pdf-paper-stage">
       <div v-if="loading" class="grid gap-3 p-5">

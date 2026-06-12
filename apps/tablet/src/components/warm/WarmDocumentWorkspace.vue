@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import WarmEmptyState from '@/components/common/WarmEmptyState.vue'
+import WarmErrorState from '@/components/common/WarmErrorState.vue'
 import WarmDocumentCarousel, { type DocumentCardAction } from '@/components/document/WarmDocumentCarousel.vue'
 import WarmImagePreview from '@/components/document/WarmImagePreview.vue'
 import WarmPdfPreview from '@/components/document/WarmPdfPreview.vue'
@@ -276,6 +278,22 @@ watch(
       </div>
     </div>
 
+    <WarmEmptyState
+      v-if="!allDocuments.length"
+      title="当前产品暂无资料"
+      description="可点击上传，使用 demo-upload-assets 中的演示 PDF 或图片资料加入当前产品资料包。"
+      action-label="上传资料"
+      @action="emit('open-upload')"
+    />
+
+    <WarmErrorState
+      v-else-if="!store.fileHealth && !store.fileHealthLoading"
+      title="文件健康暂无数据"
+      description="文件健康接口未返回结果，仍可继续查看 Mock 资料；如需验证文件流，请先打开网络诊断或重新选择计划。"
+      action-label="重新检查"
+      @action="store.loadFileHealth()"
+    />
+
     <div v-if="previewDocument" class="preview-diagnostic-grid">
       <div
         v-for="item in previewDiagnostics.rows"
@@ -291,7 +309,7 @@ watch(
       </div>
     </div>
 
-    <PrimeTabs :value="activeTab" class="document-folder-tabs" @update:value="setTab" @click.capture="onTabClick">
+    <PrimeTabs v-if="allDocuments.length" :value="activeTab" class="document-folder-tabs" @update:value="setTab" @click.capture="onTabClick">
       <PrimeTabList>
         <PrimeTab v-for="item in tabStats" :key="item.tab" :value="item.tab">
           <i :class="tabIcon(item.tab)" />
@@ -302,7 +320,7 @@ watch(
       </PrimeTabList>
     </PrimeTabs>
 
-    <PrimeCard class="mt-3 document-preview-card">
+    <PrimeCard v-if="allDocuments.length" class="mt-3 document-preview-card">
       <template #content>
         <div class="grid grid-cols-[minmax(260px,0.34fr)_minmax(480px,0.66fr)] gap-3">
           <WarmDocumentCarousel

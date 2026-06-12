@@ -3,6 +3,8 @@ import { computed, reactive, ref } from 'vue'
 import type { FileUploadSelectEvent } from 'primevue/fileupload'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import WarmEmptyState from '@/components/common/WarmEmptyState.vue'
+import WarmErrorState from '@/components/common/WarmErrorState.vue'
 import {
   auditActionLabel,
   compareFieldLabel,
@@ -488,7 +490,11 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
             <span class="text-sm font-bold text-[#76512a]">{{ processLabel(document.requiredForProcess) }}</span>
             <PrimeButton severity="secondary" aria-label="版本操作" @click="openVersionMenu($event, document)" icon="pi pi-ellipsis-h" />
           </div>
-          <PrimeMessage v-if="!group.rows.length" severity="info" :closable="false">暂无{{ group.title }}。</PrimeMessage>
+          <WarmEmptyState
+            v-if="!group.rows.length"
+            :title="`暂无${group.title}`"
+            description="当前资料组还没有对应版本，可上传演示资料后再查看。"
+          />
         </div>
       </section>
     </div>
@@ -496,9 +502,11 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
   </PrimeDialog>
 
   <PrimeDialog v-model:visible="compareVisible" modal header="版本元数据对比" class="w-[920px]">
-    <PrimeMessage v-if="!store.versionCompareResult || store.versionCompareResult.documents.length < 2" severity="warn" :closable="false">
-      请选择两个版本进行对比。当前只做元数据对比，不做 PDF 内容差异。
-    </PrimeMessage>
+    <WarmErrorState
+      v-if="!store.versionCompareResult || store.versionCompareResult.documents.length < 2"
+      title="无法生成版本对比"
+      description="请选择两个版本进行对比。当前只做元数据对比，不做 PDF 内容差异。"
+    />
     <div v-else class="grid gap-4">
       <div class="grid grid-cols-2 gap-4">
         <div v-for="document in store.versionCompareResult.documents.slice(0, 2)" :key="document.documentId ?? document.id" class="section-bay">
@@ -541,7 +549,10 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
         </article>
       </template>
       <template #empty>
-        <PrimeMessage severity="info" :closable="false">当前计划暂无审计记录。</PrimeMessage>
+        <WarmEmptyState
+          title="暂无审计记录"
+          description="当前计划还没有上传、版本调整或反馈动作。执行演示操作后会出现模拟留痕。"
+        />
       </template>
     </PrimeTimeline>
   </PrimeDialog>

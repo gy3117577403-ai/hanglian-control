@@ -6,7 +6,9 @@ import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
 import WarmDialogs from '@/components/warm/WarmDialogs.vue'
 import WarmDocumentWorkspace from '@/components/warm/WarmDocumentWorkspace.vue'
 import WarmFieldQaChecklist from '@/components/field/WarmFieldQaChecklist.vue'
+import WarmDemoGuideDialog from '@/components/system/WarmDemoGuideDialog.vue'
 import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
+import WarmSystemInfoDialog from '@/components/system/WarmSystemInfoDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
 import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
@@ -28,6 +30,8 @@ const dialogs = reactive({
   migration: false,
   network: false,
   fieldQa: false,
+  systemInfo: false,
+  demoGuide: false,
 })
 
 function openFeedback() {
@@ -85,6 +89,8 @@ onUnmounted(() => {
       <WarmStatusBar
         @open-network="dialogs.network = true"
         @open-field-qa="dialogs.fieldQa = true"
+        @open-system-info="dialogs.systemInfo = true"
+        @open-demo-guide="dialogs.demoGuide = true"
       />
       <main class="warm-layout">
         <WarmPlanRail />
@@ -128,5 +134,12 @@ onUnmounted(() => {
     />
     <WarmNetworkDiagnosticsDialog v-model:visible="dialogs.network" />
     <WarmFieldQaChecklist v-model:visible="dialogs.fieldQa" />
+    <WarmSystemInfoDialog v-model:visible="dialogs.systemInfo" />
+    <WarmDemoGuideDialog
+      v-model:visible="dialogs.demoGuide"
+      @open-network="dialogs.network = true"
+      @open-field-qa="dialogs.fieldQa = true"
+      @open-upload="openUpload"
+    />
   </div>
 </template>

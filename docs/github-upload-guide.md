@@ -15,11 +15,12 @@
 
 ```bash
 npm run security:check
+npm run demo:release-check
 npm run build
 npm run check
 ```
 
-`npm run check` 会依次执行安全检查、Prisma schema 校验和项目构建。
+`npm run demo:release-check` 建议在推送演示分支前执行，用于确认 README、平板演示文档、演示检查脚本、忽略规则、版本配置和 GitHub Actions CI 都已准备好。`npm run check` 会依次执行安全检查、Prisma schema 校验和项目构建。
 
 ## 禁止提交的文件
 

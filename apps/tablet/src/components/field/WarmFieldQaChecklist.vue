@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ClipboardCheck, RotateCcw, ShieldCheck } from 'lucide-vue-next'
+import { Clipboard, ClipboardCheck, RotateCcw, ShieldCheck } from 'lucide-vue-next'
+import { useToast } from 'primevue/usetoast'
+import { useUiStore } from '@/stores/ui-store'
 
 const props = defineProps<{
   visible: boolean
@@ -9,6 +11,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [value: boolean]
 }>()
+
+const toast = useToast()
+const uiStore = useUiStore()
 
 interface QaItem {
   id: string
@@ -54,6 +59,8 @@ const dialogVisible = computed({
 })
 const completedCount = computed(() => checkedIds.value.length)
 const progress = computed(() => Math.round((completedCount.value / items.length) * 100))
+const exportText = computed(() => uiStore.exportFieldQaResult(items, checkedIds.value))
+const copyFallbackVisible = ref(false)
 
 function toggleItem(id: string) {
   checkedIds.value = checkedIds.value.includes(id)
@@ -63,6 +70,18 @@ function toggleItem(id: string) {
 
 function resetChecklist() {
   checkedIds.value = []
+  copyFallbackVisible.value = false
+}
+
+async function copyChecklistResult() {
+  const ok = await uiStore.copyFieldQaResult(exportText.value)
+  if (ok) {
+    copyFallbackVisible.value = false
+    toast.add({ severity: 'success', summary: '走查结果已复制', detail: `${completedCount.value}/${items.length} 项完成。`, life: 2600 })
+    return
+  }
+  copyFallbackVisible.value = true
+  toast.add({ severity: 'warn', summary: '无法自动复制', detail: '请在文本框中手动复制走查结果。', life: 3000 })
 }
 
 watch(
@@ -124,10 +143,21 @@ watch(
           </span>
         </label>
       </div>
+
+      <section v-if="copyFallbackVisible" class="section-bay">
+        <p class="section-kicker">COPY FALLBACK</p>
+        <PrimeTextarea :model-value="exportText" class="mt-2 min-h-36 w-full text-sm font-bold" readonly />
+      </section>
     </div>
 
     <template #footer>
+      <PrimeButton severity="secondary" label="复制走查结果" @click="copyChecklistResult">
+        <template #icon><Clipboard :size="17" /></template>
+      </PrimeButton>
       <PrimeButton severity="secondary" label="重置走查" @click="resetChecklist">
+        <template #icon><RotateCcw :size="17" /></template>
+      </PrimeButton>
+      <PrimeButton severity="secondary" label="全部标记为未完成" @click="resetChecklist">
         <template #icon><RotateCcw :size="17" /></template>
       </PrimeButton>
       <PrimeButton label="继续现场验证" @click="dialogVisible = false">

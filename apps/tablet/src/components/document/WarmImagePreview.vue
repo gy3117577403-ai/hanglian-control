@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Viewer from 'viewerjs'
 import 'viewerjs/dist/viewer.css'
 import { Download, Maximize2 } from 'lucide-vue-next'
+import WarmEmptyState from '@/components/common/WarmEmptyState.vue'
+import WarmErrorState from '@/components/common/WarmErrorState.vue'
 import { dateTimeLabel, documentTypeLabel, fileSizeLabel, mockPreviewImage, resolveFileUrl } from '@/lib/format'
 import {
   documentSeverity,
@@ -176,6 +178,14 @@ onBeforeUnmount(() => {
       文件健康状态：{{ fileHealthLabel(effectiveHealthStatus) }}。上传真实图片后将自动替换当前预览。
     </PrimeMessage>
 
+    <WarmErrorState
+      v-if="failed"
+      title="图片预览失败"
+      description="可尝试重新加载，或上传 demo-upload-assets 中的演示图片。"
+      action-label="重新加载"
+      @action="failed = false"
+    />
+
     <div ref="viewerRoot" class="viewer-image-bank">
       <img
         v-for="item in imageItems"
@@ -199,12 +209,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-else class="grid min-h-[320px] place-items-center rounded-lg border border-dashed border-[#9a693633] bg-[#fff8e9]/78">
-      <div class="text-center">
-        <PrimeSkeleton shape="circle" size="4rem" class="mx-auto" />
-        <p class="mt-4 text-lg font-black text-[#3b2514]">当前资料夹暂无图片</p>
-        <p class="mt-1 text-sm font-bold text-[#76512a]">可通过本地上传加入 Mock 资料包。</p>
-      </div>
-    </div>
+    <WarmEmptyState
+      v-else
+      title="当前资料夹暂无图片"
+      description="可通过本地上传加入 Mock 资料包，建议选择 demo-upload-assets 中的 PNG 演示文件。"
+      action-label="上传图片"
+      @action="emit('upload')"
+    />
   </div>
 </template>

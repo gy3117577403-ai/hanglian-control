@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import dayjs from 'dayjs'
-import { CalendarDays, ClipboardCheck, Factory, HardDrive, Maximize2, Network, ShieldCheck, UserRound } from 'lucide-vue-next'
+import { BookOpenText, CalendarDays, ClipboardCheck, Factory, HardDrive, Info, Maximize2, Network, ShieldCheck, UserRound } from 'lucide-vue-next'
+import { APP_STAGE, APP_VERSION } from '@/config/app-version'
 import { useProductionStore } from '@/stores/production-store'
 import { useUiStore } from '@/stores/ui-store'
 
@@ -10,6 +11,8 @@ const uiStore = useUiStore()
 const emit = defineEmits<{
   'open-network': []
   'open-field-qa': []
+  'open-system-info': []
+  'open-demo-guide': []
 }>()
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
 let timer: number | undefined
@@ -53,6 +56,10 @@ onUnmounted(() => {
         <h1 class="truncate text-[25px] font-black leading-tight tracking-normal text-[#342316]">
           线束车间生产计划资料管控系统
         </h1>
+        <div class="mt-1 flex flex-wrap gap-2">
+          <PrimeTag severity="warn" :value="`${APP_VERSION} ${APP_STAGE}`" />
+          <PrimeTag severity="info" value="Mock 数据源" />
+        </div>
       </div>
     </div>
 
@@ -75,7 +82,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="warm-topbar-system grid grid-cols-[minmax(0,1fr)_220px] items-center gap-3">
+    <div class="warm-topbar-system grid grid-cols-[minmax(0,1fr)_260px] items-center gap-3">
       <div class="space-y-2">
         <PrimeTag :severity="apiSeverity" :value="apiLabel" />
         <div class="flex items-center gap-2 text-xs font-bold text-[#76512a]">
@@ -84,6 +91,20 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="warm-topbar-action-grid">
+        <PrimeButton
+          severity="secondary"
+          label="系统信息"
+          @click="emit('open-system-info')"
+        >
+          <template #icon><Info :size="17" /></template>
+        </PrimeButton>
+        <PrimeButton
+          severity="secondary"
+          label="演示说明"
+          @click="emit('open-demo-guide')"
+        >
+          <template #icon><BookOpenText :size="17" /></template>
+        </PrimeButton>
         <PrimeButton
           severity="secondary"
           label="网络诊断"

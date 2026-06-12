@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Clipboard, ExternalLink, HardDrive, Network, RefreshCw, Router, Server, ShieldAlert, TabletSmartphone } from 'lucide-vue-next'
+import WarmErrorState from '@/components/common/WarmErrorState.vue'
 import { getApiHostInfo } from '@/config/api-base'
 import { apiBaseUrl, checkFileService, getDataSourceStatus, getHealth, measureApiLatency } from '@/services/api'
 import { useProductionStore } from '@/stores/production-store'
@@ -127,6 +128,14 @@ watch(
       <PrimeMessage v-if="hostInfo.mixedContentRisk" severity="warn" :closable="false">
         当前前端为 HTTPS，但 API 为 HTTP，安卓平板浏览器可能拦截请求；现场演示建议前端和 API 都使用 HTTP 局域网地址。
       </PrimeMessage>
+
+      <WarmErrorState
+        v-if="diagnostics.healthStatus === '离线'"
+        title="API 健康检查失败"
+        description="请确认电脑已执行 npm run dev:lan，平板和电脑在同一网络，并允许 Node.js 通过防火墙。"
+        action-label="重新检测"
+        @action="runDiagnostics"
+      />
 
       <div class="diagnostic-grid">
         <article class="diagnostic-card">

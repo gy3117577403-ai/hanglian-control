@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { AlertTriangle, ClipboardList, PackageCheck } from 'lucide-vue-next'
+import WarmEmptyState from '@/components/common/WarmEmptyState.vue'
 import WarmSearchPanel from '@/components/warm/WarmSearchPanel.vue'
 import { completionSummary, completionTone, confirmSeverity, planStatusSeverity, progressClass } from '@/lib/status-style'
 import { useProductionStore } from '@/stores/production-store'
@@ -51,7 +52,15 @@ function onScopeTabClick(event: MouseEvent) {
         <PrimeTag :value="`${store.visiblePlans.length} 条`" severity="secondary" />
       </div>
 
-      <div v-auto-animate class="warm-scroll max-h-[calc(100vh-490px)] space-y-3">
+      <WarmEmptyState
+        v-if="!store.visiblePlans.length"
+        title="暂无生产计划"
+        description="当前范围没有可显示的生产任务，可切换今日/本周计划或检查 Mock API 状态。"
+        action-label="切换本周计划"
+        @action="onScopeChange('week')"
+      />
+
+      <div v-else v-auto-animate class="warm-scroll max-h-[calc(100vh-490px)] space-y-3">
         <button
           v-for="plan in store.visiblePlans"
           :key="plan.id"

@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { Mic, Search, Sparkles } from 'lucide-vue-next'
+import WarmEmptyState from '@/components/common/WarmEmptyState.vue'
 import { useProductionStore } from '@/stores/production-store'
 import type { SearchHit } from '@/types/production'
 
@@ -92,7 +93,16 @@ onUnmounted(() => {
       <span class="text-lg">按住说话</span>
     </PrimeButton>
 
-    <div v-if="store.searchHits.length" v-auto-animate class="mt-3 max-h-36 space-y-2 overflow-auto pr-1">
+    <WarmEmptyState
+      v-if="store.searchKeyword && !store.searchResults.length && !store.loading"
+      class="mt-3"
+      title="暂无精确匹配"
+      description="可换用客户、产品编号、端子型号、SOP 或孔位图关键词，也可以点击语音模拟查询。"
+      action-label="模拟语音查询"
+      @action="store.runVoiceQuery()"
+    />
+
+    <div v-else-if="store.searchHits.length" v-auto-animate class="mt-3 max-h-36 space-y-2 overflow-auto pr-1">
       <button
         v-for="hit in store.searchHits.slice(0, 4)"
         :key="hit.id"
