@@ -61,8 +61,31 @@ export function documentStatusLabel(document: ProductDocument) {
   return labels[value] ?? String(value)
 }
 
+export function rawDocumentStatus(document: ProductDocument) {
+  const value = document.documentStatus ?? document.status
+  if (value === '有效') return 'effective'
+  if (value === '待确认') return 'pending_review'
+  if (value === '失效') return 'expired'
+  return value
+}
+
 export function documentSeverity(document: ProductDocument) {
   return materialSeverity(document.documentStatus ?? document.status)
+}
+
+export function documentStatusDotClass(document: ProductDocument) {
+  const value = rawDocumentStatus(document)
+  if (value === 'effective') return 'bg-[#229a66]'
+  if (value === 'pending_review') return 'bg-[#d79527]'
+  return 'bg-[#b8422a]'
+}
+
+export function isHistoricalDocument(document?: ProductDocument | null) {
+  return Boolean(document && rawDocumentStatus(document) === 'expired')
+}
+
+export function isPendingDocument(document?: ProductDocument | null) {
+  return Boolean(document && rawDocumentStatus(document) === 'pending_review')
 }
 
 export function sourceLabel(source?: string) {

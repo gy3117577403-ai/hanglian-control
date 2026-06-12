@@ -1,9 +1,20 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import type { FileUploadSelectEvent } from 'primevue/fileupload'
+import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { documentSeverity, documentStatusLabel, sourceLabel } from '@/lib/status-style'
+import {
+  auditActionLabel,
+  compareFieldLabel,
+  dateTimeLabel,
+  documentTypeLabel,
+  fileSizeLabel,
+  processLabel,
+  sourceLabel,
+} from '@/lib/format'
+import { documentSeverity, documentStatusLabel, rawDocumentStatus } from '@/lib/status-style'
 import { useProductionStore } from '@/stores/production-store'
-import type { DocumentStatus, DocumentTypeV03, FeedbackType, RequiredProcess } from '@/types/production'
+import type { DocumentStatus, DocumentTypeV03, FeedbackType, ProductDocument, RequiredProcess } from '@/types/production'
 
 const props = defineProps<{
   feedbackOpen: boolean
@@ -23,7 +34,13 @@ const emit = defineEmits<{
 
 const store = useProductionStore()
 const toast = useToast()
-const uploadInput = ref<HTMLInputElement | null>(null)
+const confirm = useConfirm()
+const selectedUploadFile = ref<File | null>(null)
+const uploadError = ref('')
+const compareSelection = ref<string[]>([])
+const versionMenu = ref<{ toggle: (event: Event) => void } | null>(null)
+const versionMenuDocument = ref<ProductDocument | null>(null)
+
 const activeDocument = computed(() => store.selectedDocument ?? store.previewDocument)
 
 const feedbackVisible = computed({
@@ -45,6 +62,12 @@ const auditVisible = computed({
 const migrationVisible = computed({
   get: () => props.migrationOpen,
   set: (value: boolean) => emit('update:migrationOpen', value),
+})
+const compareVisible = computed({
+  get: () => store.compareDialogOpen,
+  set: (value: boolean) => {
+    store.compareDialogOpen = value
+  },
 })
 
 const feedbackTypes: Array<{ label: FeedbackType; value: FeedbackType }> = [
@@ -98,11 +121,41 @@ const versionForm = reactive({
   reason: '组长复核后设为当前有效版本。',
 })
 
-function onFileChange() {
-  const file = uploadInput.value?.files?.[0]
-  if (file && !uploadForm.title) {
-    uploadForm.title = file.name.replace(/\.[^.]+$/, '')
+const versionRows = computed(() => {
+  const rows = store.documentVersions?.versions ?? []
+  if (rows.length) return rows
+  return activeDocument.value ? [activeDocument.value] : []
+})
+
+const currentVersions = computed(() => versionRows.value.filter((document) => rawDocumentStatus(document) === 'effective'))
+const pendingVersions = computed(() => versionRows.value.filter((document) => rawDocumentStatus(document) === 'pending_review'))
+const historyVersions = computed(() => versionRows.value.filter((document) => !['effective', 'pending_review'].includes(String(rawDocumentStatus(document)))))
+
+const versionGroupSummary = computed(() => {
+  const document = activeDocument.value
+  if (!document) return '未选择资料'
+  return `${document.productId ?? store.selectedPlan.productId ?? store.selectedPlan.productCode} / ${documentTypeLabel(document)} / ${processLabel(document.requiredForProcess)}`
+})
+
+const versionMenuItems = computed(() => [
+  { label: '设为当前有效', icon: 'pi pi-check-circle', command: () => confirmSetEffective(versionMenuDocument.value) },
+  { label: '加入对比', icon: 'pi pi-clone', command: () => toggleCompare(versionMenuDocument.value) },
+  { label: '标记为待确认', icon: 'pi pi-exclamation-circle', command: () => updateVersionStatus(versionMenuDocument.value, 'pending_review') },
+  { label: '标记为已失效', icon: 'pi pi-ban', class: 'danger-menu-item', command: () => updateVersionStatus(versionMenuDocument.value, 'expired') },
+  { label: '归档', icon: 'pi pi-box', class: 'danger-menu-item', command: () => confirmArchive(versionMenuDocument.value) },
+])
+
+function onFileSelect(event: FileUploadSelectEvent) {
+  const files = Array.isArray(event.files) ? event.files as File[] : [event.files as File]
+  selectedUploadFile.value = files[0] ?? null
+  if (selectedUploadFile.value && !uploadForm.title) {
+    uploadForm.title = selectedUploadFile.value.name.replace(/\.[^.]+$/, '')
   }
+  uploadError.value = ''
+}
+
+function clearUploadFile() {
+  selectedUploadFile.value = null
 }
 
 async function submitFeedback() {
@@ -111,50 +164,105 @@ async function submitFeedback() {
   feedbackVisible.value = false
 }
 
+function validateUpload() {
+  if (!selectedUploadFile.value) return '请选择资料文件。'
+  if (!uploadForm.documentType) return '请选择资料类型。'
+  if (!uploadForm.title.trim()) return '请填写资料标题。'
+  if (!uploadForm.version.trim()) return '请填写版本号。'
+  if (selectedUploadFile.value.size > 30 * 1024 * 1024) return '单文件最大 30MB。'
+  return ''
+}
+
 async function submitUpload() {
-  const file = uploadInput.value?.files?.[0]
-  if (!file) {
-    toast.add({ severity: 'warn', summary: '请选择资料文件', detail: '仅支持本地 Mock 文件上传。', life: 2600 })
-    return
-  }
-  if (!uploadForm.title.trim()) {
-    toast.add({ severity: 'warn', summary: '请填写资料标题', life: 2600 })
-    return
-  }
+  uploadError.value = validateUpload()
+  if (uploadError.value) return
+  if (!selectedUploadFile.value) return
 
   const formData = new FormData()
-  formData.set('file', file)
+  formData.set('file', selectedUploadFile.value)
   formData.set('documentType', uploadForm.documentType)
   formData.set('requiredForProcess', uploadForm.requiredForProcess)
   formData.set('status', uploadForm.status)
   formData.set('title', uploadForm.title.trim())
-  formData.set('version', uploadForm.version.trim() || 'V1.0')
+  formData.set('version', uploadForm.version.trim())
   formData.set('keywords', uploadForm.keywords.trim())
   formData.set('remark', uploadForm.remark.trim())
 
-  await store.uploadCurrentDocument(formData)
-  if (!store.uploadLoading) uploadVisible.value = false
+  try {
+    await store.uploadCurrentDocument(formData)
+    toast.add({ severity: 'success', summary: '资料上传成功', detail: '已加入当前产品资料包。', life: 3000 })
+    uploadVisible.value = false
+    selectedUploadFile.value = null
+    uploadError.value = ''
+  } catch {
+    uploadError.value = '资料上传失败，请检查文件格式或网络。'
+  }
 }
 
-async function setEffective() {
-  const document = store.selectedDocument ?? store.previewDocument
-  if (!document) return
-  await store.setCurrentDocumentEffective(document.documentId ?? document.id, { reason: versionForm.reason })
+function openVersionMenu(event: Event, document: ProductDocument) {
+  versionMenuDocument.value = document
+  versionMenu.value?.toggle(event)
 }
 
-async function updateStatus() {
-  const document = store.selectedDocument ?? store.previewDocument
+function toggleCompare(document?: ProductDocument | null) {
   if (!document) return
-  await store.updateCurrentDocumentStatus(document.documentId ?? document.id, {
-    status: versionForm.status,
-    reason: versionForm.reason,
+  const id = document.documentId ?? document.id
+  if (compareSelection.value.includes(id)) {
+    compareSelection.value = compareSelection.value.filter((item) => item !== id)
+    return
+  }
+  compareSelection.value = [...compareSelection.value, id].slice(-2)
+}
+
+async function runCompare() {
+  if (compareSelection.value.length !== 2) {
+    toast.add({ severity: 'warn', summary: '请选择两个版本', detail: '版本对比需要两个资料版本。', life: 2600 })
+    return
+  }
+  await store.compareDocumentVersions(compareSelection.value)
+}
+
+function confirmSetEffective(document?: ProductDocument | null) {
+  if (!document) return
+  confirm.require({
+    header: '设为当前有效版本',
+    message: `确认将 ${document.title} ${document.version} 设为当前有效版本？`,
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '确认设为有效',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      void store.setCurrentDocumentEffective(document.documentId ?? document.id, { reason: versionForm.reason }).then(() => {
+        toast.add({ severity: 'success', summary: '已设为当前有效', detail: document.title, life: 2600 })
+      })
+    },
   })
 }
 
-async function archiveDocument() {
-  const document = store.selectedDocument ?? store.previewDocument
+function confirmArchive(document?: ProductDocument | null) {
   if (!document) return
-  await store.archiveCurrentDocument(document.documentId ?? document.id)
+  confirm.require({
+    header: '归档资料',
+    message: `确认归档 ${document.title} ${document.version}？`,
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '确认归档',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      void store.archiveCurrentDocument(document.documentId ?? document.id).then(() => {
+        toast.add({ severity: 'warn', summary: '资料已归档', detail: document.title, life: 2600 })
+      })
+    },
+  })
+}
+
+async function updateVersionStatus(document: ProductDocument | null | undefined, status: DocumentStatus) {
+  if (!document) return
+  await store.updateCurrentDocumentStatus(document.documentId ?? document.id, {
+    status,
+    reason: versionForm.reason,
+  })
+  toast.add({ severity: status === 'expired' ? 'error' : 'warn', summary: '资料状态已更新', detail: document.title, life: 2600 })
 }
 </script>
 
@@ -163,13 +271,7 @@ async function archiveDocument() {
     <div class="grid gap-4">
       <div>
         <label class="text-sm font-black text-[#68411f]">异常类型</label>
-        <PrimeSelect
-          v-model="feedbackForm.type"
-          class="mt-2 w-full"
-          :options="feedbackTypes"
-          option-label="label"
-          option-value="value"
-        />
+        <PrimeSelect v-model="feedbackForm.type" class="mt-2 w-full" :options="feedbackTypes" option-label="label" option-value="value" />
       </div>
       <div>
         <label class="text-sm font-black text-[#68411f]">现场说明</label>
@@ -185,122 +287,188 @@ async function archiveDocument() {
     </template>
   </PrimeDialog>
 
-  <PrimeDialog v-model:visible="uploadVisible" modal header="上传本地资料" class="w-[760px]">
-    <div class="grid grid-cols-2 gap-4">
-      <div class="col-span-2">
-        <label class="text-sm font-black text-[#68411f]">资料文件</label>
-        <input
-          ref="uploadInput"
-          class="mt-2 block w-full rounded-lg border border-[#8b5a2a42] bg-[#fff8ea] px-3 py-3 text-base font-bold text-[#342316] file:mr-4 file:rounded-md file:border-0 file:bg-[#c76f28] file:px-4 file:py-2 file:font-black file:text-white"
-          type="file"
+  <PrimeDialog v-model:visible="uploadVisible" modal header="上传产品资料" class="w-[860px]">
+    <div class="grid max-h-[70vh] gap-4 overflow-auto pr-1">
+      <div class="upload-binding-grid">
+        <div class="warm-chip"><span>客户</span><strong>{{ store.selectedPlan.customer }}</strong></div>
+        <div class="warm-chip"><span>产品编号</span><strong>{{ store.selectedPlan.productCode }}</strong></div>
+        <div class="warm-chip"><span>产品名称</span><strong>{{ store.selectedPlan.productName }}</strong></div>
+        <div class="warm-chip"><span>当前计划</span><strong>{{ store.selectedPlan.weekPlanNo }}</strong></div>
+      </div>
+
+      <div class="upload-drop-frame p-3">
+        <PrimeFileUpload
+          mode="advanced"
+          name="file"
           accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-          @change="onFileChange"
+          :multiple="false"
+          :custom-upload="true"
+          :show-upload-button="false"
+          :show-cancel-button="false"
+          :max-file-size="30 * 1024 * 1024"
+          choose-label="选择资料文件"
+          invalid-file-size-message="{0} 超过 30MB 限制。"
+          invalid-file-type-message="{0} 文件格式不支持。"
+          @select="onFileSelect"
+          @clear="clearUploadFile"
         >
+          <template #empty>
+            <div class="grid min-h-24 place-items-center text-center">
+              <div>
+                <p class="text-lg font-black text-[#3b2514]">拖入或选择 PDF / JPG / PNG / WEBP</p>
+                <p class="mt-1 text-sm font-bold text-[#76512a]">单文件最大 30MB，仅用于本地原型资料包。</p>
+              </div>
+            </div>
+          </template>
+        </PrimeFileUpload>
       </div>
-      <div>
-        <label class="text-sm font-black text-[#68411f]">资料类型</label>
-        <PrimeSelect v-model="uploadForm.documentType" class="mt-2 w-full" :options="documentTypeOptions" option-label="label" option-value="value" />
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm font-black text-[#68411f]">资料类型</label>
+          <PrimeSelect v-model="uploadForm.documentType" class="mt-2 w-full" :options="documentTypeOptions" option-label="label" option-value="value" />
+        </div>
+        <div>
+          <label class="text-sm font-black text-[#68411f]">适用工序</label>
+          <PrimeSelect v-model="uploadForm.requiredForProcess" class="mt-2 w-full" :options="processOptions" option-label="label" option-value="value" />
+        </div>
+        <div>
+          <label class="text-sm font-black text-[#68411f]">资料标题</label>
+          <PrimeInputText v-model="uploadForm.title" class="mt-2 w-full" placeholder="例如：后段孔位图-A版" />
+        </div>
+        <div>
+          <label class="text-sm font-black text-[#68411f]">版本号</label>
+          <PrimeInputText v-model="uploadForm.version" class="mt-2 w-full" placeholder="V1.0" />
+        </div>
+        <div>
+          <label class="text-sm font-black text-[#68411f]">资料状态</label>
+          <PrimeSelect v-model="uploadForm.status" class="mt-2 w-full" :options="statusOptions" option-label="label" option-value="value" />
+        </div>
+        <div>
+          <label class="text-sm font-black text-[#68411f]">搜索关键词</label>
+          <PrimeInputText v-model="uploadForm.keywords" class="mt-2 w-full" placeholder="孔位图,后段,连接器" />
+        </div>
+        <div class="col-span-2">
+          <label class="text-sm font-black text-[#68411f]">备注</label>
+          <PrimeTextarea v-model="uploadForm.remark" class="mt-2 min-h-20 w-full" />
+        </div>
       </div>
-      <div>
-        <label class="text-sm font-black text-[#68411f]">适用工序</label>
-        <PrimeSelect v-model="uploadForm.requiredForProcess" class="mt-2 w-full" :options="processOptions" option-label="label" option-value="value" />
-      </div>
-      <div>
-        <label class="text-sm font-black text-[#68411f]">资料标题</label>
-        <PrimeInputText v-model="uploadForm.title" class="mt-2 w-full" placeholder="例如：后段孔位图-A版" />
-      </div>
-      <div>
-        <label class="text-sm font-black text-[#68411f]">版本号</label>
-        <PrimeInputText v-model="uploadForm.version" class="mt-2 w-full" placeholder="V1.0" />
-      </div>
-      <div>
-        <label class="text-sm font-black text-[#68411f]">资料状态</label>
-        <PrimeSelect v-model="uploadForm.status" class="mt-2 w-full" :options="statusOptions" option-label="label" option-value="value" />
-      </div>
-      <div>
-        <label class="text-sm font-black text-[#68411f]">搜索关键词</label>
-        <PrimeInputText v-model="uploadForm.keywords" class="mt-2 w-full" placeholder="孔位图,后段,连接器" />
-      </div>
-      <div class="col-span-2">
-        <label class="text-sm font-black text-[#68411f]">备注</label>
-        <PrimeTextarea v-model="uploadForm.remark" class="mt-2 min-h-24 w-full" />
-      </div>
+
+      <PrimeMessage v-if="uploadError" severity="error" :closable="false">{{ uploadError }}</PrimeMessage>
+      <PrimeProgressBar v-if="store.uploadLoading" mode="indeterminate" />
     </div>
+
     <template #footer>
       <PrimeButton severity="secondary" label="取消" @click="uploadVisible = false" />
       <PrimeButton :disabled="store.uploadLoading || !store.apiOnline" label="上传并绑定" icon="pi pi-upload" @click="submitUpload" />
     </template>
   </PrimeDialog>
 
-  <PrimeDialog v-model:visible="versionsVisible" modal header="资料版本管理" class="w-[860px]">
-    <div v-if="activeDocument" class="grid gap-4">
+  <PrimeDialog v-model:visible="versionsVisible" modal header="资料版本档案" class="w-[940px]">
+    <div class="grid max-h-[72vh] gap-4 overflow-auto pr-1">
       <div class="section-bay">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="section-kicker">CURRENT DOCUMENT</p>
-            <h3 class="text-2xl font-black text-[#342316]">
-              {{ activeDocument.title }}
-            </h3>
-            <p class="mt-1 text-sm font-bold text-[#76512a]">
-              {{ activeDocument.version }} · {{ sourceLabel(activeDocument.source) }}
-            </p>
-          </div>
-          <PrimeTag
-            :value="documentStatusLabel(activeDocument)"
-            :severity="documentSeverity(activeDocument)"
-          />
+        <p class="section-kicker">VERSION GROUP</p>
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-2xl font-black text-[#342316]">{{ versionGroupSummary }}</h3>
+          <PrimeButton label="对比所选版本" icon="pi pi-clone" @click="runCompare" />
         </div>
       </div>
 
-      <div class="grid grid-cols-[1fr_180px_180px] gap-3">
-        <PrimeInputText v-model="versionForm.reason" placeholder="版本操作原因" />
-        <PrimeSelect v-model="versionForm.status" :options="statusOptions" option-label="label" option-value="value" />
-        <PrimeButton label="更新状态" icon="pi pi-sync" @click="updateStatus" />
-      </div>
+      <section v-for="group in [
+        { title: '当前有效版本', rows: currentVersions, severity: 'success' },
+        { title: '待确认版本', rows: pendingVersions, severity: 'warn' },
+        { title: '历史/失效版本', rows: historyVersions, severity: 'danger' },
+      ]" :key="group.title" class="version-archive-section">
+        <div class="mb-3 flex items-center justify-between">
+          <h4 class="text-lg font-black text-[#342316]">{{ group.title }}</h4>
+          <PrimeTag :value="`${group.rows.length} 份`" :severity="group.severity" />
+        </div>
+        <div v-auto-animate class="space-y-2">
+          <div
+            v-for="document in group.rows"
+            :key="document.documentId ?? document.id"
+            :class="[
+              'grid grid-cols-[34px_1fr_110px_118px_118px_92px_54px] items-center gap-3 rounded-lg border bg-white/60 px-3 py-2',
+              rawDocumentStatus(document) === 'expired' ? 'border-[#b8422a66]' : 'border-[#8b5a2a30]',
+            ]"
+          >
+            <input
+              type="checkbox"
+              :checked="compareSelection.includes(document.documentId ?? document.id)"
+              @change="toggleCompare(document)"
+            >
+            <div class="min-w-0">
+              <p class="truncate font-black text-[#342316]">{{ document.title }}</p>
+              <p class="truncate text-sm font-bold text-[#76512a]">{{ document.version }} · {{ sourceLabel(document.source) }}</p>
+            </div>
+            <PrimeTag :value="documentStatusLabel(document)" :severity="documentSeverity(document)" />
+            <span class="text-sm font-bold text-[#76512a]">{{ fileSizeLabel(document.fileSize) }}</span>
+            <span class="text-sm font-bold text-[#76512a]">{{ dateTimeLabel(document.updatedAt ?? document.createdAt) }}</span>
+            <span class="text-sm font-bold text-[#76512a]">{{ processLabel(document.requiredForProcess) }}</span>
+            <PrimeButton severity="secondary" aria-label="版本操作" @click="openVersionMenu($event, document)" icon="pi pi-ellipsis-h" />
+          </div>
+          <PrimeMessage v-if="!group.rows.length" severity="info" :closable="false">暂无{{ group.title }}。</PrimeMessage>
+        </div>
+      </section>
+    </div>
+    <PrimeMenu ref="versionMenu" :model="versionMenuItems" popup />
+  </PrimeDialog>
 
-      <div v-auto-animate class="max-h-60 space-y-2 overflow-auto">
+  <PrimeDialog v-model:visible="compareVisible" modal header="版本元数据对比" class="w-[920px]">
+    <PrimeMessage v-if="!store.versionCompareResult || store.versionCompareResult.documents.length < 2" severity="warn" :closable="false">
+      请选择两个版本进行对比。当前只做元数据对比，不做 PDF 内容差异。
+    </PrimeMessage>
+    <div v-else class="grid gap-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div v-for="document in store.versionCompareResult.documents.slice(0, 2)" :key="document.documentId ?? document.id" class="section-bay">
+          <p class="section-kicker">{{ document.version }}</p>
+          <h3 class="truncate text-xl font-black text-[#342316]">{{ document.title }}</h3>
+          <p class="mt-1 text-sm font-bold text-[#76512a]">{{ documentTypeLabel(document) }} · {{ sourceLabel(document.source) }}</p>
+        </div>
+      </div>
+      <div class="space-y-2">
         <div
-          v-for="item in store.documentVersions?.versions ?? []"
-          :key="item.documentId ?? item.id"
-          class="flex items-center justify-between rounded-lg border border-[#8b5a2a30] bg-white/60 px-4 py-3"
+          v-for="field in store.versionCompareResult.fields"
+          :key="field.field"
+          :class="['grid grid-cols-[150px_1fr_1fr] gap-3 rounded-lg border px-3 py-2', field.different ? 'border-[#c45f2480] bg-[#fff3dc]' : 'border-[#8b5a2a24] bg-white/45 opacity-75']"
         >
-          <div>
-            <p class="font-black text-[#342316]">{{ item.title }}</p>
-            <p class="text-sm font-bold text-[#76512a]">{{ item.version }} · {{ sourceLabel(item.source) }}</p>
+          <strong class="text-[#68411f]">{{ compareFieldLabel(field.label || field.field) }}</strong>
+          <span class="font-bold text-[#3b2514]">{{ field.values[0] ?? '-' }}</span>
+          <span class="font-bold text-[#3b2514]">{{ field.values[1] ?? '-' }}</span>
+        </div>
+      </div>
+    </div>
+  </PrimeDialog>
+
+  <PrimeDialog v-model:visible="auditVisible" modal header="审计时间轴" class="w-[860px]">
+    <PrimeTimeline :value="store.auditLogs" align="left" class="max-h-[66vh] overflow-auto pr-2">
+      <template #marker>
+        <span class="grid h-4 w-4 place-items-center rounded-full bg-[#c45f24] shadow-[0_0_0_5px_rgba(196,95,36,0.14)]" />
+      </template>
+      <template #content="{ item }">
+        <article class="audit-timeline-item">
+          <div class="flex items-center justify-between gap-3">
+            <h4 class="text-lg font-black text-[#342316]">{{ auditActionLabel(item.action) }}</h4>
+            <PrimeTag :value="dateTimeLabel(item.createdAt)" severity="secondary" />
           </div>
-          <PrimeTag :value="documentStatusLabel(item)" :severity="documentSeverity(item)" />
-        </div>
-      </div>
-    </div>
-    <PrimeMessage v-else severity="info" :closable="false">请先选择一份资料。</PrimeMessage>
-    <template #footer>
-      <PrimeButton severity="secondary" label="关闭" @click="versionsVisible = false" />
-      <PrimeButton severity="danger" label="归档" icon="pi pi-box" @click="archiveDocument" />
-      <PrimeButton label="设为当前有效" icon="pi pi-check" @click="setEffective" />
-    </template>
+          <p class="mt-1 text-sm font-bold text-[#76512a]">{{ item.operatorName }} / {{ item.operatorRole }}</p>
+          <p class="mt-2 text-base font-bold text-[#3b2514]">{{ item.message }}</p>
+          <details v-if="item.before || item.after" class="mt-2 text-sm font-bold text-[#76512a]">
+            <summary>查看详情</summary>
+            <pre class="mt-2 max-h-32 overflow-auto rounded-md bg-[#fff8ea] p-2 text-xs">{{ { before: item.before, after: item.after } }}</pre>
+          </details>
+        </article>
+      </template>
+      <template #empty>
+        <PrimeMessage severity="info" :closable="false">当前计划暂无审计记录。</PrimeMessage>
+      </template>
+    </PrimeTimeline>
   </PrimeDialog>
 
-  <PrimeDialog v-model:visible="auditVisible" modal header="查询留痕与审计记录" class="w-[820px]">
-    <div v-auto-animate class="max-h-[520px] space-y-3 overflow-auto">
-      <div
-        v-for="log in store.auditLogs"
-        :key="log.auditId"
-        class="rounded-lg border border-[#8b5a2a30] bg-white/65 px-4 py-3"
-      >
-        <div class="flex items-center justify-between">
-          <p class="font-black text-[#342316]">{{ log.message }}</p>
-          <PrimeTag :value="log.action" severity="secondary" />
-        </div>
-        <p class="mt-1 text-sm font-bold text-[#76512a]">{{ log.createdAt }} · {{ log.operatorName }} · {{ log.operatorRole }}</p>
-      </div>
-      <PrimeMessage v-if="!store.auditLogs.length" severity="info" :closable="false">当前计划暂无审计记录。</PrimeMessage>
-    </div>
-  </PrimeDialog>
-
-  <PrimeDialog v-model:visible="migrationVisible" modal header="Sealos 迁移预览" class="w-[860px]">
+  <PrimeDialog v-model:visible="migrationVisible" modal header="Sealos 迁移预览" class="w-[760px]">
     <div class="grid gap-4">
       <PrimeMessage severity="warn" :closable="false">
-        当前仅展示 dry-run / SQL 预览信息，不连接数据库，不执行迁移，不写库。
+        当前数据源为 Mock，未连接 Sealos，禁止写库，危险操作关闭。本面板只展示 dry-run 统计。
       </PrimeMessage>
       <div class="grid grid-cols-4 gap-3">
         <div v-for="(value, key) in store.migrationPreview?.summary ?? {}" :key="key" class="metric-tile-3d min-h-0">
@@ -312,13 +480,11 @@ async function archiveDocument() {
         <p class="section-kicker">DATABASE SAFETY</p>
         <p class="mt-1 text-lg font-black text-[#342316]">{{ store.databaseSafety.message }}</p>
         <p class="mt-2 text-sm font-bold text-[#76512a]">
-          DB_TARGET={{ store.databaseSafety.dbTarget }} / 写库允许={{ store.databaseSafety.canWriteDatabase ? '是' : '否' }}
+          DB_TARGET={{ store.databaseSafety.dbTarget }} / 写库允许={{ store.databaseSafety.canWriteDatabase ? '是' : '否' }} /
+          危险操作={{ store.databaseSafety.destructiveActionsAllowed ? '开启' : '关闭' }}
         </p>
       </div>
     </div>
-    <template #footer>
-      <PrimeButton severity="secondary" label="关闭" @click="migrationVisible = false" />
-      <PrimeButton label="导出 seed dry-run 预览" icon="pi pi-download" @click="store.exportSeedPreview" />
-    </template>
   </PrimeDialog>
 </template>
+

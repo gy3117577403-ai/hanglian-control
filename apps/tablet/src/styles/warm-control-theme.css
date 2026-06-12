@@ -335,6 +335,33 @@
   color: #392514;
 }
 
+.warm-shell .p-card {
+  border: 0;
+  border-radius: 8px;
+  color: #392514;
+  background: transparent;
+  box-shadow: none;
+}
+
+.warm-shell .p-card-body,
+.warm-shell .p-card-content {
+  padding: 0;
+}
+
+.warm-shell .p-fileupload,
+.warm-shell .p-fileupload-content,
+.warm-shell .p-fileupload-header {
+  border-color: rgba(126, 75, 30, 0.22);
+  color: #392514;
+  background: rgba(255, 250, 239, 0.7);
+}
+
+.danger-menu-item,
+.danger-menu-item .p-menuitem-text,
+.danger-menu-item .p-menuitem-icon {
+  color: #b8422a !important;
+}
+
 .metric-tile-3d {
   min-height: 112px;
   padding: 14px;
@@ -377,6 +404,214 @@
   box-shadow:
     0 16px 26px rgba(117, 71, 29, 0.16) inset,
     0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+.document-preview-card {
+  border: 1px solid rgba(124, 75, 30, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgba(255, 252, 244, 0.94), rgba(244, 218, 180, 0.8));
+  box-shadow:
+    0 12px 20px rgba(116, 70, 28, 0.13),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.document-folder-tabs .p-tablist {
+  overflow: hidden;
+}
+
+.document-folder-tabs .p-tab {
+  min-height: 48px;
+  padding-inline: 13px;
+}
+
+.pdf-preview-desk,
+.image-preview-board {
+  display: grid;
+  min-height: 480px;
+  gap: 10px;
+}
+
+.pdf-toolbar,
+.image-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 318px;
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(128, 80, 37, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 249, 236, 0.72);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+.pdf-paper-stage,
+.image-stage {
+  min-height: 345px;
+  border: 1px solid rgba(113, 72, 33, 0.28);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(126, 82, 39, 0.1) 1px, transparent 1px),
+    linear-gradient(rgba(126, 82, 39, 0.09) 1px, transparent 1px),
+    linear-gradient(160deg, #fff9ed, #f1c984);
+  background-size: 18px 18px, 18px 18px, auto;
+  box-shadow:
+    0 16px 26px rgba(117, 71, 29, 0.16) inset,
+    0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+.pdf-embed-sheet {
+  max-height: 410px;
+  overflow: auto;
+  padding: 18px;
+}
+
+.demo-drawing-sheet {
+  min-height: 345px;
+  margin: 14px;
+  padding: 18px;
+  border: 1px solid rgba(109, 70, 37, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 252, 245, 0.88);
+  box-shadow: 0 12px 18px rgba(106, 66, 31, 0.12);
+}
+
+.demo-drawing-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #342316;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.demo-wire-map {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 230px;
+  margin-top: 16px;
+  padding: 26px;
+  border: 1px dashed rgba(144, 91, 40, 0.34);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(151, 95, 43, 0.09) 1px, transparent 1px),
+    linear-gradient(rgba(151, 95, 43, 0.09) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.demo-wire-map svg {
+  position: absolute;
+  inset: 42px 36px;
+  width: calc(100% - 72px);
+  height: calc(100% - 84px);
+  pointer-events: none;
+}
+
+.demo-wire-map path {
+  fill: none;
+  stroke: rgba(180, 95, 34, 0.68);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.demo-pin {
+  z-index: 1;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff8ea;
+  background: linear-gradient(180deg, #ce7930, #9f5120);
+  box-shadow: 0 4px 9px rgba(116, 70, 28, 0.24);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.demo-drawing-note {
+  margin: 14px 0 0;
+  color: #77512a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.viewer-image-bank {
+  display: none;
+}
+
+.image-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 14px;
+}
+
+.inspection-image {
+  max-width: 100%;
+  max-height: 355px;
+  border: 1px solid rgba(109, 70, 37, 0.22);
+  border-radius: 8px;
+  background: #fffaf0;
+  box-shadow: 0 14px 24px rgba(106, 66, 31, 0.16);
+  object-fit: contain;
+}
+
+.inspection-caption {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  padding: 10px 12px;
+  border: 1px solid rgba(112, 72, 35, 0.24);
+  border-radius: 8px;
+  color: #3b2514;
+  background: rgba(255, 249, 236, 0.86);
+  box-shadow: 0 10px 18px rgba(106, 66, 31, 0.14);
+}
+
+.inspection-caption span {
+  color: #8a5d2d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inspection-caption strong {
+  font-size: 15px;
+}
+
+.upload-binding-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.upload-drop-frame {
+  border: 1px solid rgba(139, 90, 42, 0.28);
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgba(255, 252, 244, 0.9), rgba(244, 218, 180, 0.72));
+  box-shadow:
+    0 12px 20px rgba(116, 70, 28, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.version-archive-section {
+  border: 1px solid rgba(139, 90, 42, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 250, 239, 0.74);
+  padding: 12px;
+}
+
+.audit-timeline-item {
+  border: 1px solid rgba(139, 90, 42, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 250, 239, 0.74);
+  padding: 12px;
+  box-shadow: 0 8px 14px rgba(116, 70, 28, 0.1);
 }
 
 .preview-paper {
