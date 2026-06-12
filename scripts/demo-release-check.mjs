@@ -51,6 +51,7 @@ const gitignore = read('.gitignore');
   'docs/file-flow-design.md',
   'docs/v1.5-tablet-field-qa.md',
   'docs/v1.6-demo-release-polish.md',
+  'docs/v1.7-demo-management.md',
   'apps/tablet/src/config/app-version.ts',
 ].forEach(requireFile);
 
@@ -74,7 +75,7 @@ const gitignore = read('.gitignore');
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
 
-console.log('V1.6 demo release check');
+console.log('V1.7 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 

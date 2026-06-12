@@ -1,4 +1,4 @@
-export const APP_VERSION = 'V1.6'
+export const APP_VERSION = 'V1.7'
 export const APP_STAGE = '演示版'
 export const APP_RELEASE_NAME = '线束车间平板现场演示版'
 export const APP_BUILD_CHANNEL = 'mock-local-demo'

@@ -6,8 +6,12 @@ import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
 import WarmDialogs from '@/components/warm/WarmDialogs.vue'
 import WarmDocumentWorkspace from '@/components/warm/WarmDocumentWorkspace.vue'
 import WarmFieldQaChecklist from '@/components/field/WarmFieldQaChecklist.vue'
+import WarmDemoAssetsGuideDialog from '@/components/system/WarmDemoAssetsGuideDialog.vue'
+import WarmDemoDataManagerDialog from '@/components/system/WarmDemoDataManagerDialog.vue'
 import WarmDemoGuideDialog from '@/components/system/WarmDemoGuideDialog.vue'
+import WarmDemoReadinessDialog from '@/components/system/WarmDemoReadinessDialog.vue'
 import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
+import WarmRoadmapDialog from '@/components/system/WarmRoadmapDialog.vue'
 import WarmSystemInfoDialog from '@/components/system/WarmSystemInfoDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
@@ -32,6 +36,10 @@ const dialogs = reactive({
   fieldQa: false,
   systemInfo: false,
   demoGuide: false,
+  demoDataManager: false,
+  demoReadiness: false,
+  demoAssetsGuide: false,
+  roadmap: false,
 })
 
 function openFeedback() {
@@ -91,6 +99,11 @@ onUnmounted(() => {
         @open-field-qa="dialogs.fieldQa = true"
         @open-system-info="dialogs.systemInfo = true"
         @open-demo-guide="dialogs.demoGuide = true"
+        @open-demo-data-manager="dialogs.demoDataManager = true"
+        @open-demo-readiness="dialogs.demoReadiness = true"
+        @open-demo-assets-guide="dialogs.demoAssetsGuide = true"
+        @open-roadmap="dialogs.roadmap = true"
+        @open-migration="openMigration"
       />
       <main class="warm-layout">
         <WarmPlanRail />
@@ -141,5 +154,21 @@ onUnmounted(() => {
       @open-field-qa="dialogs.fieldQa = true"
       @open-upload="openUpload"
     />
+    <WarmDemoDataManagerDialog
+      v-model:visible="dialogs.demoDataManager"
+      @open-assets-guide="dialogs.demoAssetsGuide = true"
+      @open-network="dialogs.network = true"
+      @open-field-qa="dialogs.fieldQa = true"
+    />
+    <WarmDemoReadinessDialog
+      v-model:visible="dialogs.demoReadiness"
+      @open-network="dialogs.network = true"
+      @open-system-info="dialogs.systemInfo = true"
+    />
+    <WarmDemoAssetsGuideDialog
+      v-model:visible="dialogs.demoAssetsGuide"
+      @open-upload="openUpload"
+    />
+    <WarmRoadmapDialog v-model:visible="dialogs.roadmap" />
   </div>
 </template>

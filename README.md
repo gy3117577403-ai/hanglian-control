@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-V1.6 演示版：线束车间平板现场演示版。
+V1.7 演示版：线束车间平板现场演示版，新增演示工具菜单、演示数据管理、演示前检查、演示资料说明和后续路线面板。
 
 当前运行边界：
 
@@ -47,8 +47,20 @@ npm run dev:lan
 5. 查看前段参数、后段资料、图纸/SOP/孔位图/成品图
 6. 上传 `demo-upload-assets` 下的 PDF 或图片演示资料
 7. 查看文件健康、版本历史和审计记录
-8. 打开“系统信息”“演示说明”“网络诊断”“现场走查”
-9. 复制现场走查结果，必要时重置演示界面状态
+8. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、演示资料说明、后续路线
+9. 复制现场走查结果，必要时仅重置前端演示界面状态
+
+## 演示界面截图占位
+
+截图暂不提交真实客户资料。后续可在演示机使用合成资料截屏，并放入 `docs/screenshots/`：
+
+| 截图 | 建议文件名 | 说明 |
+| --- | --- | --- |
+| 平板主界面 | `docs/screenshots/v1.7-tablet-dashboard.png` | 1280x800 或 1366x768 横屏 |
+| 演示工具菜单 | `docs/screenshots/v1.7-demo-tools-menu.png` | 展示全部演示工具入口 |
+| 演示数据管理 | `docs/screenshots/v1.7-demo-data-manager.png` | 展示安全边界和重置说明 |
+| 演示前检查 | `docs/screenshots/v1.7-demo-readiness.png` | 展示演示前状态检查 |
+| 资料预览与上传 | `docs/screenshots/v1.7-document-preview-upload.png` | 只使用 `demo-upload-assets` 合成资料 |
 
 ## 安全注意事项
 
@@ -67,7 +79,7 @@ npm run dev:lan
 | `npm run dev:lan` | 启动局域网平板演示 |
 | `npm run demo:assets` | 生成合成演示上传资料 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
-| `npm run demo:release-check` | 只读检查 V1.6 演示版收口状态 |
+| `npm run demo:release-check` | 只读检查 V1.7 演示版收口状态 |
 | `npm run file-flow:check` | 只读检查本地文件资料流 |
 | `npm run security:check` | 检查敏感文件和安全闸门 |
 | `npm run build` | 构建前端和后端 |
@@ -82,6 +94,7 @@ npm run dev:lan
 
 ## 文档
 
+- `docs/v1.7-demo-management.md`
 - `docs/v1.6-demo-release-polish.md`
 - `docs/v1.5-tablet-field-qa.md`
 - `docs/tablet-field-test-guide.md`

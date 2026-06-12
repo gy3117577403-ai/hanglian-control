@@ -20,7 +20,9 @@ npm run build
 npm run check
 ```
 
-`npm run demo:release-check` 建议在推送演示分支前执行，用于确认 README、平板演示文档、演示检查脚本、忽略规则、版本配置和 GitHub Actions CI 都已准备好。`npm run check` 会依次执行安全检查、Prisma schema 校验和项目构建。
+`npm run demo:release-check` 建议在推送演示分支前执行，用于确认 README、V1.7 演示数据管理文档、平板演示文档、演示检查脚本、忽略规则、版本配置和 GitHub Actions CI 都已准备好。`npm run check` 会依次执行安全检查、Prisma schema 校验和项目构建。
+
+README 中的截图路径目前是占位说明。后续如果添加截图，只允许使用合成演示资料，不允许截入真实客户图纸、真实 SOP、数据库连接串或任何账号密钥。
 
 ## 禁止提交的文件
 
