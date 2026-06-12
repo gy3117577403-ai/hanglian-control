@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import dayjs from 'dayjs'
-import { CalendarDays, Factory, HardDrive, Maximize2, ShieldCheck, UserRound } from 'lucide-vue-next'
+import { CalendarDays, ClipboardCheck, Factory, HardDrive, Maximize2, Network, ShieldCheck, UserRound } from 'lucide-vue-next'
 import { useProductionStore } from '@/stores/production-store'
 import { useUiStore } from '@/stores/ui-store'
 
 const store = useProductionStore()
 const uiStore = useUiStore()
+const emit = defineEmits<{
+  'open-network': []
+  'open-field-qa': []
+}>()
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
 let timer: number | undefined
 
@@ -52,7 +56,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="grid grid-cols-4 gap-2 text-sm font-bold">
+    <div class="warm-topbar-info grid grid-cols-4 gap-2 text-sm font-bold">
       <div class="warm-chip">
         <CalendarDays :size="17" />
         <span>{{ currentTime }}</span>
@@ -71,7 +75,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="grid grid-cols-[1fr_148px] items-center gap-3">
+    <div class="warm-topbar-system grid grid-cols-[minmax(0,1fr)_220px] items-center gap-3">
       <div class="space-y-2">
         <PrimeTag :severity="apiSeverity" :value="apiLabel" />
         <div class="flex items-center gap-2 text-xs font-bold text-[#76512a]">
@@ -79,7 +83,21 @@ onUnmounted(() => {
           <span>{{ store.dataSourceStatus.dataSource === 'prisma' ? 'Prisma 数据源' : 'Mock 数据源' }}</span>
         </div>
       </div>
-      <div class="grid gap-2">
+      <div class="warm-topbar-action-grid">
+        <PrimeButton
+          severity="secondary"
+          label="网络诊断"
+          @click="emit('open-network')"
+        >
+          <template #icon><Network :size="17" /></template>
+        </PrimeButton>
+        <PrimeButton
+          severity="secondary"
+          label="现场走查"
+          @click="emit('open-field-qa')"
+        >
+          <template #icon><ClipboardCheck :size="17" /></template>
+        </PrimeButton>
         <PrimeButton
           severity="secondary"
           :label="uiStore.fieldMode ? '退出现场' : '现场模式'"

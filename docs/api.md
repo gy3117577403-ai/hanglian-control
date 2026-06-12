@@ -1,12 +1,36 @@
 # API 文档
 
-后端默认地址 `http://localhost:3000`，全局前缀 `/api`，Swagger 地址 `/api/docs`。当前默认仍为 Mock / 本地文件原型，不连接 Sealos PostgreSQL。
+后端默认地址 `http://localhost:3000`，全局前缀 `/api`，Swagger 地址 `/api/docs`。V1.5 支持局域网演示：API 可通过 `HOST=0.0.0.0` 监听，平板可访问 `http://<电脑IPv4>:3000/api`。当前默认仍为 Mock / 本地文件原型，不连接 Sealos PostgreSQL。
 
 ## Health
 
 ### `GET /api/health`
 
 返回服务状态、版本和数据源。
+
+## System
+
+### `GET /api/system/ping`
+
+轻量延迟检测接口，不连接数据库。
+
+响应示例：
+
+```json
+{
+  "ok": true,
+  "timestamp": "2026-06-13T08:00:00.000Z",
+  "service": "线束车间生产计划资料管控系统 API"
+}
+```
+
+### `GET /api/system/data-source`
+
+返回当前数据源、安全闸门和数据库配置状态。V1.5 网络诊断面板只读取该状态，不执行数据库连接。
+
+### `GET /api/system/database-safety`
+
+返回数据库安全闸门状态，只用于展示和检查。
 
 ## Production Plans
 
@@ -72,6 +96,8 @@
 ### `GET /api/files/:storedFileName`
 
 返回本地上传文件流。接口防止路径穿越，不返回服务器绝对路径，缺失文件返回中文 404。
+
+V1.5 网络诊断面板会展示 `/api/files/<storedFileName>` 的用途说明；只有手工上传资料生成了 `storedFileName` 后，该文件流接口才会返回真实本地文件。
 
 ## Search
 

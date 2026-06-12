@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-V1.4：本地文件上传体验复测、文件预览边界用例、现场模式和文件流自检。
+V1.5：安卓平板现场走查、局域网 API 自动识别、网络诊断面板和演示准备检查。
 
 ## 启动
 
@@ -17,10 +17,21 @@ npm run dev
 - API：http://localhost:3000/api
 - Swagger：http://localhost:3000/api/docs
 
+局域网平板演示：
+
+```bash
+npm run demo:assets
+npm run demo:check
+npm run dev:lan
+```
+
+平板浏览器访问终端输出的 `http://<电脑IPv4>:5173/tablet`。
+
 ## 常用命令
 
 ```bash
 npm run demo:assets
+npm run demo:check
 npm run file-flow:check
 npm run security:check
 npm run build
@@ -45,6 +56,8 @@ npm run check
 ## 文档
 
 - `docs/v1.4-upload-preview-qa.md`
+- `docs/v1.5-tablet-field-qa.md`
+- `docs/tablet-field-test-guide.md`
 - `docs/file-flow-design.md`
 - `docs/api.md`
 - `docs/ui-guide.md`

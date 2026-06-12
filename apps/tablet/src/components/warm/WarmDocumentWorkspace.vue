@@ -67,6 +67,33 @@ const previewDocument = computed(() => {
 const isPdfTab = computed(() => activeTab.value === 'drawing')
 const activeDocumentId = computed(() => previewDocument.value?.documentId ?? previewDocument.value?.id)
 const previewFileHealth = computed(() => previewDocument.value ? store.fileHealthForDocument(previewDocument.value) : null)
+const previewDiagnostics = computed(() => {
+  const document = previewDocument.value
+  const health = previewFileHealth.value
+  const hasPreviewUrl = Boolean(document?.previewUrl)
+  const hasDownloadUrl = Boolean(document?.downloadUrl)
+  const isManualUpload = document?.source === 'manual_upload'
+  const isMock = document?.source !== 'manual_upload'
+  const canPreview = Boolean(health?.canPreview ?? (isManualUpload && (hasPreviewUrl || hasDownloadUrl)))
+  const recommendedAction = health?.recommendedAction
+    ?? document?.recommendedAction
+    ?? (isMock
+      ? '当前是 Mock 占位资料；如需真实预览，请上传 demo-upload-assets 中的演示文件。'
+      : canPreview
+        ? '当前资料可预览，现场可继续执行版本确认或留痕检查。'
+        : '当前资料缺少可访问文件流，请重新上传或检查后端文件服务。')
+
+  return {
+    rows: [
+      { label: 'previewUrl', value: hasPreviewUrl ? '有' : '无', tone: hasPreviewUrl ? 'good' : 'warn' },
+      { label: 'downloadUrl', value: hasDownloadUrl ? '有' : '无', tone: hasDownloadUrl ? 'good' : 'warn' },
+      { label: 'manual_upload', value: isManualUpload ? '是' : '否', tone: isManualUpload ? 'good' : 'info' },
+      { label: 'mock', value: isMock ? '是' : '否', tone: isMock ? 'info' : 'good' },
+      { label: 'canPreview', value: canPreview ? '是' : '否', tone: canPreview ? 'good' : 'danger' },
+    ],
+    recommendedAction,
+  }
+})
 const healthCards = computed(() => {
   const summary = store.fileHealth?.summary
   return [
@@ -246,6 +273,21 @@ watch(
       >
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
+      </div>
+    </div>
+
+    <div v-if="previewDocument" class="preview-diagnostic-grid">
+      <div
+        v-for="item in previewDiagnostics.rows"
+        :key="item.label"
+        :class="['preview-diagnostic-card', `preview-diagnostic-${item.tone}`]"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+      </div>
+      <div class="preview-diagnostic-card preview-diagnostic-action">
+        <span>recommendedAction</span>
+        <strong>{{ previewDiagnostics.recommendedAction }}</strong>
       </div>
     </div>
 

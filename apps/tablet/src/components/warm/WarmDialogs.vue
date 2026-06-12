@@ -46,6 +46,13 @@ const versionMenuDocument = ref<ProductDocument | null>(null)
 const activeDocument = computed(() => store.selectedDocument ?? store.previewDocument)
 const allowedUploadMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 const allowedUploadExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp']
+const demoUploadFiles = [
+  'demo-drawing-rev-a.pdf',
+  'demo-drawing-rev-b.pdf',
+  'demo-sop-step-01.png',
+  'demo-pinout-16p.png',
+  'demo-finished-detail.png',
+]
 
 const feedbackVisible = computed({
   get: () => props.feedbackOpen,
@@ -385,6 +392,14 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
           </template>
         </PrimeFileUpload>
       </div>
+
+      <section class="demo-file-list">
+        <strong>现场演示建议文件</strong>
+        <div class="demo-file-grid">
+          <span v-for="file in demoUploadFiles" :key="file">{{ file }}</span>
+        </div>
+        <p>请从项目根目录 `demo-upload-assets` 选择以上合成资料，不要选择真实客户图纸、SOP 或量产资料。</p>
+      </section>
 
       <div class="grid grid-cols-2 gap-4">
         <div>

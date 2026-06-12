@@ -1,4 +1,5 @@
 import { ofetch } from 'ofetch'
+import { getApiBaseUrl } from '@/config/api-base'
 import type {
   ConfirmProductionPlanPayload,
   AuditLog,
@@ -29,7 +30,7 @@ import type {
   UpdateDocumentVersionPayload,
 } from '@/types/production'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api'
+const API_BASE = getApiBaseUrl()
 
 export const api = ofetch.create({
   baseURL: API_BASE,
@@ -37,6 +38,46 @@ export const api = ofetch.create({
 })
 
 export const apiBaseUrl = API_BASE
+
+export function pingApi() {
+  return api<{ ok: boolean; timestamp: string; service: string }>('/system/ping')
+}
+
+export async function measureApiLatency() {
+  const startedAt = Date.now()
+  try {
+    const response = await pingApi()
+    return {
+      ok: response.ok,
+      latencyMs: Date.now() - startedAt,
+      checkedAt: response.timestamp,
+    }
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      checkedAt: new Date().toISOString(),
+    }
+  }
+}
+
+export async function checkFileService(query?: DocumentFileHealthQuery) {
+  const startedAt = Date.now()
+  try {
+    await api<DocumentFileHealthResponse>('/documents/file-health', { query })
+    return {
+      ok: true,
+      latencyMs: Date.now() - startedAt,
+      message: '文件健康接口正常',
+    }
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      message: '文件健康接口异常',
+    }
+  }
+}
 
 export function getHealth() {
   return api<HealthResponse>('/health')

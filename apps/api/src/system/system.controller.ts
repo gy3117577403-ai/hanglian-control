@@ -34,6 +34,16 @@ export class SystemController {
     };
   }
 
+  @Get('ping')
+  @ApiOperation({ summary: '轻量 API 延迟检测，不连接数据库。' })
+  ping() {
+    return {
+      ok: true,
+      timestamp: new Date().toISOString(),
+      service: '线束车间生产计划资料管控系统 API',
+    };
+  }
+
   @Get('database-safety')
   @ApiOperation({ summary: '查看数据库安全闸门状态，V0.8A 仅允许测试库只读检查' })
   getDatabaseSafety() {

@@ -5,6 +5,8 @@ import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
 import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
 import WarmDialogs from '@/components/warm/WarmDialogs.vue'
 import WarmDocumentWorkspace from '@/components/warm/WarmDocumentWorkspace.vue'
+import WarmFieldQaChecklist from '@/components/field/WarmFieldQaChecklist.vue'
+import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
 import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
@@ -24,6 +26,8 @@ const dialogs = reactive({
   versions: false,
   audit: false,
   migration: false,
+  network: false,
+  fieldQa: false,
 })
 
 function openFeedback() {
@@ -78,7 +82,10 @@ onUnmounted(() => {
 <template>
   <div ref="shellRef" :class="['warm-shell', { 'field-mode': uiStore.fieldMode }]">
     <div class="warm-workbench">
-      <WarmStatusBar />
+      <WarmStatusBar
+        @open-network="dialogs.network = true"
+        @open-field-qa="dialogs.fieldQa = true"
+      />
       <main class="warm-layout">
         <WarmPlanRail />
         <section class="warm-board">
@@ -119,5 +126,7 @@ onUnmounted(() => {
       v-model:audit-open="dialogs.audit"
       v-model:migration-open="dialogs.migration"
     />
+    <WarmNetworkDiagnosticsDialog v-model:visible="dialogs.network" />
+    <WarmFieldQaChecklist v-model:visible="dialogs.fieldQa" />
   </div>
 </template>
