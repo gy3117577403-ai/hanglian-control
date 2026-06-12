@@ -48,8 +48,11 @@ const safetyRows = [
 const commands = [
   'npm run dev',
   'npm run dev:lan',
+  'npm run pwa:assets',
+  'npm run pwa:check',
   'npm run demo:assets',
   'npm run demo:check',
+  'npm run demo:freeze-check',
   'npm run file-flow:check',
   'npm run security:check',
   'npm run build',

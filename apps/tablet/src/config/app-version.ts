@@ -1,7 +1,7 @@
-export const APP_VERSION = 'V1.8'
-export const APP_STAGE = '演示冻结候选版'
-export const APP_RELEASE_NAME = '线束车间平板现场演示冻结候选版'
-export const APP_BUILD_CHANNEL = 'mock-local-demo-freeze-candidate'
+export const APP_VERSION = 'V1.9'
+export const APP_STAGE = '平板演示试用包'
+export const APP_RELEASE_NAME = '线束车间平板现场试用包'
+export const APP_BUILD_CHANNEL = 'mock-local-pwa-demo'
 
 export const APP_RUNTIME_FLAGS = {
   dataSource: 'Mock',

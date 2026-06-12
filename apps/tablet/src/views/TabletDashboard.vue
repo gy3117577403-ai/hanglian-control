@@ -12,6 +12,10 @@ import WarmDemoGuideDialog from '@/components/system/WarmDemoGuideDialog.vue'
 import WarmDemoReadinessDialog from '@/components/system/WarmDemoReadinessDialog.vue'
 import WarmFreezeChecklistDialog from '@/components/system/WarmFreezeChecklistDialog.vue'
 import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
+import WarmLandscapeGuard from '@/components/system/WarmLandscapeGuard.vue'
+import WarmLaunchScreen from '@/components/system/WarmLaunchScreen.vue'
+import WarmPwaDiagnosticsDialog from '@/components/system/WarmPwaDiagnosticsDialog.vue'
+import WarmPwaInstallPrompt from '@/components/system/WarmPwaInstallPrompt.vue'
 import WarmRoadmapDialog from '@/components/system/WarmRoadmapDialog.vue'
 import WarmSystemInfoDialog from '@/components/system/WarmSystemInfoDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
@@ -25,6 +29,7 @@ const store = useProductionStore()
 const uiStore = useUiStore()
 const shellRef = ref<HTMLElement | null>(null)
 const documentAnchorRef = ref<HTMLElement | null>(null)
+const launchVisible = ref(true)
 let ctx: gsap.Context | undefined
 
 const dialogs = reactive({
@@ -34,6 +39,8 @@ const dialogs = reactive({
   audit: false,
   migration: false,
   network: false,
+  pwaInstall: false,
+  pwaDiagnostics: false,
   fieldQa: false,
   systemInfo: false,
   demoGuide: false,
@@ -75,8 +82,15 @@ function focusDocuments() {
   documentAnchorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+function closeLaunchScreen() {
+  launchVisible.value = false
+}
+
 onMounted(() => {
   void store.initialize()
+  window.setTimeout(() => {
+    launchVisible.value = false
+  }, 1500)
   ctx = gsap.context(() => {
     gsap.from('.warm-enter', {
       y: 18,
@@ -101,6 +115,8 @@ onUnmounted(() => {
         @open-field-qa="dialogs.fieldQa = true"
         @open-system-info="dialogs.systemInfo = true"
         @open-demo-guide="dialogs.demoGuide = true"
+        @open-pwa-install="dialogs.pwaInstall = true"
+        @open-pwa-diagnostics="dialogs.pwaDiagnostics = true"
         @open-demo-data-manager="dialogs.demoDataManager = true"
         @open-demo-readiness="dialogs.demoReadiness = true"
         @open-freeze-checklist="dialogs.freezeChecklist = true"
@@ -141,6 +157,8 @@ onUnmounted(() => {
 
     <PrimeToast position="top-right" />
     <PrimeConfirmDialog />
+    <WarmLandscapeGuard />
+    <WarmLaunchScreen v-if="launchVisible" @skip="closeLaunchScreen" />
     <WarmDialogs
       v-model:feedback-open="dialogs.feedback"
       v-model:upload-open="dialogs.upload"
@@ -149,6 +167,12 @@ onUnmounted(() => {
       v-model:migration-open="dialogs.migration"
     />
     <WarmNetworkDiagnosticsDialog v-model:visible="dialogs.network" />
+    <WarmPwaInstallPrompt v-model:visible="dialogs.pwaInstall" />
+    <WarmPwaDiagnosticsDialog
+      v-model:visible="dialogs.pwaDiagnostics"
+      @open-install="dialogs.pwaInstall = true"
+      @open-network="dialogs.network = true"
+    />
     <WarmFieldQaChecklist v-model:visible="dialogs.fieldQa" />
     <WarmSystemInfoDialog v-model:visible="dialogs.systemInfo" />
     <WarmDemoGuideDialog

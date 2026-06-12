@@ -161,6 +161,151 @@
   line-height: 1.35;
 }
 
+.warm-launch-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.92), rgba(234, 157, 63, 0.54)),
+    linear-gradient(135deg, #fff7ed, #f0bd72);
+  animation: launch-fade 0.28s ease both;
+}
+
+.warm-launch-panel {
+  display: grid;
+  width: min(680px, calc(100vw - 36px));
+  place-items: center;
+  gap: 12px;
+  border: 1px solid rgba(125, 77, 34, 0.25);
+  border-radius: 10px;
+  padding: 30px;
+  text-align: center;
+  background: linear-gradient(150deg, rgba(255, 252, 244, 0.98), rgba(244, 218, 180, 0.9));
+  box-shadow:
+    0 24px 48px rgba(111, 66, 25, 0.28),
+    0 2px 0 rgba(255, 255, 255, 0.92) inset;
+}
+
+.warm-launch-mark {
+  width: 74px;
+  height: 74px;
+}
+
+.warm-launch-panel h2 {
+  margin: 0;
+  color: #342316;
+  font-size: 30px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.warm-launch-panel strong {
+  color: #9b4f1d;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.warm-launch-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.warm-launch-tags span {
+  border: 1px solid rgba(139, 90, 42, 0.22);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 250, 239, 0.84);
+  color: #68411f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.warm-launch-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #4f321d;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+@keyframes launch-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.landscape-guard {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  top: 16px;
+  z-index: 75;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(139, 90, 42, 0.28);
+  border-radius: 8px;
+  padding: 12px;
+  color: #3b2514;
+  background: linear-gradient(150deg, rgba(255, 252, 244, 0.98), rgba(244, 218, 180, 0.92));
+  box-shadow: 0 16px 30px rgba(111, 66, 25, 0.2);
+}
+
+.landscape-guard svg {
+  color: #b45f22;
+}
+
+.landscape-guard strong {
+  color: #342316;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.landscape-guard p {
+  margin: 2px 0 0;
+  color: #76512a;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.pwa-install-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(139, 90, 42, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 250, 239, 0.74);
+}
+
+.pwa-install-panel .p-button {
+  min-height: 54px;
+}
+
+.pwa-manual-steps {
+  display: grid;
+  gap: 7px;
+  color: #68411f;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.pwa-manual-steps strong {
+  color: #342316;
+  font-size: 16px;
+  font-weight: 950;
+}
+
 .warm-error-state {
   border-color: rgba(184, 66, 42, 0.32);
   background: linear-gradient(150deg, rgba(255, 242, 232, 0.98), rgba(244, 198, 165, 0.78));

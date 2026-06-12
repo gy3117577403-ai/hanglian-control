@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-V1.8 演示冻结候选版：线束车间平板现场演示冻结候选版，基于 V1.7 新增冻结前验收、Release Notes、合并前检查和冻结检查脚本。
+V1.9 平板演示试用包：在 V1.8 演示冻结候选版基础上新增 PWA 配置、平板安装提示、横屏提示、启动页、PWA 诊断和 Windows 一键启动脚本。
 
 当前运行边界：
 
@@ -31,6 +31,8 @@ npm run dev
 
 ```bash
 npm run demo:assets
+npm run pwa:assets
+npm run pwa:check
 npm run demo:check
 npm run demo:freeze-check
 npm run demo:release-check
@@ -38,6 +40,18 @@ npm run dev:lan
 ```
 
 平板浏览器访问终端输出的 `http://<电脑IPv4>:5173/tablet`。电脑和平板需要在同一 Wi-Fi 或同一网段。
+
+Windows 一键启动：
+
+```text
+start-field-demo.bat
+```
+
+或：
+
+```powershell
+.\start-field-demo.ps1
+```
 
 ## 演示流程
 
@@ -49,7 +63,12 @@ npm run dev:lan
 6. 上传 `demo-upload-assets` 下的 PDF 或图片演示资料
 7. 查看文件健康、版本历史和审计记录
 8. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、冻结前验收、演示资料说明、后续路线
-9. 复制现场走查结果，必要时仅重置前端演示界面状态
+9. 打开“安装到平板桌面”或“PWA / 平板诊断”，按浏览器能力添加到主屏幕
+10. 复制现场走查结果，必要时仅重置前端演示界面状态
+
+## 安卓平板添加到桌面
+
+可以在“演示工具 → 安装到平板桌面”查看安装状态和手动说明。局域网 HTTP 演示环境可能只支持添加桌面快捷方式，完整 PWA 安装建议后续使用 HTTPS 部署环境。
 
 ## 演示界面截图占位
 
@@ -78,10 +97,12 @@ npm run dev:lan
 | --- | --- |
 | `npm run dev` | 本机同时启动前端和 API |
 | `npm run dev:lan` | 启动局域网平板演示 |
+| `npm run pwa:assets` | 生成 PWA 本地演示图标 |
+| `npm run pwa:check` | 只读检查 PWA / 平板演示准备状态 |
 | `npm run demo:assets` | 生成合成演示上传资料 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
-| `npm run demo:release-check` | 只读检查 V1.8 演示版收口状态 |
-| `npm run demo:freeze-check` | 只读检查 V1.8 冻结候选状态 |
+| `npm run demo:release-check` | 只读检查当前演示版收口状态 |
+| `npm run demo:freeze-check` | 只读检查当前冻结候选和平板试用包状态 |
 | `npm run file-flow:check` | 只读检查本地文件资料流 |
 | `npm run security:check` | 检查敏感文件和安全闸门 |
 | `npm run build` | 构建前端和后端 |
@@ -98,6 +119,8 @@ npm run dev:lan
 
 - `docs/release-notes-v1.8.md`
 - `docs/pre-merge-checklist.md`
+- `docs/tablet-install-guide.md`
+- `docs/v1.9-pwa-tablet-package.md`
 - `docs/v1.8-demo-freeze-qa.md`
 - `docs/v1.7-demo-management.md`
 - `docs/v1.6-demo-release-polish.md`

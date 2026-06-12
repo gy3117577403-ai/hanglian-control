@@ -13,6 +13,8 @@
     "build": "npm run build:tablet && npm run build:api",
     "build:tablet": "npm run build -w tablet",
     "build:api": "npm run build -w api",
+    "pwa:assets": "node scripts/generate-pwa-assets.mjs",
+    "pwa:check": "node scripts/pwa-demo-check.mjs",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

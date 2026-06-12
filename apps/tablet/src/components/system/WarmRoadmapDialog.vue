@@ -21,14 +21,14 @@ const routes = [
     title: '路线 A：继续 UI 细节优化',
     icon: Palette,
     fit: '界面还需要更好看、更适合现场',
-    next: 'V1.8 UI 细节和视觉一致性',
+    next: 'V1.10 平板现场试用体验细节',
     warning: '继续保持暖色立体工业平板风。',
   },
   {
     title: '路线 B：合并 main / 打演示标签',
     icon: GitMerge,
     fit: '当前演示版满意',
-    next: '创建 PR、合并 main、打 v1.7-demo tag',
+    next: '创建 PR、合并 main、打 v1.9-tablet-demo-package tag',
     warning: '合并前继续执行安全检查和构建检查。',
   },
   {
