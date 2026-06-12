@@ -4,15 +4,24 @@ import Viewer from 'viewerjs'
 import 'viewerjs/dist/viewer.css'
 import { Download, Maximize2 } from 'lucide-vue-next'
 import { dateTimeLabel, documentTypeLabel, fileSizeLabel, mockPreviewImage, resolveFileUrl } from '@/lib/format'
-import { documentSeverity, documentStatusLabel, isHistoricalDocument, isPendingDocument } from '@/lib/status-style'
-import type { ProductDocument } from '@/types/production'
+import {
+  documentSeverity,
+  documentStatusLabel,
+  fileHealthLabel,
+  fileHealthSeverity,
+  isHistoricalDocument,
+  isPendingDocument,
+} from '@/lib/status-style'
+import type { DocumentFileHealthItem, ProductDocument } from '@/types/production'
 
 const props = defineProps<{
   document: ProductDocument | null | undefined
   documents: ProductDocument[]
+  fileHealth?: DocumentFileHealthItem | null
 }>()
 
 const emit = defineEmits<{
+  upload: []
   download: [document: ProductDocument]
   versions: [document: ProductDocument]
   audit: [document: ProductDocument]
@@ -20,11 +29,12 @@ const emit = defineEmits<{
 
 const viewerRoot = ref<HTMLElement | null>(null)
 const activeIndex = ref(0)
+const failed = ref(false)
 let viewer: Viewer | null = null
 
 const imageItems = computed(() => {
   const sourceDocuments = props.documents.length ? props.documents : props.document ? [props.document] : []
-  const expanded = sourceDocuments.flatMap((document) => {
+  return sourceDocuments.flatMap((document) => {
     const realSource = resolveFileUrl(document.previewUrl ?? document.downloadUrl)
     const total = realSource ? 1 : document.type === 'finish' ? 4 : document.type === 'pin-map' ? 2 : 3
     return Array.from({ length: total }, (_, index) => ({
@@ -34,12 +44,14 @@ const imageItems = computed(() => {
       src: realSource || mockPreviewImage(document, index + 1, total),
       index: index + 1,
       total,
+      isMock: !realSource,
     }))
   })
-  return expanded
 })
 
 const currentItem = computed(() => imageItems.value[Math.min(activeIndex.value, Math.max(imageItems.value.length - 1, 0))])
+const effectiveHealthStatus = computed(() => props.fileHealth?.healthStatus ?? (currentItem.value?.isMock ? 'demo' : 'ok'))
+const shouldShowFallback = computed(() => Boolean(currentItem.value) && (failed.value || effectiveHealthStatus.value !== 'ok'))
 
 function rebuildViewer() {
   viewer?.destroy()
@@ -65,6 +77,7 @@ function rebuildViewer() {
 }
 
 function openViewer() {
+  if (effectiveHealthStatus.value !== 'ok' && effectiveHealthStatus.value !== 'demo') return
   if (!viewer) rebuildViewer()
   viewer?.view(activeIndex.value)
 }
@@ -72,15 +85,19 @@ function openViewer() {
 function changeImage(delta: number) {
   if (!imageItems.value.length) return
   activeIndex.value = (activeIndex.value + delta + imageItems.value.length) % imageItems.value.length
+  failed.value = false
 }
 
 function onImageAction(event: MouseEvent) {
   const action = (event.target as HTMLElement).closest<HTMLElement>('[data-image-action]')?.dataset.imageAction
   const document = currentItem.value?.document
-  if (!action || !document) return
+  if (!action) return
   if (action === 'prev') changeImage(-1)
   if (action === 'next') changeImage(1)
   if (action === 'zoom') openViewer()
+  if (action === 'upload') emit('upload')
+  if (action === 'reload') failed.value = false
+  if (!document) return
   if (action === 'download') emit('download', document)
   if (action === 'versions') emit('versions', document)
   if (action === 'audit') emit('audit', document)
@@ -90,6 +107,7 @@ watch(
   () => imageItems.value.map((item) => item.key).join('|'),
   async () => {
     activeIndex.value = 0
+    failed.value = false
     await nextTick()
     rebuildViewer()
   },
@@ -113,6 +131,7 @@ onBeforeUnmount(() => {
           <PrimeTag :value="documentStatusLabel(currentItem.document)" :severity="documentSeverity(currentItem.document)" />
           <PrimeTag :value="`${currentItem.index} / ${currentItem.total}`" severity="info" />
           <PrimeTag :value="fileSizeLabel(currentItem.document.fileSize)" severity="secondary" />
+          <PrimeTag :value="fileHealthLabel(effectiveHealthStatus)" :severity="fileHealthSeverity(effectiveHealthStatus)" />
           <PrimeTag :value="dateTimeLabel(currentItem.document.updatedAt ?? currentItem.document.createdAt)" severity="secondary" />
         </div>
       </div>
@@ -137,6 +156,9 @@ onBeforeUnmount(() => {
     <PrimeMessage v-else-if="currentItem && isPendingDocument(currentItem.document)" severity="warn" :closable="false">
       该图片资料为待确认版本，请复核后使用。
     </PrimeMessage>
+    <PrimeMessage v-if="shouldShowFallback" :severity="effectiveHealthStatus === 'demo' ? 'info' : 'error'" :closable="false">
+      文件健康状态：{{ fileHealthLabel(effectiveHealthStatus) }}。上传真实图片后将自动替换当前预览。
+    </PrimeMessage>
 
     <div ref="viewerRoot" class="viewer-image-bank">
       <img
@@ -145,14 +167,19 @@ onBeforeUnmount(() => {
         :src="item.src"
         :alt="item.title"
         :class="item.key === currentItem?.key ? 'block' : 'hidden'"
+        @error="failed = true"
       >
     </div>
 
     <div v-if="currentItem" class="image-stage" @dblclick="openViewer">
-      <img :src="currentItem.src" :alt="currentItem.title" class="inspection-image">
+      <img :src="currentItem.src" :alt="currentItem.title" class="inspection-image" @error="failed = true">
       <div class="inspection-caption">
-        <span>{{ currentItem.document.type === 'pin-map' ? '插接定位检查' : currentItem.document.type === 'finish' ? '细节检查' : '资料板预览' }}</span>
+        <span>{{ currentItem.isMock ? '当前为演示资料' : fileHealthLabel(effectiveHealthStatus) }}</span>
         <strong>{{ currentItem.document.localMockLabel || '本地资料预览' }}</strong>
+      </div>
+      <div v-if="shouldShowFallback" class="preview-fallback-actions">
+        <PrimeButton data-image-action="upload" icon="pi pi-upload" label="上传真实图片" />
+        <PrimeButton data-image-action="reload" severity="secondary" icon="pi pi-refresh" label="重新加载" />
       </div>
     </div>
 
@@ -165,4 +192,3 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-

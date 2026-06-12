@@ -1,4 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { stat } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
 import { LocalStorageService } from '../storage/local-storage.service';
@@ -6,12 +8,16 @@ import type { DocumentRepositoryInterface } from '../repositories/interfaces/doc
 import type { CompareDocumentsDto } from './dto/compare-documents.dto';
 import type { DocumentQueryDto } from './dto/document-query.dto';
 import type { DocumentVersionQueryDto } from './dto/document-version-query.dto';
+import type { FileHealthQueryDto } from './dto/file-health-query.dto';
 import type { SetEffectiveDocumentDto } from './dto/set-effective-document.dto';
 import type { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import type { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
 import type { UploadDocumentDto } from './dto/upload-document.dto';
 
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const previewableMimeTypes = new Set(allowedMimeTypes);
+
+type FileHealthStatus = 'ok' | 'demo' | 'missing_file' | 'unsupported' | 'broken';
 
 function previewTypeFor(mimeType: string) {
   if (mimeType === 'application/pdf') return 'pdf' as const;
@@ -32,6 +38,21 @@ function clone<T>(value: T): T {
 
 function docId(document: { documentId?: string; id: string }) {
   return document.documentId ?? document.id;
+}
+
+function fileHealthMessage(status: FileHealthStatus) {
+  switch (status) {
+    case 'ok':
+      return '文件可预览';
+    case 'demo':
+      return '当前为演示资料，请上传真实文件后替换预览';
+    case 'missing_file':
+      return 'metadata 存在，但本地文件缺失';
+    case 'unsupported':
+      return '文件类型暂不支持预览';
+    case 'broken':
+      return '文件存在，但预览地址或预览类型异常';
+  }
 }
 
 @Injectable()
@@ -62,6 +83,75 @@ export class DocumentsService {
   async findProductVersions(query: DocumentVersionQueryDto) {
     if (!query.productId) throw new BadRequestException('productId 为必填项。');
     return this.documentRepository.findProductDocumentVersions(query);
+  }
+
+  async getFileHealth(query: FileHealthQueryDto) {
+    const documents = await this.documentRepository.findDocuments({
+      planId: query.planId,
+      productId: query.productId,
+    });
+    const uploadsDir = this.localStorageService.getUploadsDir();
+
+    const items = await Promise.all(documents.map(async (document) => {
+      const hasStoredFile = Boolean(document.storedFileName);
+      let fileExists = false;
+      let healthStatus: FileHealthStatus = 'demo';
+
+      try {
+        if (document.source === 'mock') {
+          healthStatus = 'demo';
+        } else if (!previewableMimeTypes.has(document.mimeType ?? '')) {
+          healthStatus = 'unsupported';
+        } else if (!hasStoredFile) {
+          healthStatus = 'missing_file';
+        } else {
+          const absolutePath = resolve(uploadsDir, document.storedFileName ?? '');
+          if (!absolutePath.startsWith(uploadsDir)) {
+            healthStatus = 'missing_file';
+          } else {
+            const fileStat = await stat(absolutePath);
+            fileExists = fileStat.isFile();
+            healthStatus = !fileExists
+              ? 'missing_file'
+              : (!document.previewUrl || !document.previewType ? 'broken' : 'ok');
+          }
+        }
+      } catch {
+        healthStatus = hasStoredFile ? 'missing_file' : 'demo';
+      }
+
+      return {
+        documentId: docId(document),
+        title: document.title,
+        documentType: document.documentType,
+        version: document.version,
+        source: document.source,
+        previewType: document.previewType,
+        hasStoredFile,
+        fileExists,
+        canPreview: healthStatus === 'ok',
+        isDemoOnly: healthStatus === 'demo',
+        healthStatus,
+        message: fileHealthMessage(healthStatus),
+      };
+    }));
+
+    return {
+      scope: {
+        planId: query.planId,
+        productId: query.productId,
+      },
+      summary: {
+        totalDocuments: items.length,
+        uploadedDocuments: items.filter((item) => item.source === 'manual_upload').length,
+        mockDocuments: items.filter((item) => item.source === 'mock').length,
+        previewableDocuments: items.filter((item) => item.canPreview).length,
+        missingFiles: items.filter((item) => item.healthStatus === 'missing_file').length,
+        brokenPreview: items.filter((item) => item.healthStatus === 'broken').length,
+        demoOnly: items.filter((item) => item.healthStatus === 'demo').length,
+      },
+      items,
+    };
   }
 
   async compare(dto: CompareDocumentsDto) {

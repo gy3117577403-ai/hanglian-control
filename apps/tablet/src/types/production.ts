@@ -18,6 +18,7 @@ export type RequiredProcess = 'front' | 'back' | 'common'
 export type PreviewType = 'pdf' | 'image' | 'card'
 export type ReadinessStatus = 'ready' | 'need_review' | 'blocked'
 export type CheckItemStatus = 'pass' | 'warning' | 'fail'
+export type FileHealthStatus = 'ok' | 'demo' | 'missing_file' | 'unsupported' | 'broken'
 
 export type SearchResultType =
   | 'plan'
@@ -87,6 +88,43 @@ export interface ProductDocument {
   archivedBy?: string
   remark?: string
   versionGroupKey?: string
+}
+
+export interface DocumentFileHealthItem {
+  documentId: string
+  title: string
+  documentType: DocumentTypeV03
+  version: string
+  source: DocumentSource
+  previewType?: PreviewType
+  hasStoredFile: boolean
+  fileExists: boolean
+  canPreview: boolean
+  isDemoOnly: boolean
+  healthStatus: FileHealthStatus
+  message: string
+}
+
+export interface DocumentFileHealthResponse {
+  scope: {
+    planId?: string
+    productId?: string
+  }
+  summary: {
+    totalDocuments: number
+    uploadedDocuments: number
+    mockDocuments: number
+    previewableDocuments: number
+    missingFiles: number
+    brokenPreview: number
+    demoOnly: number
+  }
+  items: DocumentFileHealthItem[]
+}
+
+export interface DocumentFileHealthQuery {
+  planId?: string
+  productId?: string
 }
 
 export interface ReadinessCheckItem {

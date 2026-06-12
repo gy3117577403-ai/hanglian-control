@@ -268,3 +268,59 @@ V0.8A 返回数据库安全闸门状态。该接口不会连接数据库。
 ### GET `/api/migration/export-seed`
 
 导出 Mock seed JSON 预览，不写入数据库。
+# V1.3 新增：文件健康检查
+
+## GET /api/documents/file-health
+
+用途：只读检查当前资料文件是否可预览、是否仍为演示资料、是否缺失或预览异常。
+
+Query：
+
+- `planId`：可选，按计划过滤。
+- `productId`：可选，按产品过滤。
+
+响应示例：
+
+```json
+{
+  "scope": {
+    "planId": "PLN-20260611-001",
+    "productId": "PRD-4821A"
+  },
+  "summary": {
+    "totalDocuments": 12,
+    "uploadedDocuments": 4,
+    "mockDocuments": 8,
+    "previewableDocuments": 4,
+    "missingFiles": 0,
+    "brokenPreview": 0,
+    "demoOnly": 8
+  },
+  "items": [
+    {
+      "documentId": "DOC-001",
+      "title": "PDF 图纸 Rev.B",
+      "documentType": "drawing_pdf",
+      "version": "Rev.B",
+      "source": "manual_upload",
+      "previewType": "pdf",
+      "hasStoredFile": true,
+      "fileExists": true,
+      "canPreview": true,
+      "isDemoOnly": false,
+      "healthStatus": "ok",
+      "message": "文件可预览"
+    }
+  ]
+}
+```
+
+状态说明：
+
+- `ok`：文件可预览。
+- `demo`：演示资料。
+- `missing_file`：文件缺失。
+- `unsupported`：不支持预览。
+- `broken`：预览异常。
+
+安全边界：该接口不连接数据库、不修改 metadata、不删除文件、不执行迁移或 seed。

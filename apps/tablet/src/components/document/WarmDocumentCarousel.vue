@@ -3,8 +3,8 @@ import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vu
 import emblaCarouselVue from 'embla-carousel-vue'
 import { FileImage, FileText, Image as ImageIcon, Layers3, MoreHorizontal, Wrench } from 'lucide-vue-next'
 import { documentTypeLabel, sourceLabel } from '@/lib/format'
-import { documentSeverity, documentStatusDotClass, documentStatusLabel } from '@/lib/status-style'
-import type { ProductDocument } from '@/types/production'
+import { documentSeverity, documentStatusDotClass, documentStatusLabel, fileHealthClass, fileHealthLabel } from '@/lib/status-style'
+import type { DocumentFileHealthItem, ProductDocument } from '@/types/production'
 
 export type DocumentCardAction =
   | 'preview'
@@ -19,6 +19,7 @@ export type DocumentCardAction =
 const props = defineProps<{
   documents: ProductDocument[]
   activeDocumentId?: string
+  fileHealthById?: Map<string, DocumentFileHealthItem>
 }>()
 
 const emit = defineEmits<{
@@ -47,6 +48,10 @@ function iconFor(document: ProductDocument) {
   if (document.type === 'pin-map') return Layers3
   if (document.documentType === 'connector_manual') return Wrench
   return ImageIcon
+}
+
+function healthFor(document: ProductDocument) {
+  return props.fileHealthById?.get(document.documentId ?? document.id)
 }
 
 function bindEmblaNode(element: Element | ComponentPublicInstance | null) {
@@ -106,6 +111,11 @@ watch(
             <p class="mt-2 text-sm font-bold text-[#76512a]">{{ document.version }} · {{ sourceLabel(document.source) }}</p>
             <p class="mt-2 line-clamp-2 text-xs font-semibold text-[#80552c]">{{ documentTypeLabel(document) }}</p>
           </button>
+
+          <div :class="['mt-3 file-health-pill', fileHealthClass(healthFor(document)?.healthStatus)]">
+            <i class="pi pi-wave-pulse" />
+            <span>{{ fileHealthLabel(healthFor(document)?.healthStatus) }}</span>
+          </div>
 
           <div class="mt-3 flex items-center justify-between gap-2">
             <span class="inline-flex items-center gap-2 text-xs font-black text-[#76512a]">

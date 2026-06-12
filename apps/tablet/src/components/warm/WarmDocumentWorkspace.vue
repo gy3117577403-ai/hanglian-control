@@ -66,6 +66,7 @@ const previewDocument = computed(() => {
 
 const isPdfTab = computed(() => activeTab.value === 'drawing')
 const activeDocumentId = computed(() => previewDocument.value?.documentId ?? previewDocument.value?.id)
+const previewFileHealth = computed(() => previewDocument.value ? store.fileHealthForDocument(previewDocument.value) : null)
 
 function setTab(value: string | number) {
   activeTab.value = value as PreviewFolderTab
@@ -197,6 +198,13 @@ watch(
     await nextTick()
   },
 )
+
+watch(
+  () => store.activeDocumentTab,
+  (tab) => {
+    activeTab.value = tab
+  },
+)
 </script>
 
 <template>
@@ -205,6 +213,11 @@ watch(
       <div>
         <p class="section-kicker">DOCUMENT PREVIEW DESK</p>
         <h3 class="text-xl font-black">资料预览台</h3>
+        <p class="mt-1 text-xs font-black text-[#7a5129]">
+          文件健康：{{ store.fileHealth?.summary.previewableDocuments ?? 0 }} 可预览 /
+          {{ store.fileHealth?.summary.demoOnly ?? 0 }} 演示 /
+          {{ (store.fileHealth?.summary.missingFiles ?? 0) + (store.fileHealth?.summary.brokenPreview ?? 0) }} 异常
+        </p>
       </div>
       <div class="flex gap-2" @click.capture="onActionClick">
         <PrimeButton data-action="upload" severity="secondary" icon="pi pi-upload" label="上传" />
@@ -231,6 +244,7 @@ watch(
           <WarmDocumentCarousel
             :documents="activeDocs"
             :active-document-id="activeDocumentId"
+            :file-health-by-id="store.fileHealthByDocumentId"
             @select="selectDocument"
             @action="handleDocumentAction"
           />
@@ -238,6 +252,8 @@ watch(
           <WarmPdfPreview
             v-if="isPdfTab"
             :document="previewDocument"
+            :file-health="previewFileHealth"
+            @upload="emit('open-upload')"
             @download="downloadDocument"
             @versions="openVersions"
             @audit="openAudit"
@@ -246,6 +262,8 @@ watch(
             v-else
             :document="previewDocument"
             :documents="activeDocs"
+            :file-health="previewFileHealth"
+            @upload="emit('open-upload')"
             @download="downloadDocument"
             @versions="openVersions"
             @audit="openAudit"

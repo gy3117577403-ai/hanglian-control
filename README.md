@@ -4,12 +4,13 @@
 
 ## 当前版本
 
-V1.2 已完成资料预览与平板交互打磨：
+V1.3 已完成现场交互与文件健康打磨：
 
 - 前端通过后端 Mock API 获取计划、资料、搜索、确认和反馈数据。
 - 后端仍为 NestJS Mock / 本地文件原型，不连接真实 Sealos PostgreSQL。
 - 平板端采用暖色立体工业控制台风格，不再使用旧黑色科技风业务界面。
 - 资料预览区已接入 PDF/图片预览组件结构，当前仍使用本地演示占位，不使用远程资源。
+- 新增现场操作步骤、现场快捷操作区、文件健康检查和预览兜底体验。
 - UI 技术栈包含 PrimeVue、Tailwind CSS、GSAP、AutoAnimate、Embla Carousel、viewerjs、vue-pdf-embed。
 
 ## 技术栈
@@ -72,6 +73,8 @@ npm run check
 ## 相关文档
 
 - `docs/v1.2-preview-polish.md`：V1.2 资料预览与交互打磨说明
+- `docs/v1.3-field-interaction.md`：V1.3 现场交互与文件健康说明
+- `docs/file-flow-design.md`：真实资料接入前文件流设计
 - `docs/v1.1-warm-3d-ui.md`：V1.1 UI 重构说明
 - `docs/ui-guide.md`：平板端 UI 风格指南
 - `docs/api.md`：Mock API 说明

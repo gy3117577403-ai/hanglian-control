@@ -11,6 +11,7 @@ import {
   getDatabaseSafety,
   getDataSourceStatus,
   getAuditLogs,
+  getDocumentFileHealth,
   getDocuments,
   getDocumentDetail,
   getDocumentVersions,
@@ -35,6 +36,8 @@ import type {
   AuditLogQuery,
   DatabaseSafetyStatus,
   DataSourceStatus,
+  DocumentFileHealthResponse,
+  DocumentFileHealthItem,
   DocumentCompareResult,
   DocumentTab,
   DocumentVersionsResponse,
@@ -202,6 +205,49 @@ function localReadiness(plan: ProductionPlan): PlanReadiness {
   }
 }
 
+function localFileHealth(plan: ProductionPlan): DocumentFileHealthResponse {
+  const items: DocumentFileHealthItem[] = plan.documents.map((document) => {
+    const isDemoOnly = document.source !== 'manual_upload'
+    const canPreview = !isDemoOnly && Boolean(document.previewUrl || document.downloadUrl)
+    const healthStatus = isDemoOnly ? 'demo' : canPreview ? 'ok' : 'broken'
+    return {
+      documentId: document.documentId ?? document.id,
+      title: document.title,
+      documentType: document.documentType ?? 'drawing_pdf',
+      version: document.version,
+      source: document.source ?? 'mock',
+      previewType: document.previewType,
+      hasStoredFile: Boolean(document.storedFileName),
+      fileExists: canPreview,
+      canPreview,
+      isDemoOnly,
+      healthStatus,
+      message: healthStatus === 'demo'
+        ? '当前为离线演示资料'
+        : healthStatus === 'ok'
+          ? '文件可预览'
+          : '预览地址异常',
+    }
+  })
+
+  return {
+    scope: {
+      planId: plan.id,
+      productId: plan.productId,
+    },
+    summary: {
+      totalDocuments: items.length,
+      uploadedDocuments: items.filter((item) => item.source === 'manual_upload').length,
+      mockDocuments: items.filter((item) => item.source === 'mock').length,
+      previewableDocuments: items.filter((item) => item.canPreview).length,
+      missingFiles: items.filter((item) => item.healthStatus === 'missing_file').length,
+      brokenPreview: items.filter((item) => item.healthStatus === 'broken').length,
+      demoOnly: items.filter((item) => item.healthStatus === 'demo').length,
+    },
+    items,
+  }
+}
+
 export const useProductionStore = defineStore('production', () => {
   const persistedScope = readStorage(STORAGE_KEYS.scope) as PlanScope | null
   const persistedProcess = readStorage(STORAGE_KEYS.activeProcess) as ActiveProcess | null
@@ -245,6 +291,8 @@ export const useProductionStore = defineStore('production', () => {
   ])
   const feedbackRecords = ref<FeedbackRecord[]>([])
   const loading = ref(false)
+  const fileHealth = ref<DocumentFileHealthResponse | null>(null)
+  const fileHealthLoading = ref(false)
   const apiOnline = ref(false)
   const offlineDemoMode = ref(false)
   const errorMessage = ref('')
@@ -284,6 +332,14 @@ export const useProductionStore = defineStore('production', () => {
   const selectedFeedbackRecords = computed(() => {
     return feedbackRecords.value.filter((record) => record.planId === selectedPlan.value.id)
   })
+
+  const fileHealthByDocumentId = computed(() => {
+    return new Map((fileHealth.value?.items ?? []).map((item) => [item.documentId, item]))
+  })
+
+  function fileHealthForDocument(document: ProductDocument) {
+    return fileHealthByDocumentId.value.get(document.documentId ?? document.id) ?? null
+  }
 
   watch(scope, (value) => writeStorage(STORAGE_KEYS.scope, value))
   watch(selectedPlanId, (value) => writeStorage(STORAGE_KEYS.selectedPlanId, value))
@@ -372,6 +428,20 @@ export const useProductionStore = defineStore('production', () => {
     }
   }
 
+  async function loadFileHealth(plan = selectedPlan.value) {
+    fileHealthLoading.value = true
+    try {
+      fileHealth.value = apiOnline.value
+        ? await getDocumentFileHealth({ planId: plan.id, productId: plan.productId })
+        : localFileHealth(plan)
+    } catch {
+      fileHealth.value = localFileHealth(plan)
+      errorMessage.value = '文件健康检查请求失败，已使用本地演示检查结果。'
+    } finally {
+      fileHealthLoading.value = false
+    }
+  }
+
   async function selectPlan(planId: string, shouldLog = true) {
     selectedPlanId.value = planId
     loading.value = true
@@ -380,17 +450,20 @@ export const useProductionStore = defineStore('production', () => {
         selectedPlanDetail.value = normalizePlan(await getProductionPlanDetail(planId))
         await syncReadiness(selectedPlanDetail.value)
         await loadDocuments(selectedPlanDetail.value)
+        await loadFileHealth(selectedPlanDetail.value)
         feedbackRecords.value = await getFeedback(planId)
       } else {
         selectedPlanDetail.value = normalizePlan(fallbackPlans.find((plan) => plan.id === planId) ?? fallbackPlans[0])
         await syncReadiness(selectedPlanDetail.value)
         await loadDocuments(selectedPlanDetail.value)
+        await loadFileHealth(selectedPlanDetail.value)
       }
       if (shouldLog) addQueryLog(`切换到生产计划 ${planId}`, '切换', planId)
     } catch {
       selectedPlanDetail.value = normalizePlan(fallbackPlans.find((plan) => plan.id === planId) ?? fallbackPlans[0])
       readiness.value = localReadiness(selectedPlanDetail.value)
       documents.value = selectedPlanDetail.value.documents
+      fileHealth.value = localFileHealth(selectedPlanDetail.value)
       offlineDemoMode.value = true
       apiOnline.value = false
       errorMessage.value = '计划详情请求失败，已使用本地资料包。'
@@ -544,6 +617,9 @@ export const useProductionStore = defineStore('production', () => {
       previewDocument.value = document
       uploadDialogOpen.value = false
       await selectPlan(selectedPlan.value.id, false)
+      if (searchKeyword.value.trim()) {
+        searchResults.value = await searchDocuments(searchKeyword.value.trim(), selectedPlan.value.id).catch(() => searchResults.value)
+      }
       toast.success('资料上传成功', { description: `${document.title} ${document.version}` })
     } catch {
       toast.error('资料上传失败', { description: '请确认文件类型、大小和后端 API 状态。' })
@@ -723,6 +799,10 @@ export const useProductionStore = defineStore('production', () => {
     queryRecords: queryLogs,
     feedbackRecords,
     selectedFeedbackRecords,
+    fileHealth,
+    fileHealthLoading,
+    fileHealthByDocumentId,
+    fileHealthForDocument,
     documents,
     uploadDialogOpen,
     uploadLoading,
@@ -761,6 +841,7 @@ export const useProductionStore = defineStore('production', () => {
     confirmSelectedPlan: confirmCurrentPlan,
     submitFeedback,
     loadDocuments,
+    loadFileHealth,
     uploadCurrentDocument,
     refreshDocumentDetail,
     updateCurrentDocumentStatus,

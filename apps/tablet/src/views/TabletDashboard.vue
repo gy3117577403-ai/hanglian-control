@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
+import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
+import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
 import WarmDialogs from '@/components/warm/WarmDialogs.vue'
 import WarmDocumentWorkspace from '@/components/warm/WarmDocumentWorkspace.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
@@ -11,6 +13,7 @@ import { useProductionStore } from '@/stores/production-store'
 
 const store = useProductionStore()
 const shellRef = ref<HTMLElement | null>(null)
+const documentAnchorRef = ref<HTMLElement | null>(null)
 let ctx: gsap.Context | undefined
 
 const dialogs = reactive({
@@ -48,6 +51,10 @@ async function openMigration() {
   dialogs.migration = true
 }
 
+function focusDocuments() {
+  documentAnchorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 onMounted(() => {
   void store.initialize()
   ctx = gsap.context(() => {
@@ -81,13 +88,21 @@ onUnmounted(() => {
             @open-migration="openMigration"
           />
           <div class="warm-board-stack warm-scroll">
-            <WarmProcessBoard />
-            <WarmDocumentWorkspace
+            <WarmFieldWorkflow />
+            <WarmQuickActions
               @open-upload="openUpload"
-              @open-versions="dialogs.versions = true"
-              @open-audit="dialogs.audit = true"
-              @open-migration="dialogs.migration = true"
+              @open-feedback="openFeedback"
+              @focus-documents="focusDocuments"
             />
+            <WarmProcessBoard />
+            <div ref="documentAnchorRef">
+              <WarmDocumentWorkspace
+                @open-upload="openUpload"
+                @open-versions="dialogs.versions = true"
+                @open-audit="dialogs.audit = true"
+                @open-migration="dialogs.migration = true"
+              />
+            </div>
           </div>
         </section>
       </main>

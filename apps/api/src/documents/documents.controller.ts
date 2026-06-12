@@ -5,6 +5,7 @@ import { memoryStorage } from 'multer';
 import { CompareDocumentsDto } from './dto/compare-documents.dto';
 import { DocumentQueryDto } from './dto/document-query.dto';
 import { DocumentVersionQueryDto } from './dto/document-version-query.dto';
+import { FileHealthQueryDto } from './dto/file-health-query.dto';
 import { SetEffectiveDocumentDto } from './dto/set-effective-document.dto';
 import { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
@@ -28,6 +29,12 @@ export class DocumentsController {
   @ApiOperation({ summary: '查询某产品的资料版本分组列表' })
   findProductVersions(@Query() query: DocumentVersionQueryDto) {
     return this.documentsService.findProductVersions(query);
+  }
+
+  @Get('file-health')
+  @ApiOperation({ summary: '检查资料文件是否可预览、缺失或仍为演示资料' })
+  fileHealth(@Query() query: FileHealthQueryDto) {
+    return this.documentsService.getFileHealth(query);
   }
 
   @Post('compare')

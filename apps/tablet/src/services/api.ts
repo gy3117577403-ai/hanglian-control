@@ -6,6 +6,8 @@ import type {
   DatabaseSafetyStatus,
   DataSourceStatus,
   DocumentCompareResult,
+  DocumentFileHealthQuery,
+  DocumentFileHealthResponse,
   DocumentQuery,
   DocumentVersionGroup,
   DocumentVersionQuery,
@@ -93,6 +95,12 @@ export function getFeedback(planId?: string) {
 
 export function getDocuments(query?: DocumentQuery) {
   return api<ProductDocument[]>('/documents', {
+    query,
+  })
+}
+
+export function getDocumentFileHealth(query?: DocumentFileHealthQuery) {
+  return api<DocumentFileHealthResponse>('/documents/file-health', {
     query,
   })
 }

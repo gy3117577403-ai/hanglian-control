@@ -1,4 +1,4 @@
-import type { DocumentTab, ProductDocument, ProductionPlan } from '@/types/production'
+import type { DocumentTab, FileHealthStatus, ProductDocument, ProductionPlan } from '@/types/production'
 
 export function completionTone(value: number) {
   if (value >= 95) return 'good'
@@ -103,4 +103,31 @@ export function completionSummary(plan: ProductionPlan) {
     percent: Math.round((plan.completedQuantity / Math.max(plan.plannedQuantity, 1)) * 100),
     remaining,
   }
+}
+
+export function fileHealthLabel(status?: FileHealthStatus) {
+  const labels: Record<FileHealthStatus, string> = {
+    ok: '可预览',
+    demo: '演示资料',
+    missing_file: '文件缺失',
+    unsupported: '不支持预览',
+    broken: '预览异常',
+  }
+  return status ? labels[status] : '待检查'
+}
+
+export function fileHealthSeverity(status?: FileHealthStatus) {
+  if (status === 'ok') return 'success'
+  if (status === 'demo') return 'info'
+  if (status === 'unsupported') return 'warn'
+  if (status === 'missing_file' || status === 'broken') return 'danger'
+  return 'secondary'
+}
+
+export function fileHealthClass(status?: FileHealthStatus) {
+  if (status === 'ok') return 'file-health-ok'
+  if (status === 'demo') return 'file-health-demo'
+  if (status === 'unsupported') return 'file-health-unsupported'
+  if (status === 'missing_file' || status === 'broken') return 'file-health-danger'
+  return 'file-health-unknown'
 }

@@ -111,7 +111,7 @@ const uploadForm = reactive({
   requiredForProcess: 'common' as RequiredProcess,
   status: 'pending_review' as DocumentStatus,
   title: '',
-  version: 'V1.0',
+  version: 'Rev.A',
   keywords: '',
   remark: '',
 })
@@ -338,7 +338,7 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
         </div>
         <div>
           <label class="text-sm font-black text-[#68411f]">版本号</label>
-          <PrimeInputText v-model="uploadForm.version" class="mt-2 w-full" placeholder="V1.0" />
+          <PrimeInputText v-model="uploadForm.version" class="mt-2 w-full" placeholder="Rev.A" />
         </div>
         <div>
           <label class="text-sm font-black text-[#68411f]">资料状态</label>
@@ -487,4 +487,3 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
     </div>
   </PrimeDialog>
 </template>
-
