@@ -7,6 +7,8 @@ import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import ConfirmDialog from 'primevue/confirmdialog'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Divider from 'primevue/divider'
 import FileUpload from 'primevue/fileupload'
@@ -50,7 +52,9 @@ export function installPrimeVue(app: App) {
   app.component('PrimeBadge', Badge)
   app.component('PrimeButton', Button)
   app.component('PrimeCard', Card)
+  app.component('PrimeColumn', Column)
   app.component('PrimeConfirmDialog', ConfirmDialog)
+  app.component('PrimeDataTable', DataTable)
   app.component('PrimeDialog', Dialog)
   app.component('PrimeDivider', Divider)
   app.component('PrimeFileUpload', FileUpload)

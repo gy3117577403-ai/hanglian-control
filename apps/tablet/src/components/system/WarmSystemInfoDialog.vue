@@ -50,6 +50,8 @@ const commands = [
   'npm run dev:lan',
   'npm run pwa:assets',
   'npm run pwa:check',
+  'npm run demo:imports',
+  'npm run import-flow:check',
   'npm run demo:assets',
   'npm run demo:check',
   'npm run demo:freeze-check',

@@ -81,6 +81,7 @@ enum AuditEntityType {
   FEEDBACK
   FILE
   SYSTEM
+  IMPORT
 }
 
 enum AuditAction {
@@ -93,6 +94,7 @@ enum AuditAction {
   DOCUMENT_DOWNLOADED
   READINESS_RECALCULATED
   MIGRATION_PREVIEW_GENERATED
+  BUSINESS_DATA_IMPORTED
 }
 
 model User {

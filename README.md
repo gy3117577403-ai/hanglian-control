@@ -4,11 +4,11 @@
 
 ## 当前版本
 
-V1.9 平板演示试用包：在 V1.8 演示冻结候选版基础上新增 PWA 配置、平板安装提示、横屏提示、启动页、PWA 诊断和 Windows 一键启动脚本。
+V2.0 数据导入演示版：在 V1.9 平板演示试用包基础上新增数据导入中心，支持 Excel / CSV 导入生产计划、客户产品、前段参数和后段资料包。
 
 当前运行边界：
 
-- 数据源：Mock。
+- 数据源：Mock / 本地 metadata。
 - Sealos PostgreSQL：未接入。
 - 企业微信微盘：未接入。
 - 真实语音识别：未接入。
@@ -31,6 +31,8 @@ npm run dev
 
 ```bash
 npm run demo:assets
+npm run demo:imports
+npm run import-flow:check
 npm run pwa:assets
 npm run pwa:check
 npm run demo:check
@@ -62,9 +64,33 @@ start-field-demo.bat
 5. 查看前段参数、后段资料、图纸/SOP/孔位图/成品图
 6. 上传 `demo-upload-assets` 下的 PDF 或图片演示资料
 7. 查看文件健康、版本历史和审计记录
-8. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、冻结前验收、演示资料说明、后续路线
-9. 打开“安装到平板桌面”或“PWA / 平板诊断”，按浏览器能力添加到主屏幕
-10. 复制现场走查结果，必要时仅重置前端演示界面状态
+8. 打开“演示工具 → 数据导入中心”，用 `demo-import-files` 导入生产计划、客户产品、前段参数、后段资料包
+9. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、冻结前验收、演示资料说明、后续路线
+10. 打开“安装到平板桌面”或“PWA / 平板诊断”，按浏览器能力添加到主屏幕
+11. 复制现场走查结果，必要时仅重置前端演示界面状态
+
+## 数据导入中心
+
+入口：`演示工具 → 数据导入中心`。
+
+支持：
+
+- 生产计划导入
+- 客户产品主数据导入
+- 前段参数导入
+- 后段资料包导入
+- 模板下载
+- 上传前预览和中文校验
+- 应用导入到本地 Mock / metadata
+- 导入历史和回滚预览
+
+演示导入文件：
+
+```bash
+npm run demo:imports
+```
+
+模板说明见 `docs/import-template-guide.md`。当前导入数据仍为本地 metadata，不接 Sealos，不接企业微信微盘，不接真实语音。
 
 ## 安卓平板添加到桌面
 
@@ -99,6 +125,8 @@ start-field-demo.bat
 | `npm run dev:lan` | 启动局域网平板演示 |
 | `npm run pwa:assets` | 生成 PWA 本地演示图标 |
 | `npm run pwa:check` | 只读检查 PWA / 平板演示准备状态 |
+| `npm run demo:imports` | 生成 Excel 演示导入文件 |
+| `npm run import-flow:check` | 只读检查导入流准备状态 |
 | `npm run demo:assets` | 生成合成演示上传资料 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
 | `npm run demo:release-check` | 只读检查当前演示版收口状态 |
@@ -120,6 +148,8 @@ start-field-demo.bat
 - `docs/release-notes-v1.8.md`
 - `docs/pre-merge-checklist.md`
 - `docs/tablet-install-guide.md`
+- `docs/v2.0-data-import-center.md`
+- `docs/import-template-guide.md`
 - `docs/v1.9-pwa-tablet-package.md`
 - `docs/v1.8-demo-freeze-qa.md`
 - `docs/v1.7-demo-management.md`

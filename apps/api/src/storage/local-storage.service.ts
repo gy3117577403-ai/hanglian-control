@@ -3,7 +3,13 @@ import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } 
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { AuditLog, ProductDocument } from '../common/types/production.types';
+import type {
+  AuditLog,
+  ImportedBusinessDataSnapshot,
+  ImportPreviewResult,
+  ImportRecord,
+  ProductDocument,
+} from '../common/types/production.types';
 
 export interface StoredFileInfo {
   absolutePath: string;
@@ -34,6 +40,9 @@ export class LocalStorageService implements OnModuleInit {
   private readonly metadataDir = join(this.storageRoot, 'metadata');
   private readonly documentsFile = join(this.metadataDir, 'documents.json');
   private readonly auditLogsFile = join(this.metadataDir, 'audit-logs.json');
+  private readonly importRecordsFile = join(this.metadataDir, 'import-records.json');
+  private readonly importedBusinessDataFile = join(this.metadataDir, 'imported-business-data.json');
+  private readonly importPreviewsFile = join(this.metadataDir, 'import-previews.json');
 
   async onModuleInit() {
     await this.ensureStorage();
@@ -56,6 +65,21 @@ export class LocalStorageService implements OnModuleInit {
     } catch {
       await writeFile(this.auditLogsFile, '[]', 'utf8');
     }
+    try {
+      await stat(this.importRecordsFile);
+    } catch {
+      await writeFile(this.importRecordsFile, '[]', 'utf8');
+    }
+    try {
+      await stat(this.importedBusinessDataFile);
+    } catch {
+      await writeFile(this.importedBusinessDataFile, this.emptyImportedBusinessData(), 'utf8');
+    }
+    try {
+      await stat(this.importPreviewsFile);
+    } catch {
+      await writeFile(this.importPreviewsFile, '[]', 'utf8');
+    }
   }
 
   ensureStorageSync() {
@@ -66,6 +90,15 @@ export class LocalStorageService implements OnModuleInit {
     }
     if (!existsSync(this.auditLogsFile)) {
       writeFileSync(this.auditLogsFile, '[]', 'utf8');
+    }
+    if (!existsSync(this.importRecordsFile)) {
+      writeFileSync(this.importRecordsFile, '[]', 'utf8');
+    }
+    if (!existsSync(this.importedBusinessDataFile)) {
+      writeFileSync(this.importedBusinessDataFile, this.emptyImportedBusinessData(), 'utf8');
+    }
+    if (!existsSync(this.importPreviewsFile)) {
+      writeFileSync(this.importPreviewsFile, '[]', 'utf8');
     }
   }
 
@@ -130,6 +163,39 @@ export class LocalStorageService implements OnModuleInit {
     await writeFile(this.auditLogsFile, JSON.stringify(logs, null, 2), 'utf8');
   }
 
+  readImportRecordsSync(): ImportRecord[] {
+    this.ensureStorageSync();
+    return this.readJsonFileSync<ImportRecord[]>(this.importRecordsFile, []);
+  }
+
+  writeImportRecordsSync(records: ImportRecord[]) {
+    this.ensureStorageSync();
+    writeFileSync(this.importRecordsFile, JSON.stringify(records, null, 2), 'utf8');
+  }
+
+  readImportedBusinessDataSync(): ImportedBusinessDataSnapshot {
+    this.ensureStorageSync();
+    return this.readJsonFileSync<ImportedBusinessDataSnapshot>(
+      this.importedBusinessDataFile,
+      this.emptyImportedBusinessDataObject(),
+    );
+  }
+
+  writeImportedBusinessDataSync(snapshot: ImportedBusinessDataSnapshot) {
+    this.ensureStorageSync();
+    writeFileSync(this.importedBusinessDataFile, JSON.stringify(snapshot, null, 2), 'utf8');
+  }
+
+  readImportPreviewsSync(): ImportPreviewResult[] {
+    this.ensureStorageSync();
+    return this.readJsonFileSync<ImportPreviewResult[]>(this.importPreviewsFile, []);
+  }
+
+  writeImportPreviewsSync(previews: ImportPreviewResult[]) {
+    this.ensureStorageSync();
+    writeFileSync(this.importPreviewsFile, JSON.stringify(previews, null, 2), 'utf8');
+  }
+
   writeAuditLogsSync(logs: AuditLog[]) {
     this.ensureStorageSync();
     writeFileSync(this.auditLogsFile, JSON.stringify(logs, null, 2), 'utf8');
@@ -182,5 +248,28 @@ export class LocalStorageService implements OnModuleInit {
     } catch {
       return undefined;
     }
+  }
+
+  private readJsonFileSync<T>(file: string, fallback: T): T {
+    try {
+      return JSON.parse(readFileSync(file, 'utf8')) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private emptyImportedBusinessDataObject(): ImportedBusinessDataSnapshot {
+    return {
+      updatedAt: new Date(0).toISOString(),
+      customers: [],
+      products: [],
+      productionPlans: [],
+      frontParameters: [],
+      backPackages: [],
+    };
+  }
+
+  private emptyImportedBusinessData() {
+    return JSON.stringify(this.emptyImportedBusinessDataObject(), null, 2);
   }
 }

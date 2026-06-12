@@ -110,6 +110,64 @@ V1.5 网络诊断面板会展示 `/api/files/<storedFileName>` 的用途说明�
 - `POST /api/feedback`
 - `GET /api/feedback?planId=可选`
 
+## Imports
+
+V2.0 新增导入 API。所有接口只写本地 Mock / metadata，不连接 Sealos，不执行迁移或写库。
+
+### `GET /api/imports/templates`
+
+返回支持的导入类型、中文名称、字段和示例。
+
+### `GET /api/imports/templates/:type/download`
+
+下载 Excel 模板。`type` 支持：
+
+- `production_plan`
+- `customer_product`
+- `front_parameter`
+- `back_package`
+
+### `POST /api/imports/:type/preview`
+
+`multipart/form-data` 上传 Excel / CSV，字段名为 `file`。接口只解析和校验，不应用导入。
+
+响应包含：
+
+- `previewId`
+- `totalRows`
+- `validRows`
+- `warningRows`
+- `errorRows`
+- `rows`
+- `summary`
+
+### `POST /api/imports/:type/apply`
+
+请求体：
+
+```json
+{
+  "previewId": "IMP-PREVIEW-xxx",
+  "operatorId": "demo-leader",
+  "operatorName": "组长演示账号",
+  "remark": "导入本周计划"
+}
+```
+
+应用预览结果到本地 Mock / metadata。存在错误行时拒绝应用；存在警告行时前端需要二次确认。
+
+### `GET /api/imports/history`
+
+返回导入历史。
+
+### `GET /api/imports/history/:id`
+
+返回导入记录详情。
+
+### `POST /api/imports/history/:id/rollback-preview`
+
+只返回回滚影响预览，不删除数据，不真正回滚。
+
 ## Audit
 
 ### `GET /api/audit-logs`

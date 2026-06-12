@@ -361,7 +361,7 @@ export interface SetEffectiveDocumentResult {
   readiness?: PlanReadiness
 }
 
-export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system'
+export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import'
 export type AuditAction =
   | 'document_uploaded'
   | 'document_status_changed'
@@ -372,6 +372,7 @@ export type AuditAction =
   | 'document_downloaded'
   | 'readiness_recalculated'
   | 'migration_preview_generated'
+  | 'business_data_imported'
 
 export interface AuditLog {
   auditId: string
@@ -450,4 +451,89 @@ export interface PrismaSeedPreview {
   warnings: string[]
   safety: DatabaseSafetyStatus
   seed: Record<string, unknown[]>
+}
+
+export type ImportType = 'production_plan' | 'customer_product' | 'front_parameter' | 'back_package'
+export type ImportRowStatus = 'valid' | 'warning' | 'error'
+
+export interface ImportTemplateField {
+  field: string
+  required: boolean
+  description: string
+  example?: string | number
+}
+
+export interface ImportTemplateDefinition {
+  type: ImportType
+  label: string
+  description: string
+  fields: ImportTemplateField[]
+}
+
+export interface ImportPreviewRow {
+  rowNumber: number
+  data: Record<string, string | number>
+  normalized: Record<string, string | number>
+  status: ImportRowStatus
+  messages: string[]
+}
+
+export interface ImportPreviewResult {
+  previewId: string
+  importType: ImportType
+  importTypeLabel: string
+  fileName: string
+  totalRows: number
+  validRows: number
+  warningRows: number
+  errorRows: number
+  columns: string[]
+  rows: ImportPreviewRow[]
+  summary: Record<string, number>
+  createdAt: string
+}
+
+export interface ImportApplyPayload {
+  previewId: string
+  operatorId: string
+  operatorName: string
+  remark?: string
+}
+
+export interface ImportRecord {
+  id: string
+  importType: ImportType
+  importTypeLabel: string
+  fileName: string
+  status: '成功' | '有警告' | '失败'
+  totalRows: number
+  validRows: number
+  warningRows: number
+  errorRows: number
+  summary: Record<string, number>
+  operatorId: string
+  operatorName: string
+  remark?: string
+  createdAt: string
+  previewId?: string
+  messages: string[]
+}
+
+export interface ImportApplyResult {
+  success: boolean
+  message: string
+  record: ImportRecord
+  dataSource: 'mock-metadata'
+}
+
+export interface ImportRollbackPreview {
+  importRecordId: string
+  importType: ImportType
+  affectedPlans: number
+  affectedProducts: number
+  affectedCustomers: number
+  affectedParameters: number
+  affectedBackPackages: number
+  canRollback: false
+  message: string
 }

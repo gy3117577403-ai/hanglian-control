@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   backProcessPackages,
   confirmationRecords,
@@ -19,6 +21,7 @@ import type {
   CustomerSeed,
   FeedbackRecordMock,
   FrontProcessParameterSeed,
+  ImportedBusinessDataSnapshot,
   ProductDocument,
   ProductDocumentSeed,
   ProductSeed,
@@ -28,6 +31,33 @@ import type {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function importedBusinessDataPath() {
+  const cwdStorage = resolve(process.cwd(), 'storage', 'metadata', 'imported-business-data.json');
+  if (existsSync(cwdStorage)) return cwdStorage;
+  return resolve(process.cwd(), 'apps', 'api', 'storage', 'metadata', 'imported-business-data.json');
+}
+
+function readImportedBusinessData(): ImportedBusinessDataSnapshot | undefined {
+  const file = importedBusinessDataPath();
+  if (!existsSync(file)) return undefined;
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as ImportedBusinessDataSnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+function upsertById<T extends { id: string }>(target: T[], rows: T[]) {
+  for (const row of rows) {
+    const index = target.findIndex((item) => item.id === row.id);
+    if (index >= 0) {
+      target[index] = clone(row);
+    } else {
+      target.push(clone(row));
+    }
+  }
 }
 
 function labelForDocumentType(documentType: ProductDocumentSeed['documentType']) {
@@ -181,6 +211,10 @@ export class MockStore {
   readonly productionPlans = buildProductionPlans();
   readonly feedbackRecords: FeedbackRecordMock[] = clone(feedbackRecords);
 
+  constructor() {
+    this.mergeImportedBusinessData(readImportedBusinessData());
+  }
+
   findPlanById(planId: string) {
     return this.productionPlans.find((plan) => plan.id === planId);
   }
@@ -204,6 +238,51 @@ export class MockStore {
   addFeedback(record: FeedbackRecordMock) {
     this.feedbackRecords.unshift(record);
     return record;
+  }
+
+  mergeImportedBusinessData(snapshot?: ImportedBusinessDataSnapshot) {
+    if (!snapshot) return;
+    upsertById(this.customers, snapshot.customers ?? []);
+    upsertById(this.products, snapshot.products ?? []);
+    upsertById(this.productionPlans, snapshot.productionPlans ?? []);
+    for (const front of snapshot.frontParameters ?? []) {
+      for (const plan of this.productionPlans.filter((item) => item.productId === front.productId)) {
+        plan.front = {
+          wireLength: front.wireLength,
+          strippingLength: front.strippingLength,
+          terminalModel: front.terminalModel,
+          pullForceStandard: front.pullForceStandard,
+          crimpHeight: front.crimpHeight,
+          drawingVersion: front.drawingVersion,
+          parameterStatus: front.parameterStatus,
+        };
+      }
+    }
+    for (const back of snapshot.backPackages ?? []) {
+      for (const plan of this.productionPlans.filter((item) => item.productId === back.productId)) {
+        plan.back = {
+          connectorModel: back.connectorModel,
+          assemblyManual: back.assemblyManual,
+          pinMap: back.pinMap,
+          sop: back.sop,
+          finishedImageCount: back.finishedImageCount,
+          drawingVersion: back.drawingVersion,
+          sopVersion: back.sopVersion,
+          materialStatus: back.materialStatus,
+        };
+      }
+    }
+  }
+
+  importedSnapshotBase(): ImportedBusinessDataSnapshot {
+    return readImportedBusinessData() ?? {
+      updatedAt: new Date(0).toISOString(),
+      customers: [],
+      products: [],
+      productionPlans: [],
+      frontParameters: [],
+      backPackages: [],
+    };
   }
 }
 

@@ -7,6 +7,7 @@ const entityToPrisma: Record<AuditEntityType, string> = {
   feedback: 'FEEDBACK',
   file: 'FILE',
   system: 'SYSTEM',
+  import: 'IMPORT',
 };
 
 const actionToPrisma: Record<AuditAction, string> = {
@@ -19,6 +20,7 @@ const actionToPrisma: Record<AuditAction, string> = {
   document_downloaded: 'DOCUMENT_DOWNLOADED',
   readiness_recalculated: 'READINESS_RECALCULATED',
   migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
+  business_data_imported: 'BUSINESS_DATA_IMPORTED',
 };
 
 export function mapAuditLogToPrisma(log: AuditLog) {

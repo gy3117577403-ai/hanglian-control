@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
+import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
 import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
 import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
 import WarmDialogs from '@/components/warm/WarmDialogs.vue'
@@ -41,6 +42,7 @@ const dialogs = reactive({
   network: false,
   pwaInstall: false,
   pwaDiagnostics: false,
+  importCenter: false,
   fieldQa: false,
   systemInfo: false,
   demoGuide: false,
@@ -86,6 +88,10 @@ function closeLaunchScreen() {
   launchVisible.value = false
 }
 
+async function refreshAfterImport() {
+  await store.loadPlans(store.scope).catch(() => undefined)
+}
+
 onMounted(() => {
   void store.initialize()
   window.setTimeout(() => {
@@ -117,6 +123,7 @@ onUnmounted(() => {
         @open-demo-guide="dialogs.demoGuide = true"
         @open-pwa-install="dialogs.pwaInstall = true"
         @open-pwa-diagnostics="dialogs.pwaDiagnostics = true"
+        @open-import-center="dialogs.importCenter = true"
         @open-demo-data-manager="dialogs.demoDataManager = true"
         @open-demo-readiness="dialogs.demoReadiness = true"
         @open-freeze-checklist="dialogs.freezeChecklist = true"
@@ -172,6 +179,10 @@ onUnmounted(() => {
       v-model:visible="dialogs.pwaDiagnostics"
       @open-install="dialogs.pwaInstall = true"
       @open-network="dialogs.network = true"
+    />
+    <WarmImportCenterDialog
+      v-model:visible="dialogs.importCenter"
+      @imported="refreshAfterImport"
     />
     <WarmFieldQaChecklist v-model:visible="dialogs.fieldQa" />
     <WarmSystemInfoDialog v-model:visible="dialogs.systemInfo" />

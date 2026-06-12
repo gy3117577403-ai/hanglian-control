@@ -36,7 +36,7 @@ export type SearchResultType =
 
 export type SearchScope = 'current_plan' | 'global';
 
-export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system';
+export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import';
 
 export type AuditAction =
   | 'document_uploaded'
@@ -47,7 +47,8 @@ export type AuditAction =
   | 'document_previewed'
   | 'document_downloaded'
   | 'readiness_recalculated'
-  | 'migration_preview_generated';
+  | 'migration_preview_generated'
+  | 'business_data_imported';
 
 export const documentStatusLabelMap: Record<DocumentStatus, MaterialStatus> = {
   effective: '有效',

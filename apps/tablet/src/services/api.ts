@@ -15,6 +15,13 @@ import type {
   DocumentVersionsResponse,
   FeedbackRecord,
   HealthResponse,
+  ImportApplyPayload,
+  ImportApplyResult,
+  ImportPreviewResult,
+  ImportRecord,
+  ImportRollbackPreview,
+  ImportTemplateDefinition,
+  ImportType,
   MigrationPreview,
   MigrationValidation,
   PlanReadiness,
@@ -221,4 +228,52 @@ export function getPrismaSeedPreview() {
 
 export function exportMigrationSeed() {
   return api('/migration/export-seed')
+}
+
+export function getImportTemplates() {
+  return api<ImportTemplateDefinition[]>('/imports/templates')
+}
+
+export async function downloadImportTemplate(type: ImportType) {
+  const response = await fetch(`${apiBaseUrl}/imports/templates/${type}/download`)
+  if (!response.ok) throw new Error('模板下载失败')
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${type}-template.xlsx`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+export function previewImport(type: ImportType, formData: FormData) {
+  return api<ImportPreviewResult>(`/imports/${type}/preview`, {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export function applyImport(type: ImportType, payload: ImportApplyPayload) {
+  return api<ImportApplyResult>(`/imports/${type}/apply`, {
+    method: 'POST',
+    body: payload,
+    timeout: 15000,
+  })
+}
+
+export function getImportHistory() {
+  return api<ImportRecord[]>('/imports/history')
+}
+
+export function getImportHistoryDetail(id: string) {
+  return api<ImportRecord>(`/imports/history/${id}`)
+}
+
+export function previewImportRollback(id: string) {
+  return api<ImportRollbackPreview>(`/imports/history/${id}/rollback-preview`, {
+    method: 'POST',
+  })
 }

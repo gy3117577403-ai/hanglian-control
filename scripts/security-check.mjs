@@ -239,6 +239,9 @@ walk(rootDir);
   '.env.local',
   'apps/api/storage/metadata/documents.json',
   'apps/api/storage/metadata/audit-logs.json',
+  'apps/api/storage/metadata/import-records.json',
+  'apps/api/storage/metadata/imported-business-data.json',
+  'apps/api/storage/metadata/import-previews.json',
   'apps/api/storage/metadata/prisma-seed-preview.json',
   'apps/api/storage/metadata/prisma-migration-preview.sql',
 ].forEach((file) => checkLocalOnlyFile(file));

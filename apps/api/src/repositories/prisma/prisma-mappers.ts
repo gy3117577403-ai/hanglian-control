@@ -135,6 +135,7 @@ const AUDIT_ENTITY_TO_PRISMA: Record<AuditEntityType, string> = {
   feedback: 'FEEDBACK',
   file: 'FILE',
   system: 'SYSTEM',
+  import: 'IMPORT',
 };
 
 const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
@@ -143,6 +144,7 @@ const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
   FEEDBACK: 'feedback',
   FILE: 'file',
   SYSTEM: 'system',
+  IMPORT: 'import',
 };
 
 const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {
@@ -155,6 +157,7 @@ const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {
   document_downloaded: 'DOCUMENT_DOWNLOADED',
   readiness_recalculated: 'READINESS_RECALCULATED',
   migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
+  business_data_imported: 'BUSINESS_DATA_IMPORTED',
 };
 
 const AUDIT_ACTION_FROM_PRISMA: Record<string, AuditAction> = {
@@ -167,6 +170,7 @@ const AUDIT_ACTION_FROM_PRISMA: Record<string, AuditAction> = {
   DOCUMENT_DOWNLOADED: 'document_downloaded',
   READINESS_RECALCULATED: 'readiness_recalculated',
   MIGRATION_PREVIEW_GENERATED: 'migration_preview_generated',
+  BUSINESS_DATA_IMPORTED: 'business_data_imported',
 };
 
 export function prismaProcessToApi(value?: string): ProcessSegment {

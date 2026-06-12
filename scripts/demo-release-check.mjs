@@ -54,6 +54,8 @@ const gitignore = read('.gitignore');
   'docs/v1.7-demo-management.md',
   'docs/v1.8-demo-freeze-qa.md',
   'docs/v1.9-pwa-tablet-package.md',
+  'docs/v2.0-data-import-center.md',
+  'docs/import-template-guide.md',
   'docs/tablet-install-guide.md',
   'docs/release-notes-v1.8.md',
   'docs/pre-merge-checklist.md',
@@ -65,6 +67,8 @@ const gitignore = read('.gitignore');
   'demo:check',
   'demo:release-check',
   'demo:freeze-check',
+  'demo:imports',
+  'import-flow:check',
   'file-flow:check',
   'dev:lan',
   'security:check',
@@ -77,11 +81,14 @@ const gitignore = read('.gitignore');
   'apps/api/storage/uploads/*',
   'apps/api/storage/metadata/documents.json',
   'apps/api/storage/metadata/audit-logs.json',
+  'apps/api/storage/metadata/import-records.json',
+  'apps/api/storage/metadata/imported-business-data.json',
+  'apps/api/storage/metadata/import-previews.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
 
-console.log('V1.9 demo release check');
+console.log('V2.0 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -98,6 +105,6 @@ if (blockers.length) {
 
 console.log('\nDemo release check passed.');
 console.log('\nSuggested next steps:');
-console.log('- 平板真机验收');
+console.log('- 平板真机验收数据导入中心');
 console.log('- push 分支');
 console.log('- 创建 PR 或继续开发');
