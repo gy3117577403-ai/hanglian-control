@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import dayjs from 'dayjs'
-import { CalendarDays, Factory, HardDrive, ShieldCheck, UserRound } from 'lucide-vue-next'
+import { CalendarDays, Factory, HardDrive, Maximize2, ShieldCheck, UserRound } from 'lucide-vue-next'
 import { useProductionStore } from '@/stores/production-store'
+import { useUiStore } from '@/stores/ui-store'
 
 const store = useProductionStore()
+const uiStore = useUiStore()
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
 let timer: number | undefined
 
@@ -20,6 +22,10 @@ const menuItems = [
   { label: '资料版本留痕', icon: 'pi pi-history' },
   { label: '本地 Mock 数据流', icon: 'pi pi-database' },
 ]
+
+function toggleFieldMode() {
+  void uiStore.toggleFieldMode()
+}
 
 onMounted(() => {
   timer = window.setInterval(() => {
@@ -73,7 +79,16 @@ onUnmounted(() => {
           <span>{{ store.dataSourceStatus.dataSource === 'prisma' ? 'Prisma 数据源' : 'Mock 数据源' }}</span>
         </div>
       </div>
-      <PrimeMenu :model="menuItems" class="warm-mini-menu" />
+      <div class="grid gap-2">
+        <PrimeButton
+          severity="secondary"
+          :label="uiStore.fieldMode ? '退出现场' : '现场模式'"
+          @click="toggleFieldMode"
+        >
+          <template #icon><Maximize2 :size="17" /></template>
+        </PrimeButton>
+        <PrimeMenu v-if="!uiStore.fieldMode" :model="menuItems" class="warm-mini-menu" />
+      </div>
     </div>
   </header>
 </template>

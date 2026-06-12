@@ -12,6 +12,7 @@ import {
   processLabel,
   sourceLabel,
 } from '@/lib/format'
+import { errorMessages, friendlyErrorMessage } from '@/lib/error-message'
 import { documentSeverity, documentStatusLabel, rawDocumentStatus } from '@/lib/status-style'
 import { useProductionStore } from '@/stores/production-store'
 import type { DocumentStatus, DocumentTypeV03, FeedbackType, ProductDocument, RequiredProcess } from '@/types/production'
@@ -37,11 +38,14 @@ const toast = useToast()
 const confirm = useConfirm()
 const selectedUploadFile = ref<File | null>(null)
 const uploadError = ref('')
+const skipEffectiveWarning = ref(false)
 const compareSelection = ref<string[]>([])
 const versionMenu = ref<{ toggle: (event: Event) => void } | null>(null)
 const versionMenuDocument = ref<ProductDocument | null>(null)
 
 const activeDocument = computed(() => store.selectedDocument ?? store.previewDocument)
+const allowedUploadMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const allowedUploadExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp']
 
 const feedbackVisible = computed({
   get: () => props.feedbackOpen,
@@ -164,7 +168,47 @@ async function submitFeedback() {
   feedbackVisible.value = false
 }
 
+function fileExtension(file: File) {
+  const index = file.name.lastIndexOf('.')
+  return index >= 0 ? file.name.slice(index).toLowerCase() : ''
+}
+
+function duplicateUploadWarning() {
+  const productId = store.selectedPlan.productId ?? store.selectedPlan.productCode
+  const duplicate = store.documents.find((document) => {
+    return (document.productId ?? productId) === productId
+      && document.documentType === uploadForm.documentType
+      && document.requiredForProcess === uploadForm.requiredForProcess
+      && document.version === uploadForm.version.trim()
+  })
+  return duplicate ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。' : ''
+}
+
+function effectiveConflictWarning() {
+  if (uploadForm.status !== 'effective') return ''
+  const productId = store.selectedPlan.productId ?? store.selectedPlan.productCode
+  const conflict = store.documents.find((document) => {
+    return (document.productId ?? productId) === productId
+      && document.documentType === uploadForm.documentType
+      && document.requiredForProcess === uploadForm.requiredForProcess
+      && rawDocumentStatus(document) === 'effective'
+  })
+  return conflict ? '设为当前有效后，同组其他有效版本将自动转为已失效。' : ''
+}
+
+function versionFormatWarning() {
+  const version = uploadForm.version.trim()
+  return version && !/^Rev\.[A-Z0-9]+(?:[-_.][A-Z0-9]+)?$/i.test(version)
+    ? '版本号建议使用 Rev.A / Rev.B / Rev.C 格式；当前格式可继续上传，但建议复核。'
+    : ''
+}
+
 function validateUpload() {
+  if (!selectedUploadFile.value) return '请选择资料文件。'
+  if (!store.selectedPlan?.id || !(store.selectedPlan.productId ?? store.selectedPlan.productCode)) return errorMessages.selectPlanFirst
+  if (!allowedUploadMimeTypes.includes(selectedUploadFile.value.type) || !allowedUploadExtensions.includes(fileExtension(selectedUploadFile.value))) {
+    return '文件格式不支持，请上传 PDF、JPG、PNG 或 WEBP。'
+  }
   if (!selectedUploadFile.value) return '请选择资料文件。'
   if (!uploadForm.documentType) return '请选择资料类型。'
   if (!uploadForm.title.trim()) return '请填写资料标题。'
@@ -177,6 +221,24 @@ async function submitUpload() {
   uploadError.value = validateUpload()
   if (uploadError.value) return
   if (!selectedUploadFile.value) return
+  const effectiveWarning = effectiveConflictWarning()
+  if (effectiveWarning && !skipEffectiveWarning.value) {
+    confirm.require({
+      header: '确认设置当前有效版本',
+      message: effectiveWarning,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '继续上传',
+      rejectLabel: '取消',
+      acceptClass: 'p-button-danger',
+      accept: () => {
+        skipEffectiveWarning.value = true
+        void submitUpload().finally(() => {
+          skipEffectiveWarning.value = false
+        })
+      },
+    })
+    return
+  }
 
   const formData = new FormData()
   formData.set('file', selectedUploadFile.value)
@@ -194,8 +256,9 @@ async function submitUpload() {
     uploadVisible.value = false
     selectedUploadFile.value = null
     uploadError.value = ''
-  } catch {
-    uploadError.value = '资料上传失败，请检查文件格式或网络。'
+  } catch (error) {
+    uploadError.value = friendlyErrorMessage(error, '资料上传失败，请检查文件格式或网络。')
+    return
   }
 }
 
@@ -354,6 +417,9 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
         </div>
       </div>
 
+      <PrimeMessage v-if="versionFormatWarning()" severity="warn" :closable="false">{{ versionFormatWarning() }}</PrimeMessage>
+      <PrimeMessage v-if="duplicateUploadWarning()" severity="warn" :closable="false">{{ duplicateUploadWarning() }}</PrimeMessage>
+      <PrimeMessage v-if="effectiveConflictWarning()" severity="warn" :closable="false">{{ effectiveConflictWarning() }}</PrimeMessage>
       <PrimeMessage v-if="uploadError" severity="error" :closable="false">{{ uploadError }}</PrimeMessage>
       <PrimeProgressBar v-if="store.uploadLoading" mode="indeterminate" />
     </div>

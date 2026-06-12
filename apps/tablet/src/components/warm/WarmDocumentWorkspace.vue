@@ -67,6 +67,17 @@ const previewDocument = computed(() => {
 const isPdfTab = computed(() => activeTab.value === 'drawing')
 const activeDocumentId = computed(() => previewDocument.value?.documentId ?? previewDocument.value?.id)
 const previewFileHealth = computed(() => previewDocument.value ? store.fileHealthForDocument(previewDocument.value) : null)
+const healthCards = computed(() => {
+  const summary = store.fileHealth?.summary
+  return [
+    { label: '可预览', value: summary?.previewableDocuments ?? 0, tone: 'good' },
+    { label: '演示资料', value: summary?.demoOnly ?? 0, tone: 'info' },
+    { label: '文件缺失', value: summary?.missingFiles ?? 0, tone: 'danger' },
+    { label: '待确认', value: summary?.pendingReviewDocuments ?? 0, tone: 'warn' },
+    { label: '历史失效', value: summary?.expiredDocuments ?? 0, tone: 'danger' },
+    { label: '重复版本', value: summary?.duplicateVersionGroups ?? 0, tone: 'warn' },
+  ]
+})
 
 function setTab(value: string | number) {
   activeTab.value = value as PreviewFolderTab
@@ -227,6 +238,17 @@ watch(
       </div>
     </div>
 
+    <div class="file-health-overview">
+      <div
+        v-for="item in healthCards"
+        :key="item.label"
+        :class="['file-health-summary-card', `file-health-summary-${item.tone}`]"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+      </div>
+    </div>
+
     <PrimeTabs :value="activeTab" class="document-folder-tabs" @update:value="setTab" @click.capture="onTabClick">
       <PrimeTabList>
         <PrimeTab v-for="item in tabStats" :key="item.tab" :value="item.tab">
@@ -244,6 +266,7 @@ watch(
           <WarmDocumentCarousel
             :documents="activeDocs"
             :active-document-id="activeDocumentId"
+            :highlighted-document-id="store.highlightedDocumentId"
             :file-health-by-id="store.fileHealthByDocumentId"
             @select="selectDocument"
             @action="handleDocumentAction"

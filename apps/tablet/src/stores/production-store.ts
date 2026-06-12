@@ -2,6 +2,8 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import dayjs from 'dayjs'
 import { toast } from 'vue-sonner'
+import { errorMessages, friendlyErrorMessage } from '@/lib/error-message'
+import { tabForDocument } from '@/lib/format'
 import { productionPlans } from '@/mock/production-data'
 import {
   confirmProductionPlan,
@@ -61,6 +63,7 @@ const STORAGE_KEYS = {
   scope: 'hanglian.scope',
   selectedPlanId: 'hanglian.selectedPlanId',
   activeProcess: 'hanglian.activeProcess',
+  activeDocumentTab: 'hanglian.activeDocumentTab',
   queryLogs: 'hanglian.queryLogs',
 }
 
@@ -215,12 +218,18 @@ function localFileHealth(plan: ProductionPlan): DocumentFileHealthResponse {
       title: document.title,
       documentType: document.documentType ?? 'drawing_pdf',
       version: document.version,
+      versionGroupKey: document.versionGroupKey,
       source: document.source ?? 'mock',
       previewType: document.previewType,
       hasStoredFile: Boolean(document.storedFileName),
       fileExists: canPreview,
       canPreview,
       isDemoOnly,
+      isEffective: document.documentStatus === 'effective',
+      isHistorical: document.documentStatus === 'expired',
+      isPendingReview: document.documentStatus === 'pending_review',
+      largeFileWarning: (document.fileSize ?? 0) > 30 * 1024 * 1024,
+      duplicateVersionWarning: document.duplicateVersionWarning,
       healthStatus,
       message: healthStatus === 'demo'
         ? '当前为离线演示资料'
@@ -243,6 +252,12 @@ function localFileHealth(plan: ProductionPlan): DocumentFileHealthResponse {
       missingFiles: items.filter((item) => item.healthStatus === 'missing_file').length,
       brokenPreview: items.filter((item) => item.healthStatus === 'broken').length,
       demoOnly: items.filter((item) => item.healthStatus === 'demo').length,
+      effectiveUploadedDocuments: items.filter((item) => item.source === 'manual_upload' && item.isEffective).length,
+      pendingReviewDocuments: items.filter((item) => item.isPendingReview).length,
+      expiredDocuments: items.filter((item) => item.isHistorical).length,
+      unsupportedDocuments: items.filter((item) => item.healthStatus === 'unsupported').length,
+      largeFileWarnings: items.filter((item) => item.largeFileWarning).length,
+      duplicateVersionGroups: items.filter((item) => item.duplicateVersionWarning).length,
     },
     items,
   }
@@ -251,6 +266,7 @@ function localFileHealth(plan: ProductionPlan): DocumentFileHealthResponse {
 export const useProductionStore = defineStore('production', () => {
   const persistedScope = readStorage(STORAGE_KEYS.scope) as PlanScope | null
   const persistedProcess = readStorage(STORAGE_KEYS.activeProcess) as ActiveProcess | null
+  const persistedDocumentTab = readStorage(STORAGE_KEYS.activeDocumentTab) as DocumentTab | null
   const persistedPlanId = readStorage(STORAGE_KEYS.selectedPlanId)
   const persistedLogs = readStorage(STORAGE_KEYS.queryLogs)
 
@@ -260,12 +276,13 @@ export const useProductionStore = defineStore('production', () => {
   const selectedPlanDetail = ref<ProductionPlan | null>(plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? fallbackPlans[0])
   const scope = ref<PlanScope>(persistedScope === 'week' ? 'week' : 'today')
   const activeProcess = ref<ActiveProcess>(persistedProcess === 'back' ? 'back' : 'front')
-  const activeDocumentTab = ref<DocumentTab>('drawing')
+  const activeDocumentTab = ref<DocumentTab>(persistedDocumentTab && ['drawing', 'sop', 'pin-map', 'finish'].includes(persistedDocumentTab) ? persistedDocumentTab : 'drawing')
   const searchKeyword = ref('')
   const searchResults = ref<SearchHit[]>([])
   const documents = ref<ProductDocument[]>([])
   const uploadDialogOpen = ref(false)
   const uploadLoading = ref(false)
+  const highlightedDocumentId = ref('')
   const selectedDocument = ref<ProductDocument | null>(null)
   const previewDocument = ref<ProductDocument | null>(null)
   const documentVersions = ref<DocumentVersionsResponse | null>(null)
@@ -344,6 +361,7 @@ export const useProductionStore = defineStore('production', () => {
   watch(scope, (value) => writeStorage(STORAGE_KEYS.scope, value))
   watch(selectedPlanId, (value) => writeStorage(STORAGE_KEYS.selectedPlanId, value))
   watch(activeProcess, (value) => writeStorage(STORAGE_KEYS.activeProcess, value))
+  watch(activeDocumentTab, (value) => writeStorage(STORAGE_KEYS.activeDocumentTab, value))
   watch(queryLogs, (value) => writeStorage(STORAGE_KEYS.queryLogs, JSON.stringify(value.slice(0, 8))), { deep: true })
 
   async function checkApiHealth() {
@@ -604,25 +622,43 @@ export const useProductionStore = defineStore('production', () => {
 
   async function uploadCurrentDocument(formData: FormData) {
     if (!apiOnline.value) {
-      toast.error('离线演示模式暂不支持上传文件')
-      return
+      errorMessage.value = errorMessages.offlineDemo
+      toast.error('离线演示模式暂不支持上传文件', { description: errorMessage.value })
+      throw new Error(errorMessage.value)
     }
 
     uploadLoading.value = true
     try {
+      if (!selectedPlan.value?.id || !(selectedPlan.value.productId ?? selectedPlan.value.productCode)) {
+        throw new Error(errorMessages.selectPlanFirst)
+      }
       formData.set('planId', selectedPlan.value.id)
       formData.set('productId', selectedPlan.value.productId ?? selectedPlan.value.productCode)
       const document = await uploadDocumentApi(formData)
-      selectedDocument.value = document
-      previewDocument.value = document
+      const documentId = document.documentId ?? document.id
+      activeDocumentTab.value = tabForDocument(document) as DocumentTab
+      highlightedDocumentId.value = documentId
       uploadDialogOpen.value = false
       await selectPlan(selectedPlan.value.id, false)
+      const refreshedDocument = documents.value.find((item) => (item.documentId ?? item.id) === documentId) ?? document
+      selectedDocument.value = refreshedDocument
+      previewDocument.value = refreshedDocument
+      await loadFileHealth(selectedPlan.value)
       if (searchKeyword.value.trim()) {
-        searchResults.value = await searchDocuments(searchKeyword.value.trim(), selectedPlan.value.id).catch(() => searchResults.value)
+        await search(searchKeyword.value.trim()).catch(() => undefined)
       }
-      toast.success('资料上传成功', { description: `${document.title} ${document.version}` })
-    } catch {
-      toast.error('资料上传失败', { description: '请确认文件类型、大小和后端 API 状态。' })
+      window.setTimeout(() => {
+        if (highlightedDocumentId.value === documentId) highlightedDocumentId.value = ''
+      }, 3000)
+      toast.success('资料上传成功，已加入当前产品资料包。', {
+        description: `${document.title} ${document.version}。如需用于生产，请确认版本状态为当前有效。`,
+      })
+      if (document.duplicateVersionWarning) toast.warning(document.duplicateVersionWarning)
+      return refreshedDocument
+    } catch (error) {
+      errorMessage.value = friendlyErrorMessage(error, errorMessages.uploadFailed)
+      toast.error('资料上传失败', { description: errorMessage.value })
+      throw error
     } finally {
       uploadLoading.value = false
     }
@@ -704,7 +740,12 @@ export const useProductionStore = defineStore('production', () => {
       documentVersions.value = result.versions
       if (result.readiness) readiness.value = result.readiness
       await selectPlan(selectedPlan.value.id, false)
-      toast.success('已设置为当前有效版本', { description: `${result.document.title} ${result.document.version}` })
+      await loadFileHealth(selectedPlan.value)
+      if (documentVersions.value?.currentDocument) {
+        selectedDocument.value = documentVersions.value.currentDocument
+        previewDocument.value = documentVersions.value.currentDocument
+      }
+      toast.success('当前有效版本已更新。', { description: `${result.document.title} ${result.document.version}` })
       return result
     } catch (error) {
       errorMessage.value = '设置当前有效版本失败。'
@@ -806,6 +847,7 @@ export const useProductionStore = defineStore('production', () => {
     documents,
     uploadDialogOpen,
     uploadLoading,
+    highlightedDocumentId,
     selectedDocument,
     previewDocument,
     documentVersions,

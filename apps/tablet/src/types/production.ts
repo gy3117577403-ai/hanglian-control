@@ -88,6 +88,8 @@ export interface ProductDocument {
   archivedBy?: string
   remark?: string
   versionGroupKey?: string
+  duplicateVersionWarning?: string
+  recommendedAction?: string
 }
 
 export interface DocumentFileHealthItem {
@@ -95,14 +97,21 @@ export interface DocumentFileHealthItem {
   title: string
   documentType: DocumentTypeV03
   version: string
+  versionGroupKey?: string
   source: DocumentSource
   previewType?: PreviewType
   hasStoredFile: boolean
   fileExists: boolean
   canPreview: boolean
   isDemoOnly: boolean
+  isEffective?: boolean
+  isHistorical?: boolean
+  isPendingReview?: boolean
+  largeFileWarning?: boolean
+  duplicateVersionWarning?: string
   healthStatus: FileHealthStatus
   message: string
+  recommendedAction?: string
 }
 
 export interface DocumentFileHealthResponse {
@@ -118,6 +127,12 @@ export interface DocumentFileHealthResponse {
     missingFiles: number
     brokenPreview: number
     demoOnly: number
+    effectiveUploadedDocuments?: number
+    pendingReviewDocuments?: number
+    expiredDocuments?: number
+    unsupportedDocuments?: number
+    largeFileWarnings?: number
+    duplicateVersionGroups?: number
   }
   items: DocumentFileHealthItem[]
 }

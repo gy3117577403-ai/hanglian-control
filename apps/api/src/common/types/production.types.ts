@@ -150,6 +150,8 @@ export interface ProductDocument {
   archivedBy?: string;
   remark?: string;
   versionGroupKey?: string;
+  duplicateVersionWarning?: string;
+  recommendedAction?: string;
 }
 
 export interface ReadinessCheckItem {

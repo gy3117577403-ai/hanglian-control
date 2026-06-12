@@ -19,6 +19,7 @@ export type DocumentCardAction =
 const props = defineProps<{
   documents: ProductDocument[]
   activeDocumentId?: string
+  highlightedDocumentId?: string
   fileHealthById?: Map<string, DocumentFileHealthItem>
 }>()
 
@@ -93,6 +94,7 @@ watch(
           :class="[
             'document-tile-3d embla__slide p-3',
             activeDocumentId === document.id || activeDocumentId === document.documentId ? 'ring-2 ring-[#d9772b66]' : '',
+            highlightedDocumentId === document.id || highlightedDocumentId === document.documentId ? 'document-tile-new' : '',
           ]"
         >
           <div class="mb-3 flex items-start justify-between gap-2">

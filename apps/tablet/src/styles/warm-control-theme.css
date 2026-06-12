@@ -416,12 +416,15 @@
 }
 
 .document-folder-tabs .p-tablist {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .document-folder-tabs .p-tab {
   min-height: 48px;
   padding-inline: 13px;
+  flex: 0 0 auto;
 }
 
 .pdf-preview-desk,
@@ -597,6 +600,112 @@
   box-shadow:
     0 12px 20px rgba(116, 70, 28, 0.12),
     0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.upload-drop-frame .p-fileupload-content {
+  min-height: 156px;
+}
+
+.file-health-overview {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.file-health-summary-card {
+  display: grid;
+  min-height: 72px;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid rgba(139, 90, 42, 0.22);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(150deg, rgba(255, 252, 244, 0.95), rgba(244, 218, 180, 0.82));
+  box-shadow:
+    0 10px 16px rgba(116, 70, 28, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.file-health-summary-card span {
+  color: #7a5129;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.file-health-summary-card strong {
+  color: #342316;
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.file-health-summary-good strong {
+  color: #12633d;
+}
+
+.file-health-summary-warn strong {
+  color: #9a6115;
+}
+
+.file-health-summary-danger strong {
+  color: #9d341e;
+}
+
+.document-tile-new {
+  animation: new-document-pulse 3s ease both;
+}
+
+@keyframes new-document-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 12px 20px rgba(116, 70, 28, 0.16),
+      0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  }
+  14%,
+  64% {
+    border-color: rgba(34, 154, 102, 0.72);
+    box-shadow:
+      0 0 0 4px rgba(34, 154, 102, 0.18),
+      0 20px 34px rgba(34, 154, 102, 0.22),
+      0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  }
+}
+
+.field-mode .warm-workbench {
+  gap: 10px;
+  padding: 10px;
+}
+
+.field-mode .warm-topbar {
+  min-height: 78px;
+  grid-template-columns: 1.2fr 1.2fr 190px;
+}
+
+.field-mode .field-workflow,
+.field-mode .quick-action-strip {
+  padding: 10px;
+}
+
+.field-mode .quick-action-grid .p-button,
+.field-mode .warm-control-grid .p-button,
+.field-mode .pdf-toolbar .p-button,
+.field-mode .image-toolbar .p-button {
+  min-height: 54px;
+  font-size: 15px;
+}
+
+.field-mode .metric-tile-3d,
+.field-mode .document-tile-3d {
+  min-height: 122px;
+}
+
+.field-mode .section-kicker {
+  display: none;
+}
+
+.field-mode [data-action="migration"] {
+  display: none;
 }
 
 .version-archive-section {

@@ -10,6 +10,8 @@
     "build": "npm run build:tablet && npm run build:api",
     "build:tablet": "npm run build -w tablet",
     "build:api": "npm run build -w api",
+    "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
+    "file-flow:check": "node scripts/file-flow-check.mjs",
     "security:check": "node scripts/security-check.mjs",
     "prisma:format": "npx prisma format --schema=apps/api/prisma/schema.prisma",
     "prisma:validate": "npx prisma validate --schema=apps/api/prisma/schema.prisma",

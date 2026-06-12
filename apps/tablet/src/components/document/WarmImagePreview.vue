@@ -52,6 +52,18 @@ const imageItems = computed(() => {
 const currentItem = computed(() => imageItems.value[Math.min(activeIndex.value, Math.max(imageItems.value.length - 1, 0))])
 const effectiveHealthStatus = computed(() => props.fileHealth?.healthStatus ?? (currentItem.value?.isMock ? 'demo' : 'ok'))
 const shouldShowFallback = computed(() => Boolean(currentItem.value) && (failed.value || effectiveHealthStatus.value !== 'ok'))
+const boundaryMessages = computed(() => {
+  const messages: Array<{ severity: 'info' | 'warn' | 'error'; text: string }> = []
+  if (!currentItem.value) messages.push({ severity: 'info', text: '暂无该类型资料，请上传真实资料。' })
+  if (currentItem.value?.isMock || props.fileHealth?.isDemoOnly || effectiveHealthStatus.value === 'demo') messages.push({ severity: 'info', text: '当前为演示资料，上传真实资料后将替换预览。' })
+  if (effectiveHealthStatus.value === 'unsupported') messages.push({ severity: 'warn', text: '该文件暂不支持在线预览，可下载查看。' })
+  if (effectiveHealthStatus.value === 'missing_file') messages.push({ severity: 'error', text: '文件缺失，请重新上传。' })
+  if (failed.value) messages.push({ severity: 'error', text: '图片加载失败，请检查文件或重新上传。' })
+  if (props.fileHealth?.largeFileWarning) messages.push({ severity: 'warn', text: '文件超过推荐大小，预览可能较慢。' })
+  if (props.fileHealth?.isHistorical || isHistoricalDocument(currentItem.value?.document)) messages.push({ severity: 'error', text: '历史版本，不建议用于生产。' })
+  if (props.fileHealth?.isPendingReview || isPendingDocument(currentItem.value?.document)) messages.push({ severity: 'warn', text: '待确认版本，开工前请复核。' })
+  return messages
+})
 
 function rebuildViewer() {
   viewer?.destroy()
@@ -149,6 +161,10 @@ onBeforeUnmount(() => {
         <PrimeButton data-image-action="audit" severity="secondary" icon="pi pi-list-check" label="审计" />
       </div>
     </div>
+
+    <PrimeMessage v-for="item in boundaryMessages" :key="item.text" :severity="item.severity" :closable="false">
+      {{ item.text }}
+    </PrimeMessage>
 
     <PrimeMessage v-if="currentItem && isHistoricalDocument(currentItem.document)" severity="error" :closable="false">
       该图片资料为历史版本，不建议用于当前生产。

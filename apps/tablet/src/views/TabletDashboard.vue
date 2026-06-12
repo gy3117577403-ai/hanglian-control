@@ -10,8 +10,10 @@ import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
 import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
 import WarmStatusBar from '@/components/warm/WarmStatusBar.vue'
 import { useProductionStore } from '@/stores/production-store'
+import { useUiStore } from '@/stores/ui-store'
 
 const store = useProductionStore()
+const uiStore = useUiStore()
 const shellRef = ref<HTMLElement | null>(null)
 const documentAnchorRef = ref<HTMLElement | null>(null)
 let ctx: gsap.Context | undefined
@@ -74,7 +76,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="shellRef" class="warm-shell">
+  <div ref="shellRef" :class="['warm-shell', { 'field-mode': uiStore.fieldMode }]">
     <div class="warm-workbench">
       <WarmStatusBar />
       <main class="warm-layout">

@@ -1,9 +1,11 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { extname, resolve } from 'node:path';
 import { stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
+import type { DocumentStatus } from '../common/enums/production.enum';
 import { LocalStorageService } from '../storage/local-storage.service';
+import type { ProductDocument } from '../common/types/production.types';
 import type { DocumentRepositoryInterface } from '../repositories/interfaces/document.repository.interface';
 import type { CompareDocumentsDto } from './dto/compare-documents.dto';
 import type { DocumentQueryDto } from './dto/document-query.dto';
@@ -14,7 +16,10 @@ import type { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import type { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
 import type { UploadDocumentDto } from './dto/upload-document.dto';
 
+const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+const dangerousExtensions = ['.exe', '.bat', '.cmd', '.ps1', '.sh', '.msi', '.vbs', '.js', '.jar', '.scr'];
 const previewableMimeTypes = new Set(allowedMimeTypes);
 
 type FileHealthStatus = 'ok' | 'demo' | 'missing_file' | 'unsupported' | 'broken';
@@ -40,18 +45,64 @@ function docId(document: { documentId?: string; id: string }) {
   return document.documentId ?? document.id;
 }
 
+function versionGroupKey(document: Pick<ProductDocument, 'productId' | 'documentType' | 'requiredForProcess'>) {
+  return `${document.productId}::${document.documentType}::${document.requiredForProcess}`;
+}
+
+function rawStatus(document: ProductDocument): DocumentStatus {
+  return document.documentStatus ?? (
+    document.status === '有效' ? 'effective'
+      : document.status === '待确认' ? 'pending_review'
+        : 'expired'
+  );
+}
+
 function fileHealthMessage(status: FileHealthStatus) {
   switch (status) {
     case 'ok':
-      return '文件可预览';
+      return '可预览';
     case 'demo':
-      return '当前为演示资料，请上传真实文件后替换预览';
+      return '当前为演示资料，上传真实资料后将替换预览';
     case 'missing_file':
-      return 'metadata 存在，但本地文件缺失';
+      return '文件缺失，请重新上传';
     case 'unsupported':
-      return '文件类型暂不支持预览';
+      return '该文件暂不支持在线预览，可下载查看';
     case 'broken':
-      return '文件存在，但预览地址或预览类型异常';
+      return '预览信息异常，可下载查看或重新上传';
+  }
+}
+
+function recommendedAction(status: FileHealthStatus, document: ProductDocument, largeFileWarning: boolean, duplicateVersionWarning?: string) {
+  if (duplicateVersionWarning) return '进入版本历史确认当前有效版本';
+  if (rawStatus(document) === 'expired') return '历史版本，不建议用于当前生产';
+  if (rawStatus(document) === 'pending_review') return '待确认版本，开工前请复核';
+  if (largeFileWarning) return '文件超过推荐大小，预览可能较慢';
+  if (status === 'demo') return '上传真实资料后用于生产确认';
+  if (status === 'missing_file') return '重新上传该资料文件';
+  if (status === 'unsupported') return '下载查看或转换为 PDF/JPG/PNG/WEBP';
+  if (status === 'broken') return '重新上传或联系工艺人员复核';
+  return '如需用于生产，请确认版本状态为当前有效';
+}
+
+function validateUploadFile(file: Express.Multer.File) {
+  if (!file) throw new BadRequestException('请上传资料文件。');
+  if (file.size > MAX_FILE_SIZE) throw new BadRequestException('单文件最大 30MB。');
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    throw new BadRequestException('仅允许上传 PDF、JPG、PNG、WEBP 文件。');
+  }
+
+  const originalName = file.originalname ?? '';
+  if (!originalName.trim()) throw new BadRequestException('文件名不能为空。');
+  if (/[\\/]/.test(originalName) || originalName.includes('..')) {
+    throw new BadRequestException('文件名不安全，请重命名后再上传。');
+  }
+
+  const extension = extname(originalName).toLowerCase();
+  if (!allowedExtensions.includes(extension)) {
+    throw new BadRequestException('文件扩展名不支持，请上传 PDF、JPG、PNG、WEBP。');
+  }
+  if (dangerousExtensions.some((dangerous) => originalName.toLowerCase().endsWith(dangerous))) {
+    throw new BadRequestException('文件扩展名存在风险，已拒绝上传。');
   }
 }
 
@@ -91,9 +142,22 @@ export class DocumentsService {
       productId: query.productId,
     });
     const uploadsDir = this.localStorageService.getUploadsDir();
+    const duplicateGroups = new Map<string, ProductDocument[]>();
+
+    for (const document of documents) {
+      const key = document.versionGroupKey ?? versionGroupKey(document);
+      const duplicateKey = `${key}::${document.version}`;
+      duplicateGroups.set(duplicateKey, [...(duplicateGroups.get(duplicateKey) ?? []), document]);
+    }
 
     const items = await Promise.all(documents.map(async (document) => {
       const hasStoredFile = Boolean(document.storedFileName);
+      const status = rawStatus(document);
+      const key = document.versionGroupKey ?? versionGroupKey(document);
+      const duplicateKey = `${key}::${document.version}`;
+      const duplicateVersionWarning = (duplicateGroups.get(duplicateKey)?.length ?? 0) > 1
+        ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。'
+        : undefined;
       let fileExists = false;
       let healthStatus: FileHealthStatus = 'demo';
 
@@ -120,21 +184,35 @@ export class DocumentsService {
         healthStatus = hasStoredFile ? 'missing_file' : 'demo';
       }
 
+      const largeFileWarning = (document.fileSize ?? 0) > MAX_FILE_SIZE;
       return {
         documentId: docId(document),
         title: document.title,
         documentType: document.documentType,
         version: document.version,
+        versionGroupKey: key,
         source: document.source,
         previewType: document.previewType,
         hasStoredFile,
         fileExists,
         canPreview: healthStatus === 'ok',
         isDemoOnly: healthStatus === 'demo',
+        isEffective: status === 'effective',
+        isHistorical: status === 'expired',
+        isPendingReview: status === 'pending_review',
+        largeFileWarning,
+        duplicateVersionWarning,
         healthStatus,
         message: fileHealthMessage(healthStatus),
+        recommendedAction: recommendedAction(healthStatus, document, largeFileWarning, duplicateVersionWarning),
       };
     }));
+
+    const duplicateVersionGroups = new Set(
+      items
+        .filter((item) => item.duplicateVersionWarning)
+        .map((item) => `${item.versionGroupKey}::${item.version}`),
+    ).size;
 
     return {
       scope: {
@@ -149,6 +227,12 @@ export class DocumentsService {
         missingFiles: items.filter((item) => item.healthStatus === 'missing_file').length,
         brokenPreview: items.filter((item) => item.healthStatus === 'broken').length,
         demoOnly: items.filter((item) => item.healthStatus === 'demo').length,
+        effectiveUploadedDocuments: items.filter((item) => item.source === 'manual_upload' && item.isEffective).length,
+        pendingReviewDocuments: items.filter((item) => item.isPendingReview).length,
+        expiredDocuments: items.filter((item) => item.isHistorical).length,
+        unsupportedDocuments: items.filter((item) => item.healthStatus === 'unsupported').length,
+        largeFileWarnings: items.filter((item) => item.largeFileWarning).length,
+        duplicateVersionGroups,
       },
       items,
     };
@@ -159,10 +243,24 @@ export class DocumentsService {
   }
 
   async upload(dto: UploadDocumentDto, file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException('请上传文件。');
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException('仅允许上传 PDF、JPG、PNG、WEBP 文件。');
-    }
+    if (!file) throw new BadRequestException('请上传资料文件。');
+    validateUploadFile(file);
+    if (!dto.productId) throw new BadRequestException('请先选择生产计划，再上传资料。');
+    if (!dto.documentType) throw new BadRequestException('请选择资料类型。');
+    if (!dto.title?.trim()) throw new BadRequestException('请填写资料标题。');
+    if (!dto.version?.trim()) throw new BadRequestException('请填写版本号。');
+
+    const existingDocuments = await this.documentRepository.findDocuments({
+      productId: dto.productId,
+      documentType: dto.documentType,
+    });
+    const groupKey = `${dto.productId}::${dto.documentType}::${dto.requiredForProcess}`;
+    const duplicateVersionWarning = existingDocuments.some((document) => {
+      const sameGroup = (document.versionGroupKey ?? versionGroupKey(document)) === groupKey;
+      return sameGroup && document.version === dto.version;
+    })
+      ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。'
+      : undefined;
 
     const storedFileName = await this.localStorageService.saveFile(file);
     const apiPrefix = process.env.API_PREFIX ?? 'api';
@@ -170,8 +268,8 @@ export class DocumentsService {
       productId: dto.productId,
       planId: dto.planId,
       documentType: dto.documentType,
-      title: dto.title,
-      version: dto.version,
+      title: dto.title.trim(),
+      version: dto.version.trim(),
       status: dto.status ?? 'effective',
       requiredForProcess: dto.requiredForProcess,
       keywords: parseKeywords(dto.keywords),
@@ -184,6 +282,8 @@ export class DocumentsService {
       previewUrl: `/${apiPrefix}/files/${storedFileName}`,
       downloadUrl: `/${apiPrefix}/files/${storedFileName}`,
     });
+    document.duplicateVersionWarning = duplicateVersionWarning;
+    document.recommendedAction = '如需用于生产，请确认版本状态为当前有效。';
 
     await this.auditService.tryCreate({
       entityType: 'document',
