@@ -71,10 +71,10 @@ function requireIncludes(relativePath, text, message) {
 ].forEach((needle) => requireIncludes('apps/tablet/src/services/api.ts', needle, `Tablet API method not found: ${needle}`));
 
 [
-  'APP_VERSION = \'V2.1\'',
-  'APP_STAGE = \'资料维护演示版\'',
-  'APP_RELEASE_NAME = \'线束车间资料维护中心演示版\'',
-  'APP_BUILD_CHANNEL = \'mock-local-maintenance-demo\'',
+  'APP_VERSION = \'V2.2\'',
+  'APP_STAGE = \'角色权限演示版\'',
+  'APP_RELEASE_NAME = \'线束车间多角色权限演示版\'',
+  'APP_BUILD_CHANNEL = \'mock-local-rbac-demo\'',
 ].forEach((needle) => requireIncludes('apps/tablet/src/config/app-version.ts', needle, `Version config not found: ${needle}`));
 
 requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '资料维护中心', 'Demo tools menu does not include 资料维护中心.');
@@ -86,7 +86,7 @@ if (!exists('apps/api/storage/metadata/imported-business-data.json')) {
   warnings.push('Imported metadata snapshot does not exist yet. Run demo import flow when demo data needs to be refreshed.');
 }
 
-console.log('V2.1 maintenance flow check');
+console.log('V2.2 maintenance flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (warnings.length) {

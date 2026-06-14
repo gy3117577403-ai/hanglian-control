@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
+import { toast } from 'vue-sonner'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
 import WarmMaintenanceCenterDialog from '@/components/maintenance/WarmMaintenanceCenterDialog.vue'
 import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
@@ -24,9 +25,12 @@ import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
 import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
 import WarmStatusBar from '@/components/warm/WarmStatusBar.vue'
+import { PERMISSIONS } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import { useUiStore } from '@/stores/ui-store'
 
+const auth = useAuthStore()
 const store = useProductionStore()
 const uiStore = useUiStore()
 const shellRef = ref<HTMLElement | null>(null)
@@ -56,14 +60,17 @@ const dialogs = reactive({
 })
 
 function openFeedback() {
+  if (!auth.hasPermission(PERMISSIONS.PLAN_FEEDBACK)) return deny()
   dialogs.feedback = true
 }
 
 function openUpload() {
+  if (!auth.hasPermission(PERMISSIONS.DOCUMENT_UPLOAD)) return deny()
   dialogs.upload = true
 }
 
 async function openVersions() {
+  if (!auth.hasPermission(PERMISSIONS.DOCUMENT_VIEW)) return deny()
   const document = store.previewDocument ?? store.documents[0]
   if (document) {
     store.previewDocument = document
@@ -73,13 +80,31 @@ async function openVersions() {
 }
 
 async function openAudit() {
+  if (!auth.hasPermission(PERMISSIONS.DOCUMENT_AUDIT_VIEW)) return deny()
   await store.loadAuditLogs({ planId: store.selectedPlan.id, limit: 30 }).catch(() => undefined)
   dialogs.audit = true
 }
 
 async function openMigration() {
+  if (!auth.hasPermission(PERMISSIONS.SYSTEM_INFO_VIEW)) return deny()
   await store.loadMigrationPreview().catch(() => undefined)
   dialogs.migration = true
+}
+
+function openImportCenter() {
+  if (!auth.hasPermission(PERMISSIONS.IMPORT_VIEW)) return deny()
+  dialogs.importCenter = true
+}
+
+function openMaintenanceCenter() {
+  if (!auth.hasPermission(PERMISSIONS.MAINTENANCE_VIEW)) return deny()
+  dialogs.maintenanceCenter = true
+}
+
+function deny() {
+  toast.error('当前角色无权执行该操作。', {
+    description: '请在右上角切换到具备权限的 Mock 角色。',
+  })
 }
 
 function focusDocuments() {
@@ -99,6 +124,8 @@ async function refreshAfterMaintenance() {
 }
 
 onMounted(() => {
+  if (auth.role === 'front_leader') store.activeProcess = 'front'
+  if (auth.role === 'back_leader') store.activeProcess = 'back'
   void store.initialize()
   window.setTimeout(() => {
     launchVisible.value = false
@@ -129,8 +156,8 @@ onUnmounted(() => {
         @open-demo-guide="dialogs.demoGuide = true"
         @open-pwa-install="dialogs.pwaInstall = true"
         @open-pwa-diagnostics="dialogs.pwaDiagnostics = true"
-        @open-import-center="dialogs.importCenter = true"
-        @open-maintenance-center="dialogs.maintenanceCenter = true"
+        @open-import-center="openImportCenter"
+        @open-maintenance-center="openMaintenanceCenter"
         @open-demo-data-manager="dialogs.demoDataManager = true"
         @open-demo-readiness="dialogs.demoReadiness = true"
         @open-freeze-checklist="dialogs.freezeChecklist = true"

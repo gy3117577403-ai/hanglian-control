@@ -88,6 +88,7 @@ const scripts = rootPackage.scripts ?? {};
   'demo:assets',
   'demo:check',
   'maintenance-flow:check',
+  'auth-flow:check',
   'file-flow:check',
   'security:check',
   'build',
@@ -106,7 +107,7 @@ const gitignore = readIfExists(join(root, '.gitignore'));
 await checkDemoAssets();
 checkEnvLocalhostWarning();
 
-console.log('V2.1 tablet demo readiness check');
+console.log('V2.2 tablet demo readiness check');
 console.log('This check is read-only. It does not start services, connect to a database, run migrations, db push, or seed.');
 
 const lanIps = lanIpv4List();

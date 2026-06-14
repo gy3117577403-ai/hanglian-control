@@ -1,15 +1,31 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import { CalendarDays, Factory, HardDrive, Maximize2, PackageCheck, ShieldCheck, UserRound, Wrench } from 'lucide-vue-next'
+import { CalendarDays, Factory, HardDrive, Maximize2, PackageCheck, ShieldCheck, UserRound, UserRoundCog, Wrench } from 'lucide-vue-next'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { APP_STAGE, APP_VERSION } from '@/config/app-version'
+import { PERMISSIONS, permissionLabels } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import { useUiStore } from '@/stores/ui-store'
+import type { MockUser, Permission } from '@/types/production'
+
+type DemoToolItem = {
+  label?: string
+  icon?: string
+  command?: () => void
+  separator?: boolean
+  class?: string
+  permission?: Permission
+  permissions?: Permission[]
+}
 
 const store = useProductionStore()
 const uiStore = useUiStore()
+const auth = useAuthStore()
+const router = useRouter()
 const confirm = useConfirm()
 const toast = useToast()
 const emit = defineEmits<{
@@ -28,37 +44,66 @@ const emit = defineEmits<{
   'open-roadmap': []
   'open-migration': []
 }>()
+
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
 const demoToolsMenu = ref<{ toggle: (event: Event) => void } | null>(null)
+const userMenu = ref<{ toggle: (event: Event) => void } | null>(null)
+const roleDialogVisible = ref(false)
+const permissionDialogVisible = ref(false)
 let timer: number | undefined
 
-const roleLabel = computed(() => (store.activeProcess === 'front' ? '前段组长' : '后段组长'))
 const apiLabel = computed(() => {
   if (store.offlineDemoMode) return '离线演示模式'
   return store.apiOnline ? 'API 在线' : 'API 检查中'
 })
 const apiSeverity = computed(() => (store.apiOnline ? 'success' : store.offlineDemoMode ? 'warn' : 'info'))
+const permissionList = computed(() => auth.permissions.map((permission) => permissionLabels[permission] ?? permission))
 
-const demoToolItems = [
-  { label: '系统信息', icon: 'pi pi-info-circle', command: () => emit('open-system-info') },
-  { label: '演示说明', icon: 'pi pi-book', command: () => emit('open-demo-guide') },
-  { label: '安装到平板桌面', icon: 'pi pi-mobile', command: () => emit('open-pwa-install') },
-  { label: '数据导入中心', icon: 'pi pi-file-import', command: () => emit('open-import-center') },
-  { label: '资料维护中心', icon: 'pi pi-wrench', command: () => emit('open-maintenance-center') },
+const allDemoToolItems = computed<DemoToolItem[]>(() => [
+  { label: '系统信息', icon: 'pi pi-info-circle', permission: PERMISSIONS.SYSTEM_INFO_VIEW, command: () => emit('open-system-info') },
+  { label: '演示说明', icon: 'pi pi-book', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-guide') },
+  { label: '安装到平板桌面', icon: 'pi pi-mobile', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-pwa-install') },
+  { label: '数据导入中心', icon: 'pi pi-file-import', permission: PERMISSIONS.IMPORT_VIEW, command: () => emit('open-import-center') },
+  { label: '资料维护中心', icon: 'pi pi-wrench', permission: PERMISSIONS.MAINTENANCE_VIEW, command: () => emit('open-maintenance-center') },
   { separator: true },
-  { label: '网络诊断', icon: 'pi pi-wifi', command: () => emit('open-network') },
-  { label: 'PWA / 平板诊断', icon: 'pi pi-tablet', command: () => emit('open-pwa-diagnostics') },
-  { label: '现场走查', icon: 'pi pi-list-check', command: () => emit('open-field-qa') },
+  { label: '网络诊断', icon: 'pi pi-wifi', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-network') },
+  { label: 'PWA / 平板诊断', icon: 'pi pi-tablet', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-pwa-diagnostics') },
+  { label: '现场走查', icon: 'pi pi-list-check', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-field-qa') },
   { separator: true },
-  { label: '演示数据管理', icon: 'pi pi-database', command: () => emit('open-demo-data-manager') },
-  { label: '演示前检查', icon: 'pi pi-check-circle', command: () => emit('open-demo-readiness') },
-  { label: '冻结前验收', icon: 'pi pi-verified', command: () => emit('open-freeze-checklist') },
-  { label: '演示资料说明', icon: 'pi pi-folder-open', command: () => emit('open-demo-assets-guide') },
-  { label: '后续路线', icon: 'pi pi-compass', command: () => emit('open-roadmap') },
-  { label: '迁移预览', icon: 'pi pi-server', command: () => emit('open-migration') },
+  { label: '演示数据管理', icon: 'pi pi-database', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-data-manager') },
+  { label: '演示前检查', icon: 'pi pi-check-circle', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-readiness') },
+  { label: '冻结前验收', icon: 'pi pi-verified', permission: PERMISSIONS.SYSTEM_FREEZE_CHECK_VIEW, command: () => emit('open-freeze-checklist') },
+  { label: '演示资料说明', icon: 'pi pi-folder-open', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-assets-guide') },
+  { label: '后续路线', icon: 'pi pi-compass', permission: PERMISSIONS.SYSTEM_ROADMAP_VIEW, command: () => emit('open-roadmap') },
+  { label: '迁移预览', icon: 'pi pi-server', permission: PERMISSIONS.SYSTEM_INFO_VIEW, command: () => emit('open-migration') },
   { separator: true },
-  { label: '重置演示界面状态', icon: 'pi pi-refresh', class: 'danger-menu-item', command: () => confirmResetDemoUi() },
-]
+  { label: '重置演示界面状态', icon: 'pi pi-refresh', class: 'danger-menu-item', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => confirmResetDemoUi() },
+])
+
+const demoToolItems = computed(() => {
+  const visible: DemoToolItem[] = []
+  for (const item of allDemoToolItems.value) {
+    if (item.separator) {
+      if (visible.length && !visible.at(-1)?.separator) visible.push(item)
+      continue
+    }
+    const allowed = item.permission
+      ? auth.hasPermission(item.permission)
+      : item.permissions
+        ? auth.hasAny(item.permissions)
+        : true
+    if (allowed) visible.push(item)
+  }
+  while (visible.at(-1)?.separator) visible.pop()
+  return visible
+})
+
+const userMenuItems = computed(() => [
+  { label: '切换演示角色', icon: 'pi pi-users', command: () => openRoleDialog() },
+  { label: '权限说明', icon: 'pi pi-shield', command: () => { permissionDialogVisible.value = true } },
+  { separator: true },
+  { label: '退出登录', icon: 'pi pi-sign-out', class: 'danger-menu-item', command: () => logout() },
+])
 
 function toggleFieldMode() {
   void uiStore.toggleFieldMode()
@@ -68,9 +113,30 @@ function openDemoTools(event: Event) {
   demoToolsMenu.value?.toggle(event)
 }
 
+function openUserMenu(event: Event) {
+  userMenu.value?.toggle(event)
+}
+
+async function openRoleDialog() {
+  await auth.loadMockUsers()
+  roleDialogVisible.value = true
+}
+
+async function switchRole(user: MockUser) {
+  await auth.mockLogin(user.userId)
+  if (user.role === 'front_leader') store.activeProcess = 'front'
+  if (user.role === 'back_leader') store.activeProcess = 'back'
+  roleDialogVisible.value = false
+}
+
+async function logout() {
+  await auth.logout()
+  await router.push('/login')
+}
+
 function confirmResetDemoUi() {
   confirm.require({
-    header: '重置演示界面状态',
+    header: '重置演示界面状态？',
     message: '该操作只会清除本机浏览器中的演示界面状态，不会删除上传资料、metadata、审计记录或数据库内容。',
     icon: 'pi pi-exclamation-triangle',
     acceptLabel: '确认重置',
@@ -108,7 +174,7 @@ onUnmounted(() => {
         </h1>
         <div class="mt-1 flex flex-wrap gap-2">
           <PrimeTag severity="warn" :value="`${APP_VERSION} ${APP_STAGE}`" />
-          <PrimeTag severity="info" value="Mock 数据源" />
+          <PrimeTag severity="info" value="Mock 权限" />
         </div>
       </div>
     </div>
@@ -120,16 +186,16 @@ onUnmounted(() => {
       </div>
       <div class="warm-chip">
         <ShieldCheck :size="17" />
-        <span>A 班</span>
+        <span>{{ auth.team || 'A 班' }}</span>
       </div>
       <div class="warm-chip">
+        <UserRoundCog :size="17" />
+        <span>{{ auth.roleLabel }}</span>
+      </div>
+      <button class="warm-chip min-w-0 text-left" type="button" @click="openUserMenu">
         <UserRound :size="17" />
-        <span>{{ roleLabel }}</span>
-      </div>
-      <div class="warm-chip">
-        <span :class="['status-lamp', { offline: !store.apiOnline }]" />
-        <span>组长演示账号</span>
-      </div>
+        <span class="truncate">{{ auth.userName }}</span>
+      </button>
     </div>
 
     <div class="warm-topbar-system grid grid-cols-[minmax(0,1fr)_260px] items-center gap-3">
@@ -160,7 +226,51 @@ onUnmounted(() => {
           <span>未接 Sealos</span>
         </div>
         <PrimeMenu ref="demoToolsMenu" :model="demoToolItems" popup class="warm-mini-menu" />
+        <PrimeMenu ref="userMenu" :model="userMenuItems" popup class="warm-mini-menu" />
       </div>
     </div>
   </header>
+
+  <PrimeDialog v-model:visible="roleDialogVisible" modal header="切换本地 Mock 角色" class="w-[860px]">
+    <div class="grid gap-3">
+      <PrimeMessage severity="warn" :closable="false">
+        当前仅为本地演示角色切换，不接企业微信登录，不保存真实账号。
+      </PrimeMessage>
+      <button
+        v-for="user in auth.mockUsers"
+        :key="user.userId"
+        type="button"
+        class="warm-user-card"
+        @click="switchRole(user)"
+      >
+        <div class="warm-role-icon">
+          <UserRoundCog :size="22" />
+        </div>
+        <div class="min-w-0 text-left">
+          <div class="flex items-center justify-between gap-3">
+            <strong class="text-lg text-[#342316]">{{ user.name }}</strong>
+            <PrimeTag :severity="auth.currentUser?.userId === user.userId ? 'success' : 'secondary'" :value="user.roleLabel" />
+          </div>
+          <p class="mt-1 text-sm font-bold text-[#76512a]">{{ user.team }} / {{ user.description }}</p>
+        </div>
+      </button>
+    </div>
+  </PrimeDialog>
+
+  <PrimeDialog v-model:visible="permissionDialogVisible" modal header="当前角色权限说明" class="w-[760px]">
+    <div class="grid gap-4">
+      <div class="warm-user-card">
+        <div class="warm-role-icon">
+          <ShieldCheck :size="22" />
+        </div>
+        <div>
+          <strong class="text-xl text-[#342316]">{{ auth.userName }} / {{ auth.roleLabel }}</strong>
+          <p class="mt-1 text-sm font-bold text-[#76512a]">本权限仅用于 V2.2 本地 Mock 演示，后续可替换为企业微信组织与后端 RBAC。</p>
+        </div>
+      </div>
+      <div class="warm-permission-list">
+        <span v-for="item in permissionList" :key="item">{{ item }}</span>
+      </div>
+    </div>
+  </PrimeDialog>
 </template>

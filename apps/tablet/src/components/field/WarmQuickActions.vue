@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { toast } from 'vue-sonner'
 import {
   AlertTriangle,
   BadgeCheck,
@@ -10,6 +11,8 @@ import {
   PackageOpen,
   UploadCloud,
 } from 'lucide-vue-next'
+import { PERMISSIONS } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import type { DocumentTab } from '@/types/production'
 
@@ -20,8 +23,18 @@ const emit = defineEmits<{
 }>()
 
 const store = useProductionStore()
+const auth = useAuthStore()
 
 const activeFront = computed(() => store.activeProcess === 'front')
+const canUpload = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_UPLOAD))
+const canConfirm = computed(() => auth.hasPermission(PERMISSIONS.PLAN_CONFIRM))
+const canFeedback = computed(() => auth.hasPermission(PERMISSIONS.PLAN_FEEDBACK))
+
+function deny() {
+  toast.error('当前角色无权执行该操作。', {
+    description: '请在右上角切换到具备权限的 Mock 角色。',
+  })
+}
 
 function openTab(tab: DocumentTab) {
   store.setDocumentTab(tab)
@@ -38,6 +51,9 @@ function onQuickAction(event: MouseEvent) {
   if (action === 'drawing') openTab('drawing')
   if (action === 'sop') openTab('sop')
   if (action === 'pin-map') openTab('pin-map')
+  if (action === 'upload' && !canUpload.value) return deny()
+  if (action === 'confirm' && !canConfirm.value) return deny()
+  if (action === 'feedback' && !canFeedback.value) return deny()
   if (action === 'upload') emit('open-upload')
   if (action === 'confirm') void store.confirmCurrentPlan()
   if (action === 'feedback') emit('open-feedback')
@@ -70,13 +86,13 @@ function onQuickAction(event: MouseEvent) {
       <PrimeButton data-field-action="pin-map" severity="secondary" label="查看孔位图">
         <template #icon><MapPinned :size="18" /></template>
       </PrimeButton>
-      <PrimeButton data-field-action="upload" severity="secondary" label="上传资料">
+      <PrimeButton data-field-action="upload" severity="secondary" label="上传资料" :disabled="!canUpload" title="当前角色无权执行该操作">
         <template #icon><UploadCloud :size="18" /></template>
       </PrimeButton>
-      <PrimeButton data-field-action="confirm" label="组长确认">
+      <PrimeButton data-field-action="confirm" label="组长确认" :disabled="!canConfirm" title="当前角色无权执行该操作">
         <template #icon><BadgeCheck :size="18" /></template>
       </PrimeButton>
-      <PrimeButton data-field-action="feedback" severity="danger" label="异常反馈">
+      <PrimeButton data-field-action="feedback" severity="danger" label="异常反馈" :disabled="!canFeedback" title="当前角色无权执行该操作">
         <template #icon><AlertTriangle :size="18" /></template>
       </PrimeButton>
     </div>

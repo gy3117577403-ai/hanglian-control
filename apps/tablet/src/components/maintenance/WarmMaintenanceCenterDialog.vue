@@ -2,8 +2,12 @@
 import { computed, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { ClipboardCheck, FileClock, History, PackageSearch, ShieldAlert, Wrench } from 'lucide-vue-next'
+import { useToast } from 'primevue/usetoast'
+import WarmPermissionDenied from '@/components/auth/WarmPermissionDenied.vue'
+import { PERMISSIONS } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/auth-store'
 import { useMaintenanceStore } from '@/stores/maintenance-store'
-import type { MaintenanceEntityType } from '@/types/production'
+import type { MaintenanceEntityType, Permission } from '@/types/production'
 
 const props = defineProps<{
   visible: boolean
@@ -22,6 +26,8 @@ type FieldConfig = {
 }
 
 const maintenanceStore = useMaintenanceStore()
+const auth = useAuthStore()
+const toast = useToast()
 const editorVisible = ref(false)
 const editEntity = ref<MaintenanceEntityType | null>(null)
 const editId = ref('')
@@ -87,6 +93,28 @@ const overviewCards = computed(() => [
   { label: '待复核', value: maintenanceStore.summary.pendingReview, icon: ShieldAlert, danger: maintenanceStore.summary.pendingReview > 0 },
 ])
 
+const entityPermissionMap: Partial<Record<MaintenanceEntityType, Permission>> = {
+  customer: PERMISSIONS.MAINTENANCE_CUSTOMER_UPDATE,
+  product: PERMISSIONS.MAINTENANCE_PRODUCT_UPDATE,
+  production_plan: PERMISSIONS.MAINTENANCE_PLAN_UPDATE,
+  front_parameter: PERMISSIONS.MAINTENANCE_PARAMETER_UPDATE,
+  back_package: PERMISSIONS.MAINTENANCE_PACKAGE_UPDATE,
+  document: PERMISSIONS.MAINTENANCE_DOCUMENT_UPDATE,
+}
+
+const canViewMaintenance = computed(() => auth.hasPermission(PERMISSIONS.MAINTENANCE_VIEW))
+const canSetEffective = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_SET_EFFECTIVE))
+const canResolveReview = computed(() => auth.hasPermission(PERMISSIONS.MAINTENANCE_REVIEW_RESOLVE))
+
+function canEditEntity(entity: MaintenanceEntityType) {
+  const permission = entityPermissionMap[entity]
+  return permission ? auth.hasPermission(permission) : false
+}
+
+function deny() {
+  toast.add({ severity: 'error', summary: '当前角色无权执行该操作。', detail: '请在右上角切换到具备权限的 Mock 角色。', life: 2600 })
+}
+
 function statusSeverity(status?: string) {
   if (!status) return 'info'
   if (['active', '有效', 'effective', '已完成', '已确认'].includes(status)) return 'success'
@@ -127,6 +155,7 @@ function setFields(fields: FieldConfig[], values: Record<string, unknown>) {
 }
 
 function openEditor(entity: MaintenanceEntityType, row: Record<string, unknown>) {
+  if (!canEditEntity(entity)) return deny()
   editEntity.value = entity
   editId.value = String(row.id)
   editTitle.value = `${entityTitle(entity)} / ${row.productCode ?? row.customerName ?? row.title ?? row.id}`
@@ -230,6 +259,7 @@ function entityTitle(entity: MaintenanceEntityType) {
 
 async function submitEditor() {
   if (!editEntity.value || !editId.value) return
+  if (!canEditEntity(editEntity.value)) return deny()
   const payload: Record<string, unknown> = {}
   for (const field of editFields.value) {
     payload[field.key] = editForm[field.key]
@@ -240,11 +270,13 @@ async function submitEditor() {
 }
 
 async function markEffective(id: string) {
+  if (!canSetEffective.value) return deny()
   await maintenanceStore.markDocumentEffective(id, 'V2.1 资料维护中心设为当前有效版本')
   emit('changed')
 }
 
 async function resolveReview(id: string, action: 'mark_reviewed' | 'mark_pending' | 'mark_inconsistent') {
+  if (!canResolveReview.value) return deny()
   await maintenanceStore.resolveReview(id, action, 'V2.1 资料维护中心复核处理')
   emit('changed')
 }
@@ -279,6 +311,11 @@ watch(dialogVisible, async (visible) => {
       <PrimeMessage v-if="maintenanceStore.errorMessage" severity="error" :closable="false">
         {{ maintenanceStore.errorMessage }}
       </PrimeMessage>
+      <WarmPermissionDenied
+        v-if="!canViewMaintenance"
+        title="当前角色不能访问资料维护中心"
+        description="请切换到资料维护、工艺、品质或管理员角色。"
+      />
       <PrimeMessage v-else-if="maintenanceStore.hasReviewRisk" severity="warn" :closable="false">
         当前存在待复核、失效或不一致资料，建议先进入“复核队列”和“文件资料”处理。
       </PrimeMessage>
@@ -333,7 +370,7 @@ watch(dialogVisible, async (visible) => {
               <PrimeColumn field="sales" header="销售" />
               <PrimeColumn field="productCount" header="产品数" />
               <PrimeColumn header="状态"><template #body="{ data }"><PrimeTag :severity="statusSeverity(data.status)" :value="statusLabel(data.status)" /></template></PrimeColumn>
-              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" @click="openEditor('customer', data)" /></template></PrimeColumn>
+              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" :disabled="!canEditEntity('customer')" title="当前角色无权执行该操作" @click="openEditor('customer', data)" /></template></PrimeColumn>
             </PrimeDataTable>
           </PrimeTabPanel>
 
@@ -345,7 +382,7 @@ watch(dialogVisible, async (visible) => {
               <PrimeColumn field="productVersion" header="版本" />
               <PrimeColumn field="productCategory" header="类别" />
               <PrimeColumn header="状态"><template #body="{ data }"><PrimeTag :severity="statusSeverity(data.status)" :value="statusLabel(data.status)" /></template></PrimeColumn>
-              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" @click="openEditor('product', data)" /></template></PrimeColumn>
+              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" :disabled="!canEditEntity('product')" title="当前角色无权执行该操作" @click="openEditor('product', data)" /></template></PrimeColumn>
             </PrimeDataTable>
           </PrimeTabPanel>
 
@@ -361,7 +398,7 @@ watch(dialogVisible, async (visible) => {
                 </template>
               </PrimeColumn>
               <PrimeColumn header="状态"><template #body="{ data }"><PrimeTag :severity="statusSeverity(data.planStatus)" :value="statusLabel(data.planStatus)" /></template></PrimeColumn>
-              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" @click="openEditor('production_plan', data)" /></template></PrimeColumn>
+              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" :disabled="!canEditEntity('production_plan')" title="当前角色无权执行该操作" @click="openEditor('production_plan', data)" /></template></PrimeColumn>
             </PrimeDataTable>
           </PrimeTabPanel>
 
@@ -375,7 +412,7 @@ watch(dialogVisible, async (visible) => {
               <PrimeColumn field="pullForceStandard" header="拉力标准" />
               <PrimeColumn field="crimpHeight" header="压接高度" />
               <PrimeColumn header="状态"><template #body="{ data }"><PrimeTag :severity="statusSeverity(data.parameterStatus)" :value="statusLabel(data.parameterStatus)" /></template></PrimeColumn>
-              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" @click="openEditor('front_parameter', data)" /></template></PrimeColumn>
+              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" :disabled="!canEditEntity('front_parameter')" title="当前角色无权执行该操作" @click="openEditor('front_parameter', data)" /></template></PrimeColumn>
             </PrimeDataTable>
           </PrimeTabPanel>
 
@@ -389,7 +426,7 @@ watch(dialogVisible, async (visible) => {
               <PrimeColumn field="sop" header="SOP" />
               <PrimeColumn field="finishedImageCount" header="成品图" />
               <PrimeColumn header="状态"><template #body="{ data }"><PrimeTag :severity="statusSeverity(data.materialStatus)" :value="statusLabel(data.materialStatus)" /></template></PrimeColumn>
-              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" @click="openEditor('back_package', data)" /></template></PrimeColumn>
+              <PrimeColumn header="操作"><template #body="{ data }"><PrimeButton size="small" label="维护" :disabled="!canEditEntity('back_package')" title="当前角色无权执行该操作" @click="openEditor('back_package', data)" /></template></PrimeColumn>
             </PrimeDataTable>
           </PrimeTabPanel>
 
@@ -405,8 +442,8 @@ watch(dialogVisible, async (visible) => {
               <PrimeColumn header="操作">
                 <template #body="{ data }">
                   <div class="flex gap-2">
-                    <PrimeButton size="small" label="维护" @click="openEditor('document', data)" />
-                    <PrimeButton size="small" severity="warn" label="设为有效" @click="markEffective(data.id)" />
+                    <PrimeButton size="small" label="维护" :disabled="!canEditEntity('document')" title="当前角色无权执行该操作" @click="openEditor('document', data)" />
+                    <PrimeButton size="small" severity="warn" label="设为有效" :disabled="!canSetEffective" title="当前角色无权执行该操作" @click="markEffective(data.id)" />
                   </div>
                 </template>
               </PrimeColumn>
@@ -423,9 +460,9 @@ watch(dialogVisible, async (visible) => {
               <PrimeColumn header="处理">
                 <template #body="{ data }">
                   <div class="flex flex-wrap gap-2">
-                    <PrimeButton size="small" severity="success" label="已复核" @click="resolveReview(data.id, 'mark_reviewed')" />
-                    <PrimeButton size="small" severity="warn" label="待确认" @click="resolveReview(data.id, 'mark_pending')" />
-                    <PrimeButton size="small" severity="danger" label="不一致" @click="resolveReview(data.id, 'mark_inconsistent')" />
+                    <PrimeButton size="small" severity="success" label="已复核" :disabled="!canResolveReview" title="当前角色无权执行该操作" @click="resolveReview(data.id, 'mark_reviewed')" />
+                    <PrimeButton size="small" severity="warn" label="待确认" :disabled="!canResolveReview" title="当前角色无权执行该操作" @click="resolveReview(data.id, 'mark_pending')" />
+                    <PrimeButton size="small" severity="danger" label="不一致" :disabled="!canResolveReview" title="当前角色无权执行该操作" @click="resolveReview(data.id, 'mark_inconsistent')" />
                   </div>
                 </template>
               </PrimeColumn>
@@ -463,7 +500,7 @@ watch(dialogVisible, async (visible) => {
       </div>
       <template #footer>
         <PrimeButton severity="secondary" label="取消" @click="editorVisible = false" />
-        <PrimeButton label="保存维护记录" :loading="maintenanceStore.saving" @click="submitEditor" />
+        <PrimeButton label="保存维护记录" :disabled="editEntity ? !canEditEntity(editEntity) : true" :loading="maintenanceStore.saving" @click="submitEditor" />
       </template>
     </PrimeDialog>
   </PrimeDialog>

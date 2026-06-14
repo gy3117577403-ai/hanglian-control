@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { toast } from 'vue-sonner'
 import { AlertTriangle, CheckCircle2, Database, FileUp, GitCompareArrows, History, ShieldAlert } from 'lucide-vue-next'
+import { PERMISSIONS } from '@/lib/permissions'
 import { completionSummary, confirmSeverity, planStatusSeverity, progressClass, readinessLabel } from '@/lib/status-style'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 
 const emit = defineEmits<{
@@ -13,13 +16,32 @@ const emit = defineEmits<{
 }>()
 
 const store = useProductionStore()
+const auth = useAuthStore()
 const plan = computed(() => store.selectedPlan)
 const progress = computed(() => completionSummary(plan.value))
 const hasRedline = computed(() => Boolean(plan.value.versionStatus?.redLine || plan.value.materialCompleteness < 90))
+const canConfirm = computed(() => auth.hasPermission(PERMISSIONS.PLAN_CONFIRM))
+const canFeedback = computed(() => auth.hasPermission(PERMISSIONS.PLAN_FEEDBACK))
+const canUpload = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_UPLOAD))
+const canViewDocuments = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_VIEW))
+const canViewAudit = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_AUDIT_VIEW))
+const canViewSystem = computed(() => auth.hasPermission(PERMISSIONS.SYSTEM_INFO_VIEW))
+
+function deny() {
+  toast.error('当前角色无权执行该操作。', {
+    description: '请在右上角切换到具备权限的 Mock 角色。',
+  })
+}
 
 function onControlClick(event: MouseEvent) {
   const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action
   if (!action) return
+  if (action === 'confirm' && !canConfirm.value) return deny()
+  if (action === 'feedback' && !canFeedback.value) return deny()
+  if (action === 'upload' && !canUpload.value) return deny()
+  if (action === 'versions' && !canViewDocuments.value) return deny()
+  if (action === 'audit' && !canViewAudit.value) return deny()
+  if (action === 'migration' && !canViewSystem.value) return deny()
   if (action === 'confirm') void store.confirmSelectedPlan()
   if (action === 'feedback') emit('open-feedback')
   if (action === 'upload') emit('open-upload')
@@ -90,21 +112,21 @@ function onControlClick(event: MouseEvent) {
         <PrimeProgressBar :value="plan.materialCompleteness" :class="progressClass(plan.materialCompleteness)" />
 
         <div class="warm-control-grid mt-4 grid grid-cols-2 gap-3" @click.capture="onControlClick">
-          <PrimeButton data-action="confirm" class="touch-button-3d" icon="pi pi-check-circle" label="组长确认" />
-          <PrimeButton data-action="feedback" severity="danger" icon="pi pi-exclamation-triangle" label="异常反馈" />
-          <PrimeButton data-action="upload" severity="secondary">
+          <PrimeButton data-action="confirm" class="touch-button-3d" icon="pi pi-check-circle" label="组长确认" :disabled="!canConfirm" title="当前角色无权执行该操作" />
+          <PrimeButton data-action="feedback" severity="danger" icon="pi pi-exclamation-triangle" label="异常反馈" :disabled="!canFeedback" title="当前角色无权执行该操作" />
+          <PrimeButton data-action="upload" severity="secondary" :disabled="!canUpload" title="当前角色无权执行该操作">
             <template #icon><FileUp :size="18" /></template>
             <span>上传资料</span>
           </PrimeButton>
-          <PrimeButton data-action="versions" severity="secondary">
+          <PrimeButton data-action="versions" severity="secondary" :disabled="!canViewDocuments" title="当前角色无权执行该操作">
             <template #icon><GitCompareArrows :size="18" /></template>
             <span>版本管理</span>
           </PrimeButton>
-          <PrimeButton data-action="audit" severity="secondary">
+          <PrimeButton data-action="audit" severity="secondary" :disabled="!canViewAudit" title="当前角色无权执行该操作">
             <template #icon><History :size="18" /></template>
             <span>查询留痕</span>
           </PrimeButton>
-          <PrimeButton data-action="migration" severity="secondary">
+          <PrimeButton data-action="migration" severity="secondary" :disabled="!canViewSystem" title="当前角色无权执行该操作">
             <template #icon><Database :size="18" /></template>
             <span>迁移预览</span>
           </PrimeButton>

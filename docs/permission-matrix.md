@@ -1,0 +1,34 @@
+# 权限矩阵
+
+V2.2 权限为本地 Mock RBAC，用于演示平板端菜单、按钮和后端 Mock API 守卫。后续接真实组织时，可替换为企业微信组织用户与后端数据库权限表。
+
+| 角色 | 用户 ID | 主要权限 |
+| --- | --- | --- |
+| 前段组长 | `mock-front-leader` | 查看计划、查看前段参数、确认计划、异常反馈、查看资料与留痕、系统诊断 |
+| 后段组长 | `mock-back-leader` | 查看计划、查看后段资料、确认计划、异常反馈、查看资料与留痕、系统诊断 |
+| 资料维护 | `mock-maintainer` | 上传资料、维护资料、设为有效、归档、导入预览与应用、维护中心、复核队列 |
+| 工艺 | `mock-process-engineer` | 维护前段参数、后段资料包、资料版本、复核队列、上传资料 |
+| 品质 | `mock-quality` | 查看全部计划、查看资料留痕、处理复核队列、系统诊断 |
+| 管理员 | `mock-admin` | 全部 Mock 权限 |
+
+## 后端守卫
+
+| 接口 | 权限 |
+| --- | --- |
+| `POST /api/production-plans/:id/confirm` | `plan.confirm` |
+| `POST /api/feedback` | `plan.feedback` |
+| `POST /api/documents/upload` | `document.upload` |
+| `PATCH /api/documents/:id/status` | `document.update` |
+| `PATCH /api/documents/:id/version` | `document.update` |
+| `POST /api/documents/:id/set-effective` | `document.set_effective` |
+| `POST /api/documents/:id/archive` | `document.archive` |
+| `POST /api/imports/:type/apply` | `import.apply` |
+| `PATCH /api/maintenance/customers/:id` | `maintenance.customer.update` |
+| `PATCH /api/maintenance/products/:id` | `maintenance.product.update` |
+| `PATCH /api/maintenance/production-plans/:id` | `maintenance.plan.update` |
+| `PATCH /api/maintenance/front-parameters/:id` | `maintenance.parameter.update` |
+| `PATCH /api/maintenance/back-packages/:id` | `maintenance.package.update` |
+| `PATCH /api/maintenance/documents/:id` | `maintenance.document.update` |
+| `POST /api/maintenance/review-queue/:id/resolve` | `maintenance.review.resolve` |
+
+无权限时后端返回 `403`，提示：`当前角色无权执行该操作。`

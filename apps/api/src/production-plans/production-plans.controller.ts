@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { MockPermissionGuard } from '../auth/guards/mock-permission.guard';
+import type { MockUser } from '../auth/mock-users';
 import { ConfirmProductionPlanDto } from './dto/confirm-production-plan.dto';
 import { ProductionPlansService } from './production-plans.service';
 
@@ -28,7 +32,14 @@ export class ProductionPlansController {
 
   @Post(':id/confirm')
   @ApiOperation({ summary: '模拟组长确认生产计划' })
-  confirm(@Param('id') id: string, @Body() dto: ConfirmProductionPlanDto) {
-    return this.productionPlansService.confirm(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('plan.confirm')
+  confirm(@Param('id') id: string, @Body() dto: ConfirmProductionPlanDto, @CurrentUser() user: MockUser) {
+    return this.productionPlansService.confirm(id, {
+      ...dto,
+      userId: user.userId,
+      userName: user.name,
+      role: (user.role === 'back_leader' ? '后段组长' : '前段组长') as ConfirmProductionPlanDto['role'],
+    });
   }
 }

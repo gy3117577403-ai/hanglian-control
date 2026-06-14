@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
+import type { MockUser } from '../auth/mock-users';
 import { documentStatusLabelMap } from '../common/enums/production.enum';
 import { evaluatePlanReadiness } from '../common/utils/readiness';
 import { mockStore } from '../mock/production.mock';
@@ -28,11 +29,21 @@ import type {
   ProductionPlanMock,
 } from '../common/types/production.types';
 
-const operator = {
+const defaultOperator = {
   operatorId: 'demo-maintainer',
   operatorName: '资料维护演示账号',
   operatorRole: '资料维护',
 };
+
+function operatorFromUser(user?: MockUser) {
+  return user
+    ? {
+        operatorId: user.userId,
+        operatorName: user.name,
+        operatorRole: user.roleLabel,
+      }
+    : defaultOperator;
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -133,7 +144,7 @@ export class MaintenanceService {
       .filter((row) => includesKeyword([row.sales, row.customerName, row.customerShortName, row.remark], query.keyword));
   }
 
-  updateCustomer(id: string, dto: UpdateCustomerDto) {
+  updateCustomer(id: string, dto: UpdateCustomerDto, user?: MockUser) {
     const snapshot = this.snapshot();
     const customer = this.ensureCustomerSnapshot(id, snapshot);
     const before = clone(customer);
@@ -144,7 +155,7 @@ export class MaintenanceService {
     if (dto.remark !== undefined) extra(customer).remark = dto.remark;
     extra(customer).updatedAt = new Date().toISOString();
     this.persistSnapshot(snapshot);
-    return this.record('customer', id, 'customer_updated', before, customer, dto.remark);
+    return this.record('customer', id, 'customer_updated', before, customer, dto.remark, user);
   }
 
   products(query: MaintenanceQueryDto) {
@@ -173,7 +184,7 @@ export class MaintenanceService {
       .filter((row) => includesKeyword([row.customer, row.productCode, row.productName, row.productVersion, row.productCategory, row.aliases], query.keyword));
   }
 
-  updateProduct(id: string, dto: UpdateProductDto) {
+  updateProduct(id: string, dto: UpdateProductDto, user?: MockUser) {
     const snapshot = this.snapshot();
     const product = this.ensureProductSnapshot(id, snapshot);
     const before = clone(product);
@@ -189,7 +200,7 @@ export class MaintenanceService {
       plan.productVersion = product.currentVersion;
     }
     this.persistSnapshot(snapshot);
-    return this.record('product', id, 'product_updated', before, product, dto.remark);
+    return this.record('product', id, 'product_updated', before, product, dto.remark, user);
   }
 
   productionPlans(query: MaintenanceQueryDto) {
@@ -226,7 +237,7 @@ export class MaintenanceService {
       .filter((row) => includesKeyword([row.weekPlanCode, row.customer, row.productCode, row.productName, row.responsiblePerson], query.keyword));
   }
 
-  updateProductionPlan(id: string, dto: UpdateProductionPlanDto) {
+  updateProductionPlan(id: string, dto: UpdateProductionPlanDto, user?: MockUser) {
     assertFiniteNumber(dto.plannedQuantity, '计划数量');
     assertFiniteNumber(dto.completedQuantity, '完成数量');
     const snapshot = this.snapshot();
@@ -243,7 +254,7 @@ export class MaintenanceService {
     this.decoratePlan(plan);
     mockStore.updatePlan(id, plan);
     this.persistSnapshot(snapshot);
-    return this.record('production_plan', id, 'plan_updated', before, plan, dto.remark);
+    return this.record('production_plan', id, 'plan_updated', before, plan, dto.remark, user);
   }
 
   frontParameters(query: MaintenanceQueryDto) {
@@ -253,7 +264,7 @@ export class MaintenanceService {
       .filter((row) => includesKeyword([row.customer, row.productCode, row.productVersion, row.wireLength, row.terminalModel, row.drawingVersion], query.keyword));
   }
 
-  updateFrontParameter(id: string, dto: UpdateFrontParameterDto) {
+  updateFrontParameter(id: string, dto: UpdateFrontParameterDto, user?: MockUser) {
     const snapshot = this.snapshot();
     const front = this.ensureFrontSnapshot(id, snapshot);
     const before = clone(front);
@@ -267,7 +278,7 @@ export class MaintenanceService {
     if (dto.remark !== undefined) extra(front).remark = dto.remark;
     this.refreshPlansForProduct(front.productId, snapshot);
     this.persistSnapshot(snapshot);
-    return this.record('front_parameter', front.productId, 'front_parameter_updated', before, front, dto.remark);
+    return this.record('front_parameter', front.productId, 'front_parameter_updated', before, front, dto.remark, user);
   }
 
   backPackages(query: MaintenanceQueryDto) {
@@ -277,7 +288,7 @@ export class MaintenanceService {
       .filter((row) => includesKeyword([row.customer, row.productCode, row.productVersion, row.connectorModel, row.pinMap, row.sop], query.keyword));
   }
 
-  updateBackPackage(id: string, dto: UpdateBackPackageDto) {
+  updateBackPackage(id: string, dto: UpdateBackPackageDto, user?: MockUser) {
     assertFiniteNumber(dto.finishedDetailImageCount, '成品细节图数量');
     const snapshot = this.snapshot();
     const back = this.ensureBackSnapshot(id, snapshot);
@@ -293,7 +304,7 @@ export class MaintenanceService {
     if (dto.remark !== undefined) extra(back).remark = dto.remark;
     this.refreshPlansForProduct(back.productId, snapshot);
     this.persistSnapshot(snapshot);
-    return this.record('back_package', back.productId, 'back_package_updated', before, back, dto.remark);
+    return this.record('back_package', back.productId, 'back_package_updated', before, back, dto.remark, user);
   }
 
   documents(query: MaintenanceQueryDto) {
@@ -328,7 +339,7 @@ export class MaintenanceService {
       .filter((row) => includesKeyword([row.title, row.customer, row.productCode, row.version, row.remark], query.keyword));
   }
 
-  updateDocument(id: string, dto: UpdateDocumentMaintenanceDto) {
+  updateDocument(id: string, dto: UpdateDocumentMaintenanceDto, user?: MockUser) {
     const document = this.findDocument(id);
     if (!document) throw new NotFoundException('未找到文件资料。');
     const before = clone(document);
@@ -343,10 +354,10 @@ export class MaintenanceService {
     if (dto.remark !== undefined) document.remark = dto.remark;
     document.updatedAt = new Date().toISOString();
     this.persistDocument(document);
-    return this.record('document', id, 'document_updated', before, document, dto.remark);
+    return this.record('document', id, 'document_updated', before, document, dto.remark, user);
   }
 
-  setDocumentEffective(id: string, payload: { reason?: string } = {}) {
+  setDocumentEffective(id: string, payload: { reason?: string } = {}, user?: MockUser) {
     const document = this.findDocument(id);
     if (!document) throw new NotFoundException('未找到文件资料。');
     const before = clone(document);
@@ -366,18 +377,18 @@ export class MaintenanceService {
     document.updatedAt = new Date().toISOString();
     document.effectiveDate = document.updatedAt.slice(0, 10);
     this.persistDocument(document);
-    return this.record('document', id, 'document_set_effective', before, document, payload.reason);
+    return this.record('document', id, 'document_set_effective', before, document, payload.reason, user);
   }
 
-  bulkStatus(dto: BulkStatusUpdateDto) {
+  bulkStatus(dto: BulkStatusUpdateDto, user?: MockUser) {
     assertIds(dto.ids);
     const results: MaintenanceRecord[] = [];
     for (const id of dto.ids) {
-      if (dto.entityType === 'product') results.push(this.updateProduct(id, { status: dto.status as UpdateProductDto['status'], remark: dto.reason }));
-      if (dto.entityType === 'production_plan') results.push(this.updateProductionPlan(id, { planStatus: dto.status as UpdateProductionPlanDto['planStatus'], remark: dto.reason }));
-      if (dto.entityType === 'front_parameter') results.push(this.updateFrontParameter(id, { parameterStatus: dto.status as UpdateFrontParameterDto['parameterStatus'], remark: dto.reason }));
-      if (dto.entityType === 'back_package') results.push(this.updateBackPackage(id, { packageStatus: dto.status as UpdateBackPackageDto['packageStatus'], remark: dto.reason }));
-      if (dto.entityType === 'document') results.push(this.updateDocument(id, { status: normalizeDocumentStatus(dto.status), remark: dto.reason }));
+      if (dto.entityType === 'product') results.push(this.updateProduct(id, { status: dto.status as UpdateProductDto['status'], remark: dto.reason }, user));
+      if (dto.entityType === 'production_plan') results.push(this.updateProductionPlan(id, { planStatus: dto.status as UpdateProductionPlanDto['planStatus'], remark: dto.reason }, user));
+      if (dto.entityType === 'front_parameter') results.push(this.updateFrontParameter(id, { parameterStatus: dto.status as UpdateFrontParameterDto['parameterStatus'], remark: dto.reason }, user));
+      if (dto.entityType === 'back_package') results.push(this.updateBackPackage(id, { packageStatus: dto.status as UpdateBackPackageDto['packageStatus'], remark: dto.reason }, user));
+      if (dto.entityType === 'document') results.push(this.updateDocument(id, { status: normalizeDocumentStatus(dto.status), remark: dto.reason }, user));
     }
     return {
       success: true,
@@ -437,13 +448,13 @@ export class MaintenanceService {
     return rows.slice(0, 120);
   }
 
-  resolveReviewItem(id: string, dto: ReviewRecordDto) {
+  resolveReviewItem(id: string, dto: ReviewRecordDto, user?: MockUser) {
     const [entityType, entityId] = id.split(':');
     if (entityType === 'document') {
       const status = dto.action === 'mark_reviewed' ? 'effective' : dto.action === 'mark_pending' ? 'pending_review' : 'inconsistent';
-      return this.updateDocument(entityId, { status, remark: dto.remark ?? '复核队列处理' });
+      return this.updateDocument(entityId, { status, remark: dto.remark ?? '复核队列处理' }, user);
     }
-    const record = this.record('review_queue', id, 'review_resolved', { id }, { id, action: dto.action }, dto.remark);
+    const record = this.record('review_queue', id, 'review_resolved', { id }, { id, action: dto.action }, dto.remark, user);
     return { success: true, record };
   }
 
@@ -666,7 +677,8 @@ export class MaintenanceService {
     mockStore.mergeImportedBusinessData(snapshot);
   }
 
-  private record(entityType: MaintenanceEntityType, entityId: string, action: string, before: unknown, after: unknown, reason?: string) {
+  private record(entityType: MaintenanceEntityType, entityId: string, action: string, before: unknown, after: unknown, reason?: string, user?: MockUser) {
+    const operator = operatorFromUser(user);
     const record: MaintenanceRecord = {
       maintenanceId: `MAINT-${Date.now()}-${randomUUID()}`,
       entityType,

@@ -9,12 +9,17 @@ import {
   Res,
   StreamableFile,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { MockPermissionGuard } from '../auth/guards/mock-permission.guard';
+import type { MockUser } from '../auth/mock-users';
 import { ImportApplyDto } from './dto/import-apply.dto';
 import { ImportPreviewUploadDto } from './dto/import-preview.dto';
 import { ImportHistoryQueryDto } from './dto/import-query.dto';
@@ -50,6 +55,8 @@ export class ImportsController {
   }
 
   @Post(':type/preview')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('import.preview')
   @ApiOperation({ summary: '上传 Excel / CSV 并生成导入预览，不真正写入业务数据' })
   @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package'] })
   @ApiConsumes('multipart/form-data')
@@ -71,10 +78,18 @@ export class ImportsController {
   }
 
   @Post(':type/apply')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('import.apply')
   @ApiOperation({ summary: '应用导入预览结果，写入本地 Mock / metadata 数据源' })
   @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package'] })
-  apply(@Param('type') type: string, @Body() dto: ImportApplyDto) {
-    return this.importsService.apply(type, dto);
+  apply(@Param('type') type: string, @Body() dto: ImportApplyDto, @CurrentUser() user: MockUser) {
+    return this.importsService.apply(type, {
+      ...dto,
+      operatorId: user.userId,
+      operatorName: user.name,
+      operatorRole: user.roleLabel,
+      operatorTeam: user.team,
+    });
   }
 
   @Get('history')

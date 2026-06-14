@@ -18,4 +18,14 @@ export class ImportApplyDto {
   @IsOptional()
   @IsString()
   remark?: string;
+
+  @ApiPropertyOptional({ description: '操作人角色', example: '资料维护' })
+  @IsOptional()
+  @IsString()
+  operatorRole?: string;
+
+  @ApiPropertyOptional({ description: '操作人班组/组织', example: '工艺资料组' })
+  @IsOptional()
+  @IsString()
+  operatorTeam?: string;
 }

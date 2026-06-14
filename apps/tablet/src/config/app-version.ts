@@ -1,12 +1,13 @@
-export const APP_VERSION = 'V2.1'
-export const APP_STAGE = '资料维护演示版'
-export const APP_RELEASE_NAME = '线束车间资料维护中心演示版'
-export const APP_BUILD_CHANNEL = 'mock-local-maintenance-demo'
+export const APP_VERSION = 'V2.2'
+export const APP_STAGE = '角色权限演示版'
+export const APP_RELEASE_NAME = '线束车间多角色权限演示版'
+export const APP_BUILD_CHANNEL = 'mock-local-rbac-demo'
 
 export const APP_RUNTIME_FLAGS = {
   dataSource: 'Mock',
   sealosConnected: false,
   wecomDiskConnected: false,
+  wecomLoginConnected: false,
   realVoiceConnected: false,
   fileStorage: '本地开发存储',
   lanAccess: true,

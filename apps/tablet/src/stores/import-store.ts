@@ -10,6 +10,7 @@ import {
   previewImport as previewImportApi,
   previewImportRollback,
 } from '@/services/api'
+import { useAuthStore } from '@/stores/auth-store'
 import type {
   ImportApplyPayload,
   ImportPreviewResult,
@@ -27,6 +28,7 @@ export const importTypeOptions: Array<{ label: string; value: ImportType }> = [
 ]
 
 export const useImportStore = defineStore('imports', () => {
+  const auth = useAuthStore()
   const importTypes = ref<ImportTemplateDefinition[]>([])
   const selectedImportType = ref<ImportType>('production_plan')
   const previewResult = ref<ImportPreviewResult | null>(null)
@@ -81,13 +83,16 @@ export const useImportStore = defineStore('imports', () => {
     }
   }
 
-  async function applyImport(remark = 'V2.0 数据导入中心') {
+  async function applyImport(remark = 'V2.2 角色权限演示版') {
     if (!previewResult.value) return null
     applyLoading.value = true
+    const user = auth.currentUser
     const payload: ImportApplyPayload = {
       previewId: previewResult.value.previewId,
-      operatorId: 'demo-leader',
-      operatorName: '组长演示账号',
+      operatorId: user?.userId ?? 'mock-maintainer',
+      operatorName: user?.name ?? '资料维护演示',
+      operatorRole: user?.roleLabel,
+      operatorTeam: user?.team,
       remark,
     }
     try {

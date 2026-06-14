@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { MockPermissionGuard } from '../auth/guards/mock-permission.guard';
+import type { MockUser } from '../auth/mock-users';
 import { BulkStatusUpdateDto } from './dto/bulk-status-update.dto';
 import { MaintenanceQueryDto } from './dto/maintenance-query.dto';
 import { ReviewRecordDto } from './dto/review-record.dto';
@@ -28,8 +32,10 @@ export class MaintenanceController {
   }
 
   @Patch('customers/:id')
-  updateCustomer(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
-    return this.maintenanceService.updateCustomer(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.customer.update')
+  updateCustomer(@Param('id') id: string, @Body() dto: UpdateCustomerDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.updateCustomer(id, dto, user);
   }
 
   @Get('products')
@@ -38,8 +44,10 @@ export class MaintenanceController {
   }
 
   @Patch('products/:id')
-  updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {
-    return this.maintenanceService.updateProduct(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.product.update')
+  updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.updateProduct(id, dto, user);
   }
 
   @Get('production-plans')
@@ -48,8 +56,10 @@ export class MaintenanceController {
   }
 
   @Patch('production-plans/:id')
-  updateProductionPlan(@Param('id') id: string, @Body() dto: UpdateProductionPlanDto) {
-    return this.maintenanceService.updateProductionPlan(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.plan.update')
+  updateProductionPlan(@Param('id') id: string, @Body() dto: UpdateProductionPlanDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.updateProductionPlan(id, dto, user);
   }
 
   @Get('front-parameters')
@@ -58,8 +68,10 @@ export class MaintenanceController {
   }
 
   @Patch('front-parameters/:id')
-  updateFrontParameter(@Param('id') id: string, @Body() dto: UpdateFrontParameterDto) {
-    return this.maintenanceService.updateFrontParameter(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.parameter.update')
+  updateFrontParameter(@Param('id') id: string, @Body() dto: UpdateFrontParameterDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.updateFrontParameter(id, dto, user);
   }
 
   @Get('back-packages')
@@ -68,8 +80,10 @@ export class MaintenanceController {
   }
 
   @Patch('back-packages/:id')
-  updateBackPackage(@Param('id') id: string, @Body() dto: UpdateBackPackageDto) {
-    return this.maintenanceService.updateBackPackage(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.package.update')
+  updateBackPackage(@Param('id') id: string, @Body() dto: UpdateBackPackageDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.updateBackPackage(id, dto, user);
   }
 
   @Get('documents')
@@ -78,18 +92,24 @@ export class MaintenanceController {
   }
 
   @Patch('documents/:id')
-  updateDocument(@Param('id') id: string, @Body() dto: UpdateDocumentMaintenanceDto) {
-    return this.maintenanceService.updateDocument(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.document.update')
+  updateDocument(@Param('id') id: string, @Body() dto: UpdateDocumentMaintenanceDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.updateDocument(id, dto, user);
   }
 
   @Post('documents/:id/set-effective')
-  setDocumentEffective(@Param('id') id: string, @Body() dto: { reason?: string }) {
-    return this.maintenanceService.setDocumentEffective(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('document.set_effective')
+  setDocumentEffective(@Param('id') id: string, @Body() dto: { reason?: string }, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.setDocumentEffective(id, dto, user);
   }
 
   @Post('bulk-status')
-  bulkStatus(@Body() dto: BulkStatusUpdateDto) {
-    return this.maintenanceService.bulkStatus(dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.document.update')
+  bulkStatus(@Body() dto: BulkStatusUpdateDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.bulkStatus(dto, user);
   }
 
   @Get('review-queue')
@@ -98,8 +118,10 @@ export class MaintenanceController {
   }
 
   @Post('review-queue/:id/resolve')
-  resolveReviewItem(@Param('id') id: string, @Body() dto: ReviewRecordDto) {
-    return this.maintenanceService.resolveReviewItem(id, dto);
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('maintenance.review.resolve')
+  resolveReviewItem(@Param('id') id: string, @Body() dto: ReviewRecordDto, @CurrentUser() user: MockUser) {
+    return this.maintenanceService.resolveReviewItem(id, dto, user);
   }
 
   @Get('history')

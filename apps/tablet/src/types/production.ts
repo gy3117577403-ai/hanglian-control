@@ -269,6 +269,9 @@ export interface DataSourceStatus {
   prismaAvailable?: boolean
   canReadDatabase?: boolean
   canWriteDatabase?: boolean
+  authMode?: 'mock'
+  authProvider?: 'local_mock'
+  wecomLoginEnabled?: boolean
   stage?: string
   message: string
 }
@@ -288,6 +291,9 @@ export interface DatabaseSafetyStatus {
   canReadDatabase: boolean
   canWriteDatabase: boolean
   destructiveActionsAllowed: boolean
+  authMode?: 'mock'
+  authProvider?: 'local_mock'
+  wecomLoginEnabled?: boolean
   stage: 'V0.8A_READONLY_CHECK'
   dryRun: boolean
   warnings: string[]
@@ -498,6 +504,8 @@ export interface ImportApplyPayload {
   previewId: string
   operatorId: string
   operatorName: string
+  operatorRole?: string
+  operatorTeam?: string
   remark?: string
 }
 
@@ -537,6 +545,76 @@ export interface ImportRollbackPreview {
   affectedBackPackages: number
   canRollback: false
   message: string
+}
+
+export type MockRole =
+  | 'front_leader'
+  | 'back_leader'
+  | 'maintainer'
+  | 'process_engineer'
+  | 'quality'
+  | 'admin'
+
+export type Permission =
+  | 'plan.view'
+  | 'plan.view.all'
+  | 'plan.confirm'
+  | 'plan.update'
+  | 'plan.feedback'
+  | 'front.view'
+  | 'front.parameter.view'
+  | 'front.parameter.update'
+  | 'back.view'
+  | 'back.package.view'
+  | 'back.package.update'
+  | 'document.view'
+  | 'document.upload'
+  | 'document.update'
+  | 'document.set_effective'
+  | 'document.archive'
+  | 'document.audit.view'
+  | 'import.view'
+  | 'import.preview'
+  | 'import.apply'
+  | 'import.history.view'
+  | 'maintenance.view'
+  | 'maintenance.customer.update'
+  | 'maintenance.product.update'
+  | 'maintenance.plan.update'
+  | 'maintenance.parameter.update'
+  | 'maintenance.package.update'
+  | 'maintenance.document.update'
+  | 'maintenance.review.resolve'
+  | 'system.info.view'
+  | 'system.diagnostics.view'
+  | 'system.demo_tools.view'
+  | 'system.roadmap.view'
+  | 'system.freeze_check.view'
+  | 'admin.user.view'
+  | 'admin.permission.view'
+  | 'admin.all'
+
+export interface MockUser {
+  userId: string
+  role: MockRole
+  roleLabel: string
+  name: string
+  team: string
+  description: string
+  permissions?: Permission[]
+}
+
+export interface AuthSession {
+  token: string
+  user: MockUser
+  permissions: Permission[]
+}
+
+export interface PermissionMatrixResponse {
+  mode: 'mock'
+  provider: 'local_mock'
+  allPermissions: Permission[]
+  rolePermissions: Record<MockRole, Permission[]>
 }
 
 export type MaintenanceEntityType =

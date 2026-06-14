@@ -4,6 +4,9 @@ import dayjs from 'dayjs'
 import { DatabaseZap, FileSpreadsheet, RotateCcw, UploadCloud } from 'lucide-vue-next'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import WarmPermissionDenied from '@/components/auth/WarmPermissionDenied.vue'
+import { PERMISSIONS } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/auth-store'
 import { importTypeOptions, useImportStore } from '@/stores/import-store'
 import type { ImportPreviewRow } from '@/types/production'
 
@@ -17,11 +20,12 @@ const emit = defineEmits<{
 }>()
 
 const importStore = useImportStore()
+const auth = useAuthStore()
 const confirm = useConfirm()
 const toast = useToast()
 const selectedFile = ref<File | null>(null)
 const activeTab = ref('preview')
-const remark = ref('V2.0 数据导入中心')
+const remark = ref('V2.2 角色权限演示版')
 const rollbackText = ref('')
 
 const dialogVisible = computed({
@@ -31,6 +35,8 @@ const dialogVisible = computed({
 
 const previewRows = computed(() => importStore.previewResult?.rows.slice(0, 30) ?? [])
 const previewColumns = computed(() => (importStore.previewResult?.columns ?? []).slice(0, 6))
+const canPreviewImport = computed(() => auth.hasPermission(PERMISSIONS.IMPORT_PREVIEW))
+const canApplyImport = computed(() => auth.hasPermission(PERMISSIONS.IMPORT_APPLY))
 
 function statusSeverity(status: ImportPreviewRow['status']) {
   if (status === 'valid') return 'success'
@@ -55,6 +61,7 @@ function clearFile() {
 }
 
 async function previewSelectedFile() {
+  if (!canPreviewImport.value) return deny()
   if (!selectedFile.value) {
     toast.add({ severity: 'warn', summary: '请选择导入文件', detail: '支持 Excel / CSV。', life: 2400 })
     return
@@ -63,6 +70,7 @@ async function previewSelectedFile() {
 }
 
 async function applyCurrentPreview() {
+  if (!canApplyImport.value) return deny()
   const preview = importStore.previewResult
   if (!preview || preview.errorRows > 0) return
   const run = async () => {
@@ -85,6 +93,10 @@ async function applyCurrentPreview() {
     return
   }
   await run()
+}
+
+function deny() {
+  toast.add({ severity: 'error', summary: '当前角色无权执行该操作。', detail: '请在右上角切换到具备权限的 Mock 角色。', life: 2600 })
 }
 
 async function showRollbackPreview(id: string) {
@@ -123,6 +135,11 @@ watch(() => importStore.selectedImportType, () => {
       <PrimeMessage severity="warn" :closable="false">
         请选择 `demo-import-files` 中的演示文件测试导入。不要导入真实客户计划、图纸编号或量产资料。
       </PrimeMessage>
+      <WarmPermissionDenied
+        v-if="!canPreviewImport"
+        title="当前角色不能预览导入"
+        description="请切换到资料维护、管理员或具备导入权限的演示角色。"
+      />
 
       <PrimeTabs v-model:value="activeTab">
         <PrimeTabList>
@@ -186,13 +203,13 @@ watch(() => importStore.selectedImportType, () => {
             </div>
 
             <div class="mt-4 flex flex-wrap gap-3">
-              <PrimeButton label="生成预览" :loading="importStore.previewLoading" @click="previewSelectedFile">
+              <PrimeButton label="生成预览" :disabled="!canPreviewImport" :loading="importStore.previewLoading" @click="previewSelectedFile">
                 <template #icon><UploadCloud :size="17" /></template>
               </PrimeButton>
               <PrimeButton
                 label="应用导入"
                 severity="warn"
-                :disabled="!importStore.canApply"
+                :disabled="!importStore.canApply || !canApplyImport"
                 :loading="importStore.applyLoading"
                 @click="applyCurrentPreview"
               />

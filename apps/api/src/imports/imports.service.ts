@@ -276,7 +276,7 @@ export class ImportsService {
       message: `${dto.operatorName} 应用导入：${record.importTypeLabel}，${record.totalRows} 行。`,
       operatorId: dto.operatorId,
       operatorName: dto.operatorName,
-      operatorRole: '组长',
+      operatorRole: dto.operatorRole ?? '资料维护',
     });
 
     return {

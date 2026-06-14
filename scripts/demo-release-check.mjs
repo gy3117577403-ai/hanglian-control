@@ -56,6 +56,8 @@ const gitignore = read('.gitignore');
   'docs/v1.9-pwa-tablet-package.md',
   'docs/v2.0-data-import-center.md',
   'docs/v2.1-maintenance-center.md',
+  'docs/v2.2-role-permission.md',
+  'docs/permission-matrix.md',
   'docs/import-template-guide.md',
   'docs/maintenance-guide.md',
   'docs/tablet-install-guide.md',
@@ -72,6 +74,7 @@ const gitignore = read('.gitignore');
   'demo:imports',
   'import-flow:check',
   'maintenance-flow:check',
+  'auth-flow:check',
   'file-flow:check',
   'dev:lan',
   'security:check',
@@ -92,7 +95,7 @@ const gitignore = read('.gitignore');
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
 
-console.log('V2.1 demo release check');
+console.log('V2.2 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 

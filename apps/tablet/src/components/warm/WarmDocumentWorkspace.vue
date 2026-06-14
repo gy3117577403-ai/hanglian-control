@@ -15,7 +15,9 @@ import {
   tabLabel,
   type PreviewFolderTab,
 } from '@/lib/format'
+import { PERMISSIONS } from '@/lib/permissions'
 import { rawDocumentStatus } from '@/lib/status-style'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import type { DocumentTab, ProductDocument } from '@/types/production'
 
@@ -27,6 +29,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useProductionStore()
+const auth = useAuthStore()
 const confirm = useConfirm()
 const toast = useToast()
 
@@ -68,6 +71,13 @@ const previewDocument = computed(() => {
 
 const isPdfTab = computed(() => activeTab.value === 'drawing')
 const activeDocumentId = computed(() => previewDocument.value?.documentId ?? previewDocument.value?.id)
+const canUpload = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_UPLOAD))
+const canViewVersions = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_VIEW))
+const canViewAudit = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_AUDIT_VIEW))
+const canSetEffective = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_SET_EFFECTIVE))
+const canUpdateDocument = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_UPDATE))
+const canArchive = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_ARCHIVE))
+const canViewSystem = computed(() => auth.hasPermission(PERMISSIONS.SYSTEM_INFO_VIEW))
 const previewFileHealth = computed(() => previewDocument.value ? store.fileHealthForDocument(previewDocument.value) : null)
 const previewDiagnostics = computed(() => {
   const document = previewDocument.value
@@ -124,10 +134,18 @@ function onTabClick(event: MouseEvent) {
 
 function onActionClick(event: MouseEvent) {
   const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action
+  if (action === 'upload' && !canUpload.value) return deny()
+  if (action === 'versions' && !canViewVersions.value) return deny()
+  if (action === 'audit' && !canViewAudit.value) return deny()
+  if (action === 'migration' && !canViewSystem.value) return deny()
   if (action === 'upload') emit('open-upload')
   if (action === 'versions' && previewDocument.value) void openVersions(previewDocument.value)
   if (action === 'audit' && previewDocument.value) void openAudit(previewDocument.value)
   if (action === 'migration') void openMigration()
+}
+
+function deny() {
+  toast.add({ severity: 'error', summary: '当前角色无权执行该操作。', detail: '请在右上角切换到具备权限的 Mock 角色。', life: 2600 })
 }
 
 function selectDocument(document: ProductDocument) {
@@ -181,6 +199,7 @@ async function compareVersions(document: ProductDocument) {
 }
 
 function confirmSetEffective(document: ProductDocument) {
+  if (!canSetEffective.value) return deny()
   confirm.require({
     header: '设为当前有效版本',
     message: `确认将 ${document.title} ${document.version} 设为当前有效版本？`,
@@ -197,6 +216,7 @@ function confirmSetEffective(document: ProductDocument) {
 }
 
 function confirmArchive(document: ProductDocument) {
+  if (!canArchive.value) return deny()
   confirm.require({
     header: '归档资料',
     message: `确认归档 ${document.title} ${document.version}？归档后不会作为当前生产资料使用。`,
@@ -214,6 +234,9 @@ function confirmArchive(document: ProductDocument) {
 
 async function handleDocumentAction(action: DocumentCardAction, document: ProductDocument) {
   store.previewDocument = document
+  if (action === 'set-effective' && !canSetEffective.value) return deny()
+  if (['pending', 'expired'].includes(action) && !canUpdateDocument.value) return deny()
+  if (action === 'archive' && !canArchive.value) return deny()
   if (action === 'preview') selectDocument(document)
   if (action === 'versions') await openVersions(document)
   if (action === 'audit') await openAudit(document)
@@ -260,10 +283,10 @@ watch(
         </p>
       </div>
       <div class="flex gap-2" @click.capture="onActionClick">
-        <PrimeButton data-action="upload" severity="secondary" icon="pi pi-upload" label="上传" />
-        <PrimeButton data-action="versions" severity="secondary" icon="pi pi-history" label="版本" />
-        <PrimeButton data-action="audit" severity="secondary" icon="pi pi-list-check" label="留痕" />
-        <PrimeButton data-action="migration" severity="secondary" icon="pi pi-database" label="迁移" />
+        <PrimeButton data-action="upload" severity="secondary" icon="pi pi-upload" label="上传" :disabled="!canUpload" title="当前角色无权执行该操作" />
+        <PrimeButton data-action="versions" severity="secondary" icon="pi pi-history" label="版本" :disabled="!canViewVersions" title="当前角色无权执行该操作" />
+        <PrimeButton data-action="audit" severity="secondary" icon="pi pi-list-check" label="留痕" :disabled="!canViewAudit" title="当前角色无权执行该操作" />
+        <PrimeButton data-action="migration" severity="secondary" icon="pi pi-database" label="迁移" :disabled="!canViewSystem" title="当前角色无权执行该操作" />
       </div>
     </div>
 

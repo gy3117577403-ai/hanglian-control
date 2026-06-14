@@ -182,3 +182,17 @@ npm run demo:imports
 - `docs/api.md`
 - `docs/ui-guide.md`
 - `docs/project-status.md`
+
+## V2.2 角色权限演示版
+
+当前 V2.2 新增本地 Mock 登录、角色切换、权限矩阵、菜单权限、按钮权限和后端 Mock 权限校验。启动后先进入 `/login` 选择演示角色，再进入 `/tablet`。
+
+支持角色：前段组长、后段组长、资料维护、工艺、品质、管理员。当前仍不接 Sealos、不接企业微信微盘、不接企业微信登录、不接真实语音。
+
+新增检查命令：
+
+```bash
+npm run auth-flow:check
+```
+
+相关文档：`docs/v2.2-role-permission.md`、`docs/permission-matrix.md`。

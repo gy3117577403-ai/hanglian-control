@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { extname, resolve } from 'node:path';
 import { stat } from 'node:fs/promises';
 import { AuditService } from '../audit/audit.service';
+import type { MockUser } from '../auth/mock-users';
 import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
 import type { DocumentStatus } from '../common/enums/production.enum';
 import { LocalStorageService } from '../storage/local-storage.service';
@@ -104,6 +105,16 @@ function validateUploadFile(file: Express.Multer.File) {
   if (dangerousExtensions.some((dangerous) => originalName.toLowerCase().endsWith(dangerous))) {
     throw new BadRequestException('文件扩展名存在风险，已拒绝上传。');
   }
+}
+
+function operatorFromUser(user?: MockUser) {
+  return user
+    ? {
+        operatorId: user.userId,
+        operatorName: user.name,
+        operatorRole: user.roleLabel,
+      }
+    : {};
 }
 
 @Injectable()
@@ -242,7 +253,7 @@ export class DocumentsService {
     return this.documentRepository.compareDocuments(dto.documentIds);
   }
 
-  async upload(dto: UploadDocumentDto, file?: Express.Multer.File) {
+  async upload(dto: UploadDocumentDto, file?: Express.Multer.File, user?: MockUser) {
     if (!file) throw new BadRequestException('请上传资料文件。');
     validateUploadFile(file);
     if (!dto.productId) throw new BadRequestException('请先选择生产计划，再上传资料。');
@@ -290,6 +301,7 @@ export class DocumentsService {
       entityId: docId(document),
       action: 'document_uploaded',
       after: document,
+      ...operatorFromUser(user),
       message: `上传资料 ${document.title} ${document.version}`,
       planId: document.planId,
       productId: document.productId,
@@ -297,7 +309,7 @@ export class DocumentsService {
     return document;
   }
 
-  async updateStatus(id: string, dto: UpdateDocumentStatusDto) {
+  async updateStatus(id: string, dto: UpdateDocumentStatusDto, user?: MockUser) {
     const before = clone(await this.findOne(id));
     const document = await this.documentRepository.updateDocumentStatus(id, dto);
     if (!document) throw new NotFoundException(`未找到可更新的资料：${id}`);
@@ -307,6 +319,7 @@ export class DocumentsService {
       action: 'document_status_changed',
       before,
       after: document,
+      ...operatorFromUser(user),
       message: dto.reason ?? `资料状态改为 ${document.documentStatus}`,
       planId: document.planId,
       productId: document.productId,
@@ -314,7 +327,7 @@ export class DocumentsService {
     return document;
   }
 
-  async updateVersion(id: string, dto: UpdateDocumentVersionDto) {
+  async updateVersion(id: string, dto: UpdateDocumentVersionDto, user?: MockUser) {
     const before = clone(await this.findOne(id));
     const document = await this.documentRepository.updateDocumentVersion(id, dto);
     if (!document) throw new NotFoundException(`未找到可更新版本的资料：${id}`);
@@ -324,6 +337,7 @@ export class DocumentsService {
       action: 'document_version_changed',
       before,
       after: document,
+      ...operatorFromUser(user),
       message: `资料版本改为 ${document.version}`,
       planId: document.planId,
       productId: document.productId,
@@ -331,7 +345,7 @@ export class DocumentsService {
     return document;
   }
 
-  async setEffective(id: string, dto: SetEffectiveDocumentDto) {
+  async setEffective(id: string, dto: SetEffectiveDocumentDto, user?: MockUser) {
     const before = await this.findVersions(id);
     const result = await this.documentRepository.setEffectiveDocument(id, dto);
     if (!result) throw new NotFoundException(`未找到可设置有效版本的资料：${id}`);
@@ -341,10 +355,8 @@ export class DocumentsService {
       action: 'document_set_effective',
       before,
       after: result.versions,
+      ...operatorFromUser(user),
       message: dto.reason ?? `设置 ${result.document.version} 为当前有效版本`,
-      operatorId: dto.operatorId,
-      operatorName: dto.operatorName,
-      operatorRole: dto.operatorRole,
       planId: result.document.planId,
       productId: result.document.productId,
     });
@@ -354,10 +366,8 @@ export class DocumentsService {
         entityId: result.readiness.planId,
         action: 'readiness_recalculated',
         after: result.readiness,
+        ...operatorFromUser(user),
         message: '设置有效版本后重新计算资料齐套性。',
-        operatorId: dto.operatorId,
-        operatorName: dto.operatorName,
-        operatorRole: dto.operatorRole,
         planId: result.readiness.planId,
         productId: result.document.productId,
       });
@@ -365,7 +375,7 @@ export class DocumentsService {
     return result;
   }
 
-  async archive(id: string) {
+  async archive(id: string, user?: MockUser) {
     const before = clone(await this.findOne(id));
     const document = await this.documentRepository.archiveDocument(id);
     if (!document) throw new NotFoundException(`未找到可归档的资料：${id}`);
@@ -375,6 +385,7 @@ export class DocumentsService {
       action: 'document_archived',
       before,
       after: document,
+      ...operatorFromUser(user),
       message: `归档资料 ${document.title} ${document.version}`,
       planId: document.planId,
       productId: document.productId,

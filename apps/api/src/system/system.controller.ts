@@ -29,6 +29,9 @@ export class SystemController {
       prismaAvailable: this.dataSourceConfig.prismaAvailable,
       canReadDatabase: this.dataSourceConfig.canReadDatabase,
       canWriteDatabase: this.dataSourceConfig.canWriteDatabase,
+      authMode: 'mock',
+      authProvider: 'local_mock',
+      wecomLoginEnabled: false,
       stage: this.dataSourceConfig.stage,
       message: this.dataSourceConfig.message,
     };
@@ -47,6 +50,11 @@ export class SystemController {
   @Get('database-safety')
   @ApiOperation({ summary: '查看数据库安全闸门状态，V0.8A 仅允许测试库只读检查' })
   getDatabaseSafety() {
-    return getDatabaseSafetyStatus();
+    return {
+      ...getDatabaseSafetyStatus(),
+      authMode: 'mock',
+      authProvider: 'local_mock',
+      wecomLoginEnabled: false,
+    };
   }
 }

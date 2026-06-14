@@ -4,6 +4,7 @@ import type {
   ConfirmProductionPlanPayload,
   AuditLog,
   AuditLogQuery,
+  AuthSession,
   DatabaseSafetyStatus,
   DataSourceStatus,
   DocumentCompareResult,
@@ -36,6 +37,8 @@ import type {
   MaintenanceSummary,
   MigrationPreview,
   MigrationValidation,
+  MockUser,
+  PermissionMatrixResponse,
   PlanReadiness,
   PlanScope,
   PrismaSeedPreview,
@@ -51,9 +54,37 @@ import type {
 
 const API_BASE = getApiBaseUrl()
 
+const AUTH_STORAGE_KEYS = {
+  token: 'hanglian.auth.token',
+  currentUser: 'hanglian.auth.currentUser',
+}
+
+function readAuthHeaders(): Record<string, string> {
+  if (typeof localStorage === 'undefined') return {}
+  const token = localStorage.getItem(AUTH_STORAGE_KEYS.token)
+  const currentUserRaw = localStorage.getItem(AUTH_STORAGE_KEYS.currentUser)
+  let currentUser: Pick<MockUser, 'userId'> | null = null
+  try {
+    currentUser = currentUserRaw ? JSON.parse(currentUserRaw) as MockUser : null
+  } catch {
+    currentUser = null
+  }
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(currentUser?.userId ? { 'x-mock-user-id': currentUser.userId } : {}),
+  }
+}
+
 export const api = ofetch.create({
   baseURL: API_BASE,
   timeout: 5000,
+  onRequest({ options }) {
+    const headers = new Headers(options.headers as HeadersInit | undefined)
+    for (const [key, value] of Object.entries(readAuthHeaders())) {
+      headers.set(key, value)
+    }
+    options.headers = headers
+  },
 })
 
 export const apiBaseUrl = API_BASE
@@ -108,6 +139,31 @@ export function getDataSourceStatus() {
 
 export function getDatabaseSafety() {
   return api<DatabaseSafetyStatus>('/system/database-safety')
+}
+
+export function getMockUsers() {
+  return api<MockUser[]>('/auth/mock-users')
+}
+
+export function mockLogin(userId: string) {
+  return api<AuthSession>('/auth/mock-login', {
+    method: 'POST',
+    body: { userId },
+  })
+}
+
+export function getCurrentAuthUser() {
+  return api<AuthSession>('/auth/me')
+}
+
+export function logoutMockUser() {
+  return api<{ success: boolean; message: string }>('/auth/logout', {
+    method: 'POST',
+  })
+}
+
+export function getPermissionMatrix() {
+  return api<PermissionMatrixResponse>('/auth/permissions')
 }
 
 export function getProductionPlans(scope: PlanScope) {

@@ -32,6 +32,7 @@ import {
   updateDocumentVersion as updateDocumentVersionApi,
   uploadDocument as uploadDocumentApi,
 } from '@/services/api'
+import { useAuthStore } from '@/stores/auth-store'
 import type {
   ActiveProcess,
   AuditLog,
@@ -264,6 +265,7 @@ function localFileHealth(plan: ProductionPlan): DocumentFileHealthResponse {
 }
 
 export const useProductionStore = defineStore('production', () => {
+  const auth = useAuthStore()
   const persistedScope = readStorage(STORAGE_KEYS.scope) as PlanScope | null
   const persistedProcess = readStorage(STORAGE_KEYS.activeProcess) as ActiveProcess | null
   const persistedDocumentTab = readStorage(STORAGE_KEYS.activeDocumentTab) as DocumentTab | null
@@ -556,10 +558,11 @@ export const useProductionStore = defineStore('production', () => {
   async function confirmCurrentPlan() {
     loading.value = true
     try {
+      const user = auth.currentUser
       const confirmed = apiOnline.value
         ? await confirmProductionPlan(selectedPlan.value.id, {
-            userId: 'demo-leader',
-            userName: '组长演示账号',
+            userId: user?.userId ?? 'mock-front-leader',
+            userName: user?.name ?? '前段组长演示',
             role: activeProcess.value === 'front' ? '前段组长' : '后段组长',
           })
         : { ...selectedPlan.value, confirmationStatus: '已确认' as const }
@@ -587,8 +590,8 @@ export const useProductionStore = defineStore('production', () => {
         planId: selectedPlan.value.id,
         type,
         description,
-        userId: 'demo-leader',
-        userName: '组长演示账号',
+        userId: auth.currentUser?.userId ?? 'mock-front-leader',
+        userName: auth.currentUser?.name ?? '前段组长演示',
       }
       const response = apiOnline.value
         ? await submitFeedbackApi(payload)
@@ -634,6 +637,11 @@ export const useProductionStore = defineStore('production', () => {
       }
       formData.set('planId', selectedPlan.value.id)
       formData.set('productId', selectedPlan.value.productId ?? selectedPlan.value.productCode)
+      if (auth.currentUser) {
+        formData.set('operatorId', auth.currentUser.userId)
+        formData.set('operatorName', auth.currentUser.name)
+        formData.set('operatorRole', auth.currentUser.roleLabel)
+      }
       const document = await uploadDocumentApi(formData)
       const documentId = document.documentId ?? document.id
       activeDocumentTab.value = tabForDocument(document) as DocumentTab
@@ -730,9 +738,9 @@ export const useProductionStore = defineStore('production', () => {
     if (!apiOnline.value) return
     try {
       const result = await setDocumentEffective(id, {
-        operatorId: 'demo-leader',
-        operatorName: '组长演示账号',
-        operatorRole: '组长',
+        operatorId: auth.currentUser?.userId ?? 'mock-front-leader',
+        operatorName: auth.currentUser?.name ?? '前段组长演示',
+        operatorRole: auth.currentUser?.roleLabel ?? '前段组长',
         ...payload,
       })
       selectedDocument.value = result.document

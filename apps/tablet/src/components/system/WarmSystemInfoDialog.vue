@@ -6,6 +6,7 @@ import { Clipboard, DatabaseZap, HardDrive, Info, RotateCcw, ShieldCheck, Wifi }
 import { APP_BUILD_CHANNEL, APP_RELEASE_NAME, APP_RUNTIME_FLAGS, APP_STAGE, APP_SYSTEM_NAME, APP_VERSION } from '@/config/app-version'
 import { getApiHostInfo } from '@/config/api-base'
 import { apiBaseUrl } from '@/services/api'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import { useUiStore } from '@/stores/ui-store'
 
@@ -21,6 +22,7 @@ const confirm = useConfirm()
 const toast = useToast()
 const store = useProductionStore()
 const uiStore = useUiStore()
+const auth = useAuthStore()
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -33,6 +35,8 @@ const modeRows = computed(() => [
   { label: '数据源', value: APP_RUNTIME_FLAGS.dataSource, icon: DatabaseZap },
   { label: 'Sealos', value: APP_RUNTIME_FLAGS.sealosConnected ? '已接入' : '未接入', icon: ShieldCheck },
   { label: '企业微信微盘', value: APP_RUNTIME_FLAGS.wecomDiskConnected ? '已接入' : '未接入', icon: HardDrive },
+  { label: 'Mock 登录', value: auth.loggedIn ? `${auth.userName} / ${auth.roleLabel}` : '未选择角色', icon: ShieldCheck },
+  { label: '企业微信登录', value: APP_RUNTIME_FLAGS.wecomLoginConnected ? '已接入' : '未接入', icon: ShieldCheck },
   { label: '真实语音', value: APP_RUNTIME_FLAGS.realVoiceConnected ? '已接入' : '未接入', icon: Wifi },
   { label: '文件存储', value: APP_RUNTIME_FLAGS.fileStorage, icon: HardDrive },
   { label: '平板访问', value: APP_RUNTIME_FLAGS.lanAccess ? '支持局域网访问' : '仅本机', icon: Wifi },
@@ -43,6 +47,8 @@ const safetyRows = [
   '危险数据库操作：禁用',
   '本地 .env.local：不提交',
   '真实客户资料：不应上传到 Git',
+  '企业微信登录：未接入',
+  '角色会话：仅 localStorage Mock token',
 ]
 
 const commands = [
@@ -52,6 +58,8 @@ const commands = [
   'npm run pwa:check',
   'npm run demo:imports',
   'npm run import-flow:check',
+  'npm run maintenance-flow:check',
+  'npm run auth-flow:check',
   'npm run demo:assets',
   'npm run demo:check',
   'npm run demo:freeze-check',

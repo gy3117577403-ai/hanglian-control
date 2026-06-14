@@ -1,7 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { MockPermissionGuard } from '../auth/guards/mock-permission.guard';
+import type { MockUser } from '../auth/mock-users';
 import { CompareDocumentsDto } from './dto/compare-documents.dto';
 import { DocumentQueryDto } from './dto/document-query.dto';
 import { DocumentVersionQueryDto } from './dto/document-version-query.dto';
@@ -44,6 +48,8 @@ export class DocumentsController {
   }
 
   @Post('upload')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('document.upload')
   @ApiOperation({ summary: '上传本地资料文件并绑定产品或计划' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -75,8 +81,8 @@ export class DocumentsController {
       callback(null, true);
     },
   }))
-  upload(@Body() dto: UploadDocumentDto, @UploadedFile() file?: Express.Multer.File) {
-    return this.documentsService.upload(dto, file);
+  upload(@Body() dto: UploadDocumentDto, @UploadedFile() file: Express.Multer.File | undefined, @CurrentUser() user: MockUser) {
+    return this.documentsService.upload(dto, file, user);
   }
 
   @Get(':id/versions')
@@ -86,9 +92,11 @@ export class DocumentsController {
   }
 
   @Post(':id/set-effective')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('document.set_effective')
   @ApiOperation({ summary: '将某个资料版本设置为当前有效版本，并使同组其他有效版本失效' })
-  setEffective(@Param('id') id: string, @Body() dto: SetEffectiveDocumentDto) {
-    return this.documentsService.setEffective(id, dto);
+  setEffective(@Param('id') id: string, @Body() dto: SetEffectiveDocumentDto, @CurrentUser() user: MockUser) {
+    return this.documentsService.setEffective(id, dto, user);
   }
 
   @Get(':id')
@@ -98,20 +106,26 @@ export class DocumentsController {
   }
 
   @Patch(':id/status')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('document.update')
   @ApiOperation({ summary: '更新资料状态' })
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateDocumentStatusDto) {
-    return this.documentsService.updateStatus(id, dto);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateDocumentStatusDto, @CurrentUser() user: MockUser) {
+    return this.documentsService.updateStatus(id, dto, user);
   }
 
   @Patch(':id/version')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('document.update')
   @ApiOperation({ summary: '更新资料版本号' })
-  updateVersion(@Param('id') id: string, @Body() dto: UpdateDocumentVersionDto) {
-    return this.documentsService.updateVersion(id, dto);
+  updateVersion(@Param('id') id: string, @Body() dto: UpdateDocumentVersionDto, @CurrentUser() user: MockUser) {
+    return this.documentsService.updateVersion(id, dto, user);
   }
 
   @Post(':id/archive')
+  @UseGuards(MockPermissionGuard)
+  @RequirePermissions('document.archive')
   @ApiOperation({ summary: '归档资料，不物理删除文件' })
-  archive(@Param('id') id: string) {
-    return this.documentsService.archive(id);
+  archive(@Param('id') id: string, @CurrentUser() user: MockUser) {
+    return this.documentsService.archive(id, user);
   }
 }

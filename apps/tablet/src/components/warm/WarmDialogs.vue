@@ -3,8 +3,10 @@ import { computed, reactive, ref } from 'vue'
 import type { FileUploadSelectEvent } from 'primevue/fileupload'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import WarmPermissionDenied from '@/components/auth/WarmPermissionDenied.vue'
 import WarmEmptyState from '@/components/common/WarmEmptyState.vue'
 import WarmErrorState from '@/components/common/WarmErrorState.vue'
+import { PERMISSIONS } from '@/lib/permissions'
 import {
   auditActionLabel,
   compareFieldLabel,
@@ -16,6 +18,7 @@ import {
 } from '@/lib/format'
 import { errorMessages, friendlyErrorMessage } from '@/lib/error-message'
 import { documentSeverity, documentStatusLabel, rawDocumentStatus } from '@/lib/status-style'
+import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import type { DocumentStatus, DocumentTypeV03, FeedbackType, ProductDocument, RequiredProcess } from '@/types/production'
 
@@ -36,6 +39,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useProductionStore()
+const auth = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
 const selectedUploadFile = ref<File | null>(null)
@@ -143,6 +147,11 @@ const versionRows = computed(() => {
 const currentVersions = computed(() => versionRows.value.filter((document) => rawDocumentStatus(document) === 'effective'))
 const pendingVersions = computed(() => versionRows.value.filter((document) => rawDocumentStatus(document) === 'pending_review'))
 const historyVersions = computed(() => versionRows.value.filter((document) => !['effective', 'pending_review'].includes(String(rawDocumentStatus(document)))))
+const canFeedback = computed(() => auth.hasPermission(PERMISSIONS.PLAN_FEEDBACK))
+const canUpload = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_UPLOAD))
+const canUpdateDocument = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_UPDATE))
+const canSetEffective = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_SET_EFFECTIVE))
+const canArchive = computed(() => auth.hasPermission(PERMISSIONS.DOCUMENT_ARCHIVE))
 
 const versionGroupSummary = computed(() => {
   const document = activeDocument.value
@@ -151,12 +160,16 @@ const versionGroupSummary = computed(() => {
 })
 
 const versionMenuItems = computed(() => [
-  { label: '设为当前有效', icon: 'pi pi-check-circle', command: () => confirmSetEffective(versionMenuDocument.value) },
+  { label: '设为当前有效', icon: 'pi pi-check-circle', disabled: !canSetEffective.value, command: () => confirmSetEffective(versionMenuDocument.value) },
   { label: '加入对比', icon: 'pi pi-clone', command: () => toggleCompare(versionMenuDocument.value) },
-  { label: '标记为待确认', icon: 'pi pi-exclamation-circle', command: () => updateVersionStatus(versionMenuDocument.value, 'pending_review') },
-  { label: '标记为已失效', icon: 'pi pi-ban', class: 'danger-menu-item', command: () => updateVersionStatus(versionMenuDocument.value, 'expired') },
-  { label: '归档', icon: 'pi pi-box', class: 'danger-menu-item', command: () => confirmArchive(versionMenuDocument.value) },
+  { label: '标记为待确认', icon: 'pi pi-exclamation-circle', disabled: !canUpdateDocument.value, command: () => updateVersionStatus(versionMenuDocument.value, 'pending_review') },
+  { label: '标记为已失效', icon: 'pi pi-ban', class: 'danger-menu-item', disabled: !canUpdateDocument.value, command: () => updateVersionStatus(versionMenuDocument.value, 'expired') },
+  { label: '归档', icon: 'pi pi-box', class: 'danger-menu-item', disabled: !canArchive.value, command: () => confirmArchive(versionMenuDocument.value) },
 ])
+
+function deny() {
+  toast.add({ severity: 'error', summary: '当前角色无权执行该操作。', detail: '请在右上角切换到具备权限的 Mock 角色。', life: 2600 })
+}
 
 function onFileSelect(event: FileUploadSelectEvent) {
   const files = Array.isArray(event.files) ? event.files as File[] : [event.files as File]
@@ -172,6 +185,7 @@ function clearUploadFile() {
 }
 
 async function submitFeedback() {
+  if (!canFeedback.value) return deny()
   await store.submitFeedback(feedbackForm.type, feedbackForm.description)
   toast.add({ severity: 'warn', summary: '异常反馈已提交', detail: feedbackForm.type, life: 2600 })
   feedbackVisible.value = false
@@ -227,6 +241,7 @@ function validateUpload() {
 }
 
 async function submitUpload() {
+  if (!canUpload.value) return deny()
   uploadError.value = validateUpload()
   if (uploadError.value) return
   if (!selectedUploadFile.value) return
@@ -296,6 +311,7 @@ async function runCompare() {
 
 function confirmSetEffective(document?: ProductDocument | null) {
   if (!document) return
+  if (!canSetEffective.value) return deny()
   confirm.require({
     header: '设为当前有效版本',
     message: `确认将 ${document.title} ${document.version} 设为当前有效版本？`,
@@ -313,6 +329,7 @@ function confirmSetEffective(document?: ProductDocument | null) {
 
 function confirmArchive(document?: ProductDocument | null) {
   if (!document) return
+  if (!canArchive.value) return deny()
   confirm.require({
     header: '归档资料',
     message: `确认归档 ${document.title} ${document.version}？`,
@@ -330,6 +347,7 @@ function confirmArchive(document?: ProductDocument | null) {
 
 async function updateVersionStatus(document: ProductDocument | null | undefined, status: DocumentStatus) {
   if (!document) return
+  if (!canUpdateDocument.value) return deny()
   await store.updateCurrentDocumentStatus(document.documentId ?? document.id, {
     status,
     reason: versionForm.reason,
@@ -340,6 +358,11 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
 
 <template>
   <PrimeDialog v-model:visible="feedbackVisible" modal header="异常反馈" class="w-[620px]">
+    <WarmPermissionDenied
+      v-if="!canFeedback"
+      title="当前角色不能提交异常反馈"
+      description="请切换到前段组长、后段组长或管理员角色后再提交反馈。"
+    />
     <div class="grid gap-4">
       <div>
         <label class="text-sm font-black text-[#68411f]">异常类型</label>
@@ -355,11 +378,16 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
     </div>
     <template #footer>
       <PrimeButton severity="secondary" label="取消" @click="feedbackVisible = false" />
-      <PrimeButton label="提交反馈" icon="pi pi-send" @click="submitFeedback" />
+      <PrimeButton label="提交反馈" icon="pi pi-send" :disabled="!canFeedback" @click="submitFeedback" />
     </template>
   </PrimeDialog>
 
   <PrimeDialog v-model:visible="uploadVisible" modal header="上传产品资料" class="w-[860px]">
+    <WarmPermissionDenied
+      v-if="!canUpload"
+      title="当前角色不能上传资料"
+      description="请切换到资料维护、工艺或管理员角色后再上传资料。"
+    />
     <div class="grid max-h-[70vh] gap-4 overflow-auto pr-1">
       <div class="upload-binding-grid">
         <div class="warm-chip"><span>客户</span><strong>{{ store.selectedPlan.customer }}</strong></div>
@@ -443,7 +471,7 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
 
     <template #footer>
       <PrimeButton severity="secondary" label="取消" @click="uploadVisible = false" />
-      <PrimeButton :disabled="store.uploadLoading || !store.apiOnline" label="上传并绑定" icon="pi pi-upload" @click="submitUpload" />
+      <PrimeButton :disabled="store.uploadLoading || !store.apiOnline || !canUpload" label="上传并绑定" icon="pi pi-upload" @click="submitUpload" />
     </template>
   </PrimeDialog>
 

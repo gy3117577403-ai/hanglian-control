@@ -234,3 +234,41 @@ V2.1 新增资料维护 Mock API。所有接口只读写本地 Mock / metadata�
 ## Safety
 
 当前阶段禁止执行数据库连接、migrate、db push、seed 和真实企业微信微盘连接。
+
+## Auth / Mock RBAC
+
+V2.2 新增本地 Mock 登录接口，仅用于演示角色权限，不接企业微信登录，不保存真实账号。
+
+### `GET /api/auth/mock-users`
+
+返回 6 个本地演示用户及其权限：前段组长、后段组长、资料维护、工艺、品质、管理员。
+
+### `POST /api/auth/mock-login`
+
+请求体：
+
+```json
+{
+  "userId": "mock-maintainer"
+}
+```
+
+返回 mock token、用户信息和权限列表。
+
+### `GET /api/auth/me`
+
+通过 `Authorization: Bearer mock-token-xxx` 或 `x-mock-user-id` 返回当前 Mock 用户和权限。
+
+### `POST /api/auth/logout`
+
+Mock 退出登录，不调用真实认证服务。
+
+### `GET /api/auth/permissions`
+
+返回本地角色权限矩阵。
+
+### 权限守卫
+
+写入类 Mock API 已接入 `MockPermissionGuard`。无权限返回 `403`，消息为：`当前角色无权执行该操作。`
+
+当前守卫覆盖计划确认、异常反馈、资料上传、资料状态/版本维护、设为有效、归档、导入应用、资料维护中心 PATCH/复核处理等接口。完整矩阵见 `docs/permission-matrix.md`。
