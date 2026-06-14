@@ -22,6 +22,18 @@ import type {
   ImportRollbackPreview,
   ImportTemplateDefinition,
   ImportType,
+  MaintenanceBackPackage,
+  MaintenanceCustomer,
+  MaintenanceDocument,
+  MaintenanceEntityType,
+  MaintenanceFrontParameter,
+  MaintenanceMutationResult,
+  MaintenanceProduct,
+  MaintenanceProductionPlan,
+  MaintenanceQuery,
+  MaintenanceRecord,
+  MaintenanceReviewItem,
+  MaintenanceSummary,
   MigrationPreview,
   MigrationValidation,
   PlanReadiness,
@@ -276,4 +288,107 @@ export function previewImportRollback(id: string) {
   return api<ImportRollbackPreview>(`/imports/history/${id}/rollback-preview`, {
     method: 'POST',
   })
+}
+
+export function getMaintenanceSummary() {
+  return api<MaintenanceSummary>('/maintenance/summary')
+}
+
+export function getMaintenanceCustomers(query?: MaintenanceQuery) {
+  return api<MaintenanceCustomer[]>('/maintenance/customers', { query })
+}
+
+export function updateMaintenanceCustomer(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/customers/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceProducts(query?: MaintenanceQuery) {
+  return api<MaintenanceProduct[]>('/maintenance/products', { query })
+}
+
+export function updateMaintenanceProduct(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/products/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceProductionPlans(query?: MaintenanceQuery) {
+  return api<MaintenanceProductionPlan[]>('/maintenance/production-plans', { query })
+}
+
+export function updateMaintenanceProductionPlan(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/production-plans/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceFrontParameters(query?: MaintenanceQuery) {
+  return api<MaintenanceFrontParameter[]>('/maintenance/front-parameters', { query })
+}
+
+export function updateMaintenanceFrontParameter(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/front-parameters/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceBackPackages(query?: MaintenanceQuery) {
+  return api<MaintenanceBackPackage[]>('/maintenance/back-packages', { query })
+}
+
+export function updateMaintenanceBackPackage(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/back-packages/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceDocuments(query?: MaintenanceQuery) {
+  return api<MaintenanceDocument[]>('/maintenance/documents', { query })
+}
+
+export function updateMaintenanceDocument(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/documents/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function setMaintenanceDocumentEffective(id: string, payload: { reason?: string }) {
+  return api<MaintenanceRecord>(`/maintenance/documents/${id}/set-effective`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkUpdateMaintenanceStatus(payload: { entityType: MaintenanceEntityType; ids: string[]; status: string; reason?: string }) {
+  return api<MaintenanceMutationResult>('/maintenance/bulk-status', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getMaintenanceReviewQueue(query?: MaintenanceQuery) {
+  return api<MaintenanceReviewItem[]>('/maintenance/review-queue', { query })
+}
+
+export function resolveMaintenanceReviewItem(id: string, payload: { action: 'mark_reviewed' | 'mark_pending' | 'mark_inconsistent'; remark?: string }) {
+  return api<MaintenanceMutationResult | MaintenanceRecord>(`/maintenance/review-queue/${encodeURIComponent(id)}/resolve`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getMaintenanceHistory(query?: MaintenanceQuery) {
+  return api<MaintenanceRecord[]>('/maintenance/history', { query })
+}
+
+export function getMaintenanceHistoryDetail(id: string) {
+  return api<MaintenanceRecord>(`/maintenance/history/${id}`)
 }

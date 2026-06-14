@@ -21,6 +21,7 @@ const actionToPrisma: Record<AuditAction, string> = {
   readiness_recalculated: 'READINESS_RECALCULATED',
   migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
   business_data_imported: 'BUSINESS_DATA_IMPORTED',
+  maintenance_recorded: 'MAINTENANCE_RECORDED',
 };
 
 export function mapAuditLogToPrisma(log: AuditLog) {

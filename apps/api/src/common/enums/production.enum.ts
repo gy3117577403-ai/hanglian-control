@@ -48,7 +48,8 @@ export type AuditAction =
   | 'document_downloaded'
   | 'readiness_recalculated'
   | 'migration_preview_generated'
-  | 'business_data_imported';
+  | 'business_data_imported'
+  | 'maintenance_recorded';
 
 export const documentStatusLabelMap: Record<DocumentStatus, MaterialStatus> = {
   effective: '有效',

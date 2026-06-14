@@ -170,6 +170,63 @@ V2.0 新增导入 API。所有接口只写本地 Mock / metadata，不连接 Sea
 
 ## Audit
 
+## Maintenance
+
+V2.1 新增资料维护 Mock API。所有接口只读写本地 Mock / metadata，不连接 Sealos，不执行 migrate、db push、seed 或真实写库。
+
+### `GET /api/maintenance/summary`
+
+返回客户、产品、计划、前段参数、后段资料包、文件资料、待复核、失效资料、不一致资料等汇总。
+
+### 列表接口
+
+- `GET /api/maintenance/customers`
+- `GET /api/maintenance/products`
+- `GET /api/maintenance/production-plans`
+- `GET /api/maintenance/front-parameters`
+- `GET /api/maintenance/back-packages`
+- `GET /api/maintenance/documents`
+
+通用查询参数包括：
+
+- `keyword`
+- `status`
+- `customerId`
+- `productId`
+- `processSegment`
+- `confirmStatus`
+- `documentType`
+- `source`
+- `requiredForProcess`
+- `scope`
+
+### 维护接口
+
+- `PATCH /api/maintenance/customers/:id`
+- `PATCH /api/maintenance/products/:id`
+- `PATCH /api/maintenance/production-plans/:id`
+- `PATCH /api/maintenance/front-parameters/:id`
+- `PATCH /api/maintenance/back-packages/:id`
+- `PATCH /api/maintenance/documents/:id`
+- `POST /api/maintenance/documents/:id/set-effective`
+- `POST /api/maintenance/bulk-status`
+
+维护成功后返回维护记录，并写入本地 `maintenance-records.json`。
+
+### 复核队列
+
+- `GET /api/maintenance/review-queue`
+- `POST /api/maintenance/review-queue/:id/resolve`
+
+复核队列聚合待复核文件、失效文件、不一致文件、资料完整度低于 90% 的计划以及带警告的导入记录。
+
+### 维护历史
+
+- `GET /api/maintenance/history`
+- `GET /api/maintenance/history/:id`
+
+维护记录字段包括 `maintenanceId`、`entityType`、`entityId`、`action`、`before`、`after`、`reason`、`operatorId`、`operatorName`、`operatorRole`、`createdAt`。
+
 ### `GET /api/audit-logs`
 
 查询本地审计记录。

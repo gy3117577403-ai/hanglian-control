@@ -8,6 +8,7 @@ import type {
   ImportedBusinessDataSnapshot,
   ImportPreviewResult,
   ImportRecord,
+  MaintenanceRecord,
   ProductDocument,
 } from '../common/types/production.types';
 
@@ -43,6 +44,7 @@ export class LocalStorageService implements OnModuleInit {
   private readonly importRecordsFile = join(this.metadataDir, 'import-records.json');
   private readonly importedBusinessDataFile = join(this.metadataDir, 'imported-business-data.json');
   private readonly importPreviewsFile = join(this.metadataDir, 'import-previews.json');
+  private readonly maintenanceRecordsFile = join(this.metadataDir, 'maintenance-records.json');
 
   async onModuleInit() {
     await this.ensureStorage();
@@ -80,6 +82,11 @@ export class LocalStorageService implements OnModuleInit {
     } catch {
       await writeFile(this.importPreviewsFile, '[]', 'utf8');
     }
+    try {
+      await stat(this.maintenanceRecordsFile);
+    } catch {
+      await writeFile(this.maintenanceRecordsFile, '[]', 'utf8');
+    }
   }
 
   ensureStorageSync() {
@@ -99,6 +106,9 @@ export class LocalStorageService implements OnModuleInit {
     }
     if (!existsSync(this.importPreviewsFile)) {
       writeFileSync(this.importPreviewsFile, '[]', 'utf8');
+    }
+    if (!existsSync(this.maintenanceRecordsFile)) {
+      writeFileSync(this.maintenanceRecordsFile, '[]', 'utf8');
     }
   }
 
@@ -194,6 +204,16 @@ export class LocalStorageService implements OnModuleInit {
   writeImportPreviewsSync(previews: ImportPreviewResult[]) {
     this.ensureStorageSync();
     writeFileSync(this.importPreviewsFile, JSON.stringify(previews, null, 2), 'utf8');
+  }
+
+  readMaintenanceRecordsSync(): MaintenanceRecord[] {
+    this.ensureStorageSync();
+    return this.readJsonFileSync<MaintenanceRecord[]>(this.maintenanceRecordsFile, []);
+  }
+
+  writeMaintenanceRecordsSync(records: MaintenanceRecord[]) {
+    this.ensureStorageSync();
+    writeFileSync(this.maintenanceRecordsFile, JSON.stringify(records, null, 2), 'utf8');
   }
 
   writeAuditLogsSync(logs: AuditLog[]) {

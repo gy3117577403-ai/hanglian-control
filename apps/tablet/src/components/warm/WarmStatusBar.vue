@@ -20,6 +20,7 @@ const emit = defineEmits<{
   'open-pwa-install': []
   'open-pwa-diagnostics': []
   'open-import-center': []
+  'open-maintenance-center': []
   'open-demo-data-manager': []
   'open-demo-readiness': []
   'open-freeze-checklist': []
@@ -43,6 +44,7 @@ const demoToolItems = [
   { label: '演示说明', icon: 'pi pi-book', command: () => emit('open-demo-guide') },
   { label: '安装到平板桌面', icon: 'pi pi-mobile', command: () => emit('open-pwa-install') },
   { label: '数据导入中心', icon: 'pi pi-file-import', command: () => emit('open-import-center') },
+  { label: '资料维护中心', icon: 'pi pi-wrench', command: () => emit('open-maintenance-center') },
   { separator: true },
   { label: '网络诊断', icon: 'pi pi-wifi', command: () => emit('open-network') },
   { label: 'PWA / 平板诊断', icon: 'pi pi-tablet', command: () => emit('open-pwa-diagnostics') },

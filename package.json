@@ -17,6 +17,7 @@
     "pwa:check": "node scripts/pwa-demo-check.mjs",
     "demo:imports": "node scripts/generate-demo-import-files.mjs",
     "import-flow:check": "node scripts/import-flow-check.mjs",
+    "maintenance-flow:check": "node scripts/maintenance-flow-check.mjs",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

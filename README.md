@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-V2.0 数据导入演示版：在 V1.9 平板演示试用包基础上新增数据导入中心，支持 Excel / CSV 导入生产计划、客户产品、前段参数和后段资料包。
+V2.1 资料维护演示版：在 V2.0 数据导入中心基础上新增资料维护中心，支持客户、产品、生产计划、前段参数、后段资料包、文件资料、复核队列和维护历史的本地 Mock / metadata 维护。
 
 当前运行边界：
 
@@ -33,6 +33,7 @@ npm run dev
 npm run demo:assets
 npm run demo:imports
 npm run import-flow:check
+npm run maintenance-flow:check
 npm run pwa:assets
 npm run pwa:check
 npm run demo:check
@@ -65,9 +66,10 @@ start-field-demo.bat
 6. 上传 `demo-upload-assets` 下的 PDF 或图片演示资料
 7. 查看文件健康、版本历史和审计记录
 8. 打开“演示工具 → 数据导入中心”，用 `demo-import-files` 导入生产计划、客户产品、前段参数、后段资料包
-9. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、冻结前验收、演示资料说明、后续路线
-10. 打开“安装到平板桌面”或“PWA / 平板诊断”，按浏览器能力添加到主屏幕
-11. 复制现场走查结果，必要时仅重置前端演示界面状态
+9. 打开“演示工具 → 资料维护中心”，维护客户、产品、计划、前段参数、后段资料包、文件资料并处理复核队列
+10. 打开“演示工具”：系统信息、演示说明、网络诊断、现场走查、演示数据管理、演示前检查、冻结前验收、演示资料说明、后续路线
+11. 打开“安装到平板桌面”或“PWA / 平板诊断”，按浏览器能力添加到主屏幕
+12. 复制现场走查结果，必要时仅重置前端演示界面状态
 
 ## 数据导入中心
 
@@ -91,6 +93,23 @@ npm run demo:imports
 ```
 
 模板说明见 `docs/import-template-guide.md`。当前导入数据仍为本地 metadata，不接 Sealos，不接企业微信微盘，不接真实语音。
+
+## 资料维护中心
+
+入口：`演示工具 → 资料维护中心`。
+
+支持：
+- 客户资料维护
+- 产品资料维护
+- 生产计划维护
+- 前段参数维护
+- 后段资料包维护
+- 文件资料状态和版本维护
+- 文件资料设为当前有效版本
+- 复核队列处理
+- 维护历史查看
+
+维护记录写入本地 `apps/api/storage/metadata/maintenance-records.json`，该文件已忽略，不提交到 Git。当前仍为本地 Mock / metadata 原型，不连接 Sealos，不接企业微信微盘，不接真实语音。
 
 ## 安卓平板添加到桌面
 
@@ -127,6 +146,7 @@ npm run demo:imports
 | `npm run pwa:check` | 只读检查 PWA / 平板演示准备状态 |
 | `npm run demo:imports` | 生成 Excel 演示导入文件 |
 | `npm run import-flow:check` | 只读检查导入流准备状态 |
+| `npm run maintenance-flow:check` | 只读检查资料维护中心准备状态 |
 | `npm run demo:assets` | 生成合成演示上传资料 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
 | `npm run demo:release-check` | 只读检查当前演示版收口状态 |
@@ -149,7 +169,9 @@ npm run demo:imports
 - `docs/pre-merge-checklist.md`
 - `docs/tablet-install-guide.md`
 - `docs/v2.0-data-import-center.md`
+- `docs/v2.1-maintenance-center.md`
 - `docs/import-template-guide.md`
+- `docs/maintenance-guide.md`
 - `docs/v1.9-pwa-tablet-package.md`
 - `docs/v1.8-demo-freeze-qa.md`
 - `docs/v1.7-demo-management.md`

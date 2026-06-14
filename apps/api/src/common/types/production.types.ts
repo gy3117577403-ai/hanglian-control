@@ -473,3 +473,27 @@ export interface ImportedBusinessDataSnapshot {
   frontParameters: FrontProcessParameterSeed[];
   backPackages: BackProcessPackageSeed[];
 }
+
+export type MaintenanceEntityType =
+  | 'customer'
+  | 'product'
+  | 'production_plan'
+  | 'front_parameter'
+  | 'back_package'
+  | 'document'
+  | 'import_record'
+  | 'review_queue';
+
+export interface MaintenanceRecord {
+  maintenanceId: string;
+  entityType: MaintenanceEntityType;
+  entityId: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+  reason?: string;
+  operatorId: string;
+  operatorName: string;
+  operatorRole: string;
+  createdAt: string;
+}

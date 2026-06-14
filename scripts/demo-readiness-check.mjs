@@ -87,6 +87,7 @@ const scripts = rootPackage.scripts ?? {};
   'dev:lan',
   'demo:assets',
   'demo:check',
+  'maintenance-flow:check',
   'file-flow:check',
   'security:check',
   'build',
@@ -99,12 +100,13 @@ const gitignore = readIfExists(join(root, '.gitignore'));
   'apps/api/storage/uploads/*',
   'apps/api/storage/metadata/documents.json',
   'apps/api/storage/metadata/audit-logs.json',
+  'apps/api/storage/metadata/maintenance-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 await checkDemoAssets();
 checkEnvLocalhostWarning();
 
-console.log('V2.0 tablet demo readiness check');
+console.log('V2.1 tablet demo readiness check');
 console.log('This check is read-only. It does not start services, connect to a database, run migrations, db push, or seed.');
 
 const lanIps = lanIpv4List();

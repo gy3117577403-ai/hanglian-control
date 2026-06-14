@@ -54,7 +54,9 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'docs/v1.8-demo-freeze-qa.md',
   'docs/v1.9-pwa-tablet-package.md',
   'docs/v2.0-data-import-center.md',
+  'docs/v2.1-maintenance-center.md',
   'docs/import-template-guide.md',
+  'docs/maintenance-guide.md',
   'docs/tablet-install-guide.md',
   'apps/tablet/src/config/app-version.ts',
 ].forEach(requireFile);
@@ -68,6 +70,7 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'pwa:check',
   'demo:imports',
   'import-flow:check',
+  'maintenance-flow:check',
   'file-flow:check',
   'security:check',
   'build',
@@ -82,13 +85,14 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'apps/api/storage/metadata/import-records.json',
   'apps/api/storage/metadata/imported-business-data.json',
   'apps/api/storage/metadata/import-previews.json',
+  'apps/api/storage/metadata/maintenance-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
-if (!versionConfig.includes("APP_VERSION = 'V2.0'")) blockers.push('版本配置未检测到 V2.0。');
-if (!versionConfig.includes("APP_STAGE = '数据导入演示版'")) blockers.push('版本阶段未检测到数据导入演示版。');
+if (!versionConfig.includes("APP_VERSION = 'V2.1'")) blockers.push('版本配置未检测到 V2.1。');
+if (!versionConfig.includes("APP_STAGE = '资料维护演示版'")) blockers.push('版本阶段未检测到资料维护演示版。');
 
-console.log('V2.0 demo freeze check');
+console.log('V2.1 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -105,6 +109,6 @@ if (blockers.length) {
 
 console.log('\nDemo freeze check passed.');
 console.log('\nSuggested next steps:');
-console.log('- 安卓平板真机验收 V2.0 数据导入中心');
+console.log('- 安卓平板真机验收 V2.1 资料维护中心');
 console.log('- push 分支后创建 PR');
-console.log('- CI 通过后人工验收，再决定是否合并 main 和打 v2.0-data-import-center tag');
+console.log('- CI 通过后人工验收，再决定是否合并 main 和打 v2.1-maintenance-center tag');

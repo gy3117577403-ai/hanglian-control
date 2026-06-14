@@ -7,6 +7,7 @@ import { FeedbackModule } from './feedback/feedback.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 import { MigrationModule } from './migration/migration.module';
 import { ProductionPlansModule } from './production-plans/production-plans.module';
 import { ProductsModule } from './products/products.module';
@@ -27,6 +28,7 @@ import { SystemModule } from './system/system.module';
     DocumentsModule,
     FilesModule,
     ImportsModule,
+    MaintenanceModule,
     MigrationModule,
     SearchModule,
     FeedbackModule,

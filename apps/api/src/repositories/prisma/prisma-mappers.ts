@@ -158,6 +158,7 @@ const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {
   readiness_recalculated: 'READINESS_RECALCULATED',
   migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
   business_data_imported: 'BUSINESS_DATA_IMPORTED',
+  maintenance_recorded: 'MAINTENANCE_RECORDED',
 };
 
 const AUDIT_ACTION_FROM_PRISMA: Record<string, AuditAction> = {
@@ -171,6 +172,7 @@ const AUDIT_ACTION_FROM_PRISMA: Record<string, AuditAction> = {
   READINESS_RECALCULATED: 'readiness_recalculated',
   MIGRATION_PREVIEW_GENERATED: 'migration_preview_generated',
   BUSINESS_DATA_IMPORTED: 'business_data_imported',
+  MAINTENANCE_RECORDED: 'maintenance_recorded',
 };
 
 export function prismaProcessToApi(value?: string): ProcessSegment {

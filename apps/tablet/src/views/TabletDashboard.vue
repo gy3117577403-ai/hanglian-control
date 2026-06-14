@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
+import WarmMaintenanceCenterDialog from '@/components/maintenance/WarmMaintenanceCenterDialog.vue'
 import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
 import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
 import WarmDialogs from '@/components/warm/WarmDialogs.vue'
@@ -43,6 +44,7 @@ const dialogs = reactive({
   pwaInstall: false,
   pwaDiagnostics: false,
   importCenter: false,
+  maintenanceCenter: false,
   fieldQa: false,
   systemInfo: false,
   demoGuide: false,
@@ -92,6 +94,10 @@ async function refreshAfterImport() {
   await store.loadPlans(store.scope).catch(() => undefined)
 }
 
+async function refreshAfterMaintenance() {
+  await store.loadPlans(store.scope).catch(() => undefined)
+}
+
 onMounted(() => {
   void store.initialize()
   window.setTimeout(() => {
@@ -124,6 +130,7 @@ onUnmounted(() => {
         @open-pwa-install="dialogs.pwaInstall = true"
         @open-pwa-diagnostics="dialogs.pwaDiagnostics = true"
         @open-import-center="dialogs.importCenter = true"
+        @open-maintenance-center="dialogs.maintenanceCenter = true"
         @open-demo-data-manager="dialogs.demoDataManager = true"
         @open-demo-readiness="dialogs.demoReadiness = true"
         @open-freeze-checklist="dialogs.freezeChecklist = true"
@@ -183,6 +190,10 @@ onUnmounted(() => {
     <WarmImportCenterDialog
       v-model:visible="dialogs.importCenter"
       @imported="refreshAfterImport"
+    />
+    <WarmMaintenanceCenterDialog
+      v-model:visible="dialogs.maintenanceCenter"
+      @changed="refreshAfterMaintenance"
     />
     <WarmFieldQaChecklist v-model:visible="dialogs.fieldQa" />
     <WarmSystemInfoDialog v-model:visible="dialogs.systemInfo" />

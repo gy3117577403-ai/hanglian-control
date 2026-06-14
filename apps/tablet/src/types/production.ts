@@ -373,6 +373,7 @@ export type AuditAction =
   | 'readiness_recalculated'
   | 'migration_preview_generated'
   | 'business_data_imported'
+  | 'maintenance_recorded'
 
 export interface AuditLog {
   auditId: string
@@ -536,4 +537,184 @@ export interface ImportRollbackPreview {
   affectedBackPackages: number
   canRollback: false
   message: string
+}
+
+export type MaintenanceEntityType =
+  | 'customer'
+  | 'product'
+  | 'production_plan'
+  | 'front_parameter'
+  | 'back_package'
+  | 'document'
+  | 'import_record'
+  | 'review_queue'
+
+export interface MaintenanceSummary {
+  customers: number
+  products: number
+  productionPlans: number
+  frontParameters: number
+  backPackages: number
+  documents: number
+  pendingReview: number
+  expiredDocuments: number
+  inconsistentItems: number
+  lastImportAt?: string
+  lastMaintenanceAt?: string
+}
+
+export interface MaintenanceQuery {
+  keyword?: string
+  status?: string
+  customerId?: string
+  productId?: string
+  processSegment?: string
+  confirmStatus?: string
+  documentType?: string
+  source?: string
+  requiredForProcess?: string
+  scope?: PlanScope | 'all'
+  entityType?: MaintenanceEntityType
+  entityId?: string
+  operatorId?: string
+  limit?: number
+}
+
+export interface MaintenanceCustomer {
+  id: string
+  sales?: string
+  customerName: string
+  customerShortName?: string
+  status?: string
+  statusLabel?: string
+  productCount?: number
+  updatedAt?: string
+  remark?: string
+}
+
+export interface MaintenanceProduct {
+  id: string
+  customerId?: string
+  customer?: string
+  productCode: string
+  productName: string
+  productVersion?: string
+  productCategory?: string
+  processSegment?: string
+  status?: string
+  statusLabel?: string
+  aliases?: string[]
+  updatedAt?: string
+  remark?: string
+}
+
+export interface MaintenanceProductionPlan {
+  id: string
+  planDate?: string
+  weekPlanCode?: string
+  sales?: string
+  customerId?: string
+  customer?: string
+  productId?: string
+  productCode?: string
+  productName?: string
+  processSegment?: string
+  plannedQuantity?: number
+  completedQuantity?: number
+  planStatus?: string
+  confirmStatus?: string
+  materialCompleteness?: number
+  responsiblePerson?: string
+  remark?: string
+}
+
+export interface MaintenanceFrontParameter {
+  id: string
+  customerId?: string
+  customer?: string
+  productId: string
+  productCode?: string
+  productVersion?: string
+  wireLength?: string
+  strippingLength?: string
+  terminalModel?: string
+  pullForceStandard?: string
+  crimpHeight?: string
+  drawingVersion?: string
+  parameterStatus?: string
+  status?: string
+  remark?: string
+}
+
+export interface MaintenanceBackPackage {
+  id: string
+  customerId?: string
+  customer?: string
+  productId: string
+  productCode?: string
+  productVersion?: string
+  connectorModel?: string
+  assemblyManual?: string
+  pinMap?: string
+  sop?: string
+  finishedImageCount?: number
+  drawingVersion?: string
+  sopVersion?: string
+  materialStatus?: string
+  status?: string
+  remark?: string
+}
+
+export interface MaintenanceDocument {
+  id: string
+  title: string
+  customerId?: string
+  customer?: string
+  productId?: string
+  productCode?: string
+  documentType?: DocumentTypeV03
+  version?: string
+  status?: DocumentStatus
+  statusLabel?: string
+  source?: DocumentSource
+  requiredForProcess?: RequiredProcess
+  fileHealth?: string
+  updatedAt?: string
+  remark?: string
+  raw?: ProductDocument
+}
+
+export interface MaintenanceReviewItem {
+  id: string
+  type: string
+  customer?: string
+  product?: string
+  planId?: string
+  entityType: MaintenanceEntityType
+  entityId: string
+  message: string
+  recommendedAction: string
+  createdAt?: string
+}
+
+export interface MaintenanceRecord {
+  maintenanceId: string
+  entityType: MaintenanceEntityType
+  entityId: string
+  action: string
+  before?: unknown
+  after?: unknown
+  reason?: string
+  operatorId: string
+  operatorName: string
+  operatorRole: string
+  createdAt: string
+}
+
+export interface MaintenanceMutationResult {
+  success?: boolean
+  message?: string
+  record?: MaintenanceRecord
+  total?: number
+  records?: MaintenanceRecord[]
 }
