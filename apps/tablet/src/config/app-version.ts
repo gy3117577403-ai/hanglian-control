@@ -1,7 +1,7 @@
-export const APP_VERSION = 'V2.2'
-export const APP_STAGE = '角色权限演示版'
-export const APP_RELEASE_NAME = '线束车间多角色权限演示版'
-export const APP_BUILD_CHANNEL = 'mock-local-rbac-demo'
+export const APP_VERSION = 'V2.3'
+export const APP_STAGE = '现场知识库演示版'
+export const APP_RELEASE_NAME = '线束车间治具异常质量知识库演示版'
+export const APP_BUILD_CHANNEL = 'mock-local-knowledge-demo'
 
 export const APP_RUNTIME_FLAGS = {
   dataSource: 'Mock',

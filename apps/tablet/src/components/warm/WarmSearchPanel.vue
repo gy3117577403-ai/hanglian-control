@@ -23,6 +23,9 @@ const resultTypeLabel: Record<string, string> = {
   sop: 'SOP',
   connector: '连接器',
   'detail-image': '成品图',
+  fixture: '治具',
+  abnormal_case: '异常',
+  quality_standard: '质量标准',
 }
 
 function search() {
@@ -41,6 +44,7 @@ async function openHit(hit: SearchHit) {
   }
   if (hit.type === 'front-parameter') store.setSegment('前段')
   if (['back-document', 'connector', 'sop', 'detail-image'].includes(String(hit.type))) store.setSegment('后段')
+  if (['fixture', 'abnormal_case', 'quality_standard'].includes(String(hit.type)) && hit.matchedField?.includes('后')) store.setSegment('后段')
   if (hit.type === 'drawing') store.setDocumentTab('drawing')
   if (hit.type === 'sop') store.setDocumentTab('sop')
   if (hit.type === 'detail-image') store.setDocumentTab('finish')

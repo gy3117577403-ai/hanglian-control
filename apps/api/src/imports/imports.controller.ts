@@ -46,7 +46,7 @@ export class ImportsController {
 
   @Get('templates/:type/download')
   @ApiOperation({ summary: '下载指定导入类型的 Excel 模板' })
-  @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package'] })
+  @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package', 'fixture', 'abnormal_case', 'quality_standard'] })
   async downloadTemplate(@Param('type') type: string, @Res({ passthrough: true }) response: Response) {
     const buffer = await this.importsService.createTemplateWorkbook(type);
     response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -58,7 +58,7 @@ export class ImportsController {
   @UseGuards(MockPermissionGuard)
   @RequirePermissions('import.preview')
   @ApiOperation({ summary: '上传 Excel / CSV 并生成导入预览，不真正写入业务数据' })
-  @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package'] })
+  @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package', 'fixture', 'abnormal_case', 'quality_standard'] })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: ImportPreviewUploadDto })
   @UseInterceptors(FileInterceptor('file', {
@@ -81,7 +81,7 @@ export class ImportsController {
   @UseGuards(MockPermissionGuard)
   @RequirePermissions('import.apply')
   @ApiOperation({ summary: '应用导入预览结果，写入本地 Mock / metadata 数据源' })
-  @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package'] })
+  @ApiParam({ name: 'type', enum: ['production_plan', 'customer_product', 'front_parameter', 'back_package', 'fixture', 'abnormal_case', 'quality_standard'] })
   apply(@Param('type') type: string, @Body() dto: ImportApplyDto, @CurrentUser() user: MockUser) {
     return this.importsService.apply(type, {
       ...dto,

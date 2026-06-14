@@ -216,7 +216,7 @@ export interface SearchResult {
   matchedField: string;
   snippet: string;
   version?: string;
-  status?: DocumentStatus;
+  status?: DocumentStatus | string;
   source?: DocumentSource;
   isEffective?: boolean;
   isHistorical?: boolean;
@@ -386,7 +386,10 @@ export type ImportType =
   | 'production_plan'
   | 'customer_product'
   | 'front_parameter'
-  | 'back_package';
+  | 'back_package'
+  | 'fixture'
+  | 'abnormal_case'
+  | 'quality_standard';
 
 export type ImportRowStatus = 'valid' | 'warning' | 'error';
 

@@ -8,6 +8,7 @@ import { FeedbackModule } from './feedback/feedback.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { MigrationModule } from './migration/migration.module';
 import { ProductionPlansModule } from './production-plans/production-plans.module';
@@ -30,6 +31,7 @@ import { SystemModule } from './system/system.module';
     DocumentsModule,
     FilesModule,
     ImportsModule,
+    KnowledgeModule,
     MaintenanceModule,
     MigrationModule,
     SearchModule,

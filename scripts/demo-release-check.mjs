@@ -57,6 +57,8 @@ const gitignore = read('.gitignore');
   'docs/v2.0-data-import-center.md',
   'docs/v2.1-maintenance-center.md',
   'docs/v2.2-role-permission.md',
+  'docs/v2.3-fixture-quality-knowledge.md',
+  'docs/knowledge-library-guide.md',
   'docs/permission-matrix.md',
   'docs/import-template-guide.md',
   'docs/maintenance-guide.md',
@@ -75,6 +77,8 @@ const gitignore = read('.gitignore');
   'import-flow:check',
   'maintenance-flow:check',
   'auth-flow:check',
+  'knowledge-flow:check',
+  'demo:knowledge',
   'file-flow:check',
   'dev:lan',
   'security:check',
@@ -91,11 +95,15 @@ const gitignore = read('.gitignore');
   'apps/api/storage/metadata/imported-business-data.json',
   'apps/api/storage/metadata/import-previews.json',
   'apps/api/storage/metadata/maintenance-records.json',
+  'apps/api/storage/metadata/knowledge-fixtures.json',
+  'apps/api/storage/metadata/knowledge-abnormal-cases.json',
+  'apps/api/storage/metadata/knowledge-quality-standards.json',
+  'apps/api/storage/metadata/knowledge-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
 
-console.log('V2.2 demo release check');
+console.log('V2.3 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 

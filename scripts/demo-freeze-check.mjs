@@ -56,6 +56,8 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'docs/v2.0-data-import-center.md',
   'docs/v2.1-maintenance-center.md',
   'docs/v2.2-role-permission.md',
+  'docs/v2.3-fixture-quality-knowledge.md',
+  'docs/knowledge-library-guide.md',
   'docs/permission-matrix.md',
   'docs/import-template-guide.md',
   'docs/maintenance-guide.md',
@@ -74,6 +76,8 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'import-flow:check',
   'maintenance-flow:check',
   'auth-flow:check',
+  'knowledge-flow:check',
+  'demo:knowledge',
   'file-flow:check',
   'security:check',
   'build',
@@ -89,13 +93,17 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'apps/api/storage/metadata/imported-business-data.json',
   'apps/api/storage/metadata/import-previews.json',
   'apps/api/storage/metadata/maintenance-records.json',
+  'apps/api/storage/metadata/knowledge-fixtures.json',
+  'apps/api/storage/metadata/knowledge-abnormal-cases.json',
+  'apps/api/storage/metadata/knowledge-quality-standards.json',
+  'apps/api/storage/metadata/knowledge-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
-if (!versionConfig.includes("APP_VERSION = 'V2.2'")) blockers.push('版本配置未检测到 V2.2。');
-if (!versionConfig.includes("APP_STAGE = '角色权限演示版'")) blockers.push('版本阶段未检测到角色权限演示版。');
+if (!versionConfig.includes("APP_VERSION = 'V2.3'")) blockers.push('版本配置未检测到 V2.3。');
+if (!versionConfig.includes("APP_STAGE = '现场知识库演示版'")) blockers.push('版本阶段未检测到现场知识库演示版。');
 
-console.log('V2.2 demo freeze check');
+console.log('V2.3 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -112,6 +120,6 @@ if (blockers.length) {
 
 console.log('\nDemo freeze check passed.');
 console.log('\nSuggested next steps:');
-console.log('- 安卓平板真机验收 V2.2 角色权限演示版');
+console.log('- 安卓平板真机验收 V2.3 现场知识库演示版');
 console.log('- push 分支后创建 PR');
-console.log('- CI 通过后人工验收，再决定是否合并 main 和打 v2.2-role-permission tag');
+console.log('- CI 通过后人工验收，再决定是否合并 main 和打 v2.3-fixture-quality-knowledge tag');

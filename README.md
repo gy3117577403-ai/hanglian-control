@@ -145,8 +145,10 @@ npm run demo:imports
 | `npm run pwa:assets` | 生成 PWA 本地演示图标 |
 | `npm run pwa:check` | 只读检查 PWA / 平板演示准备状态 |
 | `npm run demo:imports` | 生成 Excel 演示导入文件 |
+| `npm run demo:knowledge` | 生成治具/异常/质量标准演示导入文件 |
 | `npm run import-flow:check` | 只读检查导入流准备状态 |
 | `npm run maintenance-flow:check` | 只读检查资料维护中心准备状态 |
+| `npm run knowledge-flow:check` | 只读检查现场知识库准备状态 |
 | `npm run demo:assets` | 生成合成演示上传资料 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
 | `npm run demo:release-check` | 只读检查当前演示版收口状态 |
@@ -170,6 +172,8 @@ npm run demo:imports
 - `docs/tablet-install-guide.md`
 - `docs/v2.0-data-import-center.md`
 - `docs/v2.1-maintenance-center.md`
+- `docs/v2.3-fixture-quality-knowledge.md`
+- `docs/knowledge-library-guide.md`
 - `docs/import-template-guide.md`
 - `docs/maintenance-guide.md`
 - `docs/v1.9-pwa-tablet-package.md`
@@ -196,3 +200,18 @@ npm run auth-flow:check
 ```
 
 相关文档：`docs/v2.2-role-permission.md`、`docs/permission-matrix.md`。
+
+## V2.3 现场知识库演示版
+
+当前 V2.3 新增治具库、异常库、质量标准库，平板主界面可按当前生产计划和前段/后段工序展示现场知识，资料维护中心可维护三类知识库，导入中心可预览并应用三类知识库 Excel。
+
+当前仍不接 Sealos、不接企业微信微盘、不接企业微信登录、不接真实语音。知识库写入仅限本地 Mock metadata。
+
+新增检查命令：
+
+```bash
+npm run demo:knowledge
+npm run knowledge-flow:check
+```
+
+相关文档：`docs/v2.3-fixture-quality-knowledge.md`、`docs/knowledge-library-guide.md`。

@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
+import WarmKnowledgePanel from '@/components/knowledge/WarmKnowledgePanel.vue'
 import WarmMaintenanceCenterDialog from '@/components/maintenance/WarmMaintenanceCenterDialog.vue'
 import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
 import WarmQuickActions from '@/components/field/WarmQuickActions.vue'
@@ -191,6 +192,7 @@ onUnmounted(() => {
                 @open-migration="dialogs.migration = true"
               />
             </div>
+            <WarmKnowledgePanel />
           </div>
         </section>
       </main>

@@ -272,3 +272,47 @@ Mock 退出登录，不调用真实认证服务。
 写入类 Mock API 已接入 `MockPermissionGuard`。无权限返回 `403`，消息为：`当前角色无权执行该操作。`
 
 当前守卫覆盖计划确认、异常反馈、资料上传、资料状态/版本维护、设为有效、归档、导入应用、资料维护中心 PATCH/复核处理等接口。完整矩阵见 `docs/permission-matrix.md`。
+
+## Knowledge / 现场知识库
+
+V2.3 新增知识库 Mock API，仍使用本地 Mock seed / metadata，不连接数据库。
+
+### 治具库
+
+- `GET /api/knowledge/fixtures`
+- `POST /api/knowledge/fixtures`
+- `PATCH /api/knowledge/fixtures/:id`
+- `PATCH /api/knowledge/fixtures/:id/status`
+
+### 异常库
+
+- `GET /api/knowledge/abnormal-cases`
+- `POST /api/knowledge/abnormal-cases`
+- `PATCH /api/knowledge/abnormal-cases/:id`
+- `PATCH /api/knowledge/abnormal-cases/:id/status`
+
+### 质量标准库
+
+- `GET /api/knowledge/quality-standards`
+- `POST /api/knowledge/quality-standards`
+- `PATCH /api/knowledge/quality-standards/:id`
+- `PATCH /api/knowledge/quality-standards/:id/status`
+
+### 计划 / 产品关联
+
+- `GET /api/knowledge/product/:productId/summary`
+- `GET /api/knowledge/plan/:planId/summary`
+- `GET /api/knowledge/search?q=关键词&planId=可选&productId=可选`
+- `GET /api/knowledge/history`
+
+全局 `GET /api/search` 已合并知识库搜索结果，新增结果类型：`fixture`、`abnormal_case`、`quality_standard`。
+
+### 导入类型
+
+导入中心新增：
+
+- `fixture`
+- `abnormal_case`
+- `quality_standard`
+
+预览和应用仍复用 `/api/imports/:type/preview` 与 `/api/imports/:type/apply`。应用只写入本地 Mock metadata。

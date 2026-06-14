@@ -136,6 +136,7 @@ const AUDIT_ENTITY_TO_PRISMA: Record<AuditEntityType, string> = {
   file: 'FILE',
   system: 'SYSTEM',
   import: 'IMPORT',
+  knowledge: 'KNOWLEDGE',
 };
 
 const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
@@ -145,6 +146,7 @@ const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
   FILE: 'file',
   SYSTEM: 'system',
   IMPORT: 'import',
+  KNOWLEDGE: 'knowledge',
 };
 
 const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {

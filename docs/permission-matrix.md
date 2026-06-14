@@ -11,6 +11,29 @@ V2.2 权限为本地 Mock RBAC，用于演示平板端菜单、按钮和后端 M
 | 品质 | `mock-quality` | 查看全部计划、查看资料留痕、处理复核队列、系统诊断 |
 | 管理员 | `mock-admin` | 全部 Mock 权限 |
 
+## V2.3 知识库权限
+
+| 权限 | 用途 |
+| --- | --- |
+| `knowledge.fixture.view` | 查看治具库 |
+| `knowledge.fixture.create` | 新增治具资料 |
+| `knowledge.fixture.update` | 维护治具资料和状态 |
+| `knowledge.abnormal.view` | 查看异常库 |
+| `knowledge.abnormal.create` | 新增异常案例 |
+| `knowledge.abnormal.update` | 维护异常案例和状态 |
+| `knowledge.quality.view` | 查看质量标准库 |
+| `knowledge.quality.create` | 新增质量标准 |
+| `knowledge.quality.update` | 维护质量标准和状态 |
+| `knowledge.history.view` | 查看知识库维护历史 |
+
+角色默认分配：
+
+- 前段组长、后段组长：查看治具库、异常库、质量标准库。
+- 资料维护：知识库全部查看、新增、维护、历史。
+- 工艺：查看/维护三类知识库，查看历史。
+- 品质：查看治具库，查看/维护异常库和质量标准库，查看历史。
+- 管理员：全部 Mock 权限。
+
 ## 后端守卫
 
 | 接口 | 权限 |
@@ -30,5 +53,12 @@ V2.2 权限为本地 Mock RBAC，用于演示平板端菜单、按钮和后端 M
 | `PATCH /api/maintenance/back-packages/:id` | `maintenance.package.update` |
 | `PATCH /api/maintenance/documents/:id` | `maintenance.document.update` |
 | `POST /api/maintenance/review-queue/:id/resolve` | `maintenance.review.resolve` |
+| `POST /api/knowledge/fixtures` | `knowledge.fixture.create` |
+| `PATCH /api/knowledge/fixtures/:id` | `knowledge.fixture.update` |
+| `POST /api/knowledge/abnormal-cases` | `knowledge.abnormal.create` |
+| `PATCH /api/knowledge/abnormal-cases/:id` | `knowledge.abnormal.update` |
+| `POST /api/knowledge/quality-standards` | `knowledge.quality.create` |
+| `PATCH /api/knowledge/quality-standards/:id` | `knowledge.quality.update` |
+| `GET /api/knowledge/history` | `knowledge.history.view` |
 
 无权限时后端返回 `403`，提示：`当前角色无权执行该操作。`

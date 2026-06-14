@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { documentStatusLabelMap, legacyDocumentTypeMap } from '../common/enums/production.enum';
 import { evaluatePlanReadiness } from '../common/utils/readiness';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 import { mockStore } from '../mock/production.mock';
 import { LocalStorageService } from '../storage/local-storage.service';
 import { importTemplates, getImportTemplate, importTypeLabels } from './import-template-definitions';
@@ -11,6 +12,7 @@ import { parseBackPackageImportRow } from './parsers/back-package-import.parser'
 import { parseCustomerProductImportRow } from './parsers/customer-product-import.parser';
 import { parseFrontParameterImportRow } from './parsers/front-parameter-import.parser';
 import { parseProductionPlanImportRow } from './parsers/production-plan-import.parser';
+import { parseAbnormalImportRow, parseFixtureImportRow, parseQualityImportRow } from './parsers/knowledge-import.parser';
 import { statusFromMessages, type ParsedImportRow, type RawImportRow } from './parsers/import-parser-utils';
 import type { ImportApplyDto } from './dto/import-apply.dto';
 import type { ImportHistoryQueryDto } from './dto/import-query.dto';
@@ -28,7 +30,7 @@ import type {
   ProductionPlanMock,
 } from '../common/types/production.types';
 
-const importTypes: ImportType[] = ['production_plan', 'customer_product', 'front_parameter', 'back_package'];
+const importTypes: ImportType[] = ['production_plan', 'customer_product', 'front_parameter', 'back_package', 'fixture', 'abnormal_case', 'quality_standard'];
 
 function cellText(value: unknown): string {
   if (value === undefined || value === null) return '';
@@ -172,6 +174,7 @@ export class ImportsService {
   constructor(
     private readonly localStorageService: LocalStorageService,
     private readonly auditService: AuditService,
+    private readonly knowledgeService: KnowledgeService,
   ) {
     for (const preview of this.localStorageService.readImportPreviewsSync()) {
       this.previews.set(preview.previewId, preview);
@@ -241,7 +244,7 @@ export class ImportsService {
     }
 
     const snapshot = this.localStorageService.readImportedBusinessDataSync();
-    const applied = this.applyRows(type, preview.rows.filter((row) => row.status !== 'error'), snapshot);
+    const applied = this.applyRows(type, preview.rows.filter((row) => row.status !== 'error'), snapshot, dto);
     snapshot.updatedAt = new Date().toISOString();
     this.localStorageService.writeImportedBusinessDataSync(snapshot);
     mockStore.mergeImportedBusinessData(snapshot);
@@ -364,6 +367,12 @@ export class ImportsService {
         return parseFrontParameterImportRow(rowNumber, data);
       case 'back_package':
         return parseBackPackageImportRow(rowNumber, data);
+      case 'fixture':
+        return parseFixtureImportRow(rowNumber, data);
+      case 'abnormal_case':
+        return parseAbnormalImportRow(rowNumber, data);
+      case 'quality_standard':
+        return parseQualityImportRow(rowNumber, data);
     }
   }
 
@@ -384,8 +393,16 @@ export class ImportsService {
     }
   }
 
-  private buildSummary(type: ImportType, rows: ParsedImportRow[]) {
+  private buildSummary(type: ImportType, rows: ParsedImportRow[]): Record<string, number> {
     const usefulRows = rows.filter((row) => row.status !== 'error');
+    if (type === 'fixture' || type === 'abnormal_case' || type === 'quality_standard') {
+      return {
+        knowledgeRowsToUpdate: usefulRows.length,
+        fixturesToUpdate: type === 'fixture' ? usefulRows.length : 0,
+        abnormalCasesToUpdate: type === 'abnormal_case' ? usefulRows.length : 0,
+        qualityStandardsToUpdate: type === 'quality_standard' ? usefulRows.length : 0,
+      };
+    }
     const customerKeys = new Set<string>();
     const productKeys = new Set<string>();
     for (const row of usefulRows) {
@@ -404,7 +421,14 @@ export class ImportsService {
     };
   }
 
-  private applyRows(type: ImportType, rows: ImportPreviewResult['rows'], snapshot: ImportedBusinessDataSnapshot) {
+  private applyRows(type: ImportType, rows: ImportPreviewResult['rows'], snapshot: ImportedBusinessDataSnapshot, dto: ImportApplyDto) {
+    if (type === 'fixture' || type === 'abnormal_case' || type === 'quality_standard') {
+      return this.knowledgeService.applyImportedRows(type, rows.map((row) => row.normalized), {
+        operatorId: dto.operatorId,
+        operatorName: dto.operatorName,
+        operatorRole: dto.operatorRole ?? '资料维护',
+      });
+    }
     const before = {
       customers: snapshot.customers.length,
       products: snapshot.products.length,

@@ -71,10 +71,10 @@ function requireIncludes(relativePath, text, message) {
 ].forEach((needle) => requireIncludes('apps/tablet/src/services/api.ts', needle, `Tablet API method not found: ${needle}`));
 
 [
-  'APP_VERSION = \'V2.2\'',
-  'APP_STAGE = \'角色权限演示版\'',
-  'APP_RELEASE_NAME = \'线束车间多角色权限演示版\'',
-  'APP_BUILD_CHANNEL = \'mock-local-rbac-demo\'',
+  'APP_VERSION = \'V2.3\'',
+  'APP_STAGE = \'现场知识库演示版\'',
+  'APP_RELEASE_NAME = \'线束车间治具异常质量知识库演示版\'',
+  'APP_BUILD_CHANNEL = \'mock-local-knowledge-demo\'',
 ].forEach((needle) => requireIncludes('apps/tablet/src/config/app-version.ts', needle, `Version config not found: ${needle}`));
 
 requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '资料维护中心', 'Demo tools menu does not include 资料维护中心.');

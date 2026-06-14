@@ -25,6 +25,9 @@ export const importTypeOptions: Array<{ label: string; value: ImportType }> = [
   { label: '客户产品', value: 'customer_product' },
   { label: '前段参数', value: 'front_parameter' },
   { label: '后段资料包', value: 'back_package' },
+  { label: '治具库', value: 'fixture' },
+  { label: '异常库', value: 'abnormal_case' },
+  { label: '质量标准库', value: 'quality_standard' },
 ]
 
 export const useImportStore = defineStore('imports', () => {
@@ -83,7 +86,7 @@ export const useImportStore = defineStore('imports', () => {
     }
   }
 
-  async function applyImport(remark = 'V2.2 角色权限演示版') {
+  async function applyImport(remark = 'V2.3 现场知识库演示版') {
     if (!previewResult.value) return null
     applyLoading.value = true
     const user = auth.currentUser

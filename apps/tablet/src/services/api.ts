@@ -23,6 +23,16 @@ import type {
   ImportRollbackPreview,
   ImportTemplateDefinition,
   ImportType,
+  AbnormalCaseKnowledge,
+  AbnormalStatus,
+  FixtureKnowledge,
+  KnowledgeProcessSegment,
+  KnowledgeRecord,
+  KnowledgeSearchResult,
+  KnowledgeStatus,
+  KnowledgeSummary,
+  QualityStandardKnowledge,
+  QualityStatus,
   MaintenanceBackPackage,
   MaintenanceCustomer,
   MaintenanceDocument,
@@ -447,4 +457,114 @@ export function getMaintenanceHistory(query?: MaintenanceQuery) {
 
 export function getMaintenanceHistoryDetail(id: string) {
   return api<MaintenanceRecord>(`/maintenance/history/${id}`)
+}
+
+export interface KnowledgeQuery {
+  keyword?: string
+  customerId?: string
+  productId?: string
+  processSegment?: KnowledgeProcessSegment
+  status?: string
+  limit?: string | number
+}
+
+export function getFixtures(query?: KnowledgeQuery) {
+  return api<FixtureKnowledge[]>('/knowledge/fixtures', { query })
+}
+
+export function createFixture(payload: Partial<FixtureKnowledge>) {
+  return api<FixtureKnowledge>('/knowledge/fixtures', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateFixture(id: string, payload: Partial<FixtureKnowledge>) {
+  return api<FixtureKnowledge>(`/knowledge/fixtures/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateFixtureStatus(id: string, status: KnowledgeStatus, reason?: string) {
+  return api<FixtureKnowledge>(`/knowledge/fixtures/${id}/status`, {
+    method: 'PATCH',
+    body: { status, reason },
+  })
+}
+
+export function getAbnormalCases(query?: KnowledgeQuery & { severity?: string }) {
+  return api<AbnormalCaseKnowledge[]>('/knowledge/abnormal-cases', { query })
+}
+
+export function createAbnormalCase(payload: Partial<AbnormalCaseKnowledge>) {
+  return api<AbnormalCaseKnowledge>('/knowledge/abnormal-cases', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateAbnormalCase(id: string, payload: Partial<AbnormalCaseKnowledge>) {
+  return api<AbnormalCaseKnowledge>(`/knowledge/abnormal-cases/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateAbnormalStatus(id: string, status: AbnormalStatus, reason?: string) {
+  return api<AbnormalCaseKnowledge>(`/knowledge/abnormal-cases/${id}/status`, {
+    method: 'PATCH',
+    body: { status, reason },
+  })
+}
+
+export function getQualityStandards(query?: KnowledgeQuery & { defectLevel?: string }) {
+  return api<QualityStandardKnowledge[]>('/knowledge/quality-standards', { query })
+}
+
+export function createQualityStandard(payload: Partial<QualityStandardKnowledge>) {
+  return api<QualityStandardKnowledge>('/knowledge/quality-standards', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateQualityStandard(id: string, payload: Partial<QualityStandardKnowledge>) {
+  return api<QualityStandardKnowledge>(`/knowledge/quality-standards/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateQualityStatus(id: string, status: QualityStatus, reason?: string) {
+  return api<QualityStandardKnowledge>(`/knowledge/quality-standards/${id}/status`, {
+    method: 'PATCH',
+    body: { status, reason },
+  })
+}
+
+export function getProductKnowledgeSummary(productId: string, processSegment?: KnowledgeProcessSegment) {
+  return api<KnowledgeSummary>(`/knowledge/product/${productId}/summary`, {
+    query: processSegment ? { processSegment } : undefined,
+  })
+}
+
+export function getPlanKnowledgeSummary(planId: string, processSegment?: KnowledgeProcessSegment) {
+  return api<KnowledgeSummary>(`/knowledge/plan/${planId}/summary`, {
+    query: processSegment ? { processSegment } : undefined,
+  })
+}
+
+export function searchKnowledge(q: string, planId?: string, productId?: string) {
+  return api<KnowledgeSearchResult[]>('/knowledge/search', {
+    query: {
+      q,
+      ...(planId ? { planId } : {}),
+      ...(productId ? { productId } : {}),
+    },
+  })
+}
+
+export function getKnowledgeHistory(query?: { entityType?: string; entityId?: string; operatorId?: string; keyword?: string; limit?: string | number }) {
+  return api<KnowledgeRecord[]>('/knowledge/history', { query })
 }

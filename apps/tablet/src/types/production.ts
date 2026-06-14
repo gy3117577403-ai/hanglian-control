@@ -28,6 +28,9 @@ export type SearchResultType =
   | 'sop'
   | 'connector'
   | 'detail-image'
+  | 'fixture'
+  | 'abnormal_case'
+  | 'quality_standard'
 
 export interface VersionStatus {
   status: MaterialStatus
@@ -367,7 +370,7 @@ export interface SetEffectiveDocumentResult {
   readiness?: PlanReadiness
 }
 
-export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import'
+export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import' | 'knowledge'
 export type AuditAction =
   | 'document_uploaded'
   | 'document_status_changed'
@@ -460,7 +463,7 @@ export interface PrismaSeedPreview {
   seed: Record<string, unknown[]>
 }
 
-export type ImportType = 'production_plan' | 'customer_product' | 'front_parameter' | 'back_package'
+export type ImportType = 'production_plan' | 'customer_product' | 'front_parameter' | 'back_package' | 'fixture' | 'abnormal_case' | 'quality_standard'
 export type ImportRowStatus = 'valid' | 'warning' | 'error'
 
 export interface ImportTemplateField {
@@ -585,6 +588,16 @@ export type Permission =
   | 'maintenance.package.update'
   | 'maintenance.document.update'
   | 'maintenance.review.resolve'
+  | 'knowledge.fixture.view'
+  | 'knowledge.fixture.create'
+  | 'knowledge.fixture.update'
+  | 'knowledge.abnormal.view'
+  | 'knowledge.abnormal.create'
+  | 'knowledge.abnormal.update'
+  | 'knowledge.quality.view'
+  | 'knowledge.quality.create'
+  | 'knowledge.quality.update'
+  | 'knowledge.history.view'
   | 'system.info.view'
   | 'system.diagnostics.view'
   | 'system.demo_tools.view'
@@ -752,7 +765,7 @@ export interface MaintenanceDocument {
   productCode?: string
   documentType?: DocumentTypeV03
   version?: string
-  status?: DocumentStatus
+  status?: DocumentStatus | string
   statusLabel?: string
   source?: DocumentSource
   requiredForProcess?: RequiredProcess
@@ -795,4 +808,108 @@ export interface MaintenanceMutationResult {
   record?: MaintenanceRecord
   total?: number
   records?: MaintenanceRecord[]
+}
+
+export type KnowledgeProcessSegment = 'front' | 'back' | 'common'
+export type KnowledgeStatus = 'active' | 'pending_review' | 'inactive' | 'abnormal'
+export type AbnormalSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type AbnormalStatus = 'active' | 'pending_review' | 'closed'
+export type QualityDefectLevel = 'minor' | 'major' | 'critical'
+export type QualityStatus = 'effective' | 'pending_review' | 'expired'
+export type KnowledgeRecordEntityType = 'fixture' | 'abnormal_case' | 'quality_standard'
+
+export interface KnowledgeBaseItem {
+  customerId: string
+  customerName: string
+  productId: string
+  productCode: string
+  productName: string
+  processSegment: KnowledgeProcessSegment
+  relatedDocumentIds: string[]
+  keywords: string[]
+  remark?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FixtureKnowledge extends KnowledgeBaseItem {
+  fixtureId: string
+  fixtureCode: string
+  fixtureName: string
+  fixtureType: string
+  applicableStation: string
+  usageMethod: string
+  checkStandard: string
+  maintenanceCycle: string
+  lastMaintenanceDate: string
+  nextMaintenanceDate: string
+  status: KnowledgeStatus
+  images?: string[]
+}
+
+export interface AbnormalCaseKnowledge extends KnowledgeBaseItem {
+  abnormalId: string
+  abnormalCode: string
+  title: string
+  station: string
+  category: string
+  symptom: string
+  cause: string
+  solution: string
+  prevention: string
+  severity: AbnormalSeverity
+  status: AbnormalStatus
+  relatedFixtureIds: string[]
+}
+
+export interface QualityStandardKnowledge extends KnowledgeBaseItem {
+  qualityId: string
+  qualityCode: string
+  title: string
+  inspectionItem: string
+  standardValue: string
+  tolerance: string
+  inspectionMethod: string
+  samplingRule: string
+  defectLevel: QualityDefectLevel
+  status: QualityStatus
+}
+
+export interface KnowledgeSummary {
+  planId?: string
+  productId: string
+  productCode: string
+  productName: string
+  fixtures: FixtureKnowledge[]
+  abnormalCases: AbnormalCaseKnowledge[]
+  qualityStandards: QualityStandardKnowledge[]
+  updatedAt: string
+}
+
+export interface KnowledgeSearchResult {
+  id: string
+  planId?: string
+  productId: string
+  productCode: string
+  productName: string
+  type: 'fixture' | 'abnormal_case' | 'quality_standard'
+  title: string
+  subtitle: string
+  matchedField: string
+  snippet: string
+  status: string
+}
+
+export interface KnowledgeRecord {
+  recordId: string
+  entityType: KnowledgeRecordEntityType
+  entityId: string
+  action: string
+  before?: unknown
+  after?: unknown
+  reason?: string
+  operatorId: string
+  operatorName: string
+  operatorRole: string
+  createdAt: string
 }

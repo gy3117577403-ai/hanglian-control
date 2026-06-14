@@ -4,6 +4,7 @@ import dayjs from 'dayjs'
 import { ClipboardCheck, FileClock, History, PackageSearch, ShieldAlert, Wrench } from 'lucide-vue-next'
 import { useToast } from 'primevue/usetoast'
 import WarmPermissionDenied from '@/components/auth/WarmPermissionDenied.vue'
+import WarmKnowledgeMaintenancePanel from '@/components/knowledge/WarmKnowledgeMaintenancePanel.vue'
 import { PERMISSIONS } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
 import { useMaintenanceStore } from '@/stores/maintenance-store'
@@ -48,6 +49,7 @@ const tabItems = [
   { value: 'front', label: '前段参数' },
   { value: 'back', label: '后段资料包' },
   { value: 'documents', label: '文件资料' },
+  { value: 'knowledge', label: '现场知识库' },
   { value: 'review', label: '复核队列' },
   { value: 'history', label: '维护历史' },
 ]
@@ -448,6 +450,10 @@ watch(dialogVisible, async (visible) => {
                 </template>
               </PrimeColumn>
             </PrimeDataTable>
+          </PrimeTabPanel>
+
+          <PrimeTabPanel value="knowledge">
+            <WarmKnowledgeMaintenancePanel />
           </PrimeTabPanel>
 
           <PrimeTabPanel value="review">

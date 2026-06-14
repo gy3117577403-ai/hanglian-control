@@ -32,11 +32,14 @@ export type SearchResultType =
   | 'drawing'
   | 'sop'
   | 'connector'
-  | 'detail-image';
+  | 'detail-image'
+  | 'fixture'
+  | 'abnormal_case'
+  | 'quality_standard';
 
 export type SearchScope = 'current_plan' | 'global';
 
-export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import';
+export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import' | 'knowledge';
 
 export type AuditAction =
   | 'document_uploaded'

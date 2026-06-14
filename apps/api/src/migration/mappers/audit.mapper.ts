@@ -8,6 +8,7 @@ const entityToPrisma: Record<AuditEntityType, string> = {
   file: 'FILE',
   system: 'SYSTEM',
   import: 'IMPORT',
+  knowledge: 'KNOWLEDGE',
 };
 
 const actionToPrisma: Record<AuditAction, string> = {

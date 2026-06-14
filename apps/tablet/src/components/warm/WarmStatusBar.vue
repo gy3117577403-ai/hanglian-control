@@ -265,7 +265,7 @@ onUnmounted(() => {
         </div>
         <div>
           <strong class="text-xl text-[#342316]">{{ auth.userName }} / {{ auth.roleLabel }}</strong>
-          <p class="mt-1 text-sm font-bold text-[#76512a]">本权限仅用于 V2.2 本地 Mock 演示，后续可替换为企业微信组织与后端 RBAC。</p>
+          <p class="mt-1 text-sm font-bold text-[#76512a]">本权限仅用于 V2.3 本地 Mock 演示，后续可替换为企业微信组织与后端 RBAC。</p>
         </div>
       </div>
       <div class="warm-permission-list">

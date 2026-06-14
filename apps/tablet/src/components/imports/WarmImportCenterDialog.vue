@@ -25,7 +25,7 @@ const confirm = useConfirm()
 const toast = useToast()
 const selectedFile = ref<File | null>(null)
 const activeTab = ref('preview')
-const remark = ref('V2.2 角色权限演示版')
+const remark = ref('V2.3 现场知识库演示版')
 const rollbackText = ref('')
 
 const dialogVisible = computed({

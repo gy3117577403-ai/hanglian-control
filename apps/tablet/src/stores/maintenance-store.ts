@@ -43,6 +43,7 @@ type MaintenanceTab =
   | 'front'
   | 'back'
   | 'documents'
+  | 'knowledge'
   | 'review'
   | 'history'
 

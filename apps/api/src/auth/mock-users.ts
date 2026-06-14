@@ -36,6 +36,16 @@ export type Permission =
   | 'maintenance.package.update'
   | 'maintenance.document.update'
   | 'maintenance.review.resolve'
+  | 'knowledge.fixture.view'
+  | 'knowledge.fixture.create'
+  | 'knowledge.fixture.update'
+  | 'knowledge.abnormal.view'
+  | 'knowledge.abnormal.create'
+  | 'knowledge.abnormal.update'
+  | 'knowledge.quality.view'
+  | 'knowledge.quality.create'
+  | 'knowledge.quality.update'
+  | 'knowledge.history.view'
   | 'system.info.view'
   | 'system.diagnostics.view'
   | 'system.demo_tools.view'
@@ -90,6 +100,16 @@ export const allPermissions: Permission[] = [
   'maintenance.package.update',
   'maintenance.document.update',
   'maintenance.review.resolve',
+  'knowledge.fixture.view',
+  'knowledge.fixture.create',
+  'knowledge.fixture.update',
+  'knowledge.abnormal.view',
+  'knowledge.abnormal.create',
+  'knowledge.abnormal.update',
+  'knowledge.quality.view',
+  'knowledge.quality.create',
+  'knowledge.quality.update',
+  'knowledge.history.view',
   'system.info.view',
   'system.diagnostics.view',
   'system.demo_tools.view',
@@ -160,6 +180,9 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'front.parameter.view',
     'document.view',
     'document.audit.view',
+    'knowledge.fixture.view',
+    'knowledge.abnormal.view',
+    'knowledge.quality.view',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -172,6 +195,9 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'back.package.view',
     'document.view',
     'document.audit.view',
+    'knowledge.fixture.view',
+    'knowledge.abnormal.view',
+    'knowledge.quality.view',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -196,6 +222,16 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'maintenance.package.update',
     'maintenance.document.update',
     'maintenance.review.resolve',
+    'knowledge.fixture.view',
+    'knowledge.fixture.create',
+    'knowledge.fixture.update',
+    'knowledge.abnormal.view',
+    'knowledge.abnormal.create',
+    'knowledge.abnormal.update',
+    'knowledge.quality.view',
+    'knowledge.quality.create',
+    'knowledge.quality.update',
+    'knowledge.history.view',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -218,6 +254,13 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'maintenance.package.update',
     'maintenance.document.update',
     'maintenance.review.resolve',
+    'knowledge.fixture.view',
+    'knowledge.fixture.update',
+    'knowledge.abnormal.view',
+    'knowledge.abnormal.update',
+    'knowledge.quality.view',
+    'knowledge.quality.update',
+    'knowledge.history.view',
     'system.info.view',
     'system.diagnostics.view',
   ],
@@ -227,6 +270,12 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'document.audit.view',
     'maintenance.view',
     'maintenance.review.resolve',
+    'knowledge.fixture.view',
+    'knowledge.abnormal.view',
+    'knowledge.abnormal.update',
+    'knowledge.quality.view',
+    'knowledge.quality.update',
+    'knowledge.history.view',
     'system.info.view',
     'system.diagnostics.view',
   ],

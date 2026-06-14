@@ -89,6 +89,8 @@ const scripts = rootPackage.scripts ?? {};
   'demo:check',
   'maintenance-flow:check',
   'auth-flow:check',
+  'knowledge-flow:check',
+  'demo:knowledge',
   'file-flow:check',
   'security:check',
   'build',
@@ -102,12 +104,16 @@ const gitignore = readIfExists(join(root, '.gitignore'));
   'apps/api/storage/metadata/documents.json',
   'apps/api/storage/metadata/audit-logs.json',
   'apps/api/storage/metadata/maintenance-records.json',
+  'apps/api/storage/metadata/knowledge-fixtures.json',
+  'apps/api/storage/metadata/knowledge-abnormal-cases.json',
+  'apps/api/storage/metadata/knowledge-quality-standards.json',
+  'apps/api/storage/metadata/knowledge-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 await checkDemoAssets();
 checkEnvLocalhostWarning();
 
-console.log('V2.2 tablet demo readiness check');
+console.log('V2.3 tablet demo readiness check');
 console.log('This check is read-only. It does not start services, connect to a database, run migrations, db push, or seed.');
 
 const lanIps = lanIpv4List();
