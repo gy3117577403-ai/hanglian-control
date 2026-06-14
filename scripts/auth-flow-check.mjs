@@ -35,6 +35,7 @@ function requireIncludes(relativePath, text, message) {
   'apps/tablet/src/components/auth/WarmPermissionDenied.vue',
   'docs/v2.2-role-permission.md',
   'docs/permission-matrix.md',
+  'docs/v2.5-production-execution-flow.md',
 ].forEach(requireFile);
 
 [
@@ -59,6 +60,10 @@ function requireIncludes(relativePath, text, message) {
   'knowledge.abnormal.update',
   'knowledge.quality.view',
   'knowledge.quality.update',
+  'execution.view',
+  'execution.start',
+  'execution.quantity_report',
+  'execution.daily_report.view',
 ].forEach((needle) => {
   requireIncludes('apps/api/src/auth/mock-users.ts', needle, `Backend mock role or permission not found: ${needle}`);
   requireIncludes('apps/tablet/src/lib/permissions.ts', needle, `Frontend permission not found: ${needle}`);
@@ -100,10 +105,10 @@ function requireIncludes(relativePath, text, message) {
 });
 
 requireIncludes('package.json', '"auth-flow:check"', 'Missing npm run auth-flow:check.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.4'", 'Version config is not V2.4.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-knowledge-validation-demo'", 'Build channel is not the V2.4 knowledge validation demo channel.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.5'", 'Version config is not V2.5.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-execution-demo'", 'Build channel is not the V2.5 execution demo channel.');
 
-console.log('V2.4 auth flow check');
+console.log('V2.5 auth flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {

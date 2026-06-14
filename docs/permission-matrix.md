@@ -62,3 +62,34 @@ V2.2 权限为本地 Mock RBAC，用于演示平板端菜单、按钮和后端 M
 | `GET /api/knowledge/history` | `knowledge.history.view` |
 
 无权限时后端返回 `403`，提示：`当前角色无权执行该操作。`
+
+## V2.5 执行闭环权限
+
+| 权限 | 用途 |
+| --- | --- |
+| `execution.view` | 查看生产执行面板、执行计划和时间线 |
+| `execution.start` | 开工检查和开始生产 |
+| `execution.pause` | 暂停生产 |
+| `execution.resume` | 恢复生产 |
+| `execution.exception_hold` | 异常停线 |
+| `execution.complete` | 完工确认 |
+| `execution.quantity_report` | 数量报工 |
+| `execution.process_confirm` | 首件、巡检、复核等过程确认 |
+| `execution.handover` | 班组交接 |
+| `execution.daily_report.view` | 查看现场日报 |
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /api/execution/summary` | `execution.view` |
+| `GET /api/execution/plans` | `execution.view` |
+| `GET /api/execution/plans/:planId` | `execution.view` |
+| `POST /api/execution/plans/:planId/prepare-start` | `execution.start` |
+| `POST /api/execution/plans/:planId/start` | `execution.start` |
+| `POST /api/execution/plans/:planId/process-confirm` | `execution.process_confirm` |
+| `POST /api/execution/plans/:planId/quantity-report` | `execution.quantity_report` |
+| `POST /api/execution/plans/:planId/pause` | `execution.pause` |
+| `POST /api/execution/plans/:planId/resume` | `execution.resume` |
+| `POST /api/execution/plans/:planId/exception-hold` | `execution.exception_hold` |
+| `POST /api/execution/plans/:planId/complete` | `execution.complete` |
+| `POST /api/execution/shift-handover` | `execution.handover` |
+| `GET /api/execution/daily-report` | `execution.daily_report.view` |

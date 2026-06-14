@@ -4,6 +4,7 @@ import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { DocumentsModule } from './documents/documents.module';
+import { ExecutionModule } from './execution/execution.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
@@ -29,6 +30,7 @@ import { SystemModule } from './system/system.module';
     ProductionPlansModule,
     ProductsModule,
     DocumentsModule,
+    ExecutionModule,
     FilesModule,
     ImportsModule,
     KnowledgeModule,

@@ -216,6 +216,20 @@ export class LocalStorageService implements OnModuleInit {
     writeFileSync(this.maintenanceRecordsFile, JSON.stringify(records, null, 2), 'utf8');
   }
 
+  readMetadataArraySync<T>(fileName: string, fallback: T[] = []): T[] {
+    this.ensureStorageSync();
+    const file = this.metadataFilePath(fileName);
+    if (!existsSync(file)) {
+      writeFileSync(file, JSON.stringify(fallback, null, 2), 'utf8');
+    }
+    return this.readJsonFileSync<T[]>(file, fallback);
+  }
+
+  writeMetadataArraySync<T>(fileName: string, records: T[]) {
+    this.ensureStorageSync();
+    writeFileSync(this.metadataFilePath(fileName), JSON.stringify(records, null, 2), 'utf8');
+  }
+
   writeAuditLogsSync(logs: AuditLog[]) {
     this.ensureStorageSync();
     writeFileSync(this.auditLogsFile, JSON.stringify(logs, null, 2), 'utf8');
@@ -276,6 +290,13 @@ export class LocalStorageService implements OnModuleInit {
     } catch {
       return fallback;
     }
+  }
+
+  private metadataFilePath(fileName: string) {
+    if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+      throw new Error(`Unsafe metadata file name: ${fileName}`);
+    }
+    return join(this.metadataDir, fileName);
   }
 
   private emptyImportedBusinessDataObject(): ImportedBusinessDataSnapshot {

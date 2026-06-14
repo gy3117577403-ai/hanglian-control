@@ -39,6 +39,7 @@ function requireIncludes(relativePath, text, message) {
   'apps/tablet/src/stores/maintenance-store.ts',
   'docs/v2.1-maintenance-center.md',
   'docs/maintenance-guide.md',
+  'docs/v2.5-production-execution-flow.md',
 ].forEach(requireFile);
 
 [
@@ -79,13 +80,13 @@ requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '资料维�
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmMaintenanceCenterDialog', 'Tablet dashboard does not mount WarmMaintenanceCenterDialog.');
 requireIncludes('apps/api/src/storage/local-storage.service.ts', 'maintenanceRecordsFile', 'Local storage service does not manage maintenance-records.json.');
 requireIncludes('package.json', '"maintenance-flow:check"', 'Missing npm run maintenance-flow:check.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.4'", 'Version config is not V2.4.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.5'", 'Version config is not V2.5.');
 
 if (!exists('apps/api/storage/metadata/imported-business-data.json')) {
   warnings.push('Imported metadata snapshot does not exist yet. Run demo import flow when demo data needs to be refreshed.');
 }
 
-console.log('V2.4 maintenance flow check');
+console.log('V2.5 maintenance flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (warnings.length) {

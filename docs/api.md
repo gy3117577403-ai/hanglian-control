@@ -184,3 +184,24 @@ V2.4 知识库仍使用 Mock seed 与本地 metadata。
 - 不连接 Sealos PostgreSQL。
 - 不接企业微信微盘。
 - 不接真实语音识别。
+
+## V2.5 Production Execution API
+
+当前执行闭环 API 使用本地 Mock / metadata，不连接数据库，不执行写库操作。
+
+- `GET /api/execution/summary`：返回生产执行总览。
+- `GET /api/execution/plans`：返回执行计划列表。
+- `GET /api/execution/plans/:planId`：返回单个计划执行详情。
+- `POST /api/execution/plans/:planId/prepare-start`：生成开工检查结果。
+- `POST /api/execution/plans/:planId/start`：模拟开始生产。
+- `POST /api/execution/plans/:planId/process-confirm`：提交首件、巡检、资料复核或异常确认。
+- `POST /api/execution/plans/:planId/quantity-report`：提交数量报工。
+- `POST /api/execution/plans/:planId/pause`：暂停生产。
+- `POST /api/execution/plans/:planId/resume`：恢复生产。
+- `POST /api/execution/plans/:planId/exception-hold`：异常停线。
+- `POST /api/execution/plans/:planId/complete`：完工确认。
+- `GET /api/execution/plans/:planId/timeline`：返回执行时间线。
+- `POST /api/execution/shift-handover`：提交班组交接。
+- `GET /api/execution/shift-handover`：查询班组交接记录。
+- `GET /api/execution/daily-report`：返回现场日报结构化数据。
+- `GET /api/execution/daily-report/text`：返回现场日报文本。

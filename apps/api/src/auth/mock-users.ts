@@ -46,6 +46,16 @@ export type Permission =
   | 'knowledge.quality.create'
   | 'knowledge.quality.update'
   | 'knowledge.history.view'
+  | 'execution.view'
+  | 'execution.start'
+  | 'execution.pause'
+  | 'execution.resume'
+  | 'execution.exception_hold'
+  | 'execution.complete'
+  | 'execution.quantity_report'
+  | 'execution.process_confirm'
+  | 'execution.handover'
+  | 'execution.daily_report.view'
   | 'system.info.view'
   | 'system.diagnostics.view'
   | 'system.demo_tools.view'
@@ -110,6 +120,16 @@ export const allPermissions: Permission[] = [
   'knowledge.quality.create',
   'knowledge.quality.update',
   'knowledge.history.view',
+  'execution.view',
+  'execution.start',
+  'execution.pause',
+  'execution.resume',
+  'execution.exception_hold',
+  'execution.complete',
+  'execution.quantity_report',
+  'execution.process_confirm',
+  'execution.handover',
+  'execution.daily_report.view',
   'system.info.view',
   'system.diagnostics.view',
   'system.demo_tools.view',
@@ -183,6 +203,16 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'knowledge.fixture.view',
     'knowledge.abnormal.view',
     'knowledge.quality.view',
+    'execution.view',
+    'execution.start',
+    'execution.pause',
+    'execution.resume',
+    'execution.exception_hold',
+    'execution.complete',
+    'execution.quantity_report',
+    'execution.process_confirm',
+    'execution.handover',
+    'execution.daily_report.view',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -198,6 +228,16 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'knowledge.fixture.view',
     'knowledge.abnormal.view',
     'knowledge.quality.view',
+    'execution.view',
+    'execution.start',
+    'execution.pause',
+    'execution.resume',
+    'execution.exception_hold',
+    'execution.complete',
+    'execution.quantity_report',
+    'execution.process_confirm',
+    'execution.handover',
+    'execution.daily_report.view',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -232,6 +272,8 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'knowledge.quality.create',
     'knowledge.quality.update',
     'knowledge.history.view',
+    'execution.view',
+    'execution.daily_report.view',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -261,6 +303,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'knowledge.quality.view',
     'knowledge.quality.update',
     'knowledge.history.view',
+    'execution.view',
+    'execution.process_confirm',
+    'execution.exception_hold',
+    'execution.daily_report.view',
     'system.info.view',
     'system.diagnostics.view',
   ],
@@ -276,6 +322,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'knowledge.quality.view',
     'knowledge.quality.update',
     'knowledge.history.view',
+    'execution.view',
+    'execution.process_confirm',
+    'execution.exception_hold',
+    'execution.daily_report.view',
     'system.info.view',
     'system.diagnostics.view',
   ],

@@ -5,8 +5,10 @@ import type {
   AuditLog,
   AuditLogQuery,
   AuthSession,
+  CompletePlanPayload,
   DatabaseSafetyStatus,
   DataSourceStatus,
+  DailyReport,
   DocumentCompareResult,
   DocumentFileHealthQuery,
   DocumentFileHealthResponse,
@@ -14,6 +16,11 @@ import type {
   DocumentVersionGroup,
   DocumentVersionQuery,
   DocumentVersionsResponse,
+  ExecutionPlanDetail,
+  ExecutionPlanListItem,
+  ExecutionReasonPayload,
+  ExecutionSummary,
+  ExecutionTimelineItem,
   FeedbackRecord,
   HealthResponse,
   ImportApplyPayload,
@@ -55,12 +62,19 @@ import type {
   PermissionMatrixResponse,
   PlanReadiness,
   PlanScope,
+  ProcessConfirmationPayload,
   PrismaSeedPreview,
   ProductionPlan,
   ProductDocument,
+  QuantityReport,
+  QuantityReportPayload,
   SearchHit,
   SetEffectiveDocumentPayload,
   SetEffectiveDocumentResult,
+  ShiftHandoverPayload,
+  ShiftHandoverRecord,
+  StartPlanPayload,
+  StartPreparationResult,
   SubmitFeedbackPayload,
   UpdateDocumentStatusPayload,
   UpdateDocumentVersionPayload,
@@ -606,4 +620,102 @@ export function searchKnowledge(q: string, planId?: string, productId?: string) 
 
 export function getKnowledgeHistory(query?: { entityType?: string; entityId?: string; operatorId?: string; keyword?: string; limit?: string | number }) {
   return api<KnowledgeRecord[]>('/knowledge/history', { query })
+}
+
+export function getExecutionSummary() {
+  return api<ExecutionSummary>('/execution/summary')
+}
+
+export function getExecutionPlans(query?: {
+  scope?: 'today' | 'week' | 'all'
+  status?: string
+  processSegment?: string
+  customerId?: string
+  productId?: string
+  leaderId?: string
+  keyword?: string
+}) {
+  return api<ExecutionPlanListItem[]>('/execution/plans', { query })
+}
+
+export function getExecutionPlanDetail(planId: string) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}`)
+}
+
+export function preparePlanStart(planId: string) {
+  return api<StartPreparationResult>(`/execution/plans/${planId}/prepare-start`, {
+    method: 'POST',
+  })
+}
+
+export function startPlanExecution(planId: string, payload: StartPlanPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/start`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function processConfirm(planId: string, payload: ProcessConfirmationPayload) {
+  return api(`/execution/plans/${planId}/process-confirm`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function reportQuantity(planId: string, payload: QuantityReportPayload) {
+  return api<QuantityReport>(`/execution/plans/${planId}/quantity-report`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function pausePlan(planId: string, payload: ExecutionReasonPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/pause`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function resumePlan(planId: string, payload: ExecutionReasonPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/resume`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function exceptionHoldPlan(planId: string, payload: ExecutionReasonPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/exception-hold`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function completePlan(planId: string, payload: CompletePlanPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/complete`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getExecutionTimeline(planId: string) {
+  return api<ExecutionTimelineItem[]>(`/execution/plans/${planId}/timeline`)
+}
+
+export function createShiftHandover(payload: ShiftHandoverPayload) {
+  return api<ShiftHandoverRecord>('/execution/shift-handover', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getShiftHandover(query?: { planId?: string }) {
+  return api<ShiftHandoverRecord[]>('/execution/shift-handover', { query })
+}
+
+export function getDailyReport(query?: { date?: string; team?: string; processSegment?: string }) {
+  return api<DailyReport>('/execution/daily-report', { query })
+}
+
+export function getDailyReportText(query?: { date?: string; team?: string; processSegment?: string }) {
+  return api<string>('/execution/daily-report/text', { query })
 }

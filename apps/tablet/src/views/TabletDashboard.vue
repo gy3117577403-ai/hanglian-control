@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
+import WarmExecutionPanel from '@/components/execution/WarmExecutionPanel.vue'
 import WarmKnowledgePanel from '@/components/knowledge/WarmKnowledgePanel.vue'
 import WarmMaintenanceCenterDialog from '@/components/maintenance/WarmMaintenanceCenterDialog.vue'
 import WarmFieldWorkflow from '@/components/field/WarmFieldWorkflow.vue'
@@ -192,6 +193,7 @@ onUnmounted(() => {
               @focus-documents="focusDocuments"
               @open-knowledge="openKnowledge"
             />
+            <WarmExecutionPanel />
             <WarmProcessBoard />
             <div ref="documentAnchorRef">
               <WarmDocumentWorkspace

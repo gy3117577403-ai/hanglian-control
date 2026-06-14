@@ -22,6 +22,7 @@
     "demo:knowledge": "node scripts/generate-demo-knowledge-files.mjs",
     "knowledge-validation:check": "node scripts/knowledge-validation-check.mjs",
     "knowledge-flow:check": "node scripts/knowledge-flow-check.mjs",
+    "execution-flow:check": "node scripts/execution-flow-check.mjs",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

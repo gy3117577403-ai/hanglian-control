@@ -1,5 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
+import type { CheckItemStatus } from '../common/enums/production.enum';
+import type { PlanReadiness } from '../common/types/production.types';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import type { ProductionPlanRepositoryInterface } from '../repositories/interfaces/production-plan.repository.interface';
 import { ConfirmProductionPlanDto } from './dto/confirm-production-plan.dto';
@@ -35,23 +37,26 @@ export class ProductionPlansService {
     return plan;
   }
 
-  async readiness(id: string) {
+  async readiness(id: string): Promise<PlanReadiness> {
     const readiness = await this.productionPlanRepository.evaluateReadiness(id);
     if (!readiness) {
       throw new NotFoundException(`未找到生产计划：${id}`);
     }
-    return this.withKnowledgeReadiness(id, readiness);
+    return this.withKnowledgeReadiness(id, readiness) as PlanReadiness;
   }
 
-  private withKnowledgeReadiness(planId: string, readiness: Awaited<ReturnType<ProductionPlanRepositoryInterface['evaluateReadiness']>>) {
+  private withKnowledgeReadiness(
+    planId: string,
+    readiness: Awaited<ReturnType<ProductionPlanRepositoryInterface['evaluateReadiness']>>,
+  ): PlanReadiness | undefined {
     if (!readiness) return readiness;
     const validation = this.knowledgeService.planValidation(planId);
-    const knowledgeStatus = validation.validationStatus === 'ready'
+    const knowledgeStatus: CheckItemStatus = validation.validationStatus === 'ready'
       ? 'pass'
       : validation.validationStatus === 'need_review'
         ? 'warning'
         : 'fail';
-    const checkItems = [
+    const checkItems: PlanReadiness['checkItems'] = [
       ...readiness.checkItems,
       {
         key: 'field_knowledge_validation',

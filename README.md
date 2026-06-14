@@ -1,10 +1,10 @@
 # 线束车间生产计划资料管控系统
 
-面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证”构建。
+面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证 -> 现场执行闭环”构建。
 
 ## 当前版本
 
-V2.4 现场知识验证演示版。
+V2.5 现场执行闭环演示版。
 
 当前运行边界：
 
@@ -39,6 +39,7 @@ npm run maintenance-flow:check
 npm run auth-flow:check
 npm run knowledge-flow:check
 npm run knowledge-validation:check
+npm run execution-flow:check
 npm run pwa:assets
 npm run pwa:check
 npm run demo:check
@@ -134,3 +135,15 @@ start-field-demo.bat
 - 不提交 `apps/api/storage/metadata` 下的本地 metadata JSON。
 - 不在代码、文档或日志中写入真实数据库连接串。
 - 禁止执行 `db:readonly-check`、`prisma migrate`、`prisma db push`、`prisma db seed`、`prisma:seed:test-db`，除非后续阶段明确授权。
+
+## V2.5 现场执行闭环
+
+V2.5 增加生产执行闭环演示：开工检查、开始生产、过程确认、数量报工、暂停、恢复、异常停线、完工确认、班组交接和现场日报。当前版本仍为 Mock / 本地 metadata 演示，不连接 Sealos，不接企业微信微盘，不接真实语音。
+
+新增只读检查命令：
+
+```bash
+npm run execution-flow:check
+```
+
+执行闭环本地 metadata 文件已加入 `.gitignore`，不会提交真实现场记录或上传资料。

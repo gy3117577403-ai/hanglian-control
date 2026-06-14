@@ -137,6 +137,44 @@ enum KnowledgeEntityType {
   QUALITY_STANDARD
 }
 
+enum ExecutionStatus {
+  NOT_STARTED
+  READY_TO_START
+  RUNNING
+  PAUSED
+  EXCEPTION_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ExecutionEventType {
+  PREPARE_START
+  START
+  PROCESS_CONFIRM
+  QUANTITY_REPORT
+  PAUSE
+  RESUME
+  EXCEPTION_HOLD
+  COMPLETE
+  CANCEL
+  HANDOVER
+}
+
+enum ProcessConfirmType {
+  FRONT_PARAMETER_CHECKED
+  BACK_DOCUMENT_CHECKED
+  FIXTURE_CHECKED
+  QUALITY_CHECKED
+  FIRST_PIECE_CHECKED
+  OTHER
+}
+
+enum ProcessConfirmResult {
+  PASS
+  WARNING
+  FAIL
+}
+
 model User {
   id              String               @id @default(cuid())
   username        String               @unique
@@ -504,5 +542,84 @@ model KnowledgeRecord {
   @@index([operatorId])
   @@index([productId])
   @@index([planId])
+  @@index([createdAt])
+}
+
+model ExecutionRecord {
+  id              String                @id @default(cuid())
+  planId          String
+  eventType       ExecutionEventType
+  executionStatus ExecutionStatus
+  statusBefore    ExecutionStatus?
+  statusAfter     ExecutionStatus?
+  confirmType     ProcessConfirmType?
+  result          ProcessConfirmResult?
+  remark          String?
+  operatorId      String?
+  operatorName    String?
+  operatorRole    String?
+  createdAt       DateTime              @default(now())
+
+  @@index([planId])
+  @@index([executionStatus])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model PlanStatusEvent {
+  id           String             @id @default(cuid())
+  planId       String
+  eventType    ExecutionEventType
+  fromStatus   ExecutionStatus?
+  toStatus     ExecutionStatus
+  message      String
+  operatorId   String?
+  operatorName String?
+  operatorRole String?
+  createdAt    DateTime           @default(now())
+
+  @@index([planId])
+  @@index([toStatus])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model QuantityReport {
+  id                          String   @id @default(cuid())
+  planId                      String
+  completedQuantity           Int
+  defectQuantity              Int      @default(0)
+  reworkQuantity              Int      @default(0)
+  scrapQuantity               Int      @default(0)
+  cumulativeCompletedQuantity Int
+  planQuantity                Int
+  warning                     String?
+  remark                      String?
+  operatorId                  String?
+  operatorName                String?
+  operatorRole                String?
+  createdAt                   DateTime @default(now())
+
+  @@index([planId])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model ShiftHandoverRecord {
+  id              String   @id @default(cuid())
+  fromTeam        String
+  toTeam          String
+  planIds         String[]
+  summary         String
+  riskItems       String[]
+  unfinishedItems String[]
+  operatorId      String?
+  operatorName    String?
+  operatorRole    String?
+  createdAt       DateTime @default(now())
+
+  @@index([fromTeam])
+  @@index([toTeam])
+  @@index([operatorId])
   @@index([createdAt])
 }

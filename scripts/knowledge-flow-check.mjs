@@ -46,6 +46,7 @@ function requireIncludes(relativePath, text, message) {
   'scripts/generate-demo-knowledge-files.mjs',
   'docs/v2.3-fixture-quality-knowledge.md',
   'docs/v2.4-knowledge-field-validation.md',
+  'docs/v2.5-production-execution-flow.md',
   'docs/knowledge-library-guide.md',
 ].forEach(requireFile);
 
@@ -138,10 +139,10 @@ requireIncludes('apps/api/src/search/search.service.ts', 'knowledgeService.searc
 
 requireIncludes('package.json', '"knowledge-flow:check"', 'Missing npm run knowledge-flow:check.');
 requireIncludes('package.json', '"demo:knowledge"', 'Missing npm run demo:knowledge.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.4'", 'Version config is not V2.4.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-knowledge-validation-demo'", 'Build channel is not mock-local-knowledge-validation-demo.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.5'", 'Version config is not V2.5.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-execution-demo'", 'Build channel is not mock-local-execution-demo.');
 
-console.log('V2.4 knowledge flow check');
+console.log('V2.5 knowledge flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {
