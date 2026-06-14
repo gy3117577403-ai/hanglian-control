@@ -28,9 +28,13 @@ import type {
   FixtureKnowledge,
   KnowledgeProcessSegment,
   KnowledgeRecord,
+  KnowledgeBulkUpdatePayload,
+  KnowledgeBulkUpdateResult,
+  KnowledgePlanRecommendations,
   KnowledgeSearchResult,
   KnowledgeStatus,
   KnowledgeSummary,
+  KnowledgeValidationResult,
   QualityStandardKnowledge,
   QualityStatus,
   MaintenanceBackPackage,
@@ -493,6 +497,13 @@ export function updateFixtureStatus(id: string, status: KnowledgeStatus, reason?
   })
 }
 
+export function bulkUpdateFixtures(payload: KnowledgeBulkUpdatePayload) {
+  return api<KnowledgeBulkUpdateResult<FixtureKnowledge>>('/knowledge/fixtures/bulk-update', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export function getAbnormalCases(query?: KnowledgeQuery & { severity?: string }) {
   return api<AbnormalCaseKnowledge[]>('/knowledge/abnormal-cases', { query })
 }
@@ -515,6 +526,13 @@ export function updateAbnormalStatus(id: string, status: AbnormalStatus, reason?
   return api<AbnormalCaseKnowledge>(`/knowledge/abnormal-cases/${id}/status`, {
     method: 'PATCH',
     body: { status, reason },
+  })
+}
+
+export function bulkUpdateAbnormalCases(payload: KnowledgeBulkUpdatePayload) {
+  return api<KnowledgeBulkUpdateResult<AbnormalCaseKnowledge>>('/knowledge/abnormal-cases/bulk-update', {
+    method: 'POST',
+    body: payload,
   })
 }
 
@@ -543,6 +561,13 @@ export function updateQualityStatus(id: string, status: QualityStatus, reason?: 
   })
 }
 
+export function bulkUpdateQualityStandards(payload: KnowledgeBulkUpdatePayload) {
+  return api<KnowledgeBulkUpdateResult<QualityStandardKnowledge>>('/knowledge/quality-standards/bulk-update', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export function getProductKnowledgeSummary(productId: string, processSegment?: KnowledgeProcessSegment) {
   return api<KnowledgeSummary>(`/knowledge/product/${productId}/summary`, {
     query: processSegment ? { processSegment } : undefined,
@@ -553,6 +578,20 @@ export function getPlanKnowledgeSummary(planId: string, processSegment?: Knowled
   return api<KnowledgeSummary>(`/knowledge/plan/${planId}/summary`, {
     query: processSegment ? { processSegment } : undefined,
   })
+}
+
+export function getPlanKnowledgeValidation(planId: string) {
+  return api<KnowledgeValidationResult>(`/knowledge/plan/${planId}/validation`)
+}
+
+export function getProductKnowledgeValidation(productId: string, processSegment?: KnowledgeProcessSegment) {
+  return api<KnowledgeValidationResult>(`/knowledge/product/${productId}/validation`, {
+    query: processSegment ? { processSegment } : undefined,
+  })
+}
+
+export function getPlanKnowledgeRecommendations(planId: string) {
+  return api<KnowledgePlanRecommendations>(`/knowledge/plan/${planId}/recommendations`)
 }
 
 export function searchKnowledge(q: string, planId?: string, productId?: string) {

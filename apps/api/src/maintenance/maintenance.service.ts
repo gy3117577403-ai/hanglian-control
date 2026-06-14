@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import type { MockUser } from '../auth/mock-users';
 import { documentStatusLabelMap } from '../common/enums/production.enum';
 import { evaluatePlanReadiness } from '../common/utils/readiness';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 import { mockStore } from '../mock/production.mock';
 import { LocalStorageService } from '../storage/local-storage.service';
 import { includesKeyword, normalizeDocumentStatus, normalizeMaterialStatus, statusLabel } from './helpers/maintenance-normalizer';
@@ -104,6 +105,7 @@ export class MaintenanceService {
   constructor(
     private readonly localStorageService: LocalStorageService,
     private readonly auditService: AuditService,
+    private readonly knowledgeService: KnowledgeService,
   ) {}
 
   summary() {
@@ -445,7 +447,8 @@ export class MaintenanceService {
         createdAt: record.createdAt,
       });
     }
-    return rows.slice(0, 120);
+    rows.push(...this.knowledgeService.reviewItems());
+    return rows.slice(0, 160);
   }
 
   resolveReviewItem(id: string, dto: ReviewRecordDto, user?: MockUser) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import { BookOpenCheck, Plus, RefreshCw } from 'lucide-vue-next'
 import WarmPermissionDenied from '@/components/auth/WarmPermissionDenied.vue'
@@ -8,14 +8,16 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
 import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useProductionStore } from '@/stores/production-store'
-import type { AbnormalCaseKnowledge, FixtureKnowledge, Permission, QualityStandardKnowledge } from '@/types/production'
+import type { AbnormalCaseKnowledge, FixtureKnowledge, KnowledgeBulkUpdatePayload, Permission, QualityStandardKnowledge } from '@/types/production'
 
 type KnowledgeType = 'fixture' | 'abnormal_case' | 'quality_standard'
 type KnowledgeItem = FixtureKnowledge | AbnormalCaseKnowledge | QualityStandardKnowledge
+type MaintenanceTab = 'fixtures' | 'abnormal' | 'quality' | 'history'
 
 const auth = useAuthStore()
 const knowledge = useKnowledgeStore()
 const production = useProductionStore()
+const activeTab = ref<MaintenanceTab>('fixtures')
 const editorVisible = ref(false)
 const detailVisible = ref(false)
 const editType = ref<KnowledgeType>('fixture')
@@ -23,7 +25,7 @@ const editId = ref('')
 const selectedItem = ref<KnowledgeItem | null>(null)
 const draft = reactive<Record<string, string>>({})
 
-const typeTabs = [
+const tabs: Array<{ value: MaintenanceTab; label: string }> = [
   { value: 'fixtures', label: '治具库' },
   { value: 'abnormal', label: '异常库' },
   { value: 'quality', label: '质量标准' },
@@ -48,12 +50,27 @@ const canView = computed(() =>
   || auth.hasPermission(PERMISSIONS.KNOWLEDGE_QUALITY_VIEW),
 )
 
+const currentType = computed<KnowledgeType>(() =>
+  activeTab.value === 'abnormal' ? 'abnormal_case' : activeTab.value === 'quality' ? 'quality_standard' : 'fixture',
+)
+const selectedCount = computed(() => knowledge.selectedKnowledgeRows.length)
+
 function canCreate(type: KnowledgeType) {
   return auth.hasPermission(createPermissionMap[type])
 }
 
 function canUpdate(type: KnowledgeType) {
   return auth.hasPermission(updatePermissionMap[type])
+}
+
+function itemId(item: KnowledgeItem) {
+  if ('fixtureId' in item) return item.fixtureId
+  if ('abnormalId' in item) return item.abnormalId
+  return item.qualityId
+}
+
+function isSelected(id: string) {
+  return knowledge.selectedKnowledgeRows.includes(id)
 }
 
 function defaultProductFields() {
@@ -118,7 +135,7 @@ function openCreate(type: KnowledgeType) {
 
 function openEdit(type: KnowledgeType, item: KnowledgeItem) {
   editType.value = type
-  editId.value = 'fixtureId' in item ? item.fixtureId : 'abnormalId' in item ? item.abnormalId : item.qualityId
+  editId.value = itemId(item)
   resetDraft()
   Object.assign(draft, item, {
     keywords: item.keywords.join(','),
@@ -144,14 +161,26 @@ async function saveDraft() {
 }
 
 async function updateStatus(type: KnowledgeType, id: string, status: string) {
-  await knowledge.updateStatus(type, id, status)
+  await knowledge.updateStatus(type, id, status, 'V2.4 现场知识维护')
+}
+
+async function runBulk(patch: KnowledgeBulkUpdatePayload['patch'], reason: string) {
+  if (!canUpdate(currentType.value) || selectedCount.value === 0) return
+  const ok = window.confirm(`确认批量维护 ${selectedCount.value} 条知识记录？该操作不会删除数据。`)
+  if (!ok) return
+  const payload = { ids: [...knowledge.selectedKnowledgeRows], patch, reason }
+  if (currentType.value === 'fixture') await knowledge.bulkUpdateFixtures(payload)
+  if (currentType.value === 'abnormal_case') await knowledge.bulkUpdateAbnormalCases(payload)
+  if (currentType.value === 'quality_standard') await knowledge.bulkUpdateQualityStandards(payload)
+}
+
+function selectVisible(rows: KnowledgeItem[]) {
+  knowledge.selectedKnowledgeRows = rows.map(itemId)
 }
 
 async function reload() {
   await knowledge.loadAll()
 }
-
-watch(() => knowledge.activeTab, reload)
 
 onMounted(() => {
   void reload()
@@ -163,9 +192,9 @@ onMounted(() => {
     <div class="maintenance-hero system-hero-panel">
       <BookOpenCheck :size="38" />
       <div>
-        <p class="section-kicker">V2.3 / FIELD KNOWLEDGE MAINTENANCE</p>
+        <p class="section-kicker">V2.4 / FIELD KNOWLEDGE MAINTENANCE</p>
         <h3>治具库 / 异常库 / 质量标准库</h3>
-        <p>仅维护本地 Mock metadata 和审计记录，不连接 Sealos，不上传真实客户资料。</p>
+        <p>仅维护本地 Mock metadata、knowledge-records 和 audit-logs，不连接 Sealos，不上传真实客户资料。</p>
       </div>
       <PrimeButton severity="secondary" label="刷新" :loading="knowledge.loading" @click="reload">
         <template #icon><RefreshCw :size="16" /></template>
@@ -184,18 +213,28 @@ onMounted(() => {
         <PrimeButton label="搜索" :loading="knowledge.loading" @click="reload" />
       </div>
 
-      <PrimeTabs v-model:value="knowledge.activeTab">
+      <PrimeTabs v-model:value="activeTab" @update:value="knowledge.clearSelectedKnowledgeRows">
         <PrimeTabList class="maintenance-tab-list">
-          <PrimeTab v-for="tab in typeTabs" :key="tab.value" :value="tab.value">{{ tab.label }}</PrimeTab>
+          <PrimeTab v-for="tab in tabs" :key="tab.value" :value="tab.value">{{ tab.label }}</PrimeTab>
         </PrimeTabList>
         <PrimeTabPanels>
           <PrimeTabPanel value="fixtures">
-            <div class="mb-3 flex justify-end">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap gap-2">
+                <PrimeButton size="small" severity="secondary" label="全选当前" @click="selectVisible(knowledge.fixtures)" />
+                <PrimeButton size="small" severity="secondary" label="清空选择" @click="knowledge.clearSelectedKnowledgeRows" />
+                <PrimeButton size="small" label="标记有效" :disabled="!canUpdate('fixture') || !selectedCount" :loading="knowledge.bulkLoading" @click="runBulk({ status: 'active' }, 'V2.4 批量标记治具有效')" />
+                <PrimeButton size="small" severity="warn" label="标记待复核" :disabled="!canUpdate('fixture') || !selectedCount" :loading="knowledge.bulkLoading" @click="runBulk({ status: 'pending_review' }, 'V2.4 批量标记治具待复核')" />
+                <PrimeButton size="small" severity="danger" label="标记异常" :disabled="!canUpdate('fixture') || !selectedCount" :loading="knowledge.bulkLoading" @click="runBulk({ status: 'abnormal' }, 'V2.4 批量标记治具异常')" />
+                <PrimeButton size="small" severity="secondary" label="更新为前段" :disabled="!canUpdate('fixture') || !selectedCount" @click="runBulk({ processSegment: 'front' }, 'V2.4 批量更新治具工序')" />
+                <PrimeButton size="small" severity="secondary" label="更新为后段" :disabled="!canUpdate('fixture') || !selectedCount" @click="runBulk({ processSegment: 'back' }, 'V2.4 批量更新治具工序')" />
+              </div>
               <PrimeButton label="新增治具" :disabled="!canCreate('fixture')" @click="openCreate('fixture')">
                 <template #icon><Plus :size="16" /></template>
               </PrimeButton>
             </div>
             <PrimeDataTable :value="knowledge.fixtures" striped-rows scrollable scroll-height="420px">
+              <PrimeColumn header="选择"><template #body="{ data }"><input type="checkbox" :checked="isSelected(data.fixtureId)" @change="knowledge.toggleSelectedKnowledgeRow(data.fixtureId)"></template></PrimeColumn>
               <PrimeColumn field="fixtureCode" header="治具编号" />
               <PrimeColumn field="fixtureName" header="治具名称" />
               <PrimeColumn field="productCode" header="产品" />
@@ -215,12 +254,21 @@ onMounted(() => {
           </PrimeTabPanel>
 
           <PrimeTabPanel value="abnormal">
-            <div class="mb-3 flex justify-end">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap gap-2">
+                <PrimeButton size="small" severity="secondary" label="全选当前" @click="selectVisible(knowledge.abnormalCases)" />
+                <PrimeButton size="small" severity="secondary" label="清空选择" @click="knowledge.clearSelectedKnowledgeRows" />
+                <PrimeButton size="small" label="标记有效" :disabled="!canUpdate('abnormal_case') || !selectedCount" @click="runBulk({ status: 'active' }, 'V2.4 批量标记异常有效')" />
+                <PrimeButton size="small" severity="warn" label="待复核" :disabled="!canUpdate('abnormal_case') || !selectedCount" @click="runBulk({ status: 'pending_review' }, 'V2.4 批量标记异常待复核')" />
+                <PrimeButton size="small" severity="success" label="关闭" :disabled="!canUpdate('abnormal_case') || !selectedCount" @click="runBulk({ status: 'closed' }, 'V2.4 批量关闭异常')" />
+                <PrimeButton size="small" severity="danger" label="严重度 high" :disabled="!canUpdate('abnormal_case') || !selectedCount" @click="runBulk({ severity: 'high' }, 'V2.4 批量更新异常严重度')" />
+              </div>
               <PrimeButton label="新增异常" :disabled="!canCreate('abnormal_case')" @click="openCreate('abnormal_case')">
                 <template #icon><Plus :size="16" /></template>
               </PrimeButton>
             </div>
             <PrimeDataTable :value="knowledge.abnormalCases" striped-rows scrollable scroll-height="420px">
+              <PrimeColumn header="选择"><template #body="{ data }"><input type="checkbox" :checked="isSelected(data.abnormalId)" @change="knowledge.toggleSelectedKnowledgeRow(data.abnormalId)"></template></PrimeColumn>
               <PrimeColumn field="abnormalCode" header="异常编号" />
               <PrimeColumn field="title" header="异常标题" />
               <PrimeColumn field="productCode" header="产品" />
@@ -240,12 +288,21 @@ onMounted(() => {
           </PrimeTabPanel>
 
           <PrimeTabPanel value="quality">
-            <div class="mb-3 flex justify-end">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap gap-2">
+                <PrimeButton size="small" severity="secondary" label="全选当前" @click="selectVisible(knowledge.qualityStandards)" />
+                <PrimeButton size="small" severity="secondary" label="清空选择" @click="knowledge.clearSelectedKnowledgeRows" />
+                <PrimeButton size="small" label="当前有效" :disabled="!canUpdate('quality_standard') || !selectedCount" @click="runBulk({ status: 'effective' }, 'V2.4 批量标记质量标准有效')" />
+                <PrimeButton size="small" severity="warn" label="待确认" :disabled="!canUpdate('quality_standard') || !selectedCount" @click="runBulk({ status: 'pending_review' }, 'V2.4 批量标记质量标准待确认')" />
+                <PrimeButton size="small" severity="danger" label="已失效" :disabled="!canUpdate('quality_standard') || !selectedCount" @click="runBulk({ status: 'expired' }, 'V2.4 批量标记质量标准失效')" />
+                <PrimeButton size="small" severity="danger" label="缺陷 critical" :disabled="!canUpdate('quality_standard') || !selectedCount" @click="runBulk({ defectLevel: 'critical' }, 'V2.4 批量更新缺陷等级')" />
+              </div>
               <PrimeButton label="新增质量标准" :disabled="!canCreate('quality_standard')" @click="openCreate('quality_standard')">
                 <template #icon><Plus :size="16" /></template>
               </PrimeButton>
             </div>
             <PrimeDataTable :value="knowledge.qualityStandards" striped-rows scrollable scroll-height="420px">
+              <PrimeColumn header="选择"><template #body="{ data }"><input type="checkbox" :checked="isSelected(data.qualityId)" @change="knowledge.toggleSelectedKnowledgeRow(data.qualityId)"></template></PrimeColumn>
               <PrimeColumn field="qualityCode" header="标准编号" />
               <PrimeColumn field="title" header="标题" />
               <PrimeColumn field="productCode" header="产品" />

@@ -6,6 +6,7 @@ import { MockPermissionGuard } from '../auth/guards/mock-permission.guard';
 import type { MockUser } from '../auth/mock-users';
 import { AbnormalQueryDto } from './dto/abnormal-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
+import { KnowledgeBulkUpdateDto } from './dto/knowledge-bulk-update.dto';
 import { KnowledgeLinkQueryDto } from './dto/knowledge-link-query.dto';
 import { KnowledgeSearchDto } from './dto/knowledge-search.dto';
 import { QualityQueryDto } from './dto/quality-query.dto';
@@ -49,6 +50,13 @@ export class KnowledgeController {
     return this.knowledgeService.updateFixtureStatus(id, dto.status, dto.reason, user);
   }
 
+  @Post('fixtures/bulk-update')
+  @RequirePermissions('knowledge.fixture.update')
+  @ApiOperation({ summary: 'V2.4 batch update fixtures' })
+  bulkUpdateFixtures(@Body() dto: KnowledgeBulkUpdateDto, @CurrentUser() user: MockUser) {
+    return this.knowledgeService.bulkUpdateFixtures(dto, user);
+  }
+
   @Get('abnormal-cases')
   @RequirePermissions('knowledge.abnormal.view')
   @ApiOperation({ summary: '查询异常库' })
@@ -75,6 +83,13 @@ export class KnowledgeController {
   @ApiOperation({ summary: '更新异常案例状态' })
   updateAbnormalStatus(@Param('id') id: string, @Body() dto: { status: AbnormalStatus; reason?: string }, @CurrentUser() user: MockUser) {
     return this.knowledgeService.updateAbnormalStatus(id, dto.status, dto.reason, user);
+  }
+
+  @Post('abnormal-cases/bulk-update')
+  @RequirePermissions('knowledge.abnormal.update')
+  @ApiOperation({ summary: 'V2.4 batch update abnormal cases' })
+  bulkUpdateAbnormalCases(@Body() dto: KnowledgeBulkUpdateDto, @CurrentUser() user: MockUser) {
+    return this.knowledgeService.bulkUpdateAbnormalCases(dto, user);
   }
 
   @Get('quality-standards')
@@ -105,6 +120,13 @@ export class KnowledgeController {
     return this.knowledgeService.updateQualityStatus(id, dto.status, dto.reason, user);
   }
 
+  @Post('quality-standards/bulk-update')
+  @RequirePermissions('knowledge.quality.update')
+  @ApiOperation({ summary: 'V2.4 batch update quality standards' })
+  bulkUpdateQualityStandards(@Body() dto: KnowledgeBulkUpdateDto, @CurrentUser() user: MockUser) {
+    return this.knowledgeService.bulkUpdateQualityStandards(dto, user);
+  }
+
   @Get('product/:productId/summary')
   @RequirePermissions('knowledge.fixture.view')
   @ApiParam({ name: 'productId' })
@@ -113,12 +135,36 @@ export class KnowledgeController {
     return this.knowledgeService.productSummary(productId, query);
   }
 
+  @Get('product/:productId/validation')
+  @RequirePermissions('knowledge.fixture.view')
+  @ApiParam({ name: 'productId' })
+  @ApiOperation({ summary: 'V2.4 product knowledge validation' })
+  productValidation(@Param('productId') productId: string, @Query() query: KnowledgeLinkQueryDto) {
+    return this.knowledgeService.productValidation(productId, query);
+  }
+
   @Get('plan/:planId/summary')
   @RequirePermissions('knowledge.fixture.view')
   @ApiParam({ name: 'planId' })
   @ApiOperation({ summary: '按生产计划查询现场知识汇总' })
   planSummary(@Param('planId') planId: string, @Query() query: KnowledgeLinkQueryDto) {
     return this.knowledgeService.planSummary(planId, query);
+  }
+
+  @Get('plan/:planId/validation')
+  @RequirePermissions('knowledge.fixture.view')
+  @ApiParam({ name: 'planId' })
+  @ApiOperation({ summary: 'V2.4 plan knowledge validation' })
+  planValidation(@Param('planId') planId: string) {
+    return this.knowledgeService.planValidation(planId);
+  }
+
+  @Get('plan/:planId/recommendations')
+  @RequirePermissions('knowledge.fixture.view')
+  @ApiParam({ name: 'planId' })
+  @ApiOperation({ summary: 'V2.4 plan knowledge recommendations' })
+  planRecommendations(@Param('planId') planId: string) {
+    return this.knowledgeService.planRecommendations(planId);
   }
 
   @Get('search')
@@ -135,4 +181,3 @@ export class KnowledgeController {
     return this.knowledgeService.history(query);
   }
 }
-

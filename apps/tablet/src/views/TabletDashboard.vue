@@ -28,14 +28,17 @@ import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
 import WarmStatusBar from '@/components/warm/WarmStatusBar.vue'
 import { PERMISSIONS } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
+import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useProductionStore } from '@/stores/production-store'
 import { useUiStore } from '@/stores/ui-store'
 
 const auth = useAuthStore()
+const knowledgeStore = useKnowledgeStore()
 const store = useProductionStore()
 const uiStore = useUiStore()
 const shellRef = ref<HTMLElement | null>(null)
 const documentAnchorRef = ref<HTMLElement | null>(null)
+const knowledgeAnchorRef = ref<HTMLElement | null>(null)
 const launchVisible = ref(true)
 let ctx: gsap.Context | undefined
 
@@ -112,6 +115,11 @@ function focusDocuments() {
   documentAnchorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+function openKnowledge(tab: 'validation' | 'fixtures' | 'abnormal' | 'quality') {
+  knowledgeStore.activeTab = tab
+  knowledgeAnchorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 function closeLaunchScreen() {
   launchVisible.value = false
 }
@@ -182,6 +190,7 @@ onUnmounted(() => {
               @open-upload="openUpload"
               @open-feedback="openFeedback"
               @focus-documents="focusDocuments"
+              @open-knowledge="openKnowledge"
             />
             <WarmProcessBoard />
             <div ref="documentAnchorRef">
@@ -192,7 +201,9 @@ onUnmounted(() => {
                 @open-migration="dialogs.migration = true"
               />
             </div>
-            <WarmKnowledgePanel />
+            <div ref="knowledgeAnchorRef">
+              <WarmKnowledgePanel />
+            </div>
           </div>
         </section>
       </main>

@@ -23,6 +23,16 @@ const backMetrics = computed(() => [
   { label: '成品细节图', value: `${plan.value.back.finishedImageCount} 张`, icon: Ruler },
 ])
 
+const knowledgeReadinessItems = computed(() =>
+  store.readiness.checkItems.filter((item) => item.key.startsWith('field_knowledge') || item.key.startsWith('field_fixture') || item.key.startsWith('field_quality')),
+)
+
+function checkSeverity(status: string) {
+  if (status === 'pass') return 'success'
+  if (status === 'fail') return 'danger'
+  return 'warn'
+}
+
 function setSegment(segment: '前段' | '后段') {
   store.setSegment(segment)
 }
@@ -128,6 +138,32 @@ function onSegmentClick(event: MouseEvent) {
           <p class="mt-1 text-xs font-bold text-[#7b5129]">{{ item.message }}</p>
         </div>
       </div>
+
+      <section class="mt-3 rounded-2xl border border-[#d9772b33] bg-[#fff4dc]/80 p-3 shadow-inner">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <p class="section-kicker">FIELD KNOWLEDGE CHECK</p>
+            <h4 class="text-base font-black text-[#342316]">现场知识检查</h4>
+          </div>
+          <PrimeTag
+            :value="knowledgeReadinessItems.some((item) => item.status === 'fail') ? '需处理' : knowledgeReadinessItems.some((item) => item.status === 'warning') ? '待复核' : '通过'"
+            :severity="knowledgeReadinessItems.some((item) => item.status === 'fail') ? 'danger' : knowledgeReadinessItems.some((item) => item.status === 'warning') ? 'warn' : 'success'"
+          />
+        </div>
+        <div class="grid gap-2 md:grid-cols-3">
+          <article
+            v-for="item in knowledgeReadinessItems"
+            :key="item.key"
+            class="rounded-xl bg-white/70 p-3"
+          >
+            <div class="mb-1 flex items-center justify-between">
+              <strong class="text-sm text-[#342316]">{{ item.label }}</strong>
+              <PrimeTag :value="item.status" :severity="checkSeverity(item.status)" />
+            </div>
+            <p class="text-xs font-bold text-[#76512a]">{{ item.message }}</p>
+          </article>
+        </div>
+      </section>
     </div>
   </section>
 </template>

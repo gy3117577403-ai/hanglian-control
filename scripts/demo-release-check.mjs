@@ -1,7 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 
 const root = process.cwd();
 const blockers = [];
@@ -16,15 +15,15 @@ function read(relativePath) {
 }
 
 function requireFile(relativePath) {
-  if (!exists(relativePath)) blockers.push(`缺少文件：${relativePath}`);
+  if (!exists(relativePath)) blockers.push(`Missing file: ${relativePath}`);
 }
 
 function requireScript(scripts, name) {
-  if (!scripts[name]) blockers.push(`缺少 package 脚本：${name}`);
+  if (!scripts[name]) blockers.push(`Missing package script: ${name}`);
 }
 
 function requireGitIgnore(content, pattern) {
-  if (!content.includes(pattern)) blockers.push(`.gitignore 未覆盖：${pattern}`);
+  if (!content.includes(pattern)) blockers.push(`.gitignore does not ignore: ${pattern}`);
 }
 
 function currentBranch() {
@@ -44,6 +43,7 @@ function hasGithubActionsCi() {
 const packageJson = JSON.parse(read('package.json'));
 const scripts = packageJson.scripts ?? {};
 const gitignore = read('.gitignore');
+const versionConfig = read('apps/tablet/src/config/app-version.ts');
 
 [
   'README.md',
@@ -58,6 +58,7 @@ const gitignore = read('.gitignore');
   'docs/v2.1-maintenance-center.md',
   'docs/v2.2-role-permission.md',
   'docs/v2.3-fixture-quality-knowledge.md',
+  'docs/v2.4-knowledge-field-validation.md',
   'docs/knowledge-library-guide.md',
   'docs/permission-matrix.md',
   'docs/import-template-guide.md',
@@ -78,6 +79,7 @@ const gitignore = read('.gitignore');
   'maintenance-flow:check',
   'auth-flow:check',
   'knowledge-flow:check',
+  'knowledge-validation:check',
   'demo:knowledge',
   'file-flow:check',
   'dev:lan',
@@ -101,9 +103,11 @@ const gitignore = read('.gitignore');
   'apps/api/storage/metadata/knowledge-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
-if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
+if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
+if (!versionConfig.includes("APP_VERSION = 'V2.4'")) blockers.push('Version config is not V2.4.');
+if (!versionConfig.includes("APP_RELEASE_NAME = '线束车间现场知识验证演示版'")) blockers.push('Release name is not the V2.4 knowledge validation demo.');
 
-console.log('V2.3 demo release check');
+console.log('V2.4 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -120,6 +124,5 @@ if (blockers.length) {
 
 console.log('\nDemo release check passed.');
 console.log('\nSuggested next steps:');
-console.log('- 平板真机验收资料维护中心');
-console.log('- push 分支');
-console.log('- 创建 PR 或继续开发');
+console.log('- Complete V2.4 field knowledge validation walk-through on tablet.');
+console.log('- Push only after local checks and safety review pass.');

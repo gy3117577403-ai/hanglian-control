@@ -15,15 +15,15 @@ function read(relativePath) {
 }
 
 function requireFile(relativePath) {
-  if (!exists(relativePath)) blockers.push(`缺少文件：${relativePath}`);
+  if (!exists(relativePath)) blockers.push(`Missing file: ${relativePath}`);
 }
 
 function requireScript(scripts, name) {
-  if (!scripts[name]) blockers.push(`缺少 package 脚本：${name}`);
+  if (!scripts[name]) blockers.push(`Missing package script: ${name}`);
 }
 
 function requireGitIgnore(content, pattern) {
-  if (!content.includes(pattern)) blockers.push(`.gitignore 未覆盖：${pattern}`);
+  if (!content.includes(pattern)) blockers.push(`.gitignore does not ignore: ${pattern}`);
 }
 
 function currentBranch() {
@@ -57,6 +57,7 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'docs/v2.1-maintenance-center.md',
   'docs/v2.2-role-permission.md',
   'docs/v2.3-fixture-quality-knowledge.md',
+  'docs/v2.4-knowledge-field-validation.md',
   'docs/knowledge-library-guide.md',
   'docs/permission-matrix.md',
   'docs/import-template-guide.md',
@@ -77,6 +78,7 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'maintenance-flow:check',
   'auth-flow:check',
   'knowledge-flow:check',
+  'knowledge-validation:check',
   'demo:knowledge',
   'file-flow:check',
   'security:check',
@@ -99,11 +101,12 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'apps/api/storage/metadata/knowledge-records.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
-if (!hasGithubActionsCi()) warnings.push('未检测到 GitHub Actions workflow。');
-if (!versionConfig.includes("APP_VERSION = 'V2.3'")) blockers.push('版本配置未检测到 V2.3。');
-if (!versionConfig.includes("APP_STAGE = '现场知识库演示版'")) blockers.push('版本阶段未检测到现场知识库演示版。');
+if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
+if (!versionConfig.includes("APP_VERSION = 'V2.4'")) blockers.push('Version config is not V2.4.');
+if (!versionConfig.includes("APP_STAGE = '现场知识验证演示版'")) blockers.push('Version stage is not 现场知识验证演示版.');
+if (!versionConfig.includes("APP_BUILD_CHANNEL = 'mock-local-knowledge-validation-demo'")) blockers.push('Build channel is not mock-local-knowledge-validation-demo.');
 
-console.log('V2.3 demo freeze check');
+console.log('V2.4 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -120,6 +123,5 @@ if (blockers.length) {
 
 console.log('\nDemo freeze check passed.');
 console.log('\nSuggested next steps:');
-console.log('- 安卓平板真机验收 V2.3 现场知识库演示版');
-console.log('- push 分支后创建 PR');
-console.log('- CI 通过后人工验收，再决定是否合并 main 和打 v2.3-fixture-quality-knowledge tag');
+console.log('- Run V2.4 tablet field validation walk-through.');
+console.log('- Keep Sealos, WeCom disk, and real voice integrations disabled until a separate authorized phase.');

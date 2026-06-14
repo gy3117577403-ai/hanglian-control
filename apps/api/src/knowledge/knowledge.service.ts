@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -11,6 +11,7 @@ import type { AbnormalQueryDto } from './dto/abnormal-query.dto';
 import type { FixtureQueryDto } from './dto/fixture-query.dto';
 import type { KnowledgeLinkQueryDto } from './dto/knowledge-link-query.dto';
 import type { KnowledgeSearchDto } from './dto/knowledge-search.dto';
+import type { KnowledgeBulkUpdateDto } from './dto/knowledge-bulk-update.dto';
 import type { QualityQueryDto } from './dto/quality-query.dto';
 import type { UpdateAbnormalDto } from './dto/update-abnormal.dto';
 import type { UpdateFixtureDto } from './dto/update-fixture.dto';
@@ -23,7 +24,10 @@ import type {
   KnowledgeProcessSegment,
   KnowledgeRecord,
   KnowledgeRecordEntityType,
+  KnowledgeRecommendation,
   KnowledgeSearchResult,
+  KnowledgeValidationCheckItem,
+  KnowledgeValidationResult,
   KnowledgeStatus,
   QualityStandardKnowledge,
   QualityStatus,
@@ -87,6 +91,19 @@ function statusLabel(status: string) {
     expired: '失效',
   };
   return labels[status] ?? status;
+}
+
+function processSegmentFromPlan(segment: string): KnowledgeProcessSegment {
+  if (segment === 'front' || segment.includes('前')) return 'front';
+  if (segment === 'back' || segment.includes('后')) return 'back';
+  return 'common';
+}
+
+function countByStatus(rows: Array<{ status: string }>) {
+  return rows.reduce<Record<string, number>>((summary, row) => {
+    summary[row.status] = (summary[row.status] ?? 0) + 1;
+    return summary;
+  }, {});
 }
 
 @Injectable()
@@ -383,6 +400,121 @@ export class KnowledgeService {
     };
   }
 
+  planValidation(planId: string): KnowledgeValidationResult {
+    const plan = mockStore.findPlanById(planId);
+    if (!plan) throw new NotFoundException(`Plan not found: ${planId}`);
+    return this.buildValidation({
+      planId,
+      productId: plan.productId,
+      productCode: plan.productCode,
+      productName: plan.productName,
+      processSegment: processSegmentFromPlan(String(plan.segment)),
+    });
+  }
+
+  productValidation(productId: string, query: KnowledgeLinkQueryDto = {}): KnowledgeValidationResult {
+    const plan = mockStore.productionPlans.find((item) => item.productId === productId);
+    const product = mockStore.products.find((item) => item.id === productId);
+    if (!plan && !product) throw new NotFoundException(`Product not found: ${productId}`);
+    return this.buildValidation({
+      planId: plan?.id,
+      productId,
+      productCode: plan?.productCode ?? product?.productCode ?? productId,
+      productName: plan?.productName ?? product?.productName ?? '',
+      processSegment: query.processSegment ?? (plan ? processSegmentFromPlan(String(plan.segment)) : 'common'),
+    });
+  }
+
+  planRecommendations(planId: string) {
+    const validation = this.planValidation(planId);
+    const fixtures = this.scopedFixtures(validation.productId, validation.processSegment)
+      .filter((item) => item.status !== 'inactive')
+      .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active'));
+    const abnormalCases = this.scopedAbnormalCases(validation.productId, validation.processSegment)
+      .filter((item) => item.status !== 'closed')
+      .sort((a, b) => this.severityRank(b.severity) - this.severityRank(a.severity));
+    const qualityStandards = this.scopedQualityStandards(validation.productId, validation.processSegment)
+      .sort((a, b) => Number(b.status === 'effective') - Number(a.status === 'effective'));
+
+    return {
+      planId,
+      productId: validation.productId,
+      validationStatus: validation.validationStatus,
+      score: validation.score,
+      summary: validation.summary,
+      recommendations: validation.recommendations,
+      fixtures: fixtures.slice(0, 6),
+      abnormalCases: abnormalCases.slice(0, 6),
+      qualityStandards: qualityStandards.filter((item) => item.status !== 'expired').slice(0, 6),
+      riskAlerts: qualityStandards
+        .filter((item) => item.status === 'expired')
+        .map((item) => ({
+          level: 'danger' as const,
+          title: item.title,
+          action: '质量标准已失效，请先在资料维护中心复核。',
+          entityType: 'quality_standard' as const,
+          entityId: item.qualityId,
+        })),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  bulkUpdateFixtures(dto: KnowledgeBulkUpdateDto, user?: KnowledgeOperator) {
+    const patch = this.safeBulkPatch(dto.patch, ['status', 'processSegment', 'productId', 'productCode', 'productName', 'customerId', 'customerName', 'applicableStation', 'maintenanceCycle', 'keywords', 'remark']);
+    if (patch.status) assertStatus(String(patch.status), fixtureStatuses, 'Fixture status');
+    const rows = this.readFixtures();
+    const updated = this.bulkApply(rows, dto.ids, 'fixtureId', patch, 'fixture', dto.reason, user);
+    this.writeFixtures(rows);
+    return this.bulkResult(updated, rows);
+  }
+
+  bulkUpdateAbnormalCases(dto: KnowledgeBulkUpdateDto, user?: KnowledgeOperator) {
+    const patch = this.safeBulkPatch(dto.patch, ['status', 'severity', 'processSegment', 'productId', 'productCode', 'productName', 'customerId', 'customerName', 'station', 'category', 'keywords', 'remark']);
+    if (patch.status) assertStatus(String(patch.status), abnormalStatuses, 'Abnormal status');
+    if (patch.severity && !['low', 'medium', 'high', 'critical'].includes(String(patch.severity))) throw new BadRequestException('Invalid abnormal severity.');
+    const rows = this.readAbnormalCases();
+    const updated = this.bulkApply(rows, dto.ids, 'abnormalId', patch, 'abnormal_case', dto.reason, user);
+    this.writeAbnormalCases(rows);
+    return this.bulkResult(updated, rows);
+  }
+
+  bulkUpdateQualityStandards(dto: KnowledgeBulkUpdateDto, user?: KnowledgeOperator) {
+    const patch = this.safeBulkPatch(dto.patch, ['status', 'defectLevel', 'processSegment', 'productId', 'productCode', 'productName', 'customerId', 'customerName', 'inspectionMethod', 'samplingRule', 'keywords', 'remark']);
+    if (patch.status) assertStatus(String(patch.status), qualityStatuses, 'Quality status');
+    if (patch.defectLevel && !['minor', 'major', 'critical'].includes(String(patch.defectLevel))) throw new BadRequestException('Invalid quality defectLevel.');
+    const rows = this.readQualityStandards();
+    const updated = this.bulkApply(rows, dto.ids, 'qualityId', patch, 'quality_standard', dto.reason, user);
+    this.writeQualityStandards(rows);
+    return this.bulkResult(updated, rows);
+  }
+
+  reviewItems() {
+    const rows: Array<Record<string, unknown>> = [];
+    for (const plan of mockStore.productionPlans) {
+      const validation = this.planValidation(plan.id);
+      const base = {
+        customer: plan.customer,
+        product: plan.productCode,
+        planId: plan.id,
+        entityType: 'review_queue',
+        createdAt: new Date().toISOString(),
+      };
+      for (const item of validation.checkItems.filter((check) => check.status !== 'pass')) {
+        rows.push({
+          ...base,
+          id: `knowledge:${plan.id}:${item.key}`,
+          type: item.status === 'fail' ? '知识库阻塞' : '知识库待复核',
+          entityId: `${plan.id}:${item.key}`,
+          message: `${item.label}：${item.message}`,
+          recommendedAction: validation.recommendations.find((row) => row.level !== 'info')?.action ?? '在资料维护中心补齐现场知识库。',
+          severity: item.status === 'fail' ? 'high' : 'medium',
+          processSegment: validation.processSegment,
+        });
+      }
+    }
+    return rows.slice(0, 80);
+  }
+
   search(query: KnowledgeSearchDto): KnowledgeSearchResult[] {
     const keyword = String(query.q ?? '').trim();
     if (!keyword) return [];
@@ -472,6 +604,244 @@ export class KnowledgeService {
       }
     }
     return { knowledgeRowsUpdated: affected };
+  }
+
+  private buildValidation(input: {
+    planId?: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    processSegment: KnowledgeProcessSegment;
+  }): KnowledgeValidationResult {
+    const fixtures = this.scopedFixtures(input.productId, input.processSegment);
+    const abnormalCases = this.scopedAbnormalCases(input.productId, input.processSegment);
+    const qualityStandards = this.scopedQualityStandards(input.productId, input.processSegment);
+    const activeFixtures = fixtures.filter((item) => item.status === 'active');
+    const fixtureWithCheck = fixtures.filter((item) => String(item.checkStandard ?? '').trim().length > 0);
+    const activeAbnormalCases = abnormalCases.filter((item) => item.status !== 'closed');
+    const highRiskAbnormalCases = activeAbnormalCases.filter((item) => ['high', 'critical'].includes(item.severity));
+    const effectiveQuality = qualityStandards.filter((item) => item.status === 'effective');
+    const pendingQuality = qualityStandards.filter((item) => item.status === 'pending_review');
+    const expiredQuality = qualityStandards.filter((item) => item.status === 'expired');
+    const checkItems: KnowledgeValidationCheckItem[] = [];
+
+    const push = (key: string, label: string, required: boolean, status: KnowledgeValidationCheckItem['status'], message: string) => {
+      checkItems.push({ key, label, required, status, message });
+    };
+
+    push(
+      'fixture_available',
+      '关联治具',
+      true,
+      fixtures.length > 0 ? 'pass' : 'fail',
+      fixtures.length > 0 ? `已匹配 ${fixtures.length} 个治具` : '当前计划无关联治具，可在资料维护中心补充。',
+    );
+    push(
+      'fixture_active',
+      '治具状态',
+      true,
+      activeFixtures.length > 0 ? 'pass' : fixtures.length > 0 ? 'warning' : 'fail',
+      activeFixtures.length > 0 ? `可用治具 ${activeFixtures.length} 个` : '治具未处于有效状态，建议复核后再开工。',
+    );
+    push(
+      'fixture_check_standard',
+      '治具点检标准',
+      true,
+      fixtureWithCheck.length === fixtures.length && fixtures.length > 0 ? 'pass' : fixtureWithCheck.length > 0 ? 'warning' : 'fail',
+      fixtureWithCheck.length > 0 ? `已有 ${fixtureWithCheck.length} 个治具填写点检标准` : '治具缺少点检标准。',
+    );
+    push(
+      'abnormal_cases',
+      '常见异常',
+      false,
+      abnormalCases.length > 0 ? (highRiskAbnormalCases.length > 0 ? 'warning' : 'pass') : 'warning',
+      abnormalCases.length > 0 ? `已匹配 ${abnormalCases.length} 条异常案例` : '暂无异常案例，可在资料维护中心补充。',
+    );
+    push(
+      'quality_available',
+      '质量标准',
+      true,
+      qualityStandards.length > 0 ? 'pass' : 'fail',
+      qualityStandards.length > 0 ? `已匹配 ${qualityStandards.length} 条质量标准` : '当前计划无质量标准。',
+    );
+    push(
+      'quality_effective',
+      '有效质量标准',
+      true,
+      effectiveQuality.length > 0 ? 'pass' : qualityStandards.length > 0 ? 'warning' : 'fail',
+      effectiveQuality.length > 0 ? `当前有效 ${effectiveQuality.length} 条` : '质量标准未处于当前有效状态。',
+    );
+    push(
+      'risk_abnormal',
+      '高风险异常提醒',
+      false,
+      highRiskAbnormalCases.length > 0 ? 'warning' : 'pass',
+      highRiskAbnormalCases.length > 0 ? `存在 ${highRiskAbnormalCases.length} 条 high/critical 异常，请班前提醒。` : '暂无 high/critical 未关闭异常。',
+    );
+    push(
+      'expired_quality',
+      '失效标准红线',
+      false,
+      expiredQuality.length > 0 ? 'fail' : pendingQuality.length > 0 ? 'warning' : 'pass',
+      expiredQuality.length > 0 ? `存在 ${expiredQuality.length} 条已失效质量标准。` : pendingQuality.length > 0 ? `存在 ${pendingQuality.length} 条待确认质量标准。` : '质量标准状态正常。',
+    );
+
+    const score = Math.round((checkItems.reduce((total, item) => total + (item.status === 'pass' ? 1 : item.status === 'warning' ? 0.65 : 0), 0) / Math.max(checkItems.length, 1)) * 100);
+    const hasRequiredFail = checkItems.some((item) => item.required && item.status === 'fail');
+    const hasFail = checkItems.some((item) => item.status === 'fail');
+    const hasWarning = checkItems.some((item) => item.status === 'warning');
+    const validationStatus = hasRequiredFail || (hasFail && score < 70) ? 'blocked' : hasWarning || hasFail ? 'need_review' : 'ready';
+    const recommendations = this.buildRecommendations(fixtures, abnormalCases, qualityStandards, checkItems);
+
+    return {
+      planId: input.planId,
+      productId: input.productId,
+      productCode: input.productCode,
+      productName: input.productName,
+      processSegment: input.processSegment,
+      validationStatus,
+      score,
+      summary: validationStatus === 'ready'
+        ? '现场知识齐套，可进入开工验证。'
+        : validationStatus === 'need_review'
+          ? '现场知识基本可用，但存在待复核项。'
+          : '现场知识存在阻塞项，不建议直接开工。',
+      checkItems,
+      fixtureSummary: {
+        total: fixtures.length,
+        active: activeFixtures.length,
+        pendingReview: fixtures.filter((item) => item.status === 'pending_review').length,
+        abnormal: fixtures.filter((item) => item.status === 'abnormal').length,
+      },
+      abnormalSummary: {
+        total: abnormalCases.length,
+        highRisk: activeAbnormalCases.filter((item) => item.severity === 'high').length,
+        critical: activeAbnormalCases.filter((item) => item.severity === 'critical').length,
+      },
+      qualitySummary: {
+        total: qualityStandards.length,
+        effective: effectiveQuality.length,
+        pendingReview: pendingQuality.length,
+        expired: expiredQuality.length,
+      },
+      recommendations,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  private buildRecommendations(
+    fixtures: FixtureKnowledge[],
+    abnormalCases: AbnormalCaseKnowledge[],
+    qualityStandards: QualityStandardKnowledge[],
+    checkItems: KnowledgeValidationCheckItem[],
+  ): KnowledgeRecommendation[] {
+    const rows: KnowledgeRecommendation[] = [];
+    if (checkItems.some((item) => item.key === 'fixture_available' && item.status === 'fail')) {
+      rows.push({ level: 'danger', title: '缺少关联治具', action: '请在资料维护中心补充当前产品/工序治具。' });
+    }
+    for (const fixture of fixtures.filter((item) => item.status === 'pending_review' || item.status === 'abnormal' || !String(item.checkStandard ?? '').trim()).slice(0, 4)) {
+      rows.push({
+        level: fixture.status === 'abnormal' ? 'danger' : 'warning',
+        title: fixture.fixtureName,
+        action: fixture.status === 'abnormal' ? '治具异常，请先复核或更换治具。' : '治具待复核，请确认点检标准和保养周期。',
+        entityType: 'fixture',
+        entityId: fixture.fixtureId,
+      });
+    }
+    for (const item of abnormalCases.filter((row) => row.status !== 'closed' && ['high', 'critical'].includes(row.severity)).slice(0, 5)) {
+      rows.push({
+        level: item.severity === 'critical' ? 'danger' : 'warning',
+        title: item.title,
+        action: `班前提醒：${item.solution}`,
+        entityType: 'abnormal_case',
+        entityId: item.abnormalId,
+      });
+    }
+    for (const item of qualityStandards.filter((row) => row.status !== 'effective').slice(0, 5)) {
+      rows.push({
+        level: item.status === 'expired' ? 'danger' : 'warning',
+        title: item.title,
+        action: item.status === 'expired' ? '质量标准已失效，请先设为有效或补充新标准。' : '质量标准待确认，请品质或工艺复核。',
+        entityType: 'quality_standard',
+        entityId: item.qualityId,
+      });
+    }
+    if (!rows.length) {
+      rows.push({ level: 'info', title: '现场知识齐套', action: '按推荐治具、异常提醒和质量标准完成开工验证。' });
+    }
+    return rows.slice(0, 10);
+  }
+
+  private scopedFixtures(productId: string, segment: KnowledgeProcessSegment) {
+    return this.readFixtures()
+      .filter((item) => item.productId === productId)
+      .filter((item) => segment === 'common' || item.processSegment === segment || item.processSegment === 'common');
+  }
+
+  private scopedAbnormalCases(productId: string, segment: KnowledgeProcessSegment) {
+    return this.readAbnormalCases()
+      .filter((item) => item.productId === productId)
+      .filter((item) => segment === 'common' || item.processSegment === segment || item.processSegment === 'common');
+  }
+
+  private scopedQualityStandards(productId: string, segment: KnowledgeProcessSegment) {
+    return this.readQualityStandards()
+      .filter((item) => item.productId === productId)
+      .filter((item) => segment === 'common' || item.processSegment === segment || item.processSegment === 'common');
+  }
+
+  private severityRank(severity: string) {
+    return { low: 1, medium: 2, high: 3, critical: 4 }[severity] ?? 0;
+  }
+
+  private safeBulkPatch(patch: Record<string, unknown>, allowedFields: string[]) {
+    if (!patch || Array.isArray(patch) || typeof patch !== 'object') throw new BadRequestException('Bulk patch must be an object.');
+    const blocked = ['id', 'fixtureId', 'abnormalId', 'qualityId', 'recordId', 'createdAt', 'updatedAt', 'before', 'after', 'images'];
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      if (blocked.includes(key) || !allowedFields.includes(key)) throw new BadRequestException(`Bulk patch field is not allowed: ${key}`);
+      if (key === 'processSegment') next[key] = normalizeProcessSegment(String(value));
+      else if (key === 'keywords' || key === 'relatedDocumentIds') next[key] = normalizeStringArray(value as string | string[]);
+      else next[key] = value;
+    }
+    if (!Object.keys(next).length) throw new BadRequestException('Bulk patch cannot be empty.');
+    return next;
+  }
+
+  private bulkApply<T extends object>(
+    rows: T[],
+    ids: string[],
+    idField: keyof T,
+    patch: Record<string, unknown>,
+    entityType: KnowledgeRecordEntityType,
+    reason?: string,
+    user?: KnowledgeOperator,
+  ) {
+    if (!ids?.length) throw new BadRequestException('ids cannot be empty.');
+    const idSet = new Set(ids);
+    const updated: T[] = [];
+    for (const row of rows) {
+      const rowRecord = row as Record<string, unknown>;
+      if (!idSet.has(String(rowRecord[String(idField)]))) continue;
+      const before = clone(row);
+      Object.assign(row, patch, { updatedAt: new Date().toISOString() });
+      updated.push(clone(row));
+      this.record(entityType, String(rowRecord[String(idField)]), `${entityType}_bulk_updated`, before, row, reason, user);
+    }
+    return updated;
+  }
+
+  private bulkResult<T extends { status: string }>(updated: T[], allRows: T[]) {
+    return {
+      success: true,
+      updatedCount: updated.length,
+      records: updated,
+      summary: {
+        total: allRows.length,
+        byStatus: countByStatus(allRows),
+        updatedAt: new Date().toISOString(),
+      },
+    };
   }
 
   private upsertImportedFixture(row: Record<string, string | number>, operator: KnowledgeOperator) {

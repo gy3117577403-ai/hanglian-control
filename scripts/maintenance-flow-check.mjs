@@ -71,22 +71,21 @@ function requireIncludes(relativePath, text, message) {
 ].forEach((needle) => requireIncludes('apps/tablet/src/services/api.ts', needle, `Tablet API method not found: ${needle}`));
 
 [
-  'APP_VERSION = \'V2.3\'',
-  'APP_STAGE = \'现场知识库演示版\'',
-  'APP_RELEASE_NAME = \'线束车间治具异常质量知识库演示版\'',
-  'APP_BUILD_CHANNEL = \'mock-local-knowledge-demo\'',
-].forEach((needle) => requireIncludes('apps/tablet/src/config/app-version.ts', needle, `Version config not found: ${needle}`));
+  'KnowledgeService',
+  'reviewItems',
+].forEach((needle) => requireIncludes('apps/api/src/maintenance/maintenance.service.ts', needle, `Maintenance review queue is not linked to knowledge issues: ${needle}`));
 
 requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '资料维护中心', 'Demo tools menu does not include 资料维护中心.');
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmMaintenanceCenterDialog', 'Tablet dashboard does not mount WarmMaintenanceCenterDialog.');
 requireIncludes('apps/api/src/storage/local-storage.service.ts', 'maintenanceRecordsFile', 'Local storage service does not manage maintenance-records.json.');
 requireIncludes('package.json', '"maintenance-flow:check"', 'Missing npm run maintenance-flow:check.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.4'", 'Version config is not V2.4.');
 
 if (!exists('apps/api/storage/metadata/imported-business-data.json')) {
   warnings.push('Imported metadata snapshot does not exist yet. Run demo import flow when demo data needs to be refreshed.');
 }
 
-console.log('V2.2 maintenance flow check');
+console.log('V2.4 maintenance flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (warnings.length) {

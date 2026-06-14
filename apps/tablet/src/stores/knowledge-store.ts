@@ -2,13 +2,19 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { toast } from 'vue-sonner'
 import {
+  bulkUpdateAbnormalCases as bulkUpdateAbnormalCasesApi,
+  bulkUpdateFixtures as bulkUpdateFixturesApi,
+  bulkUpdateQualityStandards as bulkUpdateQualityStandardsApi,
   createAbnormalCase,
   createFixture,
   createQualityStandard,
   getAbnormalCases,
   getFixtures,
   getKnowledgeHistory,
+  getPlanKnowledgeRecommendations,
+  getPlanKnowledgeValidation,
   getPlanKnowledgeSummary,
+  getProductKnowledgeValidation,
   getProductKnowledgeSummary,
   getQualityStandards,
   searchKnowledge,
@@ -24,11 +30,14 @@ import type {
   AbnormalCaseKnowledge,
   AbnormalStatus,
   FixtureKnowledge,
+  KnowledgeBulkUpdatePayload,
+  KnowledgePlanRecommendations,
   KnowledgeProcessSegment,
   KnowledgeRecord,
   KnowledgeSearchResult,
   KnowledgeStatus,
   KnowledgeSummary,
+  KnowledgeValidationResult,
   QualityStandardKnowledge,
   QualityStatus,
 } from '@/types/production'
@@ -43,12 +52,18 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   const abnormalCases = ref<AbnormalCaseKnowledge[]>([])
   const qualityStandards = ref<QualityStandardKnowledge[]>([])
   const summary = ref<KnowledgeSummary | null>(null)
+  const planKnowledgeValidation = ref<KnowledgeValidationResult | null>(null)
+  const productKnowledgeValidation = ref<KnowledgeValidationResult | null>(null)
+  const planKnowledgeRecommendations = ref<KnowledgePlanRecommendations | null>(null)
+  const recommendations = ref<KnowledgePlanRecommendations['recommendations']>([])
   const history = ref<KnowledgeRecord[]>([])
   const searchResults = ref<KnowledgeSearchResult[]>([])
+  const selectedKnowledgeRows = ref<string[]>([])
   const keyword = ref('')
-  const activeTab = ref<'fixtures' | 'abnormal' | 'quality' | 'history'>('fixtures')
+  const activeTab = ref<'validation' | 'fixtures' | 'abnormal' | 'quality' | 'history'>('validation')
   const loading = ref(false)
   const saving = ref(false)
+  const bulkLoading = ref(false)
   const errorMessage = ref('')
 
   const totalCount = computed(() => fixtures.value.length + abnormalCases.value.length + qualityStandards.value.length)
@@ -73,6 +88,10 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       fixtures.value = summary.value.fixtures
       abnormalCases.value = summary.value.abnormalCases
       qualityStandards.value = summary.value.qualityStandards
+      await Promise.all([
+        loadPlanValidation(planId),
+        loadRecommendations(planId),
+      ])
     } catch (error) {
       errorMessage.value = friendlyError(error)
       toast.error('现场知识加载失败', { description: errorMessage.value })
@@ -89,11 +108,28 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       fixtures.value = summary.value.fixtures
       abnormalCases.value = summary.value.abnormalCases
       qualityStandards.value = summary.value.qualityStandards
+      await loadProductValidation(productId, processSegment)
     } catch (error) {
       errorMessage.value = friendlyError(error)
     } finally {
       loading.value = false
     }
+  }
+
+  async function loadPlanValidation(planId: string) {
+    planKnowledgeValidation.value = await getPlanKnowledgeValidation(planId)
+    return planKnowledgeValidation.value
+  }
+
+  async function loadProductValidation(productId: string, processSegment?: KnowledgeProcessSegment) {
+    productKnowledgeValidation.value = await getProductKnowledgeValidation(productId, processSegment)
+    return productKnowledgeValidation.value
+  }
+
+  async function loadRecommendations(planId: string) {
+    planKnowledgeRecommendations.value = await getPlanKnowledgeRecommendations(planId)
+    recommendations.value = planKnowledgeRecommendations.value.recommendations
+    return planKnowledgeRecommendations.value
   }
 
   async function loadFixtures(extra: KnowledgeQuery = {}) {
@@ -201,20 +237,99 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     }
   }
 
+  function toggleSelectedKnowledgeRow(id: string) {
+    selectedKnowledgeRows.value = selectedKnowledgeRows.value.includes(id)
+      ? selectedKnowledgeRows.value.filter((item) => item !== id)
+      : [...selectedKnowledgeRows.value, id]
+  }
+
+  function clearSelectedKnowledgeRows() {
+    selectedKnowledgeRows.value = []
+  }
+
+  function operatorPayload(reason: string): Pick<KnowledgeBulkUpdatePayload, 'reason' | 'operatorId' | 'operatorName' | 'operatorRole'> {
+    return {
+      reason,
+      operatorId: 'mock-maintainer',
+      operatorName: '资料维护演示',
+      operatorRole: '资料维护',
+    }
+  }
+
+  async function bulkUpdateFixtures(payload: KnowledgeBulkUpdatePayload) {
+    bulkLoading.value = true
+    try {
+      const result = await bulkUpdateFixturesApi({ ...payload, ...operatorPayload(payload.reason ?? 'V2.4 fixture batch maintenance') })
+      await loadAll()
+      clearSelectedKnowledgeRows()
+      toast.success(`治具批量维护完成：${result.updatedCount} 条`)
+      return result
+    } catch (error) {
+      errorMessage.value = friendlyError(error)
+      toast.error('治具批量维护失败', { description: errorMessage.value })
+      throw error
+    } finally {
+      bulkLoading.value = false
+    }
+  }
+
+  async function bulkUpdateAbnormalCases(payload: KnowledgeBulkUpdatePayload) {
+    bulkLoading.value = true
+    try {
+      const result = await bulkUpdateAbnormalCasesApi({ ...payload, ...operatorPayload(payload.reason ?? 'V2.4 abnormal batch maintenance') })
+      await loadAll()
+      clearSelectedKnowledgeRows()
+      toast.success(`异常库批量维护完成：${result.updatedCount} 条`)
+      return result
+    } catch (error) {
+      errorMessage.value = friendlyError(error)
+      toast.error('异常库批量维护失败', { description: errorMessage.value })
+      throw error
+    } finally {
+      bulkLoading.value = false
+    }
+  }
+
+  async function bulkUpdateQualityStandards(payload: KnowledgeBulkUpdatePayload) {
+    bulkLoading.value = true
+    try {
+      const result = await bulkUpdateQualityStandardsApi({ ...payload, ...operatorPayload(payload.reason ?? 'V2.4 quality batch maintenance') })
+      await loadAll()
+      clearSelectedKnowledgeRows()
+      toast.success(`质量标准批量维护完成：${result.updatedCount} 条`)
+      return result
+    } catch (error) {
+      errorMessage.value = friendlyError(error)
+      toast.error('质量标准批量维护失败', { description: errorMessage.value })
+      throw error
+    } finally {
+      bulkLoading.value = false
+    }
+  }
+
   return {
     fixtures,
     abnormalCases,
     qualityStandards,
     summary,
+    planKnowledgeValidation,
+    productKnowledgeValidation,
+    planKnowledgeRecommendations,
+    recommendations,
     history,
     searchResults,
+    selectedKnowledgeRows,
     keyword,
     activeTab,
     loading,
     saving,
+    bulkLoading,
     errorMessage,
     totalCount,
     hasRisk,
+    loadPlanValidation,
+    loadProductValidation,
+    loadRecommendations,
     loadSummaryForPlan,
     loadSummaryForProduct,
     loadFixtures,
@@ -226,6 +341,10 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     createRecord,
     updateRecord,
     updateStatus,
+    toggleSelectedKnowledgeRow,
+    clearSelectedKnowledgeRows,
+    bulkUpdateFixtures,
+    bulkUpdateAbnormalCases,
+    bulkUpdateQualityStandards,
   }
 })
-

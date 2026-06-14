@@ -415,6 +415,8 @@ model Fixture {
   updatedAt           DateTime       @updatedAt
 
   @@index([productId])
+  @@index([productId, processSegment])
+  @@index([productId, status])
   @@index([processSegment])
   @@index([status])
   @@index([nextMaintenanceDate])
@@ -445,6 +447,8 @@ model AbnormalCase {
   updatedAt          DateTime           @updatedAt
 
   @@index([productId])
+  @@index([productId, processSegment])
+  @@index([productId, severity])
   @@index([processSegment])
   @@index([severity])
   @@index([status])
@@ -473,6 +477,8 @@ model QualityStandard {
   updatedAt          DateTime              @updatedAt
 
   @@index([productId])
+  @@index([productId, processSegment])
+  @@index([productId, status])
   @@index([processSegment])
   @@index([defectLevel])
   @@index([status])

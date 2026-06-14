@@ -913,3 +913,84 @@ export interface KnowledgeRecord {
   operatorRole: string
   createdAt: string
 }
+
+export type KnowledgeValidationStatus = 'ready' | 'need_review' | 'blocked'
+export type KnowledgeRecommendationLevel = 'info' | 'warning' | 'danger'
+
+export interface KnowledgeValidationCheckItem {
+  key: string
+  label: string
+  required: boolean
+  status: CheckItemStatus
+  message: string
+}
+
+export interface KnowledgeValidationSummary {
+  total: number
+  active?: number
+  pendingReview?: number
+  abnormal?: number
+  highRisk?: number
+  critical?: number
+  effective?: number
+  expired?: number
+}
+
+export interface KnowledgeRecommendation {
+  level: KnowledgeRecommendationLevel
+  title: string
+  action: string
+  entityType?: KnowledgeRecordEntityType
+  entityId?: string
+}
+
+export interface KnowledgeValidationResult {
+  planId?: string
+  productId: string
+  productCode: string
+  productName: string
+  processSegment: KnowledgeProcessSegment
+  validationStatus: KnowledgeValidationStatus
+  score: number
+  summary: string
+  checkItems: KnowledgeValidationCheckItem[]
+  fixtureSummary: KnowledgeValidationSummary
+  abnormalSummary: KnowledgeValidationSummary
+  qualitySummary: KnowledgeValidationSummary
+  recommendations: KnowledgeRecommendation[]
+  updatedAt: string
+}
+
+export interface KnowledgePlanRecommendations {
+  planId: string
+  productId: string
+  validationStatus: KnowledgeValidationStatus
+  score: number
+  summary: string
+  recommendations: KnowledgeRecommendation[]
+  fixtures: FixtureKnowledge[]
+  abnormalCases: AbnormalCaseKnowledge[]
+  qualityStandards: QualityStandardKnowledge[]
+  riskAlerts: KnowledgeRecommendation[]
+  updatedAt: string
+}
+
+export interface KnowledgeBulkUpdatePayload {
+  ids: string[]
+  patch: Record<string, unknown>
+  reason?: string
+  operatorId?: string
+  operatorName?: string
+  operatorRole?: string
+}
+
+export interface KnowledgeBulkUpdateResult<T> {
+  success: boolean
+  updatedCount: number
+  records: T[]
+  summary: {
+    total: number
+    byStatus: Record<string, number>
+    updatedAt: string
+  }
+}

@@ -112,3 +112,61 @@ export interface KnowledgeOperator {
   operatorRole?: string;
 }
 
+export type KnowledgeValidationStatus = 'ready' | 'need_review' | 'blocked';
+export type KnowledgeCheckStatus = 'pass' | 'warning' | 'fail';
+export type KnowledgeRecommendationLevel = 'info' | 'warning' | 'danger';
+
+export interface KnowledgeValidationCheckItem {
+  key: string;
+  label: string;
+  required: boolean;
+  status: KnowledgeCheckStatus;
+  message: string;
+}
+
+export interface KnowledgeValidationSummary {
+  total: number;
+  active?: number;
+  pendingReview?: number;
+  abnormal?: number;
+  highRisk?: number;
+  critical?: number;
+  effective?: number;
+  expired?: number;
+}
+
+export interface KnowledgeRecommendation {
+  level: KnowledgeRecommendationLevel;
+  title: string;
+  action: string;
+  entityType?: KnowledgeRecordEntityType;
+  entityId?: string;
+}
+
+export interface KnowledgeValidationResult {
+  planId?: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  processSegment: KnowledgeProcessSegment;
+  validationStatus: KnowledgeValidationStatus;
+  score: number;
+  summary: string;
+  checkItems: KnowledgeValidationCheckItem[];
+  fixtureSummary: KnowledgeValidationSummary;
+  abnormalSummary: KnowledgeValidationSummary;
+  qualitySummary: KnowledgeValidationSummary;
+  recommendations: KnowledgeRecommendation[];
+  updatedAt: string;
+}
+
+export interface KnowledgeBulkUpdateResult<T> {
+  success: boolean;
+  updatedCount: number;
+  records: T[];
+  summary: {
+    total: number;
+    byStatus: Record<string, number>;
+    updatedAt: string;
+  };
+}
