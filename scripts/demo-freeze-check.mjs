@@ -59,6 +59,8 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'docs/v2.3-fixture-quality-knowledge.md',
   'docs/v2.4-knowledge-field-validation.md',
   'docs/v2.5-production-execution-flow.md',
+  'docs/v2.6-dashboard-analytics.md',
+  'docs/analytics-guide.md',
   'docs/execution-flow-guide.md',
   'docs/knowledge-library-guide.md',
   'docs/permission-matrix.md',
@@ -82,6 +84,8 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'knowledge-flow:check',
   'knowledge-validation:check',
   'execution-flow:check',
+  'analytics-flow:check',
+  'demo:analytics',
   'demo:knowledge',
   'file-flow:check',
   'security:check',
@@ -106,14 +110,15 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'apps/api/storage/metadata/plan-status-events.json',
   'apps/api/storage/metadata/quantity-reports.json',
   'apps/api/storage/metadata/shift-handover-records.json',
+  'apps/api/storage/metadata/demo-analytics-snapshot.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
-if (!versionConfig.includes("APP_VERSION = 'V2.5'")) blockers.push('Version config is not V2.5.');
-if (!versionConfig.includes("APP_STAGE = '现场执行闭环演示版'")) blockers.push('Version stage is not 现场执行闭环演示版.');
-if (!versionConfig.includes("APP_BUILD_CHANNEL = 'mock-local-execution-demo'")) blockers.push('Build channel is not mock-local-execution-demo.');
+if (!versionConfig.includes("APP_VERSION = 'V2.6'")) blockers.push('Version config is not V2.6.');
+if (!versionConfig.includes("APP_STAGE = '现场统计看板演示版'")) blockers.push('Version stage is not 现场统计看板演示版.');
+if (!versionConfig.includes("APP_BUILD_CHANNEL = 'mock-local-analytics-demo'")) blockers.push('Build channel is not mock-local-analytics-demo.');
 
-console.log('V2.5 demo freeze check');
+console.log('V2.6 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -130,5 +135,5 @@ if (blockers.length) {
 
 console.log('\nDemo freeze check passed.');
 console.log('\nSuggested next steps:');
-console.log('- Run V2.5 tablet production execution walk-through.');
+console.log('- Run V2.6 tablet field analytics dashboard walk-through.');
 console.log('- Keep Sealos, WeCom disk, and real voice integrations disabled until a separate authorized phase.');

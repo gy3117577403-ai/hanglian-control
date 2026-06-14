@@ -92,6 +92,8 @@ const scripts = rootPackage.scripts ?? {};
   'knowledge-flow:check',
   'knowledge-validation:check',
   'execution-flow:check',
+  'analytics-flow:check',
+  'demo:analytics',
   'demo:knowledge',
   'file-flow:check',
   'security:check',
@@ -114,12 +116,13 @@ const gitignore = readIfExists(join(root, '.gitignore'));
   'apps/api/storage/metadata/plan-status-events.json',
   'apps/api/storage/metadata/quantity-reports.json',
   'apps/api/storage/metadata/shift-handover-records.json',
+  'apps/api/storage/metadata/demo-analytics-snapshot.json',
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 await checkDemoAssets();
 checkEnvLocalhostWarning();
 
-console.log('V2.5 tablet demo readiness check');
+console.log('V2.6 tablet demo readiness check');
 console.log('This check is read-only. It does not start services, connect to a database, run migrations, db push, or seed.');
 
 const lanIps = lanIpv4List();

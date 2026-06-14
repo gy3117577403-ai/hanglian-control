@@ -185,6 +185,31 @@ V2.4 知识库仍使用 Mock seed 与本地 metadata。
 - 不接企业微信微盘。
 - 不接真实语音识别。
 
+## V2.6 Analytics API
+
+当前 analytics API 只读取 Mock / 本地 metadata，不连接数据库，不执行 migrate、db push、seed 或写库操作。
+
+- `GET /api/analytics/overview`：现场总览，包含生产、数量、资料、知识和风险摘要。
+- `GET /api/analytics/production`：生产执行统计，包含计划状态、工序分布、班组分布和活跃计划。
+- `GET /api/analytics/quantity`：数量质量统计，包含完成数量、不良、返工、报废、完成率和趋势。
+- `GET /api/analytics/exceptions`：异常统计，包含异常反馈、异常停线、类别排行和严重异常列表。
+- `GET /api/analytics/documents`：资料问题统计，包含待确认、失效、缺失、重复版本和资料问题排行。
+- `GET /api/analytics/knowledge`：知识库统计，包含治具、异常、质量标准和待复核知识项。
+- `GET /api/analytics/trends`：趋势数据，包含完成率、不良率、异常次数、资料待复核、文件缺失和知识待复核。
+- `GET /api/analytics/rankings`：排行数据，包含资料问题、异常、待复核、文件缺失和高风险异常类别 Top 5。
+- `GET /api/analytics/summary-text`：返回可复制的统计摘要文本。
+
+通用查询参数：
+
+- `range=today|week|month|all`
+- `dateFrom=YYYY-MM-DD`
+- `dateTo=YYYY-MM-DD`
+- `team=班组或负责人`
+- `processSegment=front|back|common|all`
+- `customerId=客户ID`
+- `productId=产品ID`
+- `role=角色`
+
 ## V2.5 Production Execution API
 
 当前执行闭环 API 使用本地 Mock / metadata，不连接数据库，不执行写库操作。

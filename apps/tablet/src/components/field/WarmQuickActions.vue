@@ -79,7 +79,7 @@ function onQuickAction(event: MouseEvent) {
   <section class="quick-action-strip warm-enter" @click.capture="onQuickAction">
     <div class="quick-action-head">
       <div>
-        <p class="section-kicker">FIELD SHORTCUTS / V2.5</p>
+        <p class="section-kicker">FIELD SHORTCUTS / V2.6</p>
         <h3>现场快捷操作</h3>
       </div>
       <PrimeTag :value="activeFront ? '前段优先' : '后段优先'" severity="info" />

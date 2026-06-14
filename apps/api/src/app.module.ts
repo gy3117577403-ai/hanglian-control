@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
@@ -24,6 +25,7 @@ import { SystemModule } from './system/system.module';
       envFilePath: ['apps/api/.env.local', 'apps/api/.env', '.env.local', '.env'],
     }),
     DatabaseModule,
+    AnalyticsModule,
     AuthModule,
     HealthModule,
     AuditModule,

@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
+import WarmAnalyticsDashboardDialog from '@/components/analytics/WarmAnalyticsDashboardDialog.vue'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
 import WarmExecutionPanel from '@/components/execution/WarmExecutionPanel.vue'
 import WarmKnowledgePanel from '@/components/knowledge/WarmKnowledgePanel.vue'
@@ -62,6 +63,7 @@ const dialogs = reactive({
   freezeChecklist: false,
   demoAssetsGuide: false,
   roadmap: false,
+  analytics: false,
 })
 
 function openFeedback() {
@@ -104,6 +106,11 @@ function openImportCenter() {
 function openMaintenanceCenter() {
   if (!auth.hasPermission(PERMISSIONS.MAINTENANCE_VIEW)) return deny()
   dialogs.maintenanceCenter = true
+}
+
+function openAnalytics() {
+  if (!auth.hasPermission(PERMISSIONS.ANALYTICS_VIEW)) return deny()
+  dialogs.analytics = true
 }
 
 function deny() {
@@ -174,6 +181,7 @@ onUnmounted(() => {
         @open-demo-assets-guide="dialogs.demoAssetsGuide = true"
         @open-roadmap="dialogs.roadmap = true"
         @open-migration="openMigration"
+        @open-analytics="openAnalytics"
       />
       <main class="warm-layout">
         <WarmPlanRail />
@@ -262,5 +270,6 @@ onUnmounted(() => {
       @open-upload="openUpload"
     />
     <WarmRoadmapDialog v-model:visible="dialogs.roadmap" />
+    <WarmAnalyticsDashboardDialog v-model:visible="dialogs.analytics" />
   </div>
 </template>

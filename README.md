@@ -1,10 +1,10 @@
 # 线束车间生产计划资料管控系统
 
-面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证 -> 现场执行闭环”构建。
+面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证 -> 现场执行闭环 -> 现场统计看板”构建。
 
 ## 当前版本
 
-V2.5 现场执行闭环演示版。
+V2.6 现场统计看板演示版。
 
 当前运行边界：
 
@@ -40,6 +40,8 @@ npm run auth-flow:check
 npm run knowledge-flow:check
 npm run knowledge-validation:check
 npm run execution-flow:check
+npm run demo:analytics
+npm run analytics-flow:check
 npm run pwa:assets
 npm run pwa:check
 npm run demo:check
@@ -147,3 +149,16 @@ npm run execution-flow:check
 ```
 
 执行闭环本地 metadata 文件已加入 `.gitignore`，不会提交真实现场记录或上传资料。
+
+## V2.6 现场统计看板
+
+V2.6 增加现场统计看板：现场总览、生产执行统计、数量质量统计、质量异常趋势、资料问题排行、文件健康统计、知识库复核统计、趋势图、排行和统计摘要复制。
+
+新增命令：
+
+```bash
+npm run demo:analytics
+npm run analytics-flow:check
+```
+
+当前统计数据仍来自 Mock / 本地 metadata，不接 Sealos、不接企业微信微盘、不接真实语音，不作为正式 BI 系统。

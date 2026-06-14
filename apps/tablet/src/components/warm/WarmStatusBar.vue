@@ -43,6 +43,7 @@ const emit = defineEmits<{
   'open-demo-assets-guide': []
   'open-roadmap': []
   'open-migration': []
+  'open-analytics': []
 }>()
 
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
@@ -65,6 +66,7 @@ const allDemoToolItems = computed<DemoToolItem[]>(() => [
   { label: '安装到平板桌面', icon: 'pi pi-mobile', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-pwa-install') },
   { label: '数据导入中心', icon: 'pi pi-file-import', permission: PERMISSIONS.IMPORT_VIEW, command: () => emit('open-import-center') },
   { label: '资料维护中心', icon: 'pi pi-wrench', permission: PERMISSIONS.MAINTENANCE_VIEW, command: () => emit('open-maintenance-center') },
+  { label: '现场统计', icon: 'pi pi-chart-bar', permission: PERMISSIONS.ANALYTICS_VIEW, command: () => emit('open-analytics') },
   { separator: true },
   { label: '网络诊断', icon: 'pi pi-wifi', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-network') },
   { label: 'PWA / 平板诊断', icon: 'pi pi-tablet', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-pwa-diagnostics') },

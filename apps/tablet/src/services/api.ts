@@ -32,6 +32,15 @@ import type {
   ImportType,
   AbnormalCaseKnowledge,
   AbnormalStatus,
+  AnalyticsDocuments,
+  AnalyticsExceptions,
+  AnalyticsKnowledge,
+  AnalyticsOverview,
+  AnalyticsProduction,
+  AnalyticsQuantity,
+  AnalyticsQuery,
+  AnalyticsRankings,
+  AnalyticsTrends,
   FixtureKnowledge,
   KnowledgeProcessSegment,
   KnowledgeRecord,
@@ -718,4 +727,40 @@ export function getDailyReport(query?: { date?: string; team?: string; processSe
 
 export function getDailyReportText(query?: { date?: string; team?: string; processSegment?: string }) {
   return api<string>('/execution/daily-report/text', { query })
+}
+
+export function getAnalyticsOverview(query?: AnalyticsQuery) {
+  return api<AnalyticsOverview>('/analytics/overview', { query })
+}
+
+export function getAnalyticsProduction(query?: AnalyticsQuery) {
+  return api<AnalyticsProduction>('/analytics/production', { query })
+}
+
+export function getAnalyticsQuantity(query?: AnalyticsQuery) {
+  return api<AnalyticsQuantity>('/analytics/quantity', { query })
+}
+
+export function getAnalyticsExceptions(query?: AnalyticsQuery) {
+  return api<AnalyticsExceptions>('/analytics/exceptions', { query })
+}
+
+export function getAnalyticsDocuments(query?: AnalyticsQuery) {
+  return api<AnalyticsDocuments>('/analytics/documents', { query })
+}
+
+export function getAnalyticsKnowledge(query?: AnalyticsQuery) {
+  return api<AnalyticsKnowledge>('/analytics/knowledge', { query })
+}
+
+export function getAnalyticsTrends(query?: AnalyticsQuery) {
+  return api<AnalyticsTrends>('/analytics/trends', { query })
+}
+
+export function getAnalyticsRankings(query?: AnalyticsQuery) {
+  return api<AnalyticsRankings>('/analytics/rankings', { query })
+}
+
+export function getAnalyticsSummaryText(query?: AnalyticsQuery) {
+  return api<string>('/analytics/summary-text', { query })
 }

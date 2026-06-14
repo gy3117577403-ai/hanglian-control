@@ -608,6 +608,12 @@ export type Permission =
   | 'execution.process_confirm'
   | 'execution.handover'
   | 'execution.daily_report.view'
+  | 'analytics.view'
+  | 'analytics.production.view'
+  | 'analytics.quality.view'
+  | 'analytics.document.view'
+  | 'analytics.knowledge.view'
+  | 'analytics.summary.copy'
   | 'system.info.view'
   | 'system.diagnostics.view'
   | 'system.demo_tools.view'
@@ -1225,4 +1231,143 @@ export interface ShiftHandoverPayload {
   operatorId?: string
   operatorName?: string
   operatorRole?: string
+}
+
+export type AnalyticsRange = 'today' | 'week' | 'month' | 'all'
+export type AnalyticsProcessSegment = 'front' | 'back' | 'common' | 'all'
+
+export interface AnalyticsQuery {
+  range?: AnalyticsRange
+  dateFrom?: string
+  dateTo?: string
+  team?: string
+  processSegment?: AnalyticsProcessSegment
+  customerId?: string
+  productId?: string
+  role?: string
+}
+
+export interface AnalyticsChartPoint {
+  name: string
+  value: number
+}
+
+export interface AnalyticsTrendPoint {
+  date: string
+  completionRate: number
+  defectRate: number
+  exceptionCount: number
+  pendingReviewDocuments: number
+  missingFiles: number
+  pendingKnowledge: number
+}
+
+export interface AnalyticsRankingItem {
+  rank: number
+  customer?: string
+  productCode?: string
+  productName?: string
+  category?: string
+  count: number
+  action: string
+}
+
+export interface AnalyticsOverview {
+  range: AnalyticsRange
+  filters: AnalyticsQuery
+  production: {
+    planCount: number
+    running: number
+    completed: number
+    paused: number
+    exceptionHold: number
+    completionRate: number
+  }
+  quantity: {
+    plannedQuantity: number
+    completedQuantity: number
+    defectQuantity: number
+    reworkQuantity: number
+    scrapQuantity: number
+    defectRate: number
+  }
+  documents: {
+    total: number
+    effective: number
+    pendingReview: number
+    expired: number
+    missingFile: number
+    duplicateVersion?: number
+  }
+  knowledge: {
+    fixtures: number
+    abnormalCases: number
+    qualityStandards: number
+    pendingReview: number
+  }
+  risk: {
+    blockedPlans: number
+    needReviewPlans: number
+    criticalAbnormal: number
+    highSeverityAbnormal: number
+  }
+  generatedAt: string
+  dataSource: 'mock-metadata'
+}
+
+export interface AnalyticsProduction {
+  statusDistribution: AnalyticsChartPoint[]
+  processDistribution: AnalyticsChartPoint[]
+  teamDistribution: AnalyticsChartPoint[]
+  completionRate: number
+  activePlans: ExecutionPlanListItem[]
+}
+
+export interface AnalyticsQuantity {
+  plannedQuantity: number
+  completedQuantity: number
+  defectQuantity: number
+  reworkQuantity: number
+  scrapQuantity: number
+  defectRate: number
+  completionRate: number
+  trends: AnalyticsTrendPoint[]
+}
+
+export interface AnalyticsExceptions {
+  feedbackCount: number
+  exceptionHoldCount: number
+  categoryRanking: AnalyticsChartPoint[]
+  seriousItems: Array<{ title: string; productCode: string; severity: string; action: string }>
+  statusDistribution: AnalyticsChartPoint[]
+  trends: AnalyticsTrendPoint[]
+}
+
+export interface AnalyticsDocuments {
+  summary: AnalyticsOverview['documents']
+  issueRanking: AnalyticsRankingItem[]
+  issueItems: ProductDocument[]
+}
+
+export interface AnalyticsKnowledge {
+  summary: AnalyticsOverview['knowledge']
+  fixtureStatus: AnalyticsChartPoint[]
+  abnormalSeverity: AnalyticsChartPoint[]
+  qualityStatus: AnalyticsChartPoint[]
+  pendingReviewItems: Array<{ title: string; productCode: string; type: string; action: string }>
+  highRiskAbnormalRanking: AnalyticsChartPoint[]
+}
+
+export interface AnalyticsTrends {
+  filters: AnalyticsQuery
+  rows: AnalyticsTrendPoint[]
+  generatedAt: string
+}
+
+export interface AnalyticsRankings {
+  documentIssueProducts: AnalyticsRankingItem[]
+  exceptionProducts: AnalyticsRankingItem[]
+  pendingReviewProducts: AnalyticsRankingItem[]
+  missingFileProducts: AnalyticsRankingItem[]
+  highRiskAbnormalCategories: AnalyticsRankingItem[]
 }

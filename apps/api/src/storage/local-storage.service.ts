@@ -230,6 +230,20 @@ export class LocalStorageService implements OnModuleInit {
     writeFileSync(this.metadataFilePath(fileName), JSON.stringify(records, null, 2), 'utf8');
   }
 
+  readMetadataSync<T>(fileName: string, fallback: T): T {
+    this.ensureStorageSync();
+    const file = this.metadataFilePath(fileName);
+    if (!existsSync(file)) {
+      writeFileSync(file, JSON.stringify(fallback, null, 2), 'utf8');
+    }
+    return this.readJsonFileSync<T>(file, fallback);
+  }
+
+  writeMetadataSync<T>(fileName: string, value: T) {
+    this.ensureStorageSync();
+    writeFileSync(this.metadataFilePath(fileName), JSON.stringify(value, null, 2), 'utf8');
+  }
+
   writeAuditLogsSync(logs: AuditLog[]) {
     this.ensureStorageSync();
     writeFileSync(this.auditLogsFile, JSON.stringify(logs, null, 2), 'utf8');

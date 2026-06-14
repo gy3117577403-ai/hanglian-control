@@ -56,6 +56,12 @@ export type Permission =
   | 'execution.process_confirm'
   | 'execution.handover'
   | 'execution.daily_report.view'
+  | 'analytics.view'
+  | 'analytics.production.view'
+  | 'analytics.quality.view'
+  | 'analytics.document.view'
+  | 'analytics.knowledge.view'
+  | 'analytics.summary.copy'
   | 'system.info.view'
   | 'system.diagnostics.view'
   | 'system.demo_tools.view'
@@ -130,6 +136,12 @@ export const allPermissions: Permission[] = [
   'execution.process_confirm',
   'execution.handover',
   'execution.daily_report.view',
+  'analytics.view',
+  'analytics.production.view',
+  'analytics.quality.view',
+  'analytics.document.view',
+  'analytics.knowledge.view',
+  'analytics.summary.copy',
   'system.info.view',
   'system.diagnostics.view',
   'system.demo_tools.view',
@@ -213,6 +225,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'execution.process_confirm',
     'execution.handover',
     'execution.daily_report.view',
+    'analytics.view',
+    'analytics.production.view',
+    'analytics.document.view',
+    'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -238,6 +254,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'execution.process_confirm',
     'execution.handover',
     'execution.daily_report.view',
+    'analytics.view',
+    'analytics.production.view',
+    'analytics.document.view',
+    'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -274,6 +294,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'knowledge.history.view',
     'execution.view',
     'execution.daily_report.view',
+    'analytics.view',
+    'analytics.document.view',
+    'analytics.knowledge.view',
+    'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
@@ -307,6 +331,11 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'execution.process_confirm',
     'execution.exception_hold',
     'execution.daily_report.view',
+    'analytics.view',
+    'analytics.production.view',
+    'analytics.document.view',
+    'analytics.knowledge.view',
+    'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
   ],
@@ -326,6 +355,11 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'execution.process_confirm',
     'execution.exception_hold',
     'execution.daily_report.view',
+    'analytics.view',
+    'analytics.quality.view',
+    'analytics.document.view',
+    'analytics.knowledge.view',
+    'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
   ],

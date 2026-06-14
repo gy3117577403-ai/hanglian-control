@@ -43,6 +43,12 @@ export const PERMISSIONS = {
   EXECUTION_PROCESS_CONFIRM: 'execution.process_confirm',
   EXECUTION_HANDOVER: 'execution.handover',
   EXECUTION_DAILY_REPORT_VIEW: 'execution.daily_report.view',
+  ANALYTICS_VIEW: 'analytics.view',
+  ANALYTICS_PRODUCTION_VIEW: 'analytics.production.view',
+  ANALYTICS_QUALITY_VIEW: 'analytics.quality.view',
+  ANALYTICS_DOCUMENT_VIEW: 'analytics.document.view',
+  ANALYTICS_KNOWLEDGE_VIEW: 'analytics.knowledge.view',
+  ANALYTICS_SUMMARY_COPY: 'analytics.summary.copy',
   SYSTEM_INFO_VIEW: 'system.info.view',
   SYSTEM_DIAGNOSTICS_VIEW: 'system.diagnostics.view',
   SYSTEM_DEMO_TOOLS_VIEW: 'system.demo_tools.view',
@@ -110,6 +116,12 @@ export const permissionLabels: Record<Permission, string> = {
   'execution.process_confirm': '过程确认',
   'execution.handover': '班组交接',
   'execution.daily_report.view': '查看现场日报',
+  'analytics.view': '查看现场统计',
+  'analytics.production.view': '查看生产执行统计',
+  'analytics.quality.view': '查看质量异常趋势',
+  'analytics.document.view': '查看资料问题统计',
+  'analytics.knowledge.view': '查看知识库统计',
+  'analytics.summary.copy': '复制统计摘要',
   'system.info.view': '查看系统信息',
   'system.diagnostics.view': '查看诊断',
   'system.demo_tools.view': '查看演示工具',
@@ -137,3 +149,4 @@ export const canUploadDocument = (permissions: Permission[]) => hasPermission(pe
 export const canApplyImport = (permissions: Permission[]) => hasPermission(permissions, PERMISSIONS.IMPORT_APPLY)
 export const canConfirmPlan = (permissions: Permission[]) => hasPermission(permissions, PERMISSIONS.PLAN_CONFIRM)
 export const canSetEffective = (permissions: Permission[]) => hasPermission(permissions, PERMISSIONS.DOCUMENT_SET_EFFECTIVE)
+export const canViewAnalytics = (permissions: Permission[]) => hasPermission(permissions, PERMISSIONS.ANALYTICS_VIEW)

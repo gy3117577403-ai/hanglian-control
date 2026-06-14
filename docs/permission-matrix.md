@@ -93,3 +93,26 @@ V2.2 权限为本地 Mock RBAC，用于演示平板端菜单、按钮和后端 M
 | `POST /api/execution/plans/:planId/complete` | `execution.complete` |
 | `POST /api/execution/shift-handover` | `execution.handover` |
 | `GET /api/execution/daily-report` | `execution.daily_report.view` |
+
+## V2.6 统计看板权限
+
+| 权限 | 用途 |
+| --- | --- |
+| `analytics.view` | 查看现场统计总览、趋势和排行 |
+| `analytics.production.view` | 查看生产执行统计 |
+| `analytics.quality.view` | 查看数量质量和异常趋势 |
+| `analytics.document.view` | 查看资料问题统计 |
+| `analytics.knowledge.view` | 查看知识库统计 |
+| `analytics.summary.copy` | 复制统计摘要文本 |
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /api/analytics/overview` | `analytics.view` |
+| `GET /api/analytics/production` | `analytics.production.view` |
+| `GET /api/analytics/quantity` | `analytics.quality.view` |
+| `GET /api/analytics/exceptions` | `analytics.quality.view` |
+| `GET /api/analytics/documents` | `analytics.document.view` |
+| `GET /api/analytics/knowledge` | `analytics.knowledge.view` |
+| `GET /api/analytics/trends` | `analytics.view` |
+| `GET /api/analytics/rankings` | `analytics.view` |
+| `GET /api/analytics/summary-text` | `analytics.summary.copy` |

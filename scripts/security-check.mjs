@@ -247,6 +247,11 @@ walk(rootDir);
   'apps/api/storage/metadata/knowledge-abnormal-cases.json',
   'apps/api/storage/metadata/knowledge-quality-standards.json',
   'apps/api/storage/metadata/knowledge-records.json',
+  'apps/api/storage/metadata/execution-records.json',
+  'apps/api/storage/metadata/plan-status-events.json',
+  'apps/api/storage/metadata/quantity-reports.json',
+  'apps/api/storage/metadata/shift-handover-records.json',
+  'apps/api/storage/metadata/demo-analytics-snapshot.json',
   'apps/api/storage/metadata/prisma-seed-preview.json',
   'apps/api/storage/metadata/prisma-migration-preview.sql',
 ].forEach((file) => checkLocalOnlyFile(file));

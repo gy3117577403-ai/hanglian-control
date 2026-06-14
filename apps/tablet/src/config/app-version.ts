@@ -1,7 +1,7 @@
-export const APP_VERSION = 'V2.5'
-export const APP_STAGE = '现场执行闭环演示版'
-export const APP_RELEASE_NAME = '线束车间生产执行闭环演示版'
-export const APP_BUILD_CHANNEL = 'mock-local-execution-demo'
+export const APP_VERSION = 'V2.6'
+export const APP_STAGE = '现场统计看板演示版'
+export const APP_RELEASE_NAME = '线束车间现场统计看板演示版'
+export const APP_BUILD_CHANNEL = 'mock-local-analytics-demo'
 
 export const APP_RUNTIME_FLAGS = {
   dataSource: 'Mock',
