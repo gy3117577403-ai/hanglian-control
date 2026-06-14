@@ -1371,3 +1371,85 @@ export interface AnalyticsRankings {
   missingFileProducts: AnalyticsRankingItem[]
   highRiskAbnormalCategories: AnalyticsRankingItem[]
 }
+
+export type SystemQaStatus = 'pass' | 'warning' | 'fail'
+
+export interface SystemQaCheckItem {
+  key: string
+  label: string
+  status: SystemQaStatus
+  message: string
+  module?: string
+  detail?: string
+}
+
+export interface SystemQaSummary {
+  pass: number
+  warning: number
+  fail: number
+}
+
+export interface SystemQaListReport {
+  valid: boolean
+  score: number
+  errors: SystemQaCheckItem[]
+  warnings: SystemQaCheckItem[]
+  items: SystemQaCheckItem[]
+  generatedAt: string
+}
+
+export interface SystemQaOverview {
+  version: 'V2.7'
+  dataSource: 'mock'
+  databaseConnected: false
+  wecomConnected: false
+  wecomLoginConnected: false
+  realVoiceConnected: false
+  modules: Record<string, 'ok' | 'warning' | 'fail'>
+  summary: SystemQaSummary
+  generatedAt: string
+}
+
+export interface SystemQaPermissionRoleReport {
+  role: MockRole
+  roleLabel: string
+  visibleMenus: string[]
+  allowedActions: string[]
+  shouldBlockActions: string[]
+  missingWarnings: string[]
+  overGrantedWarnings: string[]
+  status: SystemQaStatus
+}
+
+export interface SystemQaPermissionRegression {
+  valid: boolean
+  score: number
+  roles: SystemQaPermissionRoleReport[]
+  warnings: SystemQaCheckItem[]
+  errors: SystemQaCheckItem[]
+  generatedAt: string
+}
+
+export interface SystemQaAcceptanceReport {
+  version: 'V2.7'
+  releaseName: string
+  generatedAt: string
+  overview: {
+    dataSource: 'mock'
+    databaseConnected: false
+    wecomConnected: false
+    wecomLoginConnected: false
+    realVoiceConnected: false
+  }
+  modules: Record<string, 'ok' | 'warning' | 'fail'>
+  checks: {
+    dataConsistency: SystemQaListReport
+    businessFlow: SystemQaListReport
+    permissionRegression: SystemQaPermissionRegression
+    demoReadiness: SystemQaListReport
+  }
+  completedModules: string[]
+  notConnected: string[]
+  recommendedCommands: string[]
+  nextRoutes: string[]
+}

@@ -24,6 +24,7 @@ import WarmPwaDiagnosticsDialog from '@/components/system/WarmPwaDiagnosticsDial
 import WarmPwaInstallPrompt from '@/components/system/WarmPwaInstallPrompt.vue'
 import WarmRoadmapDialog from '@/components/system/WarmRoadmapDialog.vue'
 import WarmSystemInfoDialog from '@/components/system/WarmSystemInfoDialog.vue'
+import WarmSystemQaDialog from '@/components/systemqa/WarmSystemQaDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
 import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
@@ -64,6 +65,7 @@ const dialogs = reactive({
   demoAssetsGuide: false,
   roadmap: false,
   analytics: false,
+  systemQa: false,
 })
 
 function openFeedback() {
@@ -111,6 +113,11 @@ function openMaintenanceCenter() {
 function openAnalytics() {
   if (!auth.hasPermission(PERMISSIONS.ANALYTICS_VIEW)) return deny()
   dialogs.analytics = true
+}
+
+function openSystemQa() {
+  if (!auth.hasPermission(PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW)) return deny()
+  dialogs.systemQa = true
 }
 
 function deny() {
@@ -182,6 +189,7 @@ onUnmounted(() => {
         @open-roadmap="dialogs.roadmap = true"
         @open-migration="openMigration"
         @open-analytics="openAnalytics"
+        @open-system-qa="openSystemQa"
       />
       <main class="warm-layout">
         <WarmPlanRail />
@@ -271,5 +279,6 @@ onUnmounted(() => {
     />
     <WarmRoadmapDialog v-model:visible="dialogs.roadmap" />
     <WarmAnalyticsDashboardDialog v-model:visible="dialogs.analytics" />
+    <WarmSystemQaDialog v-model:visible="dialogs.systemQa" />
   </div>
 </template>

@@ -109,10 +109,10 @@ function requireIncludes(relativePath, text, message) {
 });
 
 requireIncludes('package.json', '"auth-flow:check"', 'Missing npm run auth-flow:check.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.6'", 'Version config is not V2.6.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-analytics-demo'", 'Build channel is not the V2.6 analytics demo channel.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not the V2.7 full regression channel.');
 
-console.log('V2.6 auth flow check');
+console.log('V2.7 auth flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {

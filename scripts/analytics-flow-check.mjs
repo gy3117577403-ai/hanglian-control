@@ -77,14 +77,14 @@ function requireIncludes(relativePath, text, message) {
 requireIncludes('apps/tablet/src/components/analytics/WarmAnalyticsDashboardDialog.vue', 'vue-echarts', 'Analytics dashboard does not use vue-echarts.');
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmAnalyticsDashboardDialog', 'Tablet dashboard does not mount analytics dialog.');
 requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '现场统计', 'Status bar demo tools do not include 现场统计.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.6'", 'Version config is not V2.6.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-analytics-demo'", 'Build channel is not mock-local-analytics-demo.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not mock-local-full-regression-candidate.');
 requireIncludes('.gitignore', 'apps/api/storage/metadata/demo-analytics-snapshot.json', 'demo analytics snapshot is not ignored.');
 requireIncludes('package.json', '"demo:analytics"', 'package.json missing demo:analytics.');
 requireIncludes('package.json', '"analytics-flow:check"', 'package.json missing analytics-flow:check.');
 requireIncludes('docs/api.md', '/api/analytics/overview', 'API docs missing analytics overview.');
 
-console.log('V2.6 analytics flow check');
+console.log('V2.7 analytics flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {

@@ -210,6 +210,18 @@ V2.4 知识库仍使用 Mock seed 与本地 metadata。
 - `productId=产品ID`
 - `role=角色`
 
+## V2.7 System QA API
+
+当前 system-qa API 只读取 Mock / 本地 metadata，不连接数据库，不执行 migrate、db push、seed 或写库操作。
+
+- `GET /api/system-qa/overview`：返回 V2.7 总验收概览、模块状态和 pass / warning / fail 汇总。
+- `GET /api/system-qa/data-consistency`：检查生产计划、产品、资料、知识库、执行记录、报工、审计、维护和导入记录之间的数据一致性。
+- `GET /api/system-qa/business-flow`：检查生产计划到资料包、上传到审计、导入到维护、知识库到开工验证、执行闭环到统计看板等业务链路。
+- `GET /api/system-qa/permission-regression`：按 Mock 角色输出可见菜单、允许操作、应禁止操作、缺失权限提醒和过度授权提醒。
+- `GET /api/system-qa/demo-readiness`：检查演示资产、导入文件、知识库文件、LAN / PWA 配置、文档、安全忽略和 Mock 提示。
+- `GET /api/system-qa/acceptance-report`：返回总验收报告 JSON。
+- `GET /api/system-qa/acceptance-report/text`：返回可复制的中文验收报告文本。
+
 ## V2.5 Production Execution API
 
 当前执行闭环 API 使用本地 Mock / metadata，不连接数据库，不执行写库操作。

@@ -44,6 +44,7 @@ const emit = defineEmits<{
   'open-roadmap': []
   'open-migration': []
   'open-analytics': []
+  'open-system-qa': []
 }>()
 
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
@@ -71,6 +72,7 @@ const allDemoToolItems = computed<DemoToolItem[]>(() => [
   { label: '网络诊断', icon: 'pi pi-wifi', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-network') },
   { label: 'PWA / 平板诊断', icon: 'pi pi-tablet', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-pwa-diagnostics') },
   { label: '现场走查', icon: 'pi pi-list-check', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-field-qa') },
+  { label: '全流程总验收', icon: 'pi pi-shield', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-system-qa') },
   { separator: true },
   { label: '演示数据管理', icon: 'pi pi-database', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-data-manager') },
   { label: '演示前检查', icon: 'pi pi-check-circle', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-readiness') },

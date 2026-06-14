@@ -114,11 +114,11 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
-if (!versionConfig.includes("APP_VERSION = 'V2.6'")) blockers.push('Version config is not V2.6.');
-if (!versionConfig.includes("APP_STAGE = '现场统计看板演示版'")) blockers.push('Version stage is not 现场统计看板演示版.');
-if (!versionConfig.includes("APP_BUILD_CHANNEL = 'mock-local-analytics-demo'")) blockers.push('Build channel is not mock-local-analytics-demo.');
+if (!versionConfig.includes("APP_VERSION = 'V2.7'")) blockers.push('Version config is not V2.7.');
+if (!versionConfig.includes("APP_STAGE = '全流程回归候选版'")) blockers.push('Version stage is not 全流程回归候选版.');
+if (!versionConfig.includes("APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'")) blockers.push('Build channel is not mock-local-full-regression-candidate.');
 
-console.log('V2.6 demo freeze check');
+console.log('V2.7 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -135,5 +135,5 @@ if (blockers.length) {
 
 console.log('\nDemo freeze check passed.');
 console.log('\nSuggested next steps:');
-console.log('- Run V2.6 tablet field analytics dashboard walk-through.');
+console.log('- Run V2.7 tablet full regression walk-through.');
 console.log('- Keep Sealos, WeCom disk, and real voice integrations disabled until a separate authorized phase.');

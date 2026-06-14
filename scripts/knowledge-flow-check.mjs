@@ -139,10 +139,10 @@ requireIncludes('apps/api/src/search/search.service.ts', 'knowledgeService.searc
 
 requireIncludes('package.json', '"knowledge-flow:check"', 'Missing npm run knowledge-flow:check.');
 requireIncludes('package.json', '"demo:knowledge"', 'Missing npm run demo:knowledge.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.6'", 'Version config is not V2.6.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-analytics-demo'", 'Build channel is not mock-local-analytics-demo.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not mock-local-full-regression-candidate.');
 
-console.log('V2.6 knowledge flow check');
+console.log('V2.7 knowledge flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {

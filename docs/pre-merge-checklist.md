@@ -3,7 +3,18 @@
 ## 必须执行
 
 ```bash
+npm run full-regression:check
+npm run data-consistency:check
+npm run acceptance:report
+npm run analytics-flow:check
+npm run execution-flow:check
+npm run knowledge-validation:check
+npm run knowledge-flow:check
+npm run auth-flow:check
+npm run maintenance-flow:check
+npm run import-flow:check
 npm run demo:release-check
+npm run demo:freeze-check
 npm run demo:check
 npm run file-flow:check
 npm run security:check
@@ -11,10 +22,10 @@ npm run build
 npm run check
 ```
 
-V1.8 冻结候选版还建议执行：
+如果 PWA 能力已存在，还建议执行：
 
 ```bash
-npm run demo:freeze-check
+npm run pwa:check
 ```
 
 ## 必须确认没有敏感内容
@@ -37,7 +48,7 @@ npm run demo:freeze-check
 
 ## PR 建议标题
 
-`feat: release V1.8 tablet field demo candidate`
+`feat: release V2.7 full regression demo candidate`
 
 ## 合并建议
 
@@ -45,4 +56,4 @@ npm run demo:freeze-check
 2. CI 通过。
 3. 安卓平板人工验收。
 4. Squash and merge。
-5. 打 tag：`v1.8-demo-candidate`。
+5. 打 tag：`v2.7-full-regression-candidate`。

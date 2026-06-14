@@ -61,6 +61,9 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'docs/v2.4-knowledge-field-validation.md',
   'docs/v2.5-production-execution-flow.md',
   'docs/v2.6-dashboard-analytics.md',
+  'docs/v2.7-full-regression-qa.md',
+  'docs/release-notes-v2.7.md',
+  'docs/sealos-gap-analysis-v2.7.md',
   'docs/analytics-guide.md',
   'docs/execution-flow-guide.md',
   'docs/knowledge-library-guide.md',
@@ -86,6 +89,9 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
   'knowledge-validation:check',
   'execution-flow:check',
   'analytics-flow:check',
+  'full-regression:check',
+  'data-consistency:check',
+  'acceptance:report',
   'demo:analytics',
   'demo:knowledge',
   'file-flow:check',
@@ -116,10 +122,10 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
-if (!versionConfig.includes("APP_VERSION = 'V2.6'")) blockers.push('Version config is not V2.6.');
-if (!versionConfig.includes("APP_RELEASE_NAME = '线束车间现场统计看板演示版'")) blockers.push('Release name is not the V2.6 field analytics demo.');
+if (!versionConfig.includes("APP_VERSION = 'V2.7'")) blockers.push('Version config is not V2.7.');
+if (!versionConfig.includes("APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'")) blockers.push('Release name is not the V2.7 full regression candidate.');
 
-console.log('V2.6 demo release check');
+console.log('V2.7 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 console.log(`Current branch: ${currentBranch()}`);
 
@@ -136,5 +142,5 @@ if (blockers.length) {
 
 console.log('\nDemo release check passed.');
 console.log('\nSuggested next steps:');
-console.log('- Complete V2.6 field analytics dashboard walk-through on tablet.');
+console.log('- Complete V2.7 full regression walk-through on tablet.');
 console.log('- Push only after local checks and safety review pass.');

@@ -104,17 +104,17 @@ function requireIncludes(relativePath, text, message) {
 ].forEach((needle) => requireIncludes('apps/tablet/src/components/knowledge/WarmKnowledgeMaintenancePanel.vue', needle, `Batch maintenance missing: ${needle}`));
 
 [
-  "APP_VERSION = 'V2.6'",
-  "APP_STAGE = '现场统计看板演示版'",
-  "APP_RELEASE_NAME = '线束车间现场统计看板演示版'",
-  "APP_BUILD_CHANNEL = 'mock-local-analytics-demo'",
+  "APP_VERSION = 'V2.7'",
+  "APP_STAGE = '全流程回归候选版'",
+  "APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'",
+  "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'",
 ].forEach((needle) => requireIncludes('apps/tablet/src/config/app-version.ts', needle, `Version config missing: ${needle}`));
 
 requireIncludes('docs/api.md', '/api/knowledge/plan/:planId/validation', 'API docs missing knowledge validation API.');
 requireIncludes('docs/api.md', '/api/knowledge/fixtures/bulk-update', 'API docs missing bulk update API.');
 requireIncludes('package.json', '"knowledge-validation:check"', 'package.json missing knowledge-validation:check.');
 
-console.log('V2.6 knowledge validation check');
+console.log('V2.7 knowledge validation check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {

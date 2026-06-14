@@ -123,13 +123,13 @@ function requireIncludes(relativePath, text, message) {
 ].forEach((needle) => requireIncludes('apps/api/prisma/schema.prisma', needle, `Prisma schema missing: ${needle}`));
 
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmExecutionPanel', 'Tablet dashboard does not mount WarmExecutionPanel.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.6'", 'Version config is not V2.6.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-analytics-demo'", 'Build channel is not mock-local-analytics-demo.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
+requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not mock-local-full-regression-candidate.');
 requireIncludes('README.md', '现场执行闭环', 'README missing V2.5 execution flow notes.');
 requireIncludes('docs/api.md', '/api/execution/summary', 'API docs missing execution summary endpoint.');
 requireIncludes('package.json', '"execution-flow:check"', 'package.json missing execution-flow:check.');
 
-console.log('V2.6 execution flow check');
+console.log('V2.7 execution flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');
 
 if (blockers.length) {

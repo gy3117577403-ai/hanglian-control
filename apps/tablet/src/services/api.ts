@@ -85,6 +85,10 @@ import type {
   StartPlanPayload,
   StartPreparationResult,
   SubmitFeedbackPayload,
+  SystemQaAcceptanceReport,
+  SystemQaListReport,
+  SystemQaOverview,
+  SystemQaPermissionRegression,
   UpdateDocumentStatusPayload,
   UpdateDocumentVersionPayload,
 } from '@/types/production'
@@ -763,4 +767,32 @@ export function getAnalyticsRankings(query?: AnalyticsQuery) {
 
 export function getAnalyticsSummaryText(query?: AnalyticsQuery) {
   return api<string>('/analytics/summary-text', { query })
+}
+
+export function getSystemQaOverview() {
+  return api<SystemQaOverview>('/system-qa/overview')
+}
+
+export function getSystemQaDataConsistency() {
+  return api<SystemQaListReport>('/system-qa/data-consistency')
+}
+
+export function getSystemQaBusinessFlow() {
+  return api<SystemQaListReport>('/system-qa/business-flow')
+}
+
+export function getSystemQaPermissionRegression() {
+  return api<SystemQaPermissionRegression>('/system-qa/permission-regression')
+}
+
+export function getSystemQaDemoReadiness() {
+  return api<SystemQaListReport>('/system-qa/demo-readiness')
+}
+
+export function getSystemQaAcceptanceReport() {
+  return api<SystemQaAcceptanceReport>('/system-qa/acceptance-report')
+}
+
+export function getSystemQaAcceptanceReportText() {
+  return api<string>('/system-qa/acceptance-report/text')
 }

@@ -1,10 +1,10 @@
 # 线束车间生产计划资料管控系统
 
-面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证 -> 现场执行闭环 -> 现场统计看板”构建。
+面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证 -> 现场执行闭环 -> 现场统计看板 -> 全流程总验收”构建。
 
 ## 当前版本
 
-V2.6 现场统计看板演示版。
+V2.7 全流程回归候选版。
 
 当前运行边界：
 
@@ -42,6 +42,9 @@ npm run knowledge-validation:check
 npm run execution-flow:check
 npm run demo:analytics
 npm run analytics-flow:check
+npm run full-regression:check
+npm run data-consistency:check
+npm run acceptance:report
 npm run pwa:assets
 npm run pwa:check
 npm run demo:check
@@ -109,6 +112,12 @@ start-field-demo.bat
 | `npm run auth-flow:check` | 只读检查 Mock 权限 |
 | `npm run knowledge-flow:check` | 只读检查现场知识库 |
 | `npm run knowledge-validation:check` | 只读检查 V2.4 知识验证 |
+| `npm run execution-flow:check` | 只读检查生产执行闭环 |
+| `npm run demo:analytics` | 生成现场统计演示快照 |
+| `npm run analytics-flow:check` | 只读检查现场统计看板 |
+| `npm run full-regression:check` | 只读检查 V2.7 全流程回归完整性 |
+| `npm run data-consistency:check` | 只读检查 Mock / metadata 数据一致性 |
+| `npm run acceptance:report` | 生成 V2.7 演示验收报告 |
 | `npm run demo:check` | 只读检查平板演示准备状态 |
 | `npm run demo:release-check` | 只读检查演示版收口状态 |
 | `npm run demo:freeze-check` | 只读检查冻结候选状态 |
@@ -120,6 +129,9 @@ start-field-demo.bat
 ## 文档
 
 - `docs/v2.4-knowledge-field-validation.md`
+- `docs/v2.7-full-regression-qa.md`
+- `docs/release-notes-v2.7.md`
+- `docs/sealos-gap-analysis-v2.7.md`
 - `docs/api.md`
 - `docs/knowledge-library-guide.md`
 - `docs/project-status.md`
@@ -162,3 +174,21 @@ npm run analytics-flow:check
 ```
 
 当前统计数据仍来自 Mock / 本地 metadata，不接 Sealos、不接企业微信微盘、不接真实语音，不作为正式 BI 系统。
+
+## V2.7 全流程回归候选版
+
+V2.7 增加全流程总验收：系统总览、数据一致性检查、业务链路检查、权限回归检查、演示准备检查和可复制验收报告。入口为“演示工具 -> 全流程总验收”。
+
+新增命令：
+
+```bash
+npm run full-regression:check
+npm run data-consistency:check
+npm run acceptance:report
+```
+
+Release Notes：`docs/release-notes-v2.7.md`
+
+Sealos gap analysis：`docs/sealos-gap-analysis-v2.7.md`
+
+当前仍为 Mock / 本地 metadata 演示版，未接 Sealos、企业微信微盘、企业微信登录或真实语音。

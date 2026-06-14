@@ -17,6 +17,7 @@ import { ProductionPlansModule } from './production-plans/production-plans.modul
 import { ProductsModule } from './products/products.module';
 import { SearchModule } from './search/search.module';
 import { SystemModule } from './system/system.module';
+import { SystemQaModule } from './system-qa/system-qa.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { SystemModule } from './system/system.module';
     SearchModule,
     FeedbackModule,
     SystemModule,
+    SystemQaModule,
   ],
   controllers: [],
   providers: [],
