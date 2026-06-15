@@ -38,7 +38,10 @@ interface UnifiedFilters {
   customer: string
   productCode: string
   status: string
+  source: string
 }
+
+type UnifiedSortBy = 'updated' | 'type' | 'productCode' | 'status'
 
 interface UploadLog {
   id: string
@@ -78,7 +81,10 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
     customer: '',
     productCode: '',
     status: '',
+    source: '',
   })
+  const sortBy = ref<UnifiedSortBy>('updated')
+  const viewingTrash = ref(false)
   const results = ref<UnifiedDocumentItem[]>([])
   const selectedItem = ref<UnifiedDocumentItem | null>(null)
   const selectedIds = ref<string[]>([])
@@ -106,15 +112,21 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
     if (nextKeyword !== undefined) keyword.value = nextKeyword
     loading.value = true
     try {
-      const response = await searchUnifiedDocuments({
-        q: keyword.value,
-        type: filters.type,
-        customer: filters.customer,
-        productCode: filters.productCode,
-        status: filters.status,
-      })
-      results.value = response.items
-      if (!selectedItem.value && response.items[0]) selectedItem.value = response.items[0]
+      const items = viewingTrash.value
+        ? await loadTrashResults()
+        : (await searchUnifiedDocuments({
+          q: keyword.value,
+          type: filters.type,
+          customer: filters.customer,
+          productCode: filters.productCode,
+          status: filters.status,
+          source: filters.source,
+        })).items
+      results.value = sortItems(items.filter(matchesLocalFilters))
+      selectedIds.value = selectedIds.value.filter((id) => results.value.some((item) => item.id === id))
+      if (!selectedItem.value || !results.value.some((item) => item.id === selectedItem.value?.id)) {
+        selectedItem.value = results.value[0] ?? null
+      }
       if (keyword.value.trim()) addQueryLog(keyword.value.trim())
     } catch (error) {
       toast.error('资料查询失败', { description: errorMessage(error) })
@@ -140,6 +152,7 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
   }
 
   async function upload(payload: UnifiedUploadPayload) {
+    viewingTrash.value = false
     const formData = new FormData()
     formData.append('file', payload.file)
     formData.append('productCode', payload.productCode)
@@ -198,6 +211,11 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
     trashItems.value = await getUnifiedTrash().catch(() => [])
   }
 
+  async function loadTrashResults() {
+    await loadTrash()
+    return trashItems.value
+  }
+
   async function refreshDeleteLockStatus() {
     deleteLockStatus.value = await getDeleteLockStatus().catch(() => null)
   }
@@ -218,6 +236,7 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
       await deleteUnifiedDocument(id, { password, reason })
       await Promise.all([search(), loadTrash()])
       selectedIds.value = selectedIds.value.filter((item) => item !== id)
+      if (selectedItem.value?.id === id && !viewingTrash.value) selectedItem.value = null
       toast.success('已移入回收站')
     } catch (error) {
       toast.error('删除失败', { description: errorMessage(error) })
@@ -230,7 +249,7 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
   async function restoreItem(id: string, reason?: string) {
     try {
       const restored = await restoreUnifiedDocument(id, { reason })
-      selectedItem.value = restored
+      selectedItem.value = viewingTrash.value ? null : restored
       await Promise.all([search(), loadTrash()])
       toast.success('资料已恢复')
     } catch (error) {
@@ -300,12 +319,37 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
   }
 
   function setType(type: UnifiedDocumentType) {
+    viewingTrash.value = false
     filters.type = type
     void search()
   }
 
   function setStatus(status: DocumentStatus | string) {
     filters.status = status
+    void search()
+  }
+
+  function setSource(source: string) {
+    filters.source = source
+    void search()
+  }
+
+  function setSort(value: UnifiedSortBy) {
+    sortBy.value = value
+    results.value = sortItems(results.value)
+  }
+
+  function enterTrash() {
+    viewingTrash.value = true
+    selectedIds.value = []
+    selectedItem.value = null
+    void search()
+  }
+
+  function exitTrash() {
+    viewingTrash.value = false
+    selectedIds.value = []
+    selectedItem.value = null
     void search()
   }
 
@@ -323,9 +367,46 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
     writeJson(uploadLogKey, uploadLogs.value)
   }
 
+  function matchesLocalFilters(item: UnifiedDocumentItem) {
+    const normalizedKeyword = keyword.value.trim().toLowerCase()
+    const keywordMatched = !normalizedKeyword || [
+      item.title,
+      item.subtitle,
+      item.customerName,
+      item.productCode,
+      item.productName,
+      item.productVersion,
+      item.version,
+      item.status,
+      item.source,
+      item.originalFileName,
+      item.keywords?.join(','),
+      item.remark,
+    ].some((value) => String(value ?? '').toLowerCase().includes(normalizedKeyword))
+    return keywordMatched
+      && (!filters.type || filters.type === 'all' || item.unifiedType === filters.type)
+      && (!filters.customer || String(item.customerName ?? '').includes(filters.customer))
+      && (!filters.productCode || String(item.productCode ?? '').includes(filters.productCode))
+      && (!filters.status || String(item.status ?? '').includes(filters.status))
+      && (!filters.source || item.source === filters.source)
+  }
+
+  function sortItems(items: UnifiedDocumentItem[]) {
+    const sorted = [...items]
+    sorted.sort((a, b) => {
+      if (sortBy.value === 'type') return String(a.unifiedType).localeCompare(String(b.unifiedType), 'zh-CN')
+      if (sortBy.value === 'productCode') return String(a.productCode ?? '').localeCompare(String(b.productCode ?? ''), 'zh-CN')
+      if (sortBy.value === 'status') return String(a.status ?? '').localeCompare(String(b.status ?? ''), 'zh-CN')
+      return String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? ''))
+    })
+    return sorted
+  }
+
   return {
     keyword,
     filters,
+    sortBy,
+    viewingTrash,
     results,
     selectedItem,
     selectedIds,
@@ -363,6 +444,10 @@ export const useUnifiedDocumentStore = defineStore('unified-document-store', () 
     clearSelection,
     setType,
     setStatus,
+    setSource,
+    setSort,
+    enterTrash,
+    exitTrash,
     setProcess,
     addQueryLog,
   }

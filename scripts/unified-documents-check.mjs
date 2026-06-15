@@ -74,8 +74,12 @@ requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmExecutionPa
 requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmAnalyticsDashboardDialog', '主页面仍渲染统计看板。');
 requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmLaunchScreen', '主页面仍渲染启动演示信息。');
 requireIncludes('apps/tablet/src/app/routes.ts', "meta: { public: true }", '/tablet 未设置为主流程免登录。');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V3.2'", '版本未更新为 V3.2。');
-requireIncludes('apps/tablet/src/config/app-version.ts', 'mock-local-custom-document-center', '构建通道未更新为统一资料中心。');
+if (!["APP_VERSION = 'V3.2'", "APP_VERSION = 'V3.3'"].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
+  blockers.push('版本未标记为 V3.2 或 V3.3。');
+}
+if (!['mock-local-custom-document-center', 'mock-local-custom-main-document-layout'].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
+  blockers.push('构建通道未标记为统一资料中心。');
+}
 requireIncludes('.gitignore', 'apps/api/storage/metadata/delete-lock-settings.json', '删除锁 metadata 未加入 .gitignore。');
 requireIncludes('scripts/security-check.mjs', 'delete-lock-settings.json', '安全检查未覆盖删除锁 metadata。');
 requireNotIncludes('apps/api/src/unified-documents/helpers/delete-lock.service.ts', 'postgresql://', '删除锁模块不应包含数据库连接。');

@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Eye, FileCheck2, FileText, History, ShieldCheck } from 'lucide-vue-next'
+import { CheckCircle2, Eye, FileCheck2, FileText, History, Pencil, RotateCcw, ShieldAlert, Trash2 } from 'lucide-vue-next'
 import { apiBaseUrl } from '@/services/api'
 import { useUnifiedDocumentStore } from '@/stores/unified-document-store'
+import type { UnifiedDocumentItem } from '@/types/production'
+
+const emit = defineEmits<{
+  edit: [item: UnifiedDocumentItem]
+  delete: [item: UnifiedDocumentItem]
+  restore: [item: UnifiedDocumentItem]
+  purge: [item: UnifiedDocumentItem]
+  effective: [item: UnifiedDocumentItem]
+}>()
 
 const store = useUnifiedDocumentStore()
-
 const item = computed(() => store.selectedItem)
 
 const previewSrc = computed(() => {
@@ -21,6 +29,13 @@ const previewSrc = computed(() => {
 
 const isImage = computed(() => item.value?.mimeType?.startsWith('image/') || item.value?.document?.previewType === 'image')
 const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.value?.document?.previewType === 'pdf')
+
+function sourceLabel(source?: string) {
+  if (source === 'manual_upload') return '本地上传'
+  if (source === 'knowledge') return '知识库'
+  if (source === 'mock') return '内置资料'
+  return source || '本地资料'
+}
 </script>
 
 <template>
@@ -28,18 +43,41 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
     <div v-if="!item" class="preview-empty">
       <Eye :size="42" />
       <h2>选择一条资料查看预览</h2>
-      <p>上传、搜索、编辑和版本信息会在这里集中展示。</p>
+      <p>资料预览、详情、编辑、版本和删除保护会集中显示在这里。</p>
     </div>
 
     <template v-else>
       <section class="detail-card hero-detail">
-        <p class="eyebrow">资料详情</p>
+        <p class="eyebrow">{{ item.deleted ? '回收站详情' : '资料详情' }}</p>
         <h2>{{ item.title }}</h2>
-        <p>{{ item.subtitle }}</p>
+        <p>{{ item.productName || item.subtitle }}</p>
         <div class="detail-tags">
           <span>{{ item.status || '待确认' }}</span>
           <span>{{ item.version || '未填版本' }}</span>
-          <span>{{ item.source || '本地资料' }}</span>
+          <span>{{ sourceLabel(item.source) }}</span>
+          <span v-if="item.deleted">已删除</span>
+        </div>
+        <div class="action-row">
+          <PrimeButton v-if="!item.deleted" severity="secondary" outlined @click="emit('edit', item)">
+            <Pencil :size="17" />
+            <span>编辑资料</span>
+          </PrimeButton>
+          <PrimeButton v-if="!item.deleted" severity="success" outlined @click="emit('effective', item)">
+            <CheckCircle2 :size="17" />
+            <span>设为当前有效</span>
+          </PrimeButton>
+          <PrimeButton v-if="!item.deleted" severity="warning" outlined @click="emit('delete', item)">
+            <Trash2 :size="17" />
+            <span>删除</span>
+          </PrimeButton>
+          <PrimeButton v-if="item.deleted" severity="success" outlined @click="emit('restore', item)">
+            <RotateCcw :size="17" />
+            <span>恢复资料</span>
+          </PrimeButton>
+          <PrimeButton v-if="item.deleted" severity="danger" outlined @click="emit('purge', item)">
+            <ShieldAlert :size="17" />
+            <span>彻底删除</span>
+          </PrimeButton>
         </div>
       </section>
 
@@ -62,12 +100,24 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
       <section class="detail-card">
         <div class="section-title">
           <FileCheck2 :size="19" />
-          <span>文件健康</span>
+          <span>文件健康与详情</span>
         </div>
         <div class="health-grid">
           <div>
-            <b>{{ item.previewAvailable ? '可预览' : '卡片占位' }}</b>
-            <span>预览状态</span>
+            <b>{{ item.previewAvailable ? '可预览' : '待补充' }}</b>
+            <span>文件健康</span>
+          </div>
+          <div>
+            <b>{{ item.customerName || '未填客户' }}</b>
+            <span>客户</span>
+          </div>
+          <div>
+            <b>{{ item.productCode || '未填产品编号' }}</b>
+            <span>产品编号</span>
+          </div>
+          <div>
+            <b>{{ item.productVersion || '未填产品版本' }}</b>
+            <span>产品版本</span>
           </div>
           <div>
             <b>{{ item.originalFileName || '无文件名' }}</b>
@@ -81,6 +131,10 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
             <b>{{ item.updatedAt?.slice(0, 10) || '未记录' }}</b>
             <span>更新时间</span>
           </div>
+          <div>
+            <b>{{ sourceLabel(item.source) }}</b>
+            <span>来源</span>
+          </div>
         </div>
       </section>
 
@@ -90,14 +144,6 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
           <span>版本历史</span>
         </div>
         <pre>{{ JSON.stringify(store.versions, null, 2) }}</pre>
-      </section>
-
-      <section class="detail-card warning-card">
-        <div class="section-title">
-          <ShieldCheck :size="19" />
-          <span>删除保护</span>
-        </div>
-        <p>移入回收站和彻底删除必须通过后端删除密码锁。前端不会保存明文密码。</p>
       </section>
     </template>
   </aside>
@@ -122,7 +168,7 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
 .preview-empty {
   display: grid;
   place-items: center;
-  min-height: 360px;
+  min-height: 420px;
   padding: 28px;
   color: #8a6239;
   text-align: center;
@@ -132,14 +178,13 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
 .hero-detail h2 {
   margin: 10px 0 0;
   color: #342316;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 950;
   line-height: 1.1;
 }
 
 .preview-empty p,
-.hero-detail p,
-.warning-card p {
+.hero-detail p {
   margin: 8px 0 0;
   color: #6f4d28;
   font-weight: 850;
@@ -162,10 +207,11 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
   font-weight: 950;
 }
 
-.detail-tags {
+.detail-tags,
+.action-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
   margin-top: 12px;
 }
 
@@ -190,8 +236,8 @@ const isPdf = computed(() => item.value?.mimeType === 'application/pdf' || item.
 .preview-stage,
 .preview-placeholder {
   width: 100%;
-  min-height: 250px;
-  max-height: 320px;
+  min-height: 360px;
+  max-height: 460px;
   border: 1px solid rgba(139, 90, 42, 0.18);
   border-radius: 14px;
   background: #fffaf1;
@@ -207,12 +253,12 @@ img.preview-stage {
   display: block;
   width: 100%;
   height: 100%;
-  max-height: 320px;
+  max-height: 460px;
   object-fit: contain;
 }
 
 .pdf-stage {
-  height: 320px;
+  height: 460px;
 }
 
 .preview-placeholder {
@@ -270,9 +316,5 @@ pre {
   color: #5d361a;
   font-size: 11px;
   white-space: pre-wrap;
-}
-
-.warning-card {
-  background: rgba(255, 237, 208, 0.8);
 }
 </style>

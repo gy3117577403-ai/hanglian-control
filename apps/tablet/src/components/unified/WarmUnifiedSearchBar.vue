@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { Search, Trash2, UploadCloud } from 'lucide-vue-next'
+import { Search, UploadCloud } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
+import { useUnifiedDocumentStore } from '@/stores/unified-document-store'
 
 const props = defineProps<{
   keyword: string
-  trashCount: number
   lockReady: boolean
 }>()
 
 const emit = defineEmits<{
   search: [value: string]
   upload: []
-  trash: []
 }>()
 
+const store = useUnifiedDocumentStore()
 const value = ref(props.keyword)
+type SortBy = 'updated' | 'type' | 'productCode' | 'status'
 
 watch(() => props.keyword, (next) => {
   value.value = next
@@ -23,17 +24,16 @@ watch(() => props.keyword, (next) => {
 function submit() {
   emit('search', value.value)
 }
+
+function changeSort(event: Event) {
+  store.setSort((event.target as HTMLSelectElement).value as SortBy)
+}
 </script>
 
 <template>
   <header class="unified-search-bar">
-    <div>
-      <p class="eyebrow">统一资料中心</p>
-      <h1>线束车间资料查询上传中心</h1>
-    </div>
-
     <form class="search-box" @submit.prevent="submit">
-      <Search :size="24" />
+      <Search :size="25" />
       <PrimeInputText
         v-model="value"
         class="search-input"
@@ -44,16 +44,34 @@ function submit() {
 
     <div class="action-cluster">
       <PrimeButton class="primary-action" @click="emit('upload')">
-        <UploadCloud :size="20" />
+        <UploadCloud :size="21" />
         <span>上传资料</span>
       </PrimeButton>
-      <PrimeButton severity="secondary" outlined @click="emit('trash')">
-        <Trash2 :size="19" />
-        <span>回收站 {{ trashCount }}</span>
-      </PrimeButton>
+      <label class="sort-control">
+        <span>排序</span>
+        <select v-model="store.sortBy" @change="changeSort">
+          <option value="updated">最近更新</option>
+          <option value="type">资料类型</option>
+          <option value="productCode">产品编号</option>
+          <option value="status">状态</option>
+        </select>
+      </label>
       <span class="lock-pill" :class="{ ready: lockReady }">
-        {{ lockReady ? '删除锁已启用' : '首次删除需设置密码' }}
+        {{ lockReady ? '删除密码锁已启用' : '删除密码锁未设置' }}
       </span>
+    </div>
+
+    <div class="recent-strip">
+      <span>最近查询</span>
+      <button
+        v-for="query in store.recentQueries"
+        :key="query"
+        type="button"
+        @click="emit('search', query)"
+      >
+        {{ query }}
+      </button>
+      <small v-if="!store.recentQueries.length">暂无查询记录</small>
     </div>
   </header>
 </template>
@@ -61,35 +79,19 @@ function submit() {
 <style scoped>
 .unified-search-bar {
   display: grid;
-  grid-template-columns: 270px minmax(360px, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  padding: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
   border: 1px solid rgba(139, 90, 42, 0.22);
   border-radius: 18px;
   background: linear-gradient(145deg, rgba(255, 252, 244, 0.95), rgba(255, 230, 190, 0.78));
   box-shadow: 0 18px 34px rgba(75, 38, 13, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
-.eyebrow {
-  font-size: 13px;
-  font-weight: 950;
-  color: #9b5125;
-}
-
-h1 {
-  margin: 2px 0 0;
-  color: #342316;
-  font-size: clamp(24px, 2.25vw, 36px);
-  font-weight: 950;
-  letter-spacing: 0;
-  line-height: 1.05;
-}
-
 .search-box {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   padding: 10px 12px;
   border: 1px solid rgba(139, 90, 42, 0.22);
@@ -100,8 +102,8 @@ h1 {
 
 .search-input {
   width: 100%;
-  min-height: 46px;
-  font-size: 17px;
+  min-height: 50px;
+  font-size: 18px;
   font-weight: 850;
 }
 
@@ -109,13 +111,39 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
+  justify-content: space-between;
   white-space: nowrap;
 }
 
 .primary-action,
 .action-cluster :deep(.p-button) {
-  min-height: 48px;
+  min-height: 52px;
   font-weight: 950;
+}
+
+.primary-action {
+  padding-right: 20px;
+  padding-left: 20px;
+  border-color: rgba(143, 63, 29, 0.18);
+  background: linear-gradient(145deg, #e38435, #bf531f);
+  box-shadow: 0 16px 24px rgba(141, 68, 22, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.sort-control {
+  display: grid;
+  gap: 4px;
+  color: #6e421f;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.sort-control select {
+  min-height: 34px;
+  border: 1px solid rgba(139, 90, 42, 0.2);
+  border-radius: 9px;
+  background: rgba(255, 248, 235, 0.92);
+  color: #432813;
+  font-weight: 900;
 }
 
 .lock-pill {
@@ -134,14 +162,50 @@ h1 {
   background: rgba(232, 244, 205, 0.72);
 }
 
+.recent-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.recent-strip span,
+.recent-strip small,
+.recent-strip button {
+  color: #8b6238;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.recent-strip span {
+  flex: 0 0 auto;
+  color: #9b5125;
+}
+
+.recent-strip button {
+  max-width: 128px;
+  overflow: hidden;
+  padding: 5px 8px;
+  border: 1px solid rgba(139, 90, 42, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 244, 225, 0.75);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 1320px) {
-  .unified-search-bar {
-    grid-template-columns: 240px minmax(320px, 1fr);
+  .action-cluster {
+    align-items: stretch;
   }
 
-  .action-cluster {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
+  .primary-action {
+    flex: 1 1 auto;
+  }
+
+  .lock-pill {
+    max-width: 136px;
+    white-space: normal;
   }
 }
 </style>

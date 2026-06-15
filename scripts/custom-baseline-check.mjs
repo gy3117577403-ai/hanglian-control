@@ -69,6 +69,7 @@ function checkOnlyGitkeep(relativePath) {
   if (rows.length) errors.push(`${relativePath} 应只保留 .gitkeep，当前仍有：${rows.join('，')}`);
 }
 
+const gitignore = read('.gitignore');
 const apiEnvExample = read('apps/api/.env.example');
 const apiLocalEnvExample = read('apps/api/.env.local.example');
 if (!apiEnvExample.includes('DEMO_DATA_MODE=empty')) errors.push('apps/api/.env.example 未声明 DEMO_DATA_MODE=empty。');
@@ -79,10 +80,14 @@ checkOnlyGitkeep('apps/api/storage/uploads');
 
 for (const name of metadataFiles) {
   const relativePath = `apps/api/storage/metadata/${name}`;
-  if (existsSync(file(relativePath))) errors.push(`metadata 运行数据仍存在：${relativePath}`);
+  if (!existsSync(file(relativePath))) continue;
+  if (gitignore.includes(relativePath)) {
+    warnings.push(`metadata 运行数据仅存在于本机且已被忽略：${relativePath}`);
+  } else {
+    errors.push(`metadata 运行数据存在且未确认忽略：${relativePath}`);
+  }
 }
 
-const gitignore = read('.gitignore');
 [
   'apps/api/.env.local',
   'apps/api/storage/uploads/*',

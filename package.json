@@ -36,6 +36,7 @@
     "demo:clean": "node scripts/clean-demo-data.mjs --apply",
     "custom-baseline:check": "node scripts/custom-baseline-check.mjs",
     "unified-documents:check": "node scripts/unified-documents-check.mjs",
+    "custom-main-layout:check": "node scripts/custom-main-layout-check.mjs",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

@@ -3,12 +3,12 @@ import { onMounted, ref } from 'vue'
 import WarmBulkActionBar from './WarmBulkActionBar.vue'
 import WarmDeleteLockSetupDialog from './WarmDeleteLockSetupDialog.vue'
 import WarmDeletePasswordDialog, { type DeleteDialogAction } from './WarmDeletePasswordDialog.vue'
-import WarmTrashDialog from './WarmTrashDialog.vue'
 import WarmUnifiedEditDialog from './WarmUnifiedEditDialog.vue'
 import WarmUnifiedFilterPanel from './WarmUnifiedFilterPanel.vue'
 import WarmUnifiedPreviewPanel from './WarmUnifiedPreviewPanel.vue'
 import WarmUnifiedResultList from './WarmUnifiedResultList.vue'
 import WarmUnifiedSearchBar from './WarmUnifiedSearchBar.vue'
+import WarmUnifiedUploadDialog from './WarmUnifiedUploadDialog.vue'
 import { useUnifiedDocumentStore } from '@/stores/unified-document-store'
 import type { UnifiedDocumentItem } from '@/types/production'
 
@@ -39,6 +39,10 @@ function requestDelete(item: UnifiedDocumentItem) {
 
 function requestPurge(item: UnifiedDocumentItem) {
   void prepareAction({ mode: 'purge', title: `彻底删除：${item.title}` }, item)
+}
+
+async function restoreItem(item: UnifiedDocumentItem) {
+  await store.restoreItem(item.id, '回收站列表恢复')
 }
 
 async function editItem(item: UnifiedDocumentItem) {
@@ -87,41 +91,42 @@ function afterSetup() {
 
 <template>
   <div class="unified-center">
-    <WarmUnifiedSearchBar
-      :keyword="store.keyword"
-      :trash-count="store.trashItems.length"
-      :lock-ready="Boolean(store.deleteLockStatus?.hasPassword)"
-      @search="store.search"
-      @upload="store.uploadDialogOpen = true"
-      @trash="store.trashDialogOpen = true"
-    />
-
     <main class="unified-grid">
       <WarmUnifiedFilterPanel />
-      <section class="result-stack">
+      <section class="middle-column">
+        <WarmUnifiedSearchBar
+          :keyword="store.keyword"
+          :lock-ready="Boolean(store.deleteLockStatus?.hasPassword)"
+          @search="store.search"
+          @upload="store.uploadDialogOpen = true"
+        />
         <WarmBulkActionBar
           :count="store.selectedCount"
+          :in-trash="store.viewingTrash"
           @delete="requestBulkDelete"
+          @restore="store.bulkRestore('回收站批量恢复')"
           @purge="requestBulkPurge"
           @clear="store.clearSelection"
         />
         <WarmUnifiedResultList
           @edit="editItem"
           @delete="requestDelete"
+          @restore="restoreItem"
           @purge="requestPurge"
           @effective="setEffective"
         />
       </section>
-      <WarmUnifiedPreviewPanel />
+      <WarmUnifiedPreviewPanel
+        @edit="editItem"
+        @delete="requestDelete"
+        @restore="restoreItem"
+        @purge="requestPurge"
+        @effective="setEffective"
+      />
     </main>
 
     <WarmUnifiedUploadDialog v-model:visible="store.uploadDialogOpen" />
     <WarmUnifiedEditDialog v-model:visible="store.editDialogOpen" />
-    <WarmTrashDialog
-      v-model:visible="store.trashDialogOpen"
-      @purge="requestPurge"
-      @bulk-purge="requestBulkPurge"
-    />
     <WarmDeletePasswordDialog
       v-model:visible="passwordDialogOpen"
       :action="pendingAction"
@@ -133,21 +138,19 @@ function afterSetup() {
 
 <style scoped>
 .unified-center {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
   height: 100vh;
   padding: 14px;
 }
 
 .unified-grid {
   display: grid;
-  grid-template-columns: 260px minmax(440px, 1.1fr) minmax(360px, 0.9fr);
+  grid-template-columns: 278px minmax(430px, 0.96fr) minmax(450px, 1.04fr);
+  height: 100%;
   min-height: 0;
   gap: 14px;
 }
 
-.result-stack {
+.middle-column {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -156,7 +159,12 @@ function afterSetup() {
 
 @media (max-width: 1320px) {
   .unified-grid {
-    grid-template-columns: 244px minmax(420px, 1fr) minmax(310px, 0.86fr);
+    grid-template-columns: 252px minmax(410px, 0.98fr) minmax(360px, 1.02fr);
+    gap: 10px;
+  }
+
+  .unified-center {
+    padding: 10px;
   }
 }
 </style>
