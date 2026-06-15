@@ -122,8 +122,17 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
-if (!versionConfig.includes("APP_VERSION = 'V2.7'")) blockers.push('Version config is not V2.7.');
-if (!versionConfig.includes("APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'")) blockers.push('Release name is not the V2.7 full regression candidate.');
+if (!["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"].some((text) => versionConfig.includes(text))) {
+  blockers.push('Version config is not an accepted V2.7+ release version.');
+}
+if (
+  ![
+    "APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'",
+    "APP_RELEASE_NAME = '线束车间现场试运行配置版'",
+  ].some((text) => versionConfig.includes(text))
+) {
+  blockers.push('Release name is not an accepted regression or field pilot release.');
+}
 
 console.log('V2.7 demo release check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');

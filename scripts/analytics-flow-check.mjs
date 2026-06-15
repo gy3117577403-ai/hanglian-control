@@ -20,6 +20,11 @@ function requireIncludes(relativePath, text, message) {
   if (!read(relativePath).includes(text)) blockers.push(message);
 }
 
+function requireAnyIncludes(relativePath, texts, message) {
+  const content = read(relativePath);
+  if (!texts.some((text) => content.includes(text))) blockers.push(message);
+}
+
 [
   'apps/api/src/analytics/analytics.module.ts',
   'apps/api/src/analytics/analytics.controller.ts',
@@ -77,8 +82,16 @@ function requireIncludes(relativePath, text, message) {
 requireIncludes('apps/tablet/src/components/analytics/WarmAnalyticsDashboardDialog.vue', 'vue-echarts', 'Analytics dashboard does not use vue-echarts.');
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmAnalyticsDashboardDialog', 'Tablet dashboard does not mount analytics dialog.');
 requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '现场统计', 'Status bar demo tools do not include 现场统计.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not mock-local-full-regression-candidate.');
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"],
+  'Version config is not an accepted V2.7+ release version.',
+);
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
+  'Build channel is not an accepted regression or field pilot channel.',
+);
 requireIncludes('.gitignore', 'apps/api/storage/metadata/demo-analytics-snapshot.json', 'demo analytics snapshot is not ignored.');
 requireIncludes('package.json', '"demo:analytics"', 'package.json missing demo:analytics.');
 requireIncludes('package.json', '"analytics-flow:check"', 'package.json missing analytics-flow:check.');

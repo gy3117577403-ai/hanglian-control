@@ -67,6 +67,21 @@ export type Permission =
   | 'system.demo_tools.view'
   | 'system.roadmap.view'
   | 'system.freeze_check.view'
+  | 'settings.view'
+  | 'settings.update'
+  | 'settings.dictionary.view'
+  | 'settings.dictionary.update'
+  | 'settings.station.view'
+  | 'settings.station.update'
+  | 'settings.display.view'
+  | 'settings.display.update'
+  | 'settings.announcement.view'
+  | 'settings.announcement.update'
+  | 'settings.feedback.create'
+  | 'settings.feedback.view'
+  | 'settings.feedback.resolve'
+  | 'settings.pilot_check.view'
+  | 'settings.pilot_check.run'
   | 'admin.user.view'
   | 'admin.permission.view'
   | 'admin.all';
@@ -147,6 +162,21 @@ export const allPermissions: Permission[] = [
   'system.demo_tools.view',
   'system.roadmap.view',
   'system.freeze_check.view',
+  'settings.view',
+  'settings.update',
+  'settings.dictionary.view',
+  'settings.dictionary.update',
+  'settings.station.view',
+  'settings.station.update',
+  'settings.display.view',
+  'settings.display.update',
+  'settings.announcement.view',
+  'settings.announcement.update',
+  'settings.feedback.create',
+  'settings.feedback.view',
+  'settings.feedback.resolve',
+  'settings.pilot_check.view',
+  'settings.pilot_check.run',
   'admin.user.view',
   'admin.permission.view',
   'admin.all',
@@ -232,6 +262,9 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
+    'settings.feedback.create',
+    'settings.announcement.view',
+    'settings.pilot_check.view',
   ],
   back_leader: [
     'plan.view',
@@ -261,6 +294,9 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
+    'settings.feedback.create',
+    'settings.announcement.view',
+    'settings.pilot_check.view',
   ],
   maintainer: [
     'plan.view.all',
@@ -301,6 +337,13 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'system.info.view',
     'system.diagnostics.view',
     'system.demo_tools.view',
+    'settings.view',
+    'settings.dictionary.view',
+    'settings.station.view',
+    'settings.announcement.view',
+    'settings.feedback.create',
+    'settings.feedback.view',
+    'settings.pilot_check.view',
   ],
   process_engineer: [
     'plan.view.all',
@@ -338,6 +381,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
+    'settings.feedback.create',
+    'settings.announcement.view',
+    'settings.feedback.view',
+    'settings.pilot_check.view',
   ],
   quality: [
     'plan.view.all',
@@ -362,6 +409,10 @@ export const rolePermissions: Record<MockRole, Permission[]> = {
     'analytics.summary.copy',
     'system.info.view',
     'system.diagnostics.view',
+    'settings.feedback.create',
+    'settings.announcement.view',
+    'settings.feedback.view',
+    'settings.pilot_check.view',
   ],
   admin: allPermissions,
 };

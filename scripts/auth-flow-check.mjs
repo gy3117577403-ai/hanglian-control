@@ -20,6 +20,11 @@ function requireIncludes(relativePath, text, message) {
   if (!read(relativePath).includes(text)) blockers.push(message);
 }
 
+function requireAnyIncludes(relativePath, texts, message) {
+  const content = read(relativePath);
+  if (!texts.some((text) => content.includes(text))) blockers.push(message);
+}
+
 [
   'apps/api/src/auth/auth.controller.ts',
   'apps/api/src/auth/auth.module.ts',
@@ -109,8 +114,16 @@ function requireIncludes(relativePath, text, message) {
 });
 
 requireIncludes('package.json', '"auth-flow:check"', 'Missing npm run auth-flow:check.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not the V2.7 full regression channel.');
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"],
+  'Version config is not an accepted V2.7+ release version.',
+);
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
+  'Build channel is not an accepted regression or field pilot channel.',
+);
 
 console.log('V2.7 auth flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');

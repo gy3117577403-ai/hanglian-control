@@ -20,6 +20,11 @@ function requireIncludes(relativePath, text, message) {
   if (!read(relativePath).includes(text)) blockers.push(message);
 }
 
+function requireAnyIncludes(relativePath, texts, message) {
+  const content = read(relativePath);
+  if (!texts.some((text) => content.includes(text))) blockers.push(message);
+}
+
 [
   'apps/api/src/knowledge/knowledge.module.ts',
   'apps/api/src/knowledge/knowledge.controller.ts',
@@ -139,8 +144,16 @@ requireIncludes('apps/api/src/search/search.service.ts', 'knowledgeService.searc
 
 requireIncludes('package.json', '"knowledge-flow:check"', 'Missing npm run knowledge-flow:check.');
 requireIncludes('package.json', '"demo:knowledge"', 'Missing npm run demo:knowledge.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'", 'Build channel is not mock-local-full-regression-candidate.');
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"],
+  'Version config is not an accepted V2.7+ release version.',
+);
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
+  'Build channel is not an accepted regression or field pilot channel.',
+);
 
 console.log('V2.7 knowledge flow check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');

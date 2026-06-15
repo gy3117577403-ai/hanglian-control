@@ -80,15 +80,24 @@ import type {
   SearchHit,
   SetEffectiveDocumentPayload,
   SetEffectiveDocumentResult,
+  SettingsRecord,
+  SettingsSummary,
   ShiftHandoverPayload,
   ShiftHandoverRecord,
   StartPlanPayload,
   StartPreparationResult,
+  StationProfile,
+  SystemFeedbackRecord,
+  SystemSettings,
   SubmitFeedbackPayload,
   SystemQaAcceptanceReport,
   SystemQaListReport,
   SystemQaOverview,
   SystemQaPermissionRegression,
+  AnnouncementRecord,
+  DictionaryGroup,
+  DisplaySettings,
+  PilotCheckResult,
   UpdateDocumentStatusPayload,
   UpdateDocumentVersionPayload,
 } from '@/types/production'
@@ -205,6 +214,90 @@ export function logoutMockUser() {
 
 export function getPermissionMatrix() {
   return api<PermissionMatrixResponse>('/auth/permissions')
+}
+
+export function getSettingsSummary() {
+  return api<SettingsSummary>('/settings/summary')
+}
+
+export function getSystemSettings() {
+  return api<SystemSettings>('/settings/system')
+}
+
+export function updateSystemSettings(payload: Partial<SystemSettings>) {
+  return api<SystemSettings>('/settings/system', { method: 'PATCH', body: payload })
+}
+
+export function getDictionaries() {
+  return api<DictionaryGroup[]>('/settings/dictionaries')
+}
+
+export function updateDictionary(groupKey: string, payload: { items: DictionaryGroup['items'] }) {
+  return api<DictionaryGroup>(`/settings/dictionaries/${groupKey}`, { method: 'PATCH', body: payload })
+}
+
+export function getStationProfiles() {
+  return api<StationProfile[]>('/settings/station-profiles')
+}
+
+export function createStationProfile(payload: Partial<StationProfile>) {
+  return api<StationProfile>('/settings/station-profiles', { method: 'POST', body: payload })
+}
+
+export function updateStationProfile(id: string, payload: Partial<StationProfile>) {
+  return api<StationProfile>(`/settings/station-profiles/${id}`, { method: 'PATCH', body: payload })
+}
+
+export function updateStationProfileStatus(id: string, payload: { status: StationProfile['status'] }) {
+  return api<StationProfile>(`/settings/station-profiles/${id}/status`, { method: 'PATCH', body: payload })
+}
+
+export function getDisplaySettings() {
+  return api<DisplaySettings>('/settings/display')
+}
+
+export function updateDisplaySettings(payload: Partial<DisplaySettings>) {
+  return api<DisplaySettings>('/settings/display', { method: 'PATCH', body: payload })
+}
+
+export function getAnnouncements(query?: Record<string, string | boolean | undefined>) {
+  return api<AnnouncementRecord[]>('/settings/announcements', { query })
+}
+
+export function createAnnouncement(payload: Partial<AnnouncementRecord>) {
+  return api<AnnouncementRecord>('/settings/announcements', { method: 'POST', body: payload })
+}
+
+export function updateAnnouncement(id: string, payload: Partial<AnnouncementRecord>) {
+  return api<AnnouncementRecord>(`/settings/announcements/${id}`, { method: 'PATCH', body: payload })
+}
+
+export function updateAnnouncementStatus(id: string, payload: { active: boolean }) {
+  return api<AnnouncementRecord>(`/settings/announcements/${id}/status`, { method: 'PATCH', body: payload })
+}
+
+export function getSystemFeedback(query?: Record<string, string | undefined>) {
+  return api<SystemFeedbackRecord[]>('/settings/feedback', { query })
+}
+
+export function createSystemFeedback(payload: Partial<SystemFeedbackRecord>) {
+  return api<SystemFeedbackRecord>('/settings/feedback', { method: 'POST', body: payload })
+}
+
+export function updateSystemFeedbackStatus(id: string, payload: { status: SystemFeedbackRecord['status'] }) {
+  return api<SystemFeedbackRecord>(`/settings/feedback/${id}/status`, { method: 'PATCH', body: payload })
+}
+
+export function getPilotCheck() {
+  return api<PilotCheckResult>('/settings/pilot-check')
+}
+
+export function runPilotCheck() {
+  return api<PilotCheckResult>('/settings/pilot-check/run', { method: 'POST', body: {} })
+}
+
+export function getSettingsHistory(query?: Record<string, string | number | undefined>) {
+  return api<SettingsRecord[]>('/settings/history', { query })
 }
 
 export function getProductionPlans(scope: PlanScope) {

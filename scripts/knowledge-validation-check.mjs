@@ -20,6 +20,11 @@ function requireIncludes(relativePath, text, message) {
   if (!read(relativePath).includes(text)) blockers.push(message);
 }
 
+function requireAnyIncludes(relativePath, texts, message) {
+  const content = read(relativePath);
+  if (!texts.some((text) => content.includes(text))) blockers.push(message);
+}
+
 [
   'apps/api/src/knowledge/knowledge.controller.ts',
   'apps/api/src/knowledge/knowledge.service.ts',
@@ -103,12 +108,29 @@ function requireIncludes(relativePath, text, message) {
   'knowledge.bulkUpdateQualityStandards',
 ].forEach((needle) => requireIncludes('apps/tablet/src/components/knowledge/WarmKnowledgeMaintenancePanel.vue', needle, `Batch maintenance missing: ${needle}`));
 
-[
-  "APP_VERSION = 'V2.7'",
-  "APP_STAGE = '全流程回归候选版'",
-  "APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'",
-  "APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'",
-].forEach((needle) => requireIncludes('apps/tablet/src/config/app-version.ts', needle, `Version config missing: ${needle}`));
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"],
+  'Version config is not an accepted V2.7+ release version.',
+);
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ["APP_STAGE = '全流程回归候选版'", "APP_STAGE = '现场试运行配置版'"],
+  'Version stage is not an accepted regression or field pilot stage.',
+);
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  [
+    "APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'",
+    "APP_RELEASE_NAME = '线束车间现场试运行配置版'",
+  ],
+  'Release name is not an accepted regression or field pilot release.',
+);
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
+  'Build channel is not an accepted regression or field pilot channel.',
+);
 
 requireIncludes('docs/api.md', '/api/knowledge/plan/:planId/validation', 'API docs missing knowledge validation API.');
 requireIncludes('docs/api.md', '/api/knowledge/fixtures/bulk-update', 'API docs missing bulk update API.');

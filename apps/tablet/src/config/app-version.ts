@@ -1,7 +1,7 @@
-export const APP_VERSION = 'V2.7'
-export const APP_STAGE = '全流程回归候选版'
-export const APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'
-export const APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'
+export const APP_VERSION = 'V3.1'
+export const APP_STAGE = '现场试运行配置版'
+export const APP_RELEASE_NAME = '线束车间现场试运行配置版'
+export const APP_BUILD_CHANNEL = 'mock-local-field-pilot-config'
 
 export const APP_RUNTIME_FLAGS = {
   dataSource: 'Mock',

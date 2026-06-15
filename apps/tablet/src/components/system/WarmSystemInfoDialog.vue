@@ -16,6 +16,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [value: boolean]
+  'open-feedback': []
 }>()
 
 const confirm = useConfirm()
@@ -60,6 +61,8 @@ const commands = [
   'npm run import-flow:check',
   'npm run maintenance-flow:check',
   'npm run auth-flow:check',
+  'npm run settings-flow:check',
+  'npm run field-pilot:check',
   'npm run demo:assets',
   'npm run demo:check',
   'npm run demo:freeze-check',

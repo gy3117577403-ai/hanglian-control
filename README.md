@@ -1,5 +1,25 @@
 # 线束车间生产计划资料管控系统
 
+## V3.1 系统配置中心与现场试运行配置
+
+V3.1 暂停数据库接入线，新增系统配置中心、工位配置、显示配置、公告通知、使用反馈和试运行检查。当前仍为 Mock / 本地 metadata，不接 Sealos、不接企业微信微盘、不接真实语音。
+
+常用检查命令：
+
+```bash
+npm run settings-flow:check
+npm run field-pilot:check
+npm run build
+npm run check
+```
+
+平板入口：
+
+- 演示工具 -> 系统配置中心
+- 演示工具 -> 使用反馈
+- 演示工具 -> 试运行检查
+- 顶部试运行公告
+
 ## V3.0A Sealos 只读验证准备
 
 V3.0A 只准备 Sealos PostgreSQL 测试库只读验证，不执行数据库写入。

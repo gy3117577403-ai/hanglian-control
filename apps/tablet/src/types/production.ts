@@ -624,6 +624,21 @@ export type Permission =
   | 'system.demo_tools.view'
   | 'system.roadmap.view'
   | 'system.freeze_check.view'
+  | 'settings.view'
+  | 'settings.update'
+  | 'settings.dictionary.view'
+  | 'settings.dictionary.update'
+  | 'settings.station.view'
+  | 'settings.station.update'
+  | 'settings.display.view'
+  | 'settings.display.update'
+  | 'settings.announcement.view'
+  | 'settings.announcement.update'
+  | 'settings.feedback.create'
+  | 'settings.feedback.view'
+  | 'settings.feedback.resolve'
+  | 'settings.pilot_check.view'
+  | 'settings.pilot_check.run'
   | 'admin.user.view'
   | 'admin.permission.view'
   | 'admin.all'
@@ -649,6 +664,153 @@ export interface PermissionMatrixResponse {
   provider: 'local_mock'
   allPermissions: Permission[]
   rolePermissions: Record<MockRole, Permission[]>
+}
+
+export type StationStatus = 'active' | 'inactive'
+export type SettingsFeedbackStatus = 'open' | 'processing' | 'resolved' | 'ignored'
+export type PilotCheckStatus = 'pass' | 'warning' | 'fail'
+
+export interface SystemSettings {
+  systemName: string
+  workshopName: string
+  defaultTeam: string
+  defaultRole: string
+  defaultPlanScope: PlanScope
+  allowWarningStart: boolean
+  enableFieldMode: boolean
+  enableDemoTools: boolean
+  remark: string
+  updatedAt: string
+}
+
+export interface DictionaryItem {
+  key: string
+  label: string
+  required?: boolean
+  enabled: boolean
+  sort: number
+  remark?: string
+}
+
+export interface DictionaryGroup {
+  groupKey: string
+  groupName: string
+  description: string
+  items: DictionaryItem[]
+  updatedAt: string
+}
+
+export interface StationProfile {
+  stationId: string
+  stationName: string
+  stationCode: string
+  processSegment: 'front' | 'back' | 'common'
+  defaultRole: string
+  defaultTeam: string
+  defaultPlanScope: PlanScope
+  defaultTabs: string[]
+  enabledQuickActions: string[]
+  showKnowledgePanel: boolean
+  showExecutionPanel: boolean
+  showAnalyticsPanel: boolean
+  fieldModeDefault: boolean
+  remark: string
+  status: StationStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DisplaySettings {
+  fontScale: 'normal' | 'large' | 'extra_large'
+  cardDensity: 'normal' | 'comfortable'
+  defaultFieldMode: boolean
+  showDemoBadges: boolean
+  showTechnicalWarnings: boolean
+  enableWarmAnimations: boolean
+  defaultTheme: 'warm_3d'
+  updatedAt: string
+}
+
+export interface AnnouncementRecord {
+  id: string
+  title: string
+  content: string
+  type: 'notice' | 'document_change' | 'pilot_reminder' | 'maintenance'
+  severity: 'info' | 'warning' | 'critical'
+  active: boolean
+  pinned: boolean
+  startAt?: string
+  endAt?: string
+  createdAt: string
+  updatedAt: string
+  operatorName: string
+}
+
+export interface SystemFeedbackRecord {
+  id: string
+  feedbackType: string
+  title: string
+  description: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  currentPage?: string
+  role?: string
+  userId?: string
+  userName?: string
+  screenshotRemark?: string
+  expectedResult?: string
+  actualResult?: string
+  status: SettingsFeedbackStatus
+  resolverName?: string
+  resolvedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PilotCheckItem {
+  key: string
+  label: string
+  status: PilotCheckStatus
+  message: string
+  recommendedAction: string
+}
+
+export interface PilotCheckResult {
+  id: string
+  score: number
+  status: PilotCheckStatus
+  checkedAt: string
+  summary: string
+  items: PilotCheckItem[]
+  operatorName: string
+}
+
+export interface SettingsRecord {
+  id: string
+  entityType: string
+  entityId: string
+  action: string
+  before?: unknown
+  after?: unknown
+  operatorId: string
+  operatorName: string
+  operatorRole: string
+  reason?: string
+  createdAt: string
+}
+
+export interface SettingsSummary {
+  version: 'V3.1'
+  stage: string
+  dataSource: 'mock'
+  sealosConnected: boolean
+  wecomDiskConnected: boolean
+  realVoiceConnected: boolean
+  systemName: string
+  stationProfiles: number
+  dictionaryGroups: number
+  announcements: number
+  openFeedback: number
+  lastUpdatedAt: string
 }
 
 export type MaintenanceEntityType =

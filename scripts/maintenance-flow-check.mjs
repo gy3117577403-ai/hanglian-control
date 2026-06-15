@@ -21,6 +21,11 @@ function requireIncludes(relativePath, text, message) {
   if (!read(relativePath).includes(text)) blockers.push(message);
 }
 
+function requireAnyIncludes(relativePath, texts, message) {
+  const content = read(relativePath);
+  if (!texts.some((text) => content.includes(text))) blockers.push(message);
+}
+
 [
   'apps/api/src/maintenance/maintenance.module.ts',
   'apps/api/src/maintenance/maintenance.controller.ts',
@@ -80,7 +85,11 @@ requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '资料维�
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmMaintenanceCenterDialog', 'Tablet dashboard does not mount WarmMaintenanceCenterDialog.');
 requireIncludes('apps/api/src/storage/local-storage.service.ts', 'maintenanceRecordsFile', 'Local storage service does not manage maintenance-records.json.');
 requireIncludes('package.json', '"maintenance-flow:check"', 'Missing npm run maintenance-flow:check.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V2.7'", 'Version config is not V2.7.');
+requireAnyIncludes(
+  'apps/tablet/src/config/app-version.ts',
+  ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"],
+  'Version config is not an accepted V2.7+ release version.',
+);
 
 if (!exists('apps/api/storage/metadata/imported-business-data.json')) {
   warnings.push('Imported metadata snapshot does not exist yet. Run demo import flow when demo data needs to be refreshed.');

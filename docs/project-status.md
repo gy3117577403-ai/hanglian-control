@@ -1,5 +1,17 @@
 # 项目状态
 
+## V3.1 进展
+
+- 当前分支：`feature/v3-1-system-settings-field-pilot`。
+- 新增系统配置中心。
+- 新增字典配置、工位配置、显示配置。
+- 新增公告通知和使用反馈闭环。
+- 新增现场试运行检查。
+- 新增本地配置审计记录。
+- 新增 `settings-flow:check` 和 `field-pilot:check`。
+- 当前仍未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何写库操作。
+
 ## V3.0A 进展
 
 - 当前分支：`feature/v3-0a-sealos-readonly-check`。

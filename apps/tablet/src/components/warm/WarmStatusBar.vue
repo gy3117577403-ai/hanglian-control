@@ -9,6 +9,7 @@ import { APP_STAGE, APP_VERSION } from '@/config/app-version'
 import { PERMISSIONS, permissionLabels } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
+import { useSettingsStore } from '@/stores/settings-store'
 import { useUiStore } from '@/stores/ui-store'
 import type { MockUser, Permission } from '@/types/production'
 
@@ -23,6 +24,7 @@ type DemoToolItem = {
 }
 
 const store = useProductionStore()
+const settingsStore = useSettingsStore()
 const uiStore = useUiStore()
 const auth = useAuthStore()
 const router = useRouter()
@@ -45,6 +47,10 @@ const emit = defineEmits<{
   'open-migration': []
   'open-analytics': []
   'open-system-qa': []
+  'open-settings-center': []
+  'open-system-feedback': []
+  'open-pilot-check': []
+  'open-announcements': []
 }>()
 
 const currentTime = ref(dayjs().format('YYYY年MM月DD日 HH:mm'))
@@ -60,9 +66,14 @@ const apiLabel = computed(() => {
 })
 const apiSeverity = computed(() => (store.apiOnline ? 'success' : store.offlineDemoMode ? 'warn' : 'info'))
 const permissionList = computed(() => auth.permissions.map((permission) => permissionLabels[permission] ?? permission))
+const stationLabel = computed(() => settingsStore.activeStationProfile?.stationName ?? '未选择工位')
 
 const allDemoToolItems = computed<DemoToolItem[]>(() => [
   { label: '系统信息', icon: 'pi pi-info-circle', permission: PERMISSIONS.SYSTEM_INFO_VIEW, command: () => emit('open-system-info') },
+  { label: '系统配置中心', icon: 'pi pi-cog', permission: PERMISSIONS.SETTINGS_VIEW, command: () => emit('open-settings-center') },
+  { label: '公告通知', icon: 'pi pi-bell', permission: PERMISSIONS.SETTINGS_ANNOUNCEMENT_VIEW, command: () => emit('open-announcements') },
+  { label: '使用反馈', icon: 'pi pi-comment', permission: PERMISSIONS.SETTINGS_FEEDBACK_CREATE, command: () => emit('open-system-feedback') },
+  { label: '试运行检查', icon: 'pi pi-clipboard', permission: PERMISSIONS.SETTINGS_PILOT_CHECK_VIEW, command: () => emit('open-pilot-check') },
   { label: '演示说明', icon: 'pi pi-book', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-guide') },
   { label: '安装到平板桌面', icon: 'pi pi-mobile', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-pwa-install') },
   { label: '数据导入中心', icon: 'pi pi-file-import', permission: PERMISSIONS.IMPORT_VIEW, command: () => emit('open-import-center') },
@@ -155,6 +166,7 @@ function confirmResetDemoUi() {
 }
 
 onMounted(() => {
+  void settingsStore.initialize().catch(() => undefined)
   timer = window.setInterval(() => {
     currentTime.value = dayjs().format('YYYY年MM月DD日 HH:mm')
   }, 30_000)
@@ -190,7 +202,7 @@ onUnmounted(() => {
       </div>
       <div class="warm-chip">
         <ShieldCheck :size="17" />
-        <span>{{ auth.team || 'A 班' }}</span>
+        <span>{{ auth.team || 'A 班' }} / {{ stationLabel }}</span>
       </div>
       <div class="warm-chip">
         <UserRoundCog :size="17" />

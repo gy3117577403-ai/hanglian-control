@@ -114,9 +114,15 @@ const versionConfig = read('apps/tablet/src/config/app-version.ts');
 ].forEach((pattern) => requireGitIgnore(gitignore, pattern));
 
 if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.');
-if (!versionConfig.includes("APP_VERSION = 'V2.7'")) blockers.push('Version config is not V2.7.');
-if (!versionConfig.includes("APP_STAGE = '全流程回归候选版'")) blockers.push('Version stage is not 全流程回归候选版.');
-if (!versionConfig.includes("APP_BUILD_CHANNEL = 'mock-local-full-regression-candidate'")) blockers.push('Build channel is not mock-local-full-regression-candidate.');
+if (!["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"].some((text) => versionConfig.includes(text))) {
+  blockers.push('Version config is not an accepted V2.7+ release version.');
+}
+if (!["APP_STAGE = '全流程回归候选版'", "APP_STAGE = '现场试运行配置版'"].some((text) => versionConfig.includes(text))) {
+  blockers.push('Version stage is not an accepted regression or field pilot stage.');
+}
+if (!['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'].some((text) => versionConfig.includes(text))) {
+  blockers.push('Build channel is not an accepted regression or field pilot channel.');
+}
 
 console.log('V2.7 demo freeze check');
 console.log('This check is read-only. It does not connect to a database, run migrations, db push, seed, or delete files.');

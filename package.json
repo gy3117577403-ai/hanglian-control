@@ -30,6 +30,8 @@
     "acceptance:report": "node scripts/generate-acceptance-report.mjs",
     "sealos:readonly-check": "node scripts/sealos-readonly-check.mjs",
     "sealos:readonly-report": "node scripts/sealos-readonly-report.mjs",
+    "settings-flow:check": "node scripts/settings-flow-check.mjs",
+    "field-pilot:check": "node scripts/field-pilot-check.mjs",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

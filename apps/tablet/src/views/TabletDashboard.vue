@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import WarmAnalyticsDashboardDialog from '@/components/analytics/WarmAnalyticsDashboardDialog.vue'
+import WarmAnnouncementBanner from '@/components/settings/WarmAnnouncementBanner.vue'
+import WarmAnnouncementDialog from '@/components/settings/WarmAnnouncementDialog.vue'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
 import WarmExecutionPanel from '@/components/execution/WarmExecutionPanel.vue'
 import WarmKnowledgePanel from '@/components/knowledge/WarmKnowledgePanel.vue'
@@ -23,7 +25,10 @@ import WarmLaunchScreen from '@/components/system/WarmLaunchScreen.vue'
 import WarmPwaDiagnosticsDialog from '@/components/system/WarmPwaDiagnosticsDialog.vue'
 import WarmPwaInstallPrompt from '@/components/system/WarmPwaInstallPrompt.vue'
 import WarmRoadmapDialog from '@/components/system/WarmRoadmapDialog.vue'
+import WarmSettingsCenterDialog from '@/components/settings/WarmSettingsCenterDialog.vue'
+import WarmSystemFeedbackDialog from '@/components/settings/WarmSystemFeedbackDialog.vue'
 import WarmSystemInfoDialog from '@/components/system/WarmSystemInfoDialog.vue'
+import WarmPilotCheckDialog from '@/components/settings/WarmPilotCheckDialog.vue'
 import WarmSystemQaDialog from '@/components/systemqa/WarmSystemQaDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
@@ -33,17 +38,29 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
 import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useProductionStore } from '@/stores/production-store'
+import { useSettingsStore } from '@/stores/settings-store'
 import { useUiStore } from '@/stores/ui-store'
 
 const auth = useAuthStore()
 const knowledgeStore = useKnowledgeStore()
 const store = useProductionStore()
+const settingsStore = useSettingsStore()
 const uiStore = useUiStore()
 const shellRef = ref<HTMLElement | null>(null)
 const documentAnchorRef = ref<HTMLElement | null>(null)
 const knowledgeAnchorRef = ref<HTMLElement | null>(null)
 const launchVisible = ref(true)
 let ctx: gsap.Context | undefined
+
+const shellClasses = computed(() => [
+  'warm-shell',
+  {
+    'field-mode': uiStore.fieldMode || settingsStore.displaySettings?.defaultFieldMode,
+    'settings-font-large': settingsStore.displaySettings?.fontScale === 'large',
+    'settings-font-extra-large': settingsStore.displaySettings?.fontScale === 'extra_large',
+    'settings-density-comfortable': settingsStore.displaySettings?.cardDensity === 'comfortable',
+  },
+])
 
 const dialogs = reactive({
   feedback: false,
@@ -66,6 +83,10 @@ const dialogs = reactive({
   roadmap: false,
   analytics: false,
   systemQa: false,
+  settingsCenter: false,
+  systemFeedback: false,
+  pilotCheck: false,
+  announcements: false,
 })
 
 function openFeedback() {
@@ -151,6 +172,7 @@ onMounted(() => {
   if (auth.role === 'front_leader') store.activeProcess = 'front'
   if (auth.role === 'back_leader') store.activeProcess = 'back'
   void store.initialize()
+  void settingsStore.initialize()
   window.setTimeout(() => {
     launchVisible.value = false
   }, 1500)
@@ -171,7 +193,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="shellRef" :class="['warm-shell', { 'field-mode': uiStore.fieldMode }]">
+  <div ref="shellRef" :class="shellClasses">
     <div class="warm-workbench">
       <WarmStatusBar
         @open-network="dialogs.network = true"
@@ -190,7 +212,12 @@ onUnmounted(() => {
         @open-migration="openMigration"
         @open-analytics="openAnalytics"
         @open-system-qa="openSystemQa"
+        @open-settings-center="dialogs.settingsCenter = true"
+        @open-system-feedback="dialogs.systemFeedback = true"
+        @open-pilot-check="dialogs.pilotCheck = true"
+        @open-announcements="dialogs.announcements = true"
       />
+      <WarmAnnouncementBanner @open="dialogs.announcements = true" />
       <main class="warm-layout">
         <WarmPlanRail />
         <section class="warm-board">
@@ -254,7 +281,7 @@ onUnmounted(() => {
       @changed="refreshAfterMaintenance"
     />
     <WarmFieldQaChecklist v-model:visible="dialogs.fieldQa" />
-    <WarmSystemInfoDialog v-model:visible="dialogs.systemInfo" />
+    <WarmSystemInfoDialog v-model:visible="dialogs.systemInfo" @open-feedback="dialogs.systemFeedback = true" />
     <WarmDemoGuideDialog
       v-model:visible="dialogs.demoGuide"
       @open-network="dialogs.network = true"
@@ -280,5 +307,9 @@ onUnmounted(() => {
     <WarmRoadmapDialog v-model:visible="dialogs.roadmap" />
     <WarmAnalyticsDashboardDialog v-model:visible="dialogs.analytics" />
     <WarmSystemQaDialog v-model:visible="dialogs.systemQa" />
+    <WarmSettingsCenterDialog v-model:visible="dialogs.settingsCenter" />
+    <WarmSystemFeedbackDialog v-model:visible="dialogs.systemFeedback" />
+    <WarmPilotCheckDialog v-model:visible="dialogs.pilotCheck" />
+    <WarmAnnouncementDialog v-model:visible="dialogs.announcements" />
   </div>
 </template>

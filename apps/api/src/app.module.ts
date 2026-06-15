@@ -16,6 +16,7 @@ import { MigrationModule } from './migration/migration.module';
 import { ProductionPlansModule } from './production-plans/production-plans.module';
 import { ProductsModule } from './products/products.module';
 import { SearchModule } from './search/search.module';
+import { SettingsModule } from './settings/settings.module';
 import { SystemModule } from './system/system.module';
 import { SystemQaModule } from './system-qa/system-qa.module';
 
@@ -40,6 +41,7 @@ import { SystemQaModule } from './system-qa/system-qa.module';
     MaintenanceModule,
     MigrationModule,
     SearchModule,
+    SettingsModule,
     FeedbackModule,
     SystemModule,
     SystemQaModule,

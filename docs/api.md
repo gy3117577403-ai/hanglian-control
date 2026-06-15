@@ -242,3 +242,30 @@ V2.4 知识库仍使用 Mock seed 与本地 metadata。
 - `GET /api/execution/shift-handover`：查询班组交接记录。
 - `GET /api/execution/daily-report`：返回现场日报结构化数据。
 - `GET /api/execution/daily-report/text`：返回现场日报文本。
+# V3.1 Settings API
+
+当前 settings API 使用 Mock / 本地 metadata，不连接 Sealos，不执行数据库写入。
+
+- `GET /api/settings/summary`：系统配置概览。
+- `GET /api/settings/system`：系统基础配置。
+- `PATCH /api/settings/system`：更新系统基础配置。
+- `GET /api/settings/dictionaries`：获取字典配置。
+- `PATCH /api/settings/dictionaries/:groupKey`：更新某组字典。
+- `GET /api/settings/station-profiles`：获取工位配置。
+- `POST /api/settings/station-profiles`：新增工位配置。
+- `PATCH /api/settings/station-profiles/:id`：更新工位配置。
+- `PATCH /api/settings/station-profiles/:id/status`：启用 / 停用工位。
+- `GET /api/settings/display`：获取显示配置。
+- `PATCH /api/settings/display`：更新显示配置。
+- `GET /api/settings/announcements`：获取公告。
+- `POST /api/settings/announcements`：新增公告。
+- `PATCH /api/settings/announcements/:id`：更新公告。
+- `PATCH /api/settings/announcements/:id/status`：启用 / 关闭公告。
+- `GET /api/settings/feedback`：获取系统使用反馈。
+- `POST /api/settings/feedback`：提交系统使用反馈。
+- `PATCH /api/settings/feedback/:id/status`：更新反馈状态。
+- `GET /api/settings/pilot-check`：获取最近一次试运行检查。
+- `POST /api/settings/pilot-check/run`：运行试运行检查。
+- `GET /api/settings/history`：获取配置变更历史。
+
+安全边界：不打印真实连接串，不接企业微信微盘，不接真实语音，不执行 migrate / db push / seed。

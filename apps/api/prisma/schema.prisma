@@ -623,3 +623,149 @@ model ShiftHandoverRecord {
   @@index([operatorId])
   @@index([createdAt])
 }
+
+model SystemSetting {
+  id           String   @id @default(cuid())
+  settingKey   String   @unique
+  valueJson    Json
+  remark       String?
+  operatorId   String?
+  operatorName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([settingKey])
+  @@index([updatedAt])
+}
+
+model DictionarySetting {
+  id           String   @id @default(cuid())
+  groupKey     String   @unique
+  groupName    String
+  description  String?
+  itemsJson    Json
+  operatorId   String?
+  operatorName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([groupKey])
+  @@index([updatedAt])
+}
+
+model StationProfile {
+  id                  String   @id @default(cuid())
+  stationCode         String   @unique
+  stationName         String
+  processSegment      String
+  defaultRole         String
+  defaultTeam         String
+  defaultPlanScope    String
+  defaultTabs         String[]
+  enabledQuickActions String[]
+  showKnowledgePanel  Boolean  @default(true)
+  showExecutionPanel  Boolean  @default(true)
+  showAnalyticsPanel  Boolean  @default(false)
+  fieldModeDefault    Boolean  @default(true)
+  status              String   @default("active")
+  remark              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([processSegment])
+  @@index([defaultRole])
+  @@index([status])
+}
+
+model DisplaySetting {
+  id                    String   @id @default(cuid())
+  settingKey            String   @unique
+  fontScale             String
+  cardDensity           String
+  defaultFieldMode      Boolean  @default(true)
+  showDemoBadges        Boolean  @default(true)
+  showTechnicalWarnings Boolean  @default(true)
+  enableWarmAnimations  Boolean  @default(true)
+  defaultTheme          String   @default("warm_3d")
+  updatedAt             DateTime @updatedAt
+}
+
+model Announcement {
+  id           String    @id @default(cuid())
+  title        String
+  content      String
+  type         String
+  severity     String
+  active       Boolean   @default(true)
+  pinned       Boolean   @default(false)
+  startAt      DateTime?
+  endAt        DateTime?
+  operatorId   String?
+  operatorName String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([active])
+  @@index([type])
+  @@index([severity])
+  @@index([updatedAt])
+}
+
+model SystemFeedback {
+  id               String    @id @default(cuid())
+  feedbackType     String
+  title            String
+  description      String
+  severity         String
+  currentPage      String?
+  role             String?
+  userId           String?
+  userName         String?
+  screenshotRemark String?
+  expectedResult   String?
+  actualResult     String?
+  status           String    @default("open")
+  resolverName     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([feedbackType])
+  @@index([severity])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PilotCheckRecord {
+  id           String   @id @default(cuid())
+  score        Int
+  status       String
+  summary      String
+  itemsJson    Json
+  operatorId   String?
+  operatorName String?
+  checkedAt    DateTime @default(now())
+
+  @@index([status])
+  @@index([checkedAt])
+}
+
+model SettingsRecord {
+  id           String   @id @default(cuid())
+  entityType   String
+  entityId     String
+  action       String
+  beforeJson   Json?
+  afterJson    Json?
+  reason       String?
+  operatorId   String?
+  operatorName String?
+  operatorRole String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([operatorId])
+  @@index([createdAt])
+}

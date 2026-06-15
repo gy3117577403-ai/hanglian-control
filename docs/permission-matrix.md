@@ -116,3 +116,29 @@ V2.2 权限为本地 Mock RBAC，用于演示平板端菜单、按钮和后端 M
 | `GET /api/analytics/trends` | `analytics.view` |
 | `GET /api/analytics/rankings` | `analytics.view` |
 | `GET /api/analytics/summary-text` | `analytics.summary.copy` |
+# V3.1 Settings 权限
+
+新增权限点：
+
+- `settings.view`
+- `settings.update`
+- `settings.dictionary.view`
+- `settings.dictionary.update`
+- `settings.station.view`
+- `settings.station.update`
+- `settings.display.view`
+- `settings.display.update`
+- `settings.announcement.view`
+- `settings.announcement.update`
+- `settings.feedback.create`
+- `settings.feedback.view`
+- `settings.feedback.resolve`
+- `settings.pilot_check.view`
+- `settings.pilot_check.run`
+
+角色建议：
+
+- 前段组长 / 后段组长：提交使用反馈、查看公告、查看试运行检查。
+- 资料维护：查看系统配置、字典、工位、公告、反馈和试运行检查。
+- 工艺 / 品质：提交反馈、查看公告、查看反馈、查看试运行检查。
+- 管理员：全部 `settings.*`。

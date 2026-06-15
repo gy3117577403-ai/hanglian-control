@@ -45,6 +45,14 @@ apps/api/storage/metadata/plan-status-events.json
 apps/api/storage/metadata/quantity-reports.json
 apps/api/storage/metadata/shift-handover-records.json
 apps/api/storage/metadata/demo-analytics-snapshot.json
+apps/api/storage/metadata/system-settings.json
+apps/api/storage/metadata/dictionary-settings.json
+apps/api/storage/metadata/station-profiles.json
+apps/api/storage/metadata/display-settings.json
+apps/api/storage/metadata/announcement-records.json
+apps/api/storage/metadata/system-feedback-records.json
+apps/api/storage/metadata/pilot-check-records.json
+apps/api/storage/metadata/settings-records.json
 apps/api/storage/metadata/sealos-readonly-report.json
 apps/api/storage/metadata/prisma-seed-preview.json
 apps/api/storage/metadata/prisma-migration-preview.sql
