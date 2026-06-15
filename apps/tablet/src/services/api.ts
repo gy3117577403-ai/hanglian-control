@@ -100,6 +100,19 @@ import type {
   PilotCheckResult,
   UpdateDocumentStatusPayload,
   UpdateDocumentVersionPayload,
+  BulkActionResult,
+  BulkDeletePayload,
+  BulkPurgePayload,
+  BulkRestorePayload,
+  DeleteLockChangePayload,
+  DeleteLockSetupPayload,
+  DeleteLockStatus,
+  DeletePasswordPayload,
+  PurgePayload,
+  UnifiedDocumentItem,
+  UnifiedSearchQuery,
+  UnifiedSearchResponse,
+  UnifiedUpdatePayload,
 } from '@/types/production'
 
 const API_BASE = getApiBaseUrl()
@@ -407,6 +420,115 @@ export function updateDocumentVersion(id: string, payload: UpdateDocumentVersion
 export function archiveDocument(id: string) {
   return api<ProductDocument>(`/documents/${id}/archive`, {
     method: 'POST',
+  })
+}
+
+export function searchUnifiedDocuments(query?: UnifiedSearchQuery) {
+  return api<UnifiedSearchResponse>('/unified-documents/search', {
+    query: {
+      ...query,
+      includeDeleted: query?.includeDeleted ? 'true' : undefined,
+    },
+  })
+}
+
+export function getUnifiedDocument(id: string) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}`)
+}
+
+export function uploadUnifiedDocument(formData: FormData) {
+  return api<UnifiedDocumentItem>('/unified-documents/upload', {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export function updateUnifiedDocument(id: string, payload: UnifiedUpdatePayload) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getUnifiedDocumentVersions(id: string) {
+  return api(`/unified-documents/${id}/versions`)
+}
+
+export function setUnifiedDocumentEffective(id: string) {
+  return api(`/unified-documents/${id}/set-effective`, {
+    method: 'POST',
+  })
+}
+
+export function getUnifiedTrash() {
+  return api<UnifiedDocumentItem[]>('/unified-documents/trash')
+}
+
+export function deleteUnifiedDocument(id: string, payload: DeletePasswordPayload) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}/delete`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function restoreUnifiedDocument(id: string, payload?: { reason?: string }) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}/restore`, {
+    method: 'POST',
+    body: payload ?? {},
+  })
+}
+
+export function purgeUnifiedDocument(id: string, payload: PurgePayload) {
+  return api<{ success: boolean; id: string; message: string; fileResult?: unknown }>(`/unified-documents/${id}/purge`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkDeleteUnifiedDocuments(payload: BulkDeletePayload) {
+  return api<BulkActionResult>('/unified-documents/bulk-delete', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkRestoreUnifiedDocuments(payload: BulkRestorePayload) {
+  return api<BulkActionResult>('/unified-documents/bulk-restore', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkPurgeUnifiedDocuments(payload: BulkPurgePayload) {
+  return api<BulkActionResult>('/unified-documents/bulk-purge', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getDeleteLockStatus() {
+  return api<DeleteLockStatus>('/delete-lock/status')
+}
+
+export function setupDeleteLock(payload: DeleteLockSetupPayload) {
+  return api<DeleteLockStatus>('/delete-lock/setup', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function verifyDeleteLock(password: string) {
+  return api<{ valid: boolean }>('/delete-lock/verify', {
+    method: 'POST',
+    body: { password },
+  })
+}
+
+export function changeDeleteLock(payload: DeleteLockChangePayload) {
+  return api<DeleteLockStatus>('/delete-lock/change', {
+    method: 'POST',
+    body: payload,
   })
 }
 

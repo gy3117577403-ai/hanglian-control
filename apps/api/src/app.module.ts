@@ -19,6 +19,7 @@ import { SearchModule } from './search/search.module';
 import { SettingsModule } from './settings/settings.module';
 import { SystemModule } from './system/system.module';
 import { SystemQaModule } from './system-qa/system-qa.module';
+import { UnifiedDocumentsModule } from './unified-documents/unified-documents.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { SystemQaModule } from './system-qa/system-qa.module';
     FeedbackModule,
     SystemModule,
     SystemQaModule,
+    UnifiedDocumentsModule,
   ],
   controllers: [],
   providers: [],

@@ -95,6 +95,153 @@ export interface ProductDocument {
   recommendedAction?: string
 }
 
+export type UnifiedDocumentType =
+  | 'all'
+  | 'drawing'
+  | 'sop'
+  | 'pin_map'
+  | 'finished_image'
+  | 'connector'
+  | 'front_parameter'
+  | 'back_package'
+  | 'fixture'
+  | 'abnormal_case'
+  | 'quality_standard'
+  | 'other'
+
+export type UnifiedItemKind =
+  | 'document'
+  | 'front_parameter'
+  | 'back_package'
+  | 'fixture'
+  | 'abnormal_case'
+  | 'quality_standard'
+
+export interface UnifiedDocumentItem {
+  id: string
+  type: UnifiedItemKind
+  unifiedType: UnifiedDocumentType | string
+  title: string
+  subtitle: string
+  customerName?: string
+  productCode?: string
+  productName?: string
+  productVersion?: string
+  version?: string
+  status?: string
+  source?: string
+  matchedFields: string[]
+  previewAvailable: boolean
+  deleted: boolean
+  deletedAt?: string
+  deletedBy?: string
+  restoredAt?: string
+  restoredBy?: string
+  updatedAt?: string
+  keywords?: string[]
+  remark?: string
+  previewUrl?: string
+  downloadUrl?: string
+  originalFileName?: string
+  fileSize?: number
+  mimeType?: string
+  requiredForProcess?: RequiredProcess | string
+  document?: ProductDocument
+  raw?: unknown
+}
+
+export interface UnifiedSearchQuery {
+  q?: string
+  type?: UnifiedDocumentType | string
+  customer?: string
+  productCode?: string
+  status?: string
+  includeDeleted?: boolean
+  source?: string
+}
+
+export interface UnifiedSearchResponse {
+  total: number
+  items: UnifiedDocumentItem[]
+  generatedAt: string
+}
+
+export interface UnifiedUploadPayload {
+  customerName?: string
+  productCode: string
+  productName: string
+  productVersion?: string
+  documentType: DocumentTypeV03
+  title: string
+  version: string
+  status?: DocumentStatus
+  requiredForProcess?: RequiredProcess
+  keywords?: string
+  remark?: string
+  file: File
+}
+
+export interface UnifiedUpdatePayload {
+  customerName?: string
+  productCode?: string
+  productName?: string
+  productVersion?: string
+  documentType?: DocumentTypeV03
+  title?: string
+  version?: string
+  status?: DocumentStatus
+  requiredForProcess?: RequiredProcess
+  keywords?: string
+  remark?: string
+}
+
+export interface DeleteLockStatus {
+  enabled: boolean
+  hasPassword: boolean
+  locked: boolean
+  lockedUntil: string | null
+  failedAttempts: number
+}
+
+export interface DeleteLockSetupPayload {
+  password: string
+  confirmPassword: string
+}
+
+export interface DeleteLockChangePayload extends DeleteLockSetupPayload {
+  oldPassword: string
+  updatedBy?: string
+}
+
+export interface DeletePasswordPayload {
+  password: string
+  reason?: string
+}
+
+export interface PurgePayload extends DeletePasswordPayload {
+  confirmText: string
+}
+
+export interface BulkDeletePayload extends DeletePasswordPayload {
+  ids: string[]
+}
+
+export interface BulkRestorePayload {
+  ids: string[]
+  reason?: string
+}
+
+export interface BulkPurgePayload extends PurgePayload {
+  ids: string[]
+}
+
+export interface BulkActionResult {
+  total: number
+  successCount: number
+  failedCount: number
+  rows: Array<{ id: string; success: boolean; message?: string; result?: unknown }>
+}
+
 export interface DocumentFileHealthItem {
   documentId: string
   title: string

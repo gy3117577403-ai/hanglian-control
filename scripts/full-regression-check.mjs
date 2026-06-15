@@ -92,15 +92,24 @@ const scripts = packageJson.scripts ?? {};
   'getSystemQaAcceptanceReportText',
 ].forEach((needle) => requireIncludes('apps/tablet/src/services/api.ts', needle, `前端 API service 缺少：${needle}`));
 
-requireAnyIncludes('apps/tablet/src/config/app-version.ts', ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"], '版本信息不是 V2.7 或后续已验收版本。');
-requireAnyIncludes('apps/tablet/src/config/app-version.ts', ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'], '构建通道不是已允许的回归/试运行/定制基线通道。');
-requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '全流程总验收', '演示工具菜单缺少全流程总验收入口。');
-requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmSystemQaDialog', '平板主界面未挂载总验收面板。');
+const versionConfig = read('apps/tablet/src/config/app-version.ts');
+const isUnifiedDocumentCenter = versionConfig.includes("APP_VERSION = 'V3.2'");
+requireAnyIncludes('apps/tablet/src/config/app-version.ts', ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'", "APP_VERSION = 'V3.2'"], '版本信息不是 V2.7 或后续已验收版本。');
+requireAnyIncludes('apps/tablet/src/config/app-version.ts', ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline', 'mock-local-custom-document-center'], '构建通道不是已允许的回归/试运行/定制基线通道。');
+if (isUnifiedDocumentCenter) {
+  requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmUnifiedDocumentCenter', 'V3.2 平板主界面未挂载统一资料中心。');
+  requireFile('apps/tablet/src/components/systemqa/WarmSystemQaDialog.vue');
+} else {
+  requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '全流程总验收', '演示工具菜单缺少全流程总验收入口。');
+  requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmSystemQaDialog', '平板主界面未挂载总验收面板。');
+}
 requireIncludes('README.md', 'V2.7 全流程回归候选版', 'README 缺少 V2.7 说明。');
 requireIncludes('.gitignore', 'apps/api/storage/metadata/documents.json', '.gitignore 未忽略 documents.json。');
 requireIncludes('.gitignore', 'apps/api/storage/metadata/demo-analytics-snapshot.json', '.gitignore 未忽略 analytics snapshot。');
 
-if (!currentBranch().includes('v2-7') && !currentBranch().includes('v3-1')) warnings.push(`当前分支不是 V2.7/V3.1 命名：${currentBranch()}`);
+if (!currentBranch().includes('v2-7') && !currentBranch().includes('v3-1') && !currentBranch().includes('v3-2')) {
+  warnings.push(`当前分支不是 V2.7/V3.1/V3.2 命名：${currentBranch()}`);
+}
 
 console.log('V2.7+ 全流程回归检查');
 console.log('该检查只读，不连接数据库，不执行 migrate / db push / seed，不删除文件。');

@@ -88,12 +88,24 @@ function stripValue(value) {
 
 function isPlaceholder(value) {
   const lower = value.toLowerCase();
+  const cleaned = lower.replace(/[;,]$/, '');
   return (
     value === '' ||
+    cleaned === 'string' ||
+    cleaned === 'boolean' ||
+    cleaned === 'number' ||
+    cleaned === 'unknown' ||
     lower.includes('example') ||
     lower.includes('placeholder') ||
     lower.includes('changeme') ||
     lower.includes('your_') ||
+    lower.includes('用户输入') ||
+    lower.includes('请输入') ||
+    lower.includes('删除密码') ||
+    lower.includes('form.') ||
+    lower.includes('payload.') ||
+    lower.includes('dto.') ||
+    lower.includes('process.env') ||
     lower.includes('user:password@host') ||
     lower === 'password' ||
     lower === 'secret' ||
@@ -260,6 +272,7 @@ walk(rootDir);
   'apps/api/storage/metadata/system-feedback-records.json',
   'apps/api/storage/metadata/pilot-check-records.json',
   'apps/api/storage/metadata/settings-records.json',
+  'apps/api/storage/metadata/delete-lock-settings.json',
   'apps/api/storage/metadata/prisma-seed-preview.json',
   'apps/api/storage/metadata/prisma-migration-preview.sql',
 ].forEach((file) => checkLocalOnlyFile(file));

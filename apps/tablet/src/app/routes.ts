@@ -14,6 +14,7 @@ export const router = createRouter({
       path: '/tablet',
       name: 'tablet-dashboard',
       component: TabletDashboard,
+      meta: { public: true },
     },
     {
       path: '/login',
@@ -35,6 +36,6 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  if (!auth.loggedIn) return '/login'
+  if (!auth.loggedIn) return to.path === '/tablet' ? true : '/login'
   return true
 })

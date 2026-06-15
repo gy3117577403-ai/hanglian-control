@@ -1,5 +1,17 @@
 # 项目状态
 
+## V3.2 统一资料查询上传中心
+
+- 当前分支：`feature/v3-2-unified-query-upload-delete-lock`。
+- 主页面改为统一资料查询上传中心，不再要求登录。
+- 暂时取消主页面角色、职位专属入口、演示工具、现场模式、执行闭环和统计看板主流程展示。
+- 新增统一资料搜索、上传、预览、编辑、版本历史、设为当前有效。
+- 新增回收站、软删除、恢复、彻底删除和批量删除。
+- 新增删除密码锁，后端保存 bcrypt hash，前端不保存明文密码。
+- 删除锁 metadata 已加入 `.gitignore`。
+- 当前仍未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何数据库写库操作。
+
 ## V3.1 定制开发基线
 
 - 当前分支：`feature/v3-1-clean-custom-baseline`。
