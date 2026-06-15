@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { AuditService } from '../audit/audit.service';
+import { shouldLoadDemoBusinessData } from '../config/mock-data-mode';
 import { mockStore } from '../mock/production.mock';
 import { fixtureSeed, abnormalCaseSeed, qualityStandardSeed } from './mock/knowledge-seed';
 import { clone, hashId, includesKeyword, limitRows, normalizeProcessSegment, normalizeStringArray, processSegmentLabel } from './helpers/knowledge-normalizer';
@@ -914,7 +915,7 @@ export class KnowledgeService {
   }
 
   private readFixtures() {
-    return readJson<FixtureKnowledge[]>(this.fixturesFile, fixtureSeed);
+    return readJson<FixtureKnowledge[]>(this.fixturesFile, shouldLoadDemoBusinessData() ? fixtureSeed : []);
   }
 
   private writeFixtures(rows: FixtureKnowledge[]) {
@@ -922,7 +923,7 @@ export class KnowledgeService {
   }
 
   private readAbnormalCases() {
-    return readJson<AbnormalCaseKnowledge[]>(this.abnormalFile, abnormalCaseSeed);
+    return readJson<AbnormalCaseKnowledge[]>(this.abnormalFile, shouldLoadDemoBusinessData() ? abnormalCaseSeed : []);
   }
 
   private writeAbnormalCases(rows: AbnormalCaseKnowledge[]) {
@@ -930,7 +931,7 @@ export class KnowledgeService {
   }
 
   private readQualityStandards() {
-    return readJson<QualityStandardKnowledge[]>(this.qualityFile, qualityStandardSeed);
+    return readJson<QualityStandardKnowledge[]>(this.qualityFile, shouldLoadDemoBusinessData() ? qualityStandardSeed : []);
   }
 
   private writeQualityStandards(rows: QualityStandardKnowledge[]) {

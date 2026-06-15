@@ -115,21 +115,22 @@ requireAnyIncludes(
 );
 requireAnyIncludes(
   'apps/tablet/src/config/app-version.ts',
-  ["APP_STAGE = '全流程回归候选版'", "APP_STAGE = '现场试运行配置版'"],
-  'Version stage is not an accepted regression or field pilot stage.',
+  ["APP_STAGE = '全流程回归候选版'", "APP_STAGE = '现场试运行配置版'", "APP_STAGE = '定制开发基线版'"],
+  'Version stage is not an accepted regression, field pilot, or custom baseline stage.',
 );
 requireAnyIncludes(
   'apps/tablet/src/config/app-version.ts',
   [
     "APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'",
     "APP_RELEASE_NAME = '线束车间现场试运行配置版'",
+    "APP_RELEASE_NAME = '线束车间定制开发基线版'",
   ],
-  'Release name is not an accepted regression or field pilot release.',
+  'Release name is not an accepted regression, field pilot, or custom baseline release.',
 );
 requireAnyIncludes(
   'apps/tablet/src/config/app-version.ts',
-  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
-  'Build channel is not an accepted regression or field pilot channel.',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'],
+  'Build channel is not an accepted regression, field pilot, or custom baseline channel.',
 );
 
 requireIncludes('docs/api.md', '/api/knowledge/plan/:planId/validation', 'API docs missing knowledge validation API.');

@@ -27,6 +27,7 @@ apps/api/generated
 
 # Local Codex state
 .codex/
+local-backups/
 
 # Local storage and uploaded documents
 apps/api/storage/uploads/*

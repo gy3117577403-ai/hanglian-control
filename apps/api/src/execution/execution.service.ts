@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import type { ProductionPlanMock } from '../common/types/production.types';
+import { shouldLoadDemoBusinessData } from '../config/mock-data-mode';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { ProductionPlansService } from '../production-plans/production-plans.service';
 import { LocalStorageService } from '../storage/local-storage.service';
@@ -459,7 +460,10 @@ export class ExecutionService {
   }
 
   private events() {
-    return this.storage.readMetadataArraySync<PlanStatusEvent>(FILES.events, executionStatusEventSeed);
+    return this.storage.readMetadataArraySync<PlanStatusEvent>(
+      FILES.events,
+      shouldLoadDemoBusinessData() ? executionStatusEventSeed : [],
+    );
   }
 
   private writeEvents(rows: PlanStatusEvent[]) {
@@ -467,7 +471,10 @@ export class ExecutionService {
   }
 
   private quantityReports() {
-    return this.storage.readMetadataArraySync<QuantityReport>(FILES.quantities, quantityReportSeed);
+    return this.storage.readMetadataArraySync<QuantityReport>(
+      FILES.quantities,
+      shouldLoadDemoBusinessData() ? quantityReportSeed : [],
+    );
   }
 
   private writeQuantityReports(rows: QuantityReport[]) {

@@ -1,8 +1,31 @@
 # 线束车间生产计划资料管控系统
 
-## V3.1 系统配置中心与现场试运行配置
+## V3.1 清理演示假数据与定制开发基线
 
-V3.1 暂停数据库接入线，新增系统配置中心、工位配置、显示配置、公告通知、使用反馈和试运行检查。当前仍为 Mock / 本地 metadata，不接 Sealos、不接企业微信微盘、不接真实语音。
+当前默认进入定制开发基线模式，暂时不做现场试运行，暂时不接 Sealos 数据库、企业微信微盘或真实语音。系统默认不加载业务演示数据，等待用户提供真实界面和功能修改需求。
+
+默认数据模式：
+
+```env
+DEMO_DATA_MODE=empty
+VITE_DEMO_DATA_MODE=empty
+```
+
+常用命令：
+
+```bash
+npm run demo:clean:dry
+npm run demo:clean
+npm run custom-baseline:check
+npm run build
+npm run check
+```
+
+后续定制需求模板：`docs/custom-requirements-template.md`。
+
+## V3.1 系统配置能力保留说明
+
+系统配置中心、工位配置、显示配置、公告通知、使用反馈和检查面板能力保留，但现场试运行方向已暂停。当前重点是清理演示假数据，进入干净的定制开发基线。
 
 常用检查命令：
 

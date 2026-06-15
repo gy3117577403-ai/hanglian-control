@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import dayjs from 'dayjs'
 import { toast } from 'vue-sonner'
+import { shouldUseFrontendDemoData } from '@/config/demo-data-mode'
 import { errorMessages, friendlyErrorMessage } from '@/lib/error-message'
 import { tabForDocument } from '@/lib/format'
 import { productionPlans } from '@/mock/production-data'
@@ -68,7 +69,55 @@ const STORAGE_KEYS = {
   queryLogs: 'hanglian.queryLogs',
 }
 
-const clonePlans = (): ProductionPlan[] => JSON.parse(JSON.stringify(productionPlans))
+const EMPTY_PLAN: ProductionPlan = {
+  id: '',
+  date: dayjs().format('YYYY-MM-DD'),
+  weekPlanNo: '待导入周计划',
+  sales: '待补充',
+  customer: '暂无客户资料',
+  customerId: '',
+  productId: '',
+  productCode: '待导入产品',
+  productName: '暂无产品资料',
+  productVersion: '待补充',
+  segment: '通用',
+  plannedQuantity: 0,
+  completedQuantity: 0,
+  status: '待生产',
+  owner: '待分配',
+  materialCompleteness: 0,
+  confirmationStatus: '未确认',
+  versionStatus: {
+    status: '待确认',
+    message: '当前为定制开发模式，尚未接入真实数据库。',
+    redLine: false,
+  },
+  querySuggestions: [],
+  front: {
+    wireLength: '暂无前段参数，请导入或在资料维护中心补充。',
+    strippingLength: '暂无前段参数',
+    terminalModel: '暂无端子型号',
+    pullForceStandard: '暂无拉力标准',
+    crimpHeight: '暂无压接高度',
+    drawingVersion: '待补充',
+    parameterStatus: '待确认',
+  },
+  back: {
+    connectorModel: '暂无连接器型号',
+    assemblyManual: '暂无连接器装配说明书',
+    pinMap: '暂无插接孔位图',
+    sop: '暂无作业流程 SOP',
+    finishedImageCount: 0,
+    drawingVersion: '待补充',
+    sopVersion: '待补充',
+    materialStatus: '待确认',
+  },
+  documents: [],
+}
+
+const clonePlans = (): ProductionPlan[] => shouldUseFrontendDemoData()
+  ? JSON.parse(JSON.stringify(productionPlans)) as ProductionPlan[]
+  : []
 
 function readStorage(key: string) {
   if (typeof localStorage === 'undefined') return null
@@ -274,8 +323,8 @@ export const useProductionStore = defineStore('production', () => {
 
   const fallbackPlans = clonePlans().map(normalizePlan)
   const plans = ref<ProductionPlan[]>(fallbackPlans.filter((plan) => plan.date === '2026-06-11'))
-  const selectedPlanId = ref(persistedPlanId || plans.value[0]?.id || fallbackPlans[0].id)
-  const selectedPlanDetail = ref<ProductionPlan | null>(plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? fallbackPlans[0])
+  const selectedPlanId = ref(persistedPlanId || plans.value[0]?.id || fallbackPlans[0]?.id || '')
+  const selectedPlanDetail = ref<ProductionPlan | null>(plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? null)
   const scope = ref<PlanScope>(persistedScope === 'week' ? 'week' : 'today')
   const activeProcess = ref<ActiveProcess>(persistedProcess === 'back' ? 'back' : 'front')
   const activeDocumentTab = ref<DocumentTab>(persistedDocumentTab && ['drawing', 'sop', 'pin-map', 'finish'].includes(persistedDocumentTab) ? persistedDocumentTab : 'drawing')
@@ -297,9 +346,9 @@ export const useProductionStore = defineStore('production', () => {
   const compareDialogOpen = ref(false)
   const auditDialogOpen = ref(false)
   const migrationDialogOpen = ref(false)
-  const readiness = ref<PlanReadiness>(localReadiness(selectedPlanDetail.value ?? fallbackPlans[0]))
+  const readiness = ref<PlanReadiness>(localReadiness(selectedPlanDetail.value ?? EMPTY_PLAN))
   const readinessLoading = ref(false)
-  const queryLogs = ref<QueryRecord[]>(persistedLogs ? JSON.parse(persistedLogs) as QueryRecord[] : [
+  const queryLogDemoSeed: QueryRecord[] = [
     {
       id: 'Q-001',
       text: '查看 HL-EV-4821A 后段 SOP',
@@ -307,7 +356,9 @@ export const useProductionStore = defineStore('production', () => {
       planId: 'PLN-20260611-001',
       source: '搜索',
     },
-  ])
+  ]
+  void queryLogDemoSeed
+  const queryLogs = ref<QueryRecord[]>(persistedLogs ? JSON.parse(persistedLogs) as QueryRecord[] : [])
   const feedbackRecords = ref<FeedbackRecord[]>([])
   const loading = ref(false)
   const fileHealth = ref<DocumentFileHealthResponse | null>(null)
@@ -326,7 +377,7 @@ export const useProductionStore = defineStore('production', () => {
     return selectedPlanDetail.value
       ?? plans.value.find((plan) => plan.id === selectedPlanId.value)
       ?? plans.value[0]
-      ?? fallbackPlans[0]
+      ?? EMPTY_PLAN
   })
 
   const visiblePlans = computed(() => plans.value)
@@ -335,6 +386,7 @@ export const useProductionStore = defineStore('production', () => {
 
   const searchHits = computed<SearchHit[]>(() => {
     if (searchResults.value.length > 0) return searchResults.value
+    if (!selectedPlan.value.id) return []
     return [
       {
         id: 'SUGGESTION-LOCKED',
@@ -358,6 +410,16 @@ export const useProductionStore = defineStore('production', () => {
 
   function fileHealthForDocument(document: ProductDocument) {
     return fileHealthByDocumentId.value.get(document.documentId ?? document.id) ?? null
+  }
+
+  function resetEmptySelection() {
+    selectedPlanId.value = ''
+    selectedPlanDetail.value = null
+    readiness.value = localReadiness(EMPTY_PLAN)
+    documents.value = []
+    fileHealth.value = localFileHealth(EMPTY_PLAN)
+    feedbackRecords.value = []
+    searchResults.value = []
   }
 
   watch(scope, (value) => writeStorage(STORAGE_KEYS.scope, value))
@@ -412,8 +474,12 @@ export const useProductionStore = defineStore('production', () => {
       plans.value = fallbackPlans.filter((plan) => nextScope === 'week' || plan.date === '2026-06-11')
       errorMessage.value = '计划数据请求失败，已使用本地 Mock fallback。'
     } finally {
-      const nextPlan = plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? fallbackPlans[0]
-      await selectPlan(nextPlan.id, false)
+      const nextPlan = plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0]
+      if (nextPlan) {
+        await selectPlan(nextPlan.id, false)
+      } else {
+        resetEmptySelection()
+      }
       loading.value = false
     }
   }
@@ -463,6 +529,10 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function selectPlan(planId: string, shouldLog = true) {
+    if (!planId) {
+      resetEmptySelection()
+      return
+    }
     selectedPlanId.value = planId
     loading.value = true
     try {
@@ -473,14 +543,25 @@ export const useProductionStore = defineStore('production', () => {
         await loadFileHealth(selectedPlanDetail.value)
         feedbackRecords.value = await getFeedback(planId)
       } else {
-        selectedPlanDetail.value = normalizePlan(fallbackPlans.find((plan) => plan.id === planId) ?? fallbackPlans[0])
+        const localPlan = fallbackPlans.find((plan) => plan.id === planId)
+        if (!localPlan) {
+          resetEmptySelection()
+          return
+        }
+        selectedPlanDetail.value = normalizePlan(localPlan)
         await syncReadiness(selectedPlanDetail.value)
         await loadDocuments(selectedPlanDetail.value)
         await loadFileHealth(selectedPlanDetail.value)
       }
       if (shouldLog) addQueryLog(`切换到生产计划 ${planId}`, '切换', planId)
     } catch {
-      selectedPlanDetail.value = normalizePlan(fallbackPlans.find((plan) => plan.id === planId) ?? fallbackPlans[0])
+      const localPlan = fallbackPlans.find((plan) => plan.id === planId)
+      if (!localPlan) {
+        resetEmptySelection()
+        errorMessage.value = '暂无生产计划，请通过数据导入中心导入周计划。'
+        return
+      }
+      selectedPlanDetail.value = normalizePlan(localPlan)
       readiness.value = localReadiness(selectedPlanDetail.value)
       documents.value = selectedPlanDetail.value.documents
       fileHealth.value = localFileHealth(selectedPlanDetail.value)
@@ -546,6 +627,10 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function simulateVoiceQuery() {
+    if (!selectedPlan.value.id) {
+      toast.info('暂无生产计划', { description: '请通过数据导入中心导入周计划后再进行查询。' })
+      return
+    }
     const text = '查询当前产品后段孔位图'
     activeProcess.value = 'back'
     activeDocumentTab.value = 'pin-map'
@@ -556,6 +641,10 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function confirmCurrentPlan() {
+    if (!selectedPlan.value.id) {
+      toast.info('暂无生产计划', { description: '请先导入生产计划，再进行组长确认。' })
+      return
+    }
     loading.value = true
     try {
       const user = auth.currentUser
@@ -584,6 +673,10 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function submitFeedback(type: FeedbackType = '资料缺失', description = '现场发现资料异常，等待工艺复核。') {
+    if (!selectedPlan.value.id) {
+      toast.info('暂无生产计划', { description: '请先导入生产计划，再提交异常反馈。' })
+      return
+    }
     loading.value = true
     try {
       const payload = {

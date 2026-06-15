@@ -129,9 +129,10 @@ if (
   ![
     "APP_RELEASE_NAME = '线束车间平板管控系统全流程回归候选版'",
     "APP_RELEASE_NAME = '线束车间现场试运行配置版'",
+    "APP_RELEASE_NAME = '线束车间定制开发基线版'",
   ].some((text) => versionConfig.includes(text))
 ) {
-  blockers.push('Release name is not an accepted regression or field pilot release.');
+  blockers.push('Release name is not an accepted regression, field pilot, or custom baseline release.');
 }
 
 console.log('V2.7 demo release check');

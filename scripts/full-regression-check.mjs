@@ -93,7 +93,7 @@ const scripts = packageJson.scripts ?? {};
 ].forEach((needle) => requireIncludes('apps/tablet/src/services/api.ts', needle, `前端 API service 缺少：${needle}`));
 
 requireAnyIncludes('apps/tablet/src/config/app-version.ts', ["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"], '版本信息不是 V2.7 或后续已验收版本。');
-requireAnyIncludes('apps/tablet/src/config/app-version.ts', ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'], '构建通道不是已允许的回归/试运行通道。');
+requireAnyIncludes('apps/tablet/src/config/app-version.ts', ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'], '构建通道不是已允许的回归/试运行/定制基线通道。');
 requireIncludes('apps/tablet/src/components/warm/WarmStatusBar.vue', '全流程总验收', '演示工具菜单缺少全流程总验收入口。');
 requireIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmSystemQaDialog', '平板主界面未挂载总验收面板。');
 requireIncludes('README.md', 'V2.7 全流程回归候选版', 'README 缺少 V2.7 说明。');

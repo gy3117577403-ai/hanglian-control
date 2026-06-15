@@ -151,8 +151,8 @@ requireAnyIncludes(
 );
 requireAnyIncludes(
   'apps/tablet/src/config/app-version.ts',
-  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
-  'Build channel is not an accepted regression or field pilot channel.',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'],
+  'Build channel is not an accepted regression, field pilot, or custom baseline channel.',
 );
 
 console.log('V2.7 knowledge flow check');

@@ -1,6 +1,18 @@
 # 项目状态
 
-## V3.1 进展
+## V3.1 定制开发基线
+
+- 当前分支：`feature/v3-1-clean-custom-baseline`。
+- 已暂停现场试运行配置方向。
+- 已暂停 Sealos 数据库接入线。
+- 已清理演示数据、演示生成目录、本地上传演示文件和 metadata 运行数据。
+- 已进入定制开发基线，等待用户提供真实界面和功能修改需求。
+- 默认 `DEMO_DATA_MODE=empty`，不加载业务演示 seed。
+- 保留全部功能代码、API 模块、脚本、Prisma schema 和文档能力。
+- 当前仍未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何写库操作。
+
+## V3.1 系统配置能力（历史保留）
 
 - 当前分支：`feature/v3-1-system-settings-field-pilot`。
 - 新增系统配置中心。

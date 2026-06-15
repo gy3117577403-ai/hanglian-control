@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
+import { shouldLoadDemoBusinessData } from '../config/mock-data-mode';
 import type { DocumentRepositoryInterface } from '../repositories/interfaces/document.repository.interface';
 import type { FeedbackRepositoryInterface } from '../repositories/interfaces/feedback.repository.interface';
 import { ExecutionService } from '../execution/execution.service';
@@ -13,7 +14,20 @@ import { buildAnalyticsSummaryText } from './helpers/analytics-summary-text';
 import { filterPlansByQuery, normalizeFilters, processSegmentOfPlan } from './helpers/analytics-normalizer';
 import { demoAnalyticsSnapshotSeed } from './mock/analytics-seed';
 import type { AnalyticsDataContext } from './analytics.types';
+import type { DemoAnalyticsSnapshot } from './analytics.types';
 import type { AnalyticsQueryDto } from './dto/analytics-query.dto';
+
+function emptyAnalyticsSnapshot(): DemoAnalyticsSnapshot {
+  return {
+    generatedAt: new Date().toISOString(),
+    source: 'demo-analytics-snapshot',
+    notes: [
+      'Current DEMO_DATA_MODE is empty/minimal.',
+      'No demo analytics snapshot is loaded by default.',
+    ],
+    trends: [],
+  };
+}
 
 @Injectable()
 export class AnalyticsService {
@@ -119,7 +133,10 @@ export class AnalyticsService {
       importRecords: this.storage.readImportRecordsSync(),
       maintenanceRecords: this.storage.readMaintenanceRecordsSync(),
       auditLogs: this.storage.readAuditLogsSync(),
-      snapshot: this.storage.readMetadataSync('demo-analytics-snapshot.json', demoAnalyticsSnapshotSeed),
+      snapshot: this.storage.readMetadataSync(
+        'demo-analytics-snapshot.json',
+        shouldLoadDemoBusinessData() ? demoAnalyticsSnapshotSeed : emptyAnalyticsSnapshot(),
+      ),
     };
   }
 

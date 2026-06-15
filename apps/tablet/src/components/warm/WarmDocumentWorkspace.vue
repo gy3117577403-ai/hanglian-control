@@ -303,8 +303,8 @@ watch(
 
     <WarmEmptyState
       v-if="!allDocuments.length"
-      title="当前产品暂无资料"
-      description="可点击上传，使用 demo-upload-assets 中的演示 PDF 或图片资料加入当前产品资料包。"
+      title="暂无文件资料"
+      description="暂无文件资料，可上传图纸、SOP、孔位图或成品细节图。"
       action-label="上传资料"
       @action="emit('open-upload')"
     />
@@ -312,7 +312,7 @@ watch(
     <WarmErrorState
       v-else-if="!store.fileHealth && !store.fileHealthLoading"
       title="文件健康暂无数据"
-      description="文件健康接口未返回结果，仍可继续查看 Mock 资料；如需验证文件流，请先打开网络诊断或重新选择计划。"
+      description="文件健康接口暂无结果；导入计划并上传资料后可生成预览与健康检查。"
       action-label="重新检查"
       @action="store.loadFileHealth()"
     />

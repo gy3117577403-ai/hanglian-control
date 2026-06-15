@@ -6,6 +6,7 @@ import { CalendarDays, Factory, HardDrive, Maximize2, PackageCheck, ShieldCheck,
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { APP_STAGE, APP_VERSION } from '@/config/app-version'
+import { DEMO_DATA_MODE } from '@/config/demo-data-mode'
 import { PERMISSIONS, permissionLabels } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
@@ -85,7 +86,11 @@ const allDemoToolItems = computed<DemoToolItem[]>(() => [
   { label: '现场走查', icon: 'pi pi-list-check', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-field-qa') },
   { label: '全流程总验收', icon: 'pi pi-shield', permission: PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW, command: () => emit('open-system-qa') },
   { separator: true },
-  { label: '演示数据管理', icon: 'pi pi-database', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-data-manager') },
+  { label: '生成演示资料', icon: 'pi pi-folder-open', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-assets-guide') },
+  { label: '生成演示导入文件', icon: 'pi pi-file-import', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-import-center') },
+  { label: '生成演示知识库', icon: 'pi pi-book', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-maintenance-center') },
+  { label: '清理演示数据', icon: 'pi pi-trash', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-data-manager') },
+  { label: `当前数据模式：${DEMO_DATA_MODE}`, icon: 'pi pi-database', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-data-manager') },
   { label: '演示前检查', icon: 'pi pi-check-circle', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-readiness') },
   { label: '冻结前验收', icon: 'pi pi-verified', permission: PERMISSIONS.SYSTEM_FREEZE_CHECK_VIEW, command: () => emit('open-freeze-checklist') },
   { label: '演示资料说明', icon: 'pi pi-folder-open', permission: PERMISSIONS.SYSTEM_DEMO_TOOLS_VIEW, command: () => emit('open-demo-assets-guide') },

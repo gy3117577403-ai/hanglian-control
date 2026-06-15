@@ -1,4 +1,0 @@
-DEMO ONLY - non-real customer material - generated for Hanglian local prototype testing.
-
-This TXT file is intentionally unsupported for online preview boundary testing.
-It is synthetic demo data and contains no real customer information.

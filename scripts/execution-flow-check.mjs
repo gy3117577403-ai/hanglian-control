@@ -135,8 +135,8 @@ requireAnyIncludes(
 );
 requireAnyIncludes(
   'apps/tablet/src/config/app-version.ts',
-  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
-  'Build channel is not an accepted regression or field pilot channel.',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'],
+  'Build channel is not an accepted regression, field pilot, or custom baseline channel.',
 );
 requireIncludes('README.md', '现场执行闭环', 'README missing V2.5 execution flow notes.');
 requireIncludes('docs/api.md', '/api/execution/summary', 'API docs missing execution summary endpoint.');

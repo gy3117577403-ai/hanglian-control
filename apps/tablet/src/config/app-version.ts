@@ -1,10 +1,10 @@
 export const APP_VERSION = 'V3.1'
-export const APP_STAGE = '现场试运行配置版'
-export const APP_RELEASE_NAME = '线束车间现场试运行配置版'
-export const APP_BUILD_CHANNEL = 'mock-local-field-pilot-config'
+export const APP_STAGE = '定制开发基线版'
+export const APP_RELEASE_NAME = '线束车间定制开发基线版'
+export const APP_BUILD_CHANNEL = 'mock-local-custom-baseline'
 
 export const APP_RUNTIME_FLAGS = {
-  dataSource: 'Mock',
+  dataSource: 'CustomBaseline',
   sealosConnected: false,
   wecomDiskConnected: false,
   wecomLoginConnected: false,

@@ -55,9 +55,7 @@ function onScopeTabClick(event: MouseEvent) {
       <WarmEmptyState
         v-if="!store.visiblePlans.length"
         title="暂无生产计划"
-        description="当前范围没有可显示的生产任务，可切换今日/本周计划或检查 Mock API 状态。"
-        action-label="切换本周计划"
-        @action="onScopeChange('week')"
+        description="暂无生产计划，请通过数据导入中心导入周计划。"
       />
 
       <div v-else v-auto-animate class="warm-scroll max-h-[calc(100vh-490px)] space-y-3">

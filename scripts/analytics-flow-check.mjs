@@ -89,8 +89,8 @@ requireAnyIncludes(
 );
 requireAnyIncludes(
   'apps/tablet/src/config/app-version.ts',
-  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'],
-  'Build channel is not an accepted regression or field pilot channel.',
+  ['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'],
+  'Build channel is not an accepted regression, field pilot, or custom baseline channel.',
 );
 requireIncludes('.gitignore', 'apps/api/storage/metadata/demo-analytics-snapshot.json', 'demo analytics snapshot is not ignored.');
 requireIncludes('package.json', '"demo:analytics"', 'package.json missing demo:analytics.');

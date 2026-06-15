@@ -117,11 +117,11 @@ if (!hasGithubActionsCi()) warnings.push('GitHub Actions workflow not detected.'
 if (!["APP_VERSION = 'V2.7'", "APP_VERSION = 'V3.1'"].some((text) => versionConfig.includes(text))) {
   blockers.push('Version config is not an accepted V2.7+ release version.');
 }
-if (!["APP_STAGE = '全流程回归候选版'", "APP_STAGE = '现场试运行配置版'"].some((text) => versionConfig.includes(text))) {
-  blockers.push('Version stage is not an accepted regression or field pilot stage.');
+if (!["APP_STAGE = '全流程回归候选版'", "APP_STAGE = '现场试运行配置版'", "APP_STAGE = '定制开发基线版'"].some((text) => versionConfig.includes(text))) {
+  blockers.push('Version stage is not an accepted regression, field pilot, or custom baseline stage.');
 }
-if (!['mock-local-full-regression-candidate', 'mock-local-field-pilot-config'].some((text) => versionConfig.includes(text))) {
-  blockers.push('Build channel is not an accepted regression or field pilot channel.');
+if (!['mock-local-full-regression-candidate', 'mock-local-field-pilot-config', 'mock-local-custom-baseline'].some((text) => versionConfig.includes(text))) {
+  blockers.push('Build channel is not an accepted regression, field pilot, or custom baseline channel.');
 }
 
 console.log('V2.7 demo freeze check');

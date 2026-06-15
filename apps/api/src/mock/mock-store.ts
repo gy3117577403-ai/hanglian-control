@@ -16,6 +16,7 @@ import {
   documentStatusLabelMap,
   legacyDocumentTypeMap,
 } from '../common/enums/production.enum';
+import { shouldLoadDemoBusinessData } from '../config/mock-data-mode';
 import type {
   BackProcessPackageSeed,
   CustomerSeed,
@@ -180,6 +181,8 @@ function toProductionPlanMock(
 }
 
 function buildProductionPlans(): ProductionPlanMock[] {
+  if (!shouldLoadDemoBusinessData()) return [];
+
   return productionPlans.map((plan) => {
     const product = products.find((item) => item.id === plan.productId);
     if (!product) throw new Error(`Mock seed missing product: ${plan.productId}`);
@@ -204,12 +207,12 @@ function buildProductionPlans(): ProductionPlanMock[] {
 }
 
 export class MockStore {
-  readonly customers = clone(customers);
-  readonly products = clone(products);
-  readonly queryLogs = clone(queryLogs);
-  readonly confirmationRecords = clone(confirmationRecords);
+  readonly customers = shouldLoadDemoBusinessData() ? clone(customers) : [];
+  readonly products = shouldLoadDemoBusinessData() ? clone(products) : [];
+  readonly queryLogs = shouldLoadDemoBusinessData() ? clone(queryLogs) : [];
+  readonly confirmationRecords = shouldLoadDemoBusinessData() ? clone(confirmationRecords) : [];
   readonly productionPlans = buildProductionPlans();
-  readonly feedbackRecords: FeedbackRecordMock[] = clone(feedbackRecords);
+  readonly feedbackRecords: FeedbackRecordMock[] = shouldLoadDemoBusinessData() ? clone(feedbackRecords) : [];
 
   constructor() {
     this.mergeImportedBusinessData(readImportedBusinessData());

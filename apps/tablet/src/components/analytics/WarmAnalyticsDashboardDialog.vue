@@ -156,12 +156,12 @@ async function copySummary() {
               <section class="analytics-chart-panel">
                 <div class="analytics-panel-title"><Gauge :size="18" />计划状态分布</div>
                 <VChart v-if="analytics.production?.statusDistribution.length" class="analytics-chart" :option="pieOption(analytics.production.statusDistribution, '计划状态')" autoresize />
-                <PrimeMessage v-else severity="warn" :closable="false">暂无计划状态数据。</PrimeMessage>
+                <PrimeMessage v-else severity="warn" :closable="false">暂无统计数据，导入计划并产生执行记录后生成看板。</PrimeMessage>
               </section>
               <section class="analytics-chart-panel">
                 <div class="analytics-panel-title"><LineChart :size="18" />完成率趋势</div>
                 <VChart v-if="analytics.trends?.rows.length" class="analytics-chart" :option="trendOption(analytics.trends.rows, 'completionRate', '完成率')" autoresize />
-                <PrimeMessage v-else severity="warn" :closable="false">暂无趋势数据。</PrimeMessage>
+                <PrimeMessage v-else severity="warn" :closable="false">暂无统计数据，导入计划并产生执行记录后生成看板。</PrimeMessage>
               </section>
             </div>
           </PrimeTabPanel>
