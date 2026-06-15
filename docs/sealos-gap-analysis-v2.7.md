@@ -1,5 +1,18 @@
 # Sealos 接入前差距清单 V2.7
 
+## V3.0A 只读验证补充
+
+V3.0A 已将 Sealos 接入前置步骤收敛为测试库只读验证准备：
+
+- `.env.local.example` 保持测试库只读默认安全开关。
+- `.env.local` 只在本机准备并被 Git 忽略。
+- `db:readonly-check` 只允许在 `DB_TARGET=test`、`ALLOW_TEST_DB_CONNECT=true`、`ALLOW_PRISMA_WRITE=false`、`ALLOW_DESTRUCTIVE_DB_ACTIONS=false` 且连接串不是示例值时执行只读 `SELECT`。
+- migration SQL preview 使用本地 schema diff，不连接数据库。
+- seed dry-run 只生成本地预览文件，不写库。
+- 前端迁移预览弹窗显示 V3.0A 数据库安全状态。
+
+进入 V3.0B 前仍需确认测试库备份、回滚方案、建表窗口和写库授权。
+
 V2.7 仍为 Mock / 本地 metadata 演示版，不连接 Sealos PostgreSQL，不执行真实迁移。
 
 ## 当前使用 Mock / metadata 的模块

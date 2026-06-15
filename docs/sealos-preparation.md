@@ -1,5 +1,50 @@
 # Sealos PostgreSQL 接入准备
 
+## V3.0A Sealos PostgreSQL 测试库只读验证准备
+
+V3.0A 只验证测试库只读连通性，并继续保持业务数据走 Mock / 本地 metadata。当前阶段不建表、不迁移、不 seed、不执行任何数据库写入。
+
+必须保持的安全开关：
+
+```env
+DATA_SOURCE=mock
+DB_TARGET=test
+ALLOW_TEST_DB_CONNECT=true
+ALLOW_PRISMA_WRITE=false
+ALLOW_DESTRUCTIVE_DB_ACTIONS=false
+SEED_MODE=dry-run
+DATABASE_SSL_MODE=require
+DATABASE_CONNECT_TIMEOUT_SECONDS=10
+```
+
+`DATABASE_URL` 只允许写在本机 `apps/api/.env.local`，禁止写入聊天窗口、文档、代码或 Git。
+
+V3.0A 命令：
+
+```bash
+npm run db:readonly-check -w api
+npx prisma format --schema=apps/api/prisma/schema.prisma
+npx prisma validate --schema=apps/api/prisma/schema.prisma
+npx prisma generate --schema=apps/api/prisma/schema.prisma
+npm run migration:validate -w api
+npm run migration:preview -w api
+npm run prisma:seed:dry-run -w api
+npm run prisma:migration:sql-preview -w api
+npm run sealos:readonly-check
+npm run sealos:readonly-report
+```
+
+如果连接串仍为示例值，`db:readonly-check` 会安全退出。只有用户在本机 `.env.local` 填写真实 Sealos 测试库连接串后，才允许进行只读 `SELECT` 验证。
+
+V3.0A 禁止命令：
+
+- `npx prisma migrate dev`
+- `npx prisma migrate deploy`
+- `npx prisma db push`
+- `npx prisma db seed`
+- `npm run prisma:seed:test-db -w api`
+- 任何写库 SQL 或破坏性数据库操作
+
 ## 当前阶段
 
 V0.6 仍然不连接真实 Sealos PostgreSQL。默认配置为 `DATA_SOURCE=mock`，Prisma Repository 仍是后续接入真实数据库的适配层骨架。

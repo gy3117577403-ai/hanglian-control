@@ -159,6 +159,23 @@ const versionGroupSummary = computed(() => {
   return `${document.productId ?? store.selectedPlan.productId ?? store.selectedPlan.productCode} / ${documentTypeLabel(document)} / ${processLabel(document.requiredForProcess)}`
 })
 
+const migrationSafetyRows = computed(() => {
+  const safety = store.databaseSafety
+  if (!safety) return []
+  return [
+    { label: '阶段', value: safety.stage },
+    { label: '数据源', value: safety.dataSource === 'prisma' ? 'Prisma 只读准备' : 'Mock 演示数据' },
+    { label: '测试库目标', value: safety.dbTarget },
+    { label: '连接串', value: safety.databaseUrlMasked },
+    { label: '只读连接', value: safety.canReadDatabase ? '允许' : '未启用' },
+    { label: '写库', value: safety.canWriteDatabase ? '允许' : '禁止' },
+    { label: '危险操作', value: safety.destructiveActionsAllowed ? '开启' : '关闭' },
+    { label: '.env.local', value: safety.envLocalExists ? '已准备' : '未检测到' },
+  ]
+})
+
+const migrationNextSteps = computed(() => store.databaseSafety?.nextSteps ?? [])
+
 const versionMenuItems = computed(() => [
   { label: '设为当前有效', icon: 'pi pi-check-circle', disabled: !canSetEffective.value, command: () => confirmSetEffective(versionMenuDocument.value) },
   { label: '加入对比', icon: 'pi pi-clone', command: () => toggleCompare(versionMenuDocument.value) },
@@ -585,24 +602,50 @@ async function updateVersionStatus(document: ProductDocument | null | undefined,
     </PrimeTimeline>
   </PrimeDialog>
 
-  <PrimeDialog v-model:visible="migrationVisible" modal header="Sealos 迁移预览" class="w-[760px]">
+  <PrimeDialog v-model:visible="migrationVisible" modal header="V3.0A Sealos 只读验证准备" class="w-[860px]">
     <div class="grid gap-4">
       <PrimeMessage severity="warn" :closable="false">
-        当前数据源为 Mock，未连接 Sealos，禁止写库，危险操作关闭。本面板只展示 dry-run 统计。
+        当前仍为 Mock / 本地 metadata 演示数据。V3.0A 只允许测试库只读连通验证、迁移 SQL 预览和 seed dry-run，禁止写库和危险数据库操作。
       </PrimeMessage>
+      <div v-if="store.databaseSafety" class="section-bay">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="section-kicker">DATABASE SAFETY</p>
+            <p class="mt-1 text-lg font-black text-[#342316]">{{ store.databaseSafety.message }}</p>
+          </div>
+          <PrimeTag
+            :value="store.databaseSafety.canReadDatabase ? '测试库只读可验证' : '安全待配置'"
+            :severity="store.databaseSafety.canReadDatabase ? 'success' : 'warn'"
+            class="text-sm font-black"
+          />
+        </div>
+        <div class="mt-4 grid grid-cols-4 gap-3">
+          <div v-for="row in migrationSafetyRows" :key="row.label" class="rounded-2xl border border-[#e8c99d] bg-[#fff8ea] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-[#a36b2d]">{{ row.label }}</p>
+            <p class="mt-1 break-words text-base font-black text-[#342316]">{{ row.value }}</p>
+          </div>
+        </div>
+        <div v-if="store.databaseSafety.warnings.length" class="mt-4 rounded-2xl border border-[#f2b15c] bg-[#fff1d5] p-3">
+          <p class="text-sm font-black text-[#8d3f16]">安全提醒</p>
+          <ul class="mt-2 grid gap-1 text-sm font-bold text-[#6b3c18]">
+            <li v-for="warning in store.databaseSafety.warnings" :key="warning">· {{ warning }}</li>
+          </ul>
+        </div>
+      </div>
       <div class="grid grid-cols-4 gap-3">
         <div v-for="(value, key) in store.migrationPreview?.summary ?? {}" :key="key" class="metric-tile-3d min-h-0">
           <p class="metric-label">{{ key }}</p>
           <p class="metric-value">{{ value }}</p>
         </div>
       </div>
-      <div v-if="store.databaseSafety" class="section-bay">
-        <p class="section-kicker">DATABASE SAFETY</p>
-        <p class="mt-1 text-lg font-black text-[#342316]">{{ store.databaseSafety.message }}</p>
-        <p class="mt-2 text-sm font-bold text-[#76512a]">
-          DB_TARGET={{ store.databaseSafety.dbTarget }} / 写库允许={{ store.databaseSafety.canWriteDatabase ? '是' : '否' }} /
-          危险操作={{ store.databaseSafety.destructiveActionsAllowed ? '开启' : '关闭' }}
-        </p>
+      <div v-if="migrationNextSteps.length" class="section-bay">
+        <p class="section-kicker">NEXT STEPS</p>
+        <div class="mt-3 grid gap-2">
+          <div v-for="(step, index) in migrationNextSteps" :key="step" class="flex items-center gap-3 rounded-2xl bg-[#fff8ea] px-3 py-2 text-sm font-black text-[#50331b]">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-[#d8732a] text-white">{{ index + 1 }}</span>
+            <span>{{ step }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </PrimeDialog>

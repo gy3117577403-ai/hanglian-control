@@ -297,7 +297,7 @@ export interface DatabaseSafetyStatus {
   authMode?: 'mock'
   authProvider?: 'local_mock'
   wecomLoginEnabled?: boolean
-  stage: 'V0.8A_READONLY_CHECK'
+  stage: 'V3.0A_SEALOS_READONLY_CHECK'
   dryRun: boolean
   warnings: string[]
   nextSteps: string[]
@@ -434,6 +434,11 @@ export interface MigrationValidation {
     frontParameters?: number
     backPackages?: number
     queryLogs?: number
+    imports?: number
+    maintenanceRecords?: number
+    knowledge?: number
+    execution?: number
+    analytics?: number
   }
   environment?: {
     envLocalExists: boolean

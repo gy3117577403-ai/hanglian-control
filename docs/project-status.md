@@ -1,5 +1,18 @@
 # 项目状态
 
+## V3.0A 进展
+
+- 当前分支：`feature/v3-0a-sealos-readonly-check`。
+- 目标：准备 Sealos PostgreSQL 测试库只读验证。
+- 当前仍为 Mock / 本地 metadata 数据源。
+- `.env.local` 仅本机使用，不提交 Git。
+- 只读验证命令：`npm run db:readonly-check -w api`。
+- 本地预览命令：`npm run prisma:migration:sql-preview -w api`、`npm run prisma:seed:dry-run -w api`。
+- 新增检查命令：`npm run sealos:readonly-check`、`npm run sealos:readonly-report`。
+- 禁止执行 migrate、db push、db seed、真实 seed 和任何写库操作。
+
+下一步：用户在本机 `apps/api/.env.local` 填写 Sealos PostgreSQL 测试库连接串后，可重新执行 V3.0A 只读验证；只读验证通过后再进入 V3.0B。
+
 当前版本：V2.7 全流程回归候选版。
 
 ## 已完成

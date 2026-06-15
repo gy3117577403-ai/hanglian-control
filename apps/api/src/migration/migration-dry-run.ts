@@ -37,6 +37,11 @@ export interface MigrationSummaryV07 {
   queryLogs: number;
   feedbackRecords: number;
   confirmationRecords: number;
+  imports: number;
+  maintenanceRecords: number;
+  knowledge: number;
+  execution: number;
+  analytics: number;
   auditLogs: number;
 }
 
@@ -89,6 +94,17 @@ export interface PrismaSeedPreview {
 const storageMetadataDir = resolve(__dirname, '../../storage/metadata');
 const documentsFile = join(storageMetadataDir, 'documents.json');
 const auditLogsFile = join(storageMetadataDir, 'audit-logs.json');
+const importRecordsFile = join(storageMetadataDir, 'import-records.json');
+const maintenanceRecordsFile = join(storageMetadataDir, 'maintenance-records.json');
+const fixtureRecordsFile = join(storageMetadataDir, 'knowledge-fixtures.json');
+const abnormalRecordsFile = join(storageMetadataDir, 'knowledge-abnormal-cases.json');
+const qualityRecordsFile = join(storageMetadataDir, 'knowledge-quality-standards.json');
+const knowledgeHistoryFile = join(storageMetadataDir, 'knowledge-records.json');
+const executionRecordsFile = join(storageMetadataDir, 'execution-records.json');
+const executionEventsFile = join(storageMetadataDir, 'plan-status-events.json');
+const quantityReportsFile = join(storageMetadataDir, 'quantity-reports.json');
+const shiftHandoverFile = join(storageMetadataDir, 'shift-handover-records.json');
+const analyticsSnapshotFile = join(storageMetadataDir, 'demo-analytics-snapshot.json');
 const seedPreviewFile = join(storageMetadataDir, 'prisma-seed-preview.json');
 
 function readMetadataArray<T>(filePath: string): T[] {
@@ -139,7 +155,31 @@ function collectAuditLogs() {
   return readMetadataArray<AuditLog>(auditLogsFile);
 }
 
+function isImportedMetadataDocument(document: ProductDocument) {
+  const documentId = document.documentId ?? document.id ?? '';
+  return documentId.startsWith('IMP-DOC-')
+    || document.productId?.startsWith('IMP-PROD-')
+    || document.planId?.startsWith('IMP-PLAN-');
+}
+
+function readMetadataObject(filePath: string): Record<string, unknown> | undefined {
+  if (!existsSync(filePath)) return undefined;
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
 function buildSummary(documents: ProductDocument[], auditLogs: AuditLog[], collectedFeedback: FeedbackRecordMock[]) {
+  const knowledgeCount = readMetadataArray<unknown>(fixtureRecordsFile).length
+    + readMetadataArray<unknown>(abnormalRecordsFile).length
+    + readMetadataArray<unknown>(qualityRecordsFile).length
+    + readMetadataArray<unknown>(knowledgeHistoryFile).length;
+  const executionCount = readMetadataArray<unknown>(executionRecordsFile).length
+    + readMetadataArray<unknown>(executionEventsFile).length
+    + readMetadataArray<unknown>(quantityReportsFile).length
+    + readMetadataArray<unknown>(shiftHandoverFile).length;
   return {
     users: 1,
     customers: customers.length,
@@ -152,6 +192,11 @@ function buildSummary(documents: ProductDocument[], auditLogs: AuditLog[], colle
     queryLogs: queryLogs.length,
     feedbackRecords: collectedFeedback.length,
     confirmationRecords: collectConfirmationRecords().length,
+    imports: readMetadataArray<unknown>(importRecordsFile).length,
+    maintenanceRecords: readMetadataArray<unknown>(maintenanceRecordsFile).length,
+    knowledge: knowledgeCount,
+    execution: executionCount,
+    analytics: readMetadataObject(analyticsSnapshotFile) ? 1 : 0,
     auditLogs: auditLogs.length,
   };
 }
@@ -167,7 +212,7 @@ function buildEnvironmentStatus(safety: ReturnType<typeof getDatabaseSafetyStatu
     allowPrismaWrite: safety.allowPrismaWrite,
     allowDestructiveDbActions: safety.allowDestructiveDbActions,
     dryRun: true,
-    message: '当前为 dry-run：不会连接数据库或不会写入数据库。',
+    message: '当前为 V3.0A dry-run：不会连接数据库，不会写入数据库。',
   };
 }
 
@@ -199,8 +244,15 @@ export function validateMigrationData(): MigrationValidationResult {
     if (!productIds.has(backPackage.productId)) errors.push(`后段资料 ${backPackage.id} 的产品不存在：${backPackage.productId}`);
   }
   for (const document of documents) {
-    if (!document.productId) errors.push(`资料 ${document.documentId ?? document.id} 缺少 productId`);
-    if (document.productId && !productIds.has(document.productId)) errors.push(`资料 ${document.documentId ?? document.id} 的产品不存在：${document.productId}`);
+    const metadataOnly = isImportedMetadataDocument(document);
+    if (!document.productId) {
+      if (metadataOnly) warnings.push(`导入 metadata 资料 ${document.documentId ?? document.id} 缺少 productId，V3.0A 仅记录为待补齐项。`);
+      else errors.push(`资料 ${document.documentId ?? document.id} 缺少 productId`);
+    }
+    if (document.productId && !productIds.has(document.productId)) {
+      if (metadataOnly) warnings.push(`导入 metadata 资料 ${document.documentId ?? document.id} 的产品暂未进入 seed：${document.productId}`);
+      else errors.push(`资料 ${document.documentId ?? document.id} 的产品不存在：${document.productId}`);
+    }
     if (document.planId && !planIds.has(document.planId)) warnings.push(`资料 ${document.documentId ?? document.id} 绑定的计划不存在或已不在 seed 中：${document.planId}`);
   }
   for (const record of collectedFeedback) {

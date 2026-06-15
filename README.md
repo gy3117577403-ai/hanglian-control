@@ -1,5 +1,24 @@
 # 线束车间生产计划资料管控系统
 
+## V3.0A Sealos 只读验证准备
+
+V3.0A 只准备 Sealos PostgreSQL 测试库只读验证，不执行数据库写入。
+
+```bash
+npm run db:readonly-check -w api
+npx prisma format --schema=apps/api/prisma/schema.prisma
+npx prisma validate --schema=apps/api/prisma/schema.prisma
+npx prisma generate --schema=apps/api/prisma/schema.prisma
+npm run migration:validate -w api
+npm run migration:preview -w api
+npm run prisma:seed:dry-run -w api
+npm run prisma:migration:sql-preview -w api
+npm run sealos:readonly-check
+npm run sealos:readonly-report
+```
+
+`.env.local` 只保存在本机，禁止提交。`DATABASE_URL` 只允许填入测试库连接串，禁止写入聊天窗口、代码或文档。当前阶段禁止 `prisma migrate`、`prisma db push`、`prisma db seed`、`prisma:seed:test-db` 和任何写库操作。
+
 面向线束车间前段 / 后段组长的安卓平板 PWA 原型。系统围绕“生产计划 -> 产品资料包 -> 前段 / 后段查询 -> 文件预览 -> 版本确认 -> 查询留痕 -> 异常反馈 -> 现场知识验证 -> 现场执行闭环 -> 现场统计看板 -> 全流程总验收”构建。
 
 ## 当前版本

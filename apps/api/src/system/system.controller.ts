@@ -48,7 +48,7 @@ export class SystemController {
   }
 
   @Get('database-safety')
-  @ApiOperation({ summary: '查看数据库安全闸门状态，V0.8A 仅允许测试库只读检查' })
+  @ApiOperation({ summary: '查看数据库安全闸门状态，V3.0A 仅允许测试库只读检查' })
   getDatabaseSafety() {
     return {
       ...getDatabaseSafetyStatus(),
