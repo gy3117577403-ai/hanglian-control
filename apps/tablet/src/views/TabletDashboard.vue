@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import WarmLandscapeGuard from '@/components/system/WarmLandscapeGuard.vue'
-import WarmUnifiedDocumentCenter from '@/components/unified/WarmUnifiedDocumentCenter.vue'
+import WarmDocumentHubDashboard from '@/components/hub/WarmDocumentHubDashboard.vue'
 </script>
 
 <template>
-  <div class="warm-shell unified-document-shell">
-    <WarmUnifiedDocumentCenter />
+  <div class="warm-shell document-hub-page">
+    <WarmDocumentHubDashboard />
     <PrimeToast position="top-right" />
     <PrimeConfirmDialog />
     <WarmLandscapeGuard />
@@ -13,7 +13,7 @@ import WarmUnifiedDocumentCenter from '@/components/unified/WarmUnifiedDocumentC
 </template>
 
 <style scoped>
-.unified-document-shell {
+.document-hub-page {
   min-width: 1180px;
 }
 </style>

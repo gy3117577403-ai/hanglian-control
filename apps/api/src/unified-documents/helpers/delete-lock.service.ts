@@ -14,10 +14,14 @@ interface DeleteLockSetting {
 const fileName = 'delete-lock-settings.json';
 const maxAttempts = 5;
 const lockMs = 5 * 60 * 1000;
+const defaultDeletePasswordHash = '$2b$10$/riUA.Z3r56REnWhnxoLJu7xL7h4soa5yLExMRpkHA9RYGPncj37a';
 
 function defaultSetting(): DeleteLockSetting {
   return {
     enabled: true,
+    passwordHash: defaultDeletePasswordHash,
+    updatedAt: '2026-06-15T00:00:00.000Z',
+    updatedBy: 'local-default',
     failedAttempts: 0,
     lockedUntil: null,
   };

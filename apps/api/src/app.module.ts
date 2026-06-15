@@ -4,6 +4,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
+import { DocumentHubModule } from './document-hub/document-hub.module';
 import { DocumentsModule } from './documents/documents.module';
 import { ExecutionModule } from './execution/execution.module';
 import { FeedbackModule } from './feedback/feedback.module';
@@ -35,6 +36,7 @@ import { UnifiedDocumentsModule } from './unified-documents/unified-documents.mo
     ProductionPlansModule,
     ProductsModule,
     DocumentsModule,
+    DocumentHubModule,
     ExecutionModule,
     FilesModule,
     ImportsModule,

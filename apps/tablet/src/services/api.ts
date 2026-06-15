@@ -108,6 +108,18 @@ import type {
   DeleteLockSetupPayload,
   DeleteLockStatus,
   DeletePasswordPayload,
+  ConnectorParameter,
+  DocumentHubUploadPayload,
+  DrawingModule,
+  DrawingModuleKey,
+  FixtureParameter,
+  HubCustomer,
+  HubMode,
+  HubOrder,
+  HubOrderOverview,
+  HubOrderScope,
+  HubProductModel,
+  ProductDrawingDetail,
   PurgePayload,
   UnifiedDocumentItem,
   UnifiedSearchQuery,
@@ -1010,4 +1022,82 @@ export function getSystemQaAcceptanceReport() {
 
 export function getSystemQaAcceptanceReportText() {
   return api<string>('/system-qa/acceptance-report/text')
+}
+
+export function getHubOrders(scope: HubOrderScope = 'today', includeCompleted = false) {
+  return api<HubOrder[]>('/document-hub/orders', {
+    query: { scope, includeCompleted: String(includeCompleted) },
+  })
+}
+
+export function completeHubOrder(orderId: string) {
+  return api<HubOrder>(`/document-hub/orders/${orderId}/complete`, {
+    method: 'POST',
+    body: { completedBy: 'local-tablet' },
+  })
+}
+
+export function getHubOrderOverview() {
+  return api<HubOrderOverview>('/document-hub/orders/overview')
+}
+
+export function getHubCustomers(q?: string) {
+  return api<HubCustomer[]>('/document-hub/drawings/customers', { query: q ? { q } : undefined })
+}
+
+export function getHubProducts(customerId: string, q?: string) {
+  return api<HubProductModel[]>(`/document-hub/drawings/customers/${customerId}/products`, {
+    query: q ? { q } : undefined,
+  })
+}
+
+export function getHubProductDetail(productId: string) {
+  return api<ProductDrawingDetail>(`/document-hub/drawings/products/${productId}`)
+}
+
+export function getHubProductByModel(productModel: string) {
+  return api<ProductDrawingDetail | null>(`/document-hub/drawings/products/by-model/${encodeURIComponent(productModel)}`)
+}
+
+export function getHubDrawingModule(productId: string, moduleKey: DrawingModuleKey) {
+  return api<{ product: HubProductModel; customer?: HubCustomer; module: DrawingModule }>(
+    `/document-hub/drawings/products/${productId}/modules/${moduleKey}`,
+  )
+}
+
+export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModuleKey, payload: DocumentHubUploadPayload) {
+  const formData = new FormData()
+  if (payload.file) formData.append('file', payload.file)
+  formData.append('title', payload.title)
+  formData.append('version', payload.version)
+  if (payload.customerId) formData.append('customerId', payload.customerId)
+  if (payload.productId) formData.append('productId', payload.productId)
+  if (payload.moduleKey) formData.append('moduleKey', payload.moduleKey)
+  if (payload.remark) formData.append('remark', payload.remark)
+  if (payload.keywords) formData.append('keywords', payload.keywords)
+  return api(`/document-hub/drawings/products/${productId}/modules/${moduleKey}/upload`, {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export function getHubConnectors(q?: string) {
+  return api<ConnectorParameter[]>('/document-hub/connectors', { query: q ? { q } : undefined })
+}
+
+export function getHubConnector(id: string) {
+  return api<ConnectorParameter>(`/document-hub/connectors/${id}`)
+}
+
+export function getHubFixtures(q?: string) {
+  return api<FixtureParameter[]>('/document-hub/fixtures', { query: q ? { q } : undefined })
+}
+
+export function getHubFixture(id: string) {
+  return api<FixtureParameter>(`/document-hub/fixtures/${id}`)
+}
+
+export function searchHub(mode: HubMode, q: string) {
+  return api('/document-hub/search', { query: { mode, q } })
 }

@@ -1767,3 +1767,115 @@ export interface SystemQaAcceptanceReport {
   recommendedCommands: string[]
   nextRoutes: string[]
 }
+
+export type HubMode = 'drawing' | 'connector' | 'fixture'
+export type HubOrderScope = 'today' | 'week' | 'all'
+export type HubOrderStatus = 'front' | 'back' | 'no_drawing'
+export type DrawingStatus = 'available' | 'no_drawing' | 'partial'
+export type DrawingModuleStatus = 'uploaded' | 'pending' | 'no_drawing'
+export type DrawingModuleKey = 'original_drawing' | 'sop' | 'finished_images' | 'accessory_specs' | 'notes' | 'tooling'
+export type DrawingViewLevel = 'customers' | 'products' | 'product' | 'module' | 'image'
+
+export interface HubOrder {
+  orderId: string
+  scope: 'today' | 'week'
+  productId?: string
+  productModel: string
+  customerName: string
+  status: HubOrderStatus
+  completed: boolean
+  completedAt?: string
+  remark?: string
+}
+
+export interface HubOrderOverview {
+  weekOrders: HubOrder[]
+  pendingOrders: HubOrder[]
+  completedOrders: HubOrder[]
+  summary: {
+    weekTotal: number
+    pendingTotal: number
+    completedTotal: number
+  }
+}
+
+export interface HubCustomer {
+  customerId: string
+  customerName: string
+  customerShortName: string
+}
+
+export interface HubProductModel {
+  productId: string
+  customerId: string
+  productModel: string
+  productName: string
+  drawingStatus: DrawingStatus
+  remark?: string
+}
+
+export interface DrawingItem {
+  itemId: string
+  title: string
+  fileType: 'pdf' | 'image' | 'text' | 'card'
+  previewUrl?: string
+  fileName?: string
+  version: string
+  remark?: string
+  uploadedAt: string
+  source: 'mock' | 'manual_upload' | 'wecom_disk_future'
+}
+
+export interface DrawingModule {
+  moduleKey: DrawingModuleKey
+  moduleName: string
+  status: DrawingModuleStatus
+  items: DrawingItem[]
+  remark?: string
+  updatedAt: string
+}
+
+export interface ProductDrawingDetail {
+  product: HubProductModel
+  customer?: HubCustomer
+  modules: DrawingModule[]
+}
+
+export interface ConnectorParameter {
+  connectorId: string
+  connectorModel: string
+  terminalModel: string
+  pinCount: number
+  color: string
+  wireRange: string
+  manufacturer: string
+  lockType: string
+  processSegment: string
+  status: string
+  remark?: string
+}
+
+export interface FixtureParameter {
+  fixtureId: string
+  fixtureCode: string
+  fixtureName: string
+  fixtureType: string
+  applicableProduct: string
+  station: string
+  processSegment: string
+  storageLocation: string
+  status: string
+  maintenanceCycle: string
+  remark?: string
+}
+
+export interface DocumentHubUploadPayload {
+  customerId?: string
+  productId?: string
+  moduleKey?: DrawingModuleKey
+  title: string
+  version: string
+  remark?: string
+  keywords?: string
+  file?: File | null
+}
