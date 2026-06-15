@@ -58,7 +58,7 @@ function onScopeTabClick(event: MouseEvent) {
         description="暂无生产计划，请通过数据导入中心导入周计划。"
       />
 
-      <div v-else v-auto-animate class="warm-scroll max-h-[calc(100vh-490px)] space-y-3">
+      <div v-else v-auto-animate class="warm-scroll max-h-[calc(100vh-390px)] space-y-3">
         <button
           v-for="plan in store.visiblePlans"
           :key="plan.id"

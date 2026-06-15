@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import WarmAnalyticsDashboardDialog from '@/components/analytics/WarmAnalyticsDashboardDialog.vue'
-import WarmAnnouncementBanner from '@/components/settings/WarmAnnouncementBanner.vue'
 import WarmAnnouncementDialog from '@/components/settings/WarmAnnouncementDialog.vue'
 import WarmImportCenterDialog from '@/components/imports/WarmImportCenterDialog.vue'
 import WarmExecutionPanel from '@/components/execution/WarmExecutionPanel.vue'
@@ -33,7 +32,6 @@ import WarmSystemQaDialog from '@/components/systemqa/WarmSystemQaDialog.vue'
 import WarmPlanRail from '@/components/warm/WarmPlanRail.vue'
 import WarmProcessBoard from '@/components/warm/WarmProcessBoard.vue'
 import WarmProductHeader from '@/components/warm/WarmProductHeader.vue'
-import WarmStatusBar from '@/components/warm/WarmStatusBar.vue'
 import { PERMISSIONS } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth-store'
 import { useKnowledgeStore } from '@/stores/knowledge-store'
@@ -121,26 +119,6 @@ async function openMigration() {
   dialogs.migration = true
 }
 
-function openImportCenter() {
-  if (!auth.hasPermission(PERMISSIONS.IMPORT_VIEW)) return deny()
-  dialogs.importCenter = true
-}
-
-function openMaintenanceCenter() {
-  if (!auth.hasPermission(PERMISSIONS.MAINTENANCE_VIEW)) return deny()
-  dialogs.maintenanceCenter = true
-}
-
-function openAnalytics() {
-  if (!auth.hasPermission(PERMISSIONS.ANALYTICS_VIEW)) return deny()
-  dialogs.analytics = true
-}
-
-function openSystemQa() {
-  if (!auth.hasPermission(PERMISSIONS.SYSTEM_DIAGNOSTICS_VIEW)) return deny()
-  dialogs.systemQa = true
-}
-
 function deny() {
   toast.error('当前角色无权执行该操作。', {
     description: '请在右上角切换到具备权限的 Mock 角色。',
@@ -195,29 +173,6 @@ onUnmounted(() => {
 <template>
   <div ref="shellRef" :class="shellClasses">
     <div class="warm-workbench">
-      <WarmStatusBar
-        @open-network="dialogs.network = true"
-        @open-field-qa="dialogs.fieldQa = true"
-        @open-system-info="dialogs.systemInfo = true"
-        @open-demo-guide="dialogs.demoGuide = true"
-        @open-pwa-install="dialogs.pwaInstall = true"
-        @open-pwa-diagnostics="dialogs.pwaDiagnostics = true"
-        @open-import-center="openImportCenter"
-        @open-maintenance-center="openMaintenanceCenter"
-        @open-demo-data-manager="dialogs.demoDataManager = true"
-        @open-demo-readiness="dialogs.demoReadiness = true"
-        @open-freeze-checklist="dialogs.freezeChecklist = true"
-        @open-demo-assets-guide="dialogs.demoAssetsGuide = true"
-        @open-roadmap="dialogs.roadmap = true"
-        @open-migration="openMigration"
-        @open-analytics="openAnalytics"
-        @open-system-qa="openSystemQa"
-        @open-settings-center="dialogs.settingsCenter = true"
-        @open-system-feedback="dialogs.systemFeedback = true"
-        @open-pilot-check="dialogs.pilotCheck = true"
-        @open-announcements="dialogs.announcements = true"
-      />
-      <WarmAnnouncementBanner @open="dialogs.announcements = true" />
       <main class="warm-layout">
         <WarmPlanRail />
         <section class="warm-board">
