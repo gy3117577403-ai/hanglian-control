@@ -1,55 +1,76 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import { CalendarDays } from 'lucide-vue-next'
 import WarmOrderCard from './WarmOrderCard.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
+import type { HubOrder } from '@/types/production'
 
 const store = useDocumentHubStore()
-const tab = ref<'today' | 'week'>('today')
-const orders = computed(() => tab.value === 'today' ? store.visibleTodayOrders : store.visibleWeekOrders)
+
+function open(order: HubOrder) {
+  void store.openOrderProduct(order, 'orders')
+}
 </script>
 
 <template>
   <aside class="order-sidebar" data-scroll-key="orders">
     <div class="sidebar-head">
-      <CalendarDays :size="22" />
+      <CalendarDays :size="21" />
       <div>
-        <h2>订单资料调用</h2>
-        <p>点击产品型号直接打开图纸</p>
+        <h2>订单驱动图纸库</h2>
+        <p>点击产品型号直接打开图纸详情</p>
       </div>
     </div>
-    <div class="order-tabs">
-      <button type="button" :class="{ active: tab === 'today' }" @click="tab = 'today'">
-        今日订单 <b>{{ store.visibleTodayOrders.length }}</b>
-      </button>
-      <button type="button" :class="{ active: tab === 'week' }" @click="tab = 'week'">
-        本周订单 <b>{{ store.visibleWeekOrders.length }}</b>
-      </button>
-    </div>
-    <div class="order-list">
-      <WarmOrderCard
-        v-for="order in orders"
-        :key="order.orderId"
-        :order="order"
-        @open="store.openOrderProduct"
-        @complete="store.completeOrder"
-      />
-      <div v-if="!orders.length" class="empty-orders">
-        <b>当前列表已清空</b>
-        <span>已完成订单可在右上角“订单总览”查看。</span>
+
+    <section class="order-section">
+      <div class="section-title">
+        <b>今日订单</b>
+        <span>{{ store.visibleTodayOrders.length }}</span>
       </div>
-    </div>
+      <div class="order-list compact-scroll" data-scroll-key="today-orders">
+        <WarmOrderCard
+          v-for="order in store.visibleTodayOrders"
+          :key="order.orderId"
+          :order="order"
+          @open="open"
+          @complete="store.completeOrder"
+        />
+        <div v-if="!store.visibleTodayOrders.length" class="empty-orders">
+          暂无订单，可后续通过 Excel 导入产品型号。
+        </div>
+      </div>
+    </section>
+
+    <section class="order-section">
+      <div class="section-title">
+        <b>本周订单</b>
+        <span>{{ store.visibleWeekOrders.length }}</span>
+      </div>
+      <div class="order-list compact-scroll" data-scroll-key="week-orders">
+        <WarmOrderCard
+          v-for="order in store.visibleWeekOrders"
+          :key="order.orderId"
+          :order="order"
+          @open="open"
+          @complete="store.completeOrder"
+        />
+        <div v-if="!store.visibleWeekOrders.length" class="empty-orders">
+          暂无订单，可后续通过 Excel 导入产品型号。
+        </div>
+      </div>
+    </section>
   </aside>
 </template>
 
 <style scoped>
 .order-sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   min-height: 0;
-  overflow: auto;
-  padding: 12px;
+  overflow: hidden;
+  padding: 11px;
   border: 1px solid rgba(139, 90, 42, 0.18);
   border-radius: 20px;
-  background: rgba(255, 249, 238, 0.82);
+  background: rgba(255, 249, 238, 0.84);
   box-shadow: 0 18px 30px rgba(75, 38, 13, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
@@ -58,7 +79,7 @@ const orders = computed(() => tab.value === 'today' ? store.visibleTodayOrders :
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 9px;
   color: #9b5125;
 }
 
@@ -69,7 +90,7 @@ p {
 
 h2 {
   color: #332111;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 950;
 }
 
@@ -80,47 +101,63 @@ p {
   font-weight: 850;
 }
 
-.order-tabs {
+.order-section {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(139, 90, 42, 0.12);
 }
 
-.order-tabs button {
-  min-height: 42px;
-  border: 1px solid rgba(139, 90, 42, 0.16);
-  border-radius: 13px;
-  background: rgba(255, 241, 218, 0.82);
-  color: #65421f;
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: #4a2d16;
+}
+
+.section-title b {
+  font-size: 15px;
   font-weight: 950;
 }
 
-.order-tabs button.active {
-  background: linear-gradient(145deg, #d66b2c, #a84b24);
-  color: #fff8ec;
-  box-shadow: 0 12px 18px rgba(128, 62, 22, 0.2);
-}
-
-.order-tabs b {
-  margin-left: 4px;
+.section-title span {
+  min-width: 30px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(214, 107, 44, 0.12);
+  color: #a34f1f;
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
 }
 
 .order-list {
   display: grid;
-  gap: 9px;
+  align-content: start;
+  gap: 7px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.compact-scroll {
+  max-height: 100%;
 }
 
 .empty-orders {
   display: grid;
-  gap: 4px;
   place-items: center;
-  min-height: 170px;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px dashed rgba(139, 90, 42, 0.2);
+  border-radius: 14px;
   color: #8a6239;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
   text-align: center;
-}
-
-.empty-orders b {
-  color: #5c3419;
 }
 </style>

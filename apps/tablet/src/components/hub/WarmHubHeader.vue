@@ -12,12 +12,12 @@ const store = useDocumentHubStore()
     <WarmFunctionOrb :active-mode="store.activeMode" @select="store.setActiveMode" />
     <WarmHubSearchBar />
     <div class="header-actions">
-      <PrimeButton class="upload-button" @click="store.uploadDialogOpen = true">
-        <UploadCloud :size="19" />
+      <PrimeButton class="upload-button" @click="store.openTopUpload()">
+        <UploadCloud :size="18" />
         <span>上传资料</span>
       </PrimeButton>
       <PrimeButton severity="secondary" outlined @click="store.orderOverviewOpen = true">
-        <ClipboardList :size="19" />
+        <ClipboardList :size="18" />
         <span>订单总览</span>
       </PrimeButton>
     </div>
@@ -27,20 +27,20 @@ const store = useDocumentHubStore()
 <style scoped>
 .hub-header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 16px;
+  grid-template-columns: 278px minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  min-height: 96px;
+  min-height: 72px;
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
 .header-actions :deep(.p-button) {
-  min-height: 50px;
+  min-height: 48px;
   border-radius: 14px;
   font-weight: 950;
 }
@@ -48,12 +48,17 @@ const store = useDocumentHubStore()
 .upload-button {
   border-color: rgba(143, 63, 29, 0.18);
   background: linear-gradient(145deg, #e38435, #bf531f);
-  box-shadow: 0 14px 22px rgba(141, 68, 22, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 12px 18px rgba(141, 68, 22, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 @media (max-width: 1320px) {
   .hub-header {
-    gap: 10px;
+    grid-template-columns: 260px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .header-actions :deep(.p-button) {
+    padding-inline: 12px;
   }
 }
 </style>

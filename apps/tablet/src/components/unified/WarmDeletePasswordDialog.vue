@@ -24,19 +24,20 @@ const form = reactive({
   confirmText: '',
 })
 
+const confirmTextValue = '确认彻底删除'
 const needsConfirmText = computed(() => props.action?.mode === 'purge' || props.action?.mode === 'bulk-purge')
 const title = computed(() => props.action?.title ?? '删除资料')
 const actionCopy = computed(() => {
   if (!props.action) return ''
-  if (props.action.mode === 'delete') return '移入回收站后仍可恢复，文件不会立即删除。'
-  if (props.action.mode === 'bulk-delete') return `将 ${props.action.count ?? 0} 条资料移入回收站，文件不会立即删除。`
-  if (props.action.mode === 'bulk-purge') return `将彻底删除 ${props.action.count ?? 0} 条资料，无法恢复。`
-  return '彻底删除后将无法恢复，若该资料包含本地上传文件，文件也会被删除。请确认该资料不是正式客户资料。'
+  if (props.action.mode === 'delete') return '当前为本地定制版，默认删除密码为 123。后续可在设置中修改。移入回收站后仍可恢复，文件不会立即删除。'
+  if (props.action.mode === 'bulk-delete') return `当前为本地定制版，默认删除密码为 123。将 ${props.action.count ?? 0} 条资料移入回收站，文件不会立即删除。`
+  if (props.action.mode === 'bulk-purge') return `该操作将彻底删除 ${props.action.count ?? 0} 条资料记录；若存在本地上传文件，也会删除文件。请输入删除密码并输入确认文字。`
+  return '该操作将彻底删除资料记录；若存在本地上传文件，也会删除文件。请输入删除密码并输入确认文字。'
 })
 
 const canSubmit = computed(() => {
   if (!form.password) return false
-  if (needsConfirmText.value && form.confirmText !== '确认彻底删除') return false
+  if (needsConfirmText.value && form.confirmText !== confirmTextValue) return false
   return true
 })
 
@@ -76,7 +77,7 @@ function submit() {
 
     <label>
       删除密码
-      <PrimeInputText v-model="form.password" type="password" autocomplete="off" placeholder="请输入删除密码" />
+      <PrimeInputText v-model="form.password" type="password" autocomplete="off" placeholder="请输入删除密码以继续" />
     </label>
     <label>
       操作原因

@@ -76,10 +76,10 @@ requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmExecutionPa
 requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmAnalyticsDashboardDialog', '主页面仍渲染统计看板。');
 requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmLaunchScreen', '主页面仍渲染启动演示信息。');
 requireIncludes('apps/tablet/src/app/routes.ts', "meta: { public: true }", '/tablet 未设置为主流程免登录。');
-if (!["APP_VERSION = 'V3.2'", "APP_VERSION = 'V3.3'"].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
+if (!["APP_VERSION = 'V3.2'", "APP_VERSION = 'V3.3'", "APP_VERSION = 'V3.4'"].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
   blockers.push('版本未标记为 V3.2 或 V3.3。');
 }
-if (!['mock-local-custom-document-center', 'mock-local-custom-main-document-layout', 'mock-local-game-doc-hub-orders'].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
+if (!['mock-local-custom-document-center', 'mock-local-custom-main-document-layout', 'mock-local-game-doc-hub-orders', 'mock-local-document-hub-polish'].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
   blockers.push('构建通道未标记为统一资料中心。');
 }
 requireIncludes('.gitignore', 'apps/api/storage/metadata/delete-lock-settings.json', '删除锁 metadata 未加入 .gitignore。');

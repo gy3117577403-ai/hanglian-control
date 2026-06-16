@@ -7,7 +7,7 @@ const store = useDocumentHubStore()
 
 <template>
   <form class="hub-search" @submit.prevent="store.searchCurrentMode()">
-    <Search :size="22" />
+    <Search :size="21" />
     <PrimeInputText v-model="store.searchKeyword" :placeholder="store.currentSearchPlaceholder" />
     <PrimeButton label="搜索" type="submit" />
   </form>
@@ -17,29 +17,29 @@ const store = useDocumentHubStore()
 .hub-search {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 9px;
   align-items: center;
-  min-width: 420px;
-  padding: 9px 11px;
+  min-width: 0;
+  padding: 8px 10px;
   border: 1px solid rgba(139, 90, 42, 0.2);
   border-radius: 16px;
-  background: rgba(255, 249, 238, 0.86);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 12px 22px rgba(92, 51, 19, 0.1);
+  background: rgba(255, 249, 238, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 10px 18px rgba(92, 51, 19, 0.1);
   color: #8f4a22;
 }
 
 .hub-search :deep(.p-inputtext) {
-  min-height: 48px;
+  min-height: 46px;
   border: 0;
   background: transparent;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 850;
   box-shadow: none;
 }
 
-@media (max-width: 1320px) {
-  .hub-search {
-    min-width: 360px;
-  }
+.hub-search :deep(.p-button) {
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 950;
 }
 </style>

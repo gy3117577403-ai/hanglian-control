@@ -40,9 +40,11 @@ function requireNotIncludes(relativePath, text, message) {
 ].forEach(requireFile);
 
 requireIncludes('package.json', '"custom-main-layout:check"', 'package.json is missing custom-main-layout:check.');
-requireIncludes('apps/tablet/src/config/app-version.ts', "APP_VERSION = 'V3.3'", 'Tablet app version is not V3.3.');
-if (!['mock-local-custom-main-document-layout', 'mock-local-game-doc-hub-orders'].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
-  blockers.push('Build channel is not a custom V3.3 main layout channel.');
+if (!["APP_VERSION = 'V3.3'", "APP_VERSION = 'V3.4'"].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
+  blockers.push('Tablet app version is not V3.3 or V3.4.');
+}
+if (!['mock-local-custom-main-document-layout', 'mock-local-game-doc-hub-orders', 'mock-local-document-hub-polish'].some((text) => read('apps/tablet/src/config/app-version.ts').includes(text))) {
+  blockers.push('Build channel is not a custom main layout or document hub channel.');
 }
 if (!['WarmUnifiedDocumentCenter', 'WarmDocumentHubDashboard'].some((text) => read('apps/tablet/src/views/TabletDashboard.vue').includes(text))) {
   blockers.push('/tablet does not render a custom main workspace.');

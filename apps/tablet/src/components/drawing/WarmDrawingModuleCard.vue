@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, UploadCloud } from 'lucide-vue-next'
+import { Eye, FileText, Image, UploadCloud } from 'lucide-vue-next'
 import type { DrawingModule } from '@/types/production'
 
 defineProps<{
@@ -11,26 +11,36 @@ const emit = defineEmits<{
   upload: [module: DrawingModule]
 }>()
 
-function statusText(status: string) {
-  if (status === 'uploaded') return '已上传'
-  if (status === 'no_drawing') return '未发图'
-  return '待补充'
+function statusText(module: DrawingModule) {
+  if (module.status === 'uploaded') return '已上传'
+  if (module.status === 'no_drawing') return '未发图'
+  return '待上传'
+}
+
+function firstType(module: DrawingModule) {
+  return module.items[0]?.fileType === 'pdf' ? FileText : Image
 }
 </script>
 
 <template>
-  <article class="module-card">
+  <article class="module-card" :class="{ missing: !module.items.length }">
     <div class="preview-tile" :class="{ empty: !module.items.length }">
+      <component :is="firstType(module)" :size="32" />
       <b>{{ module.items[0]?.title || module.moduleName }}</b>
-      <span>{{ module.items[0]?.fileType || '待补充' }}</span>
+      <span>{{ module.items[0]?.fileType?.toUpperCase() || (module.moduleKey === 'original_drawing' ? '未发图' : '待上传') }}</span>
     </div>
     <div class="module-body">
       <div>
         <h3>{{ module.moduleName }}</h3>
-        <p>{{ module.remark }}</p>
+        <p>
+          <template v-if="module.moduleKey === 'original_drawing' && !module.items.length">
+            后续可由企业微信微盘同步原图。
+          </template>
+          <template v-else>{{ module.remark }}</template>
+        </p>
       </div>
       <div class="meta-row">
-        <span :class="module.status">{{ statusText(module.status) }}</span>
+        <span :class="module.status">{{ statusText(module) }}</span>
         <span>共 {{ module.items.length }} 项</span>
         <span>{{ module.updatedAt.slice(0, 10) }}</span>
       </div>
@@ -51,21 +61,25 @@ function statusText(status: string) {
 <style scoped>
 .module-card {
   display: grid;
-  grid-template-columns: 152px minmax(0, 1fr);
-  gap: 12px;
-  min-height: 188px;
-  max-height: 188px;
-  padding: 12px;
+  grid-template-columns: 138px minmax(0, 1fr);
+  gap: 11px;
+  height: 176px;
+  padding: 11px;
   border: 1px solid rgba(139, 90, 42, 0.16);
   border-radius: 18px;
   background: linear-gradient(145deg, rgba(255, 252, 245, 0.96), rgba(255, 235, 205, 0.8));
   box-shadow: 0 14px 24px rgba(80, 42, 16, 0.12);
 }
 
+.module-card.missing {
+  border-style: dashed;
+}
+
 .preview-tile {
   display: grid;
   align-content: end;
   gap: 5px;
+  min-width: 0;
   padding: 12px;
   border-radius: 14px;
   background: linear-gradient(145deg, #f5b65e, #be6427);
@@ -81,6 +95,7 @@ function statusText(status: string) {
 .preview-tile span {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .module-body {
@@ -96,7 +111,7 @@ p {
 
 h3 {
   color: #342112;
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 950;
 }
 
@@ -105,16 +120,17 @@ p {
   overflow: hidden;
   margin-top: 5px;
   color: #7b542c;
+  font-size: 13px;
   font-weight: 850;
-  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .meta-row,
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
 }
 
 .meta-row span {
@@ -122,7 +138,7 @@ p {
   border-radius: 999px;
   background: rgba(255, 246, 230, 0.9);
   color: #724722;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 950;
 }
 
@@ -139,6 +155,13 @@ p {
 }
 
 .actions {
-  margin-top: 8px;
+  margin-top: 7px;
+}
+
+.actions :deep(.p-button) {
+  min-height: 34px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 950;
 }
 </style>

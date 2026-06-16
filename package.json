@@ -38,6 +38,7 @@
     "unified-documents:check": "node scripts/unified-documents-check.mjs",
     "custom-main-layout:check": "node scripts/custom-main-layout-check.mjs",
     "document-hub:check": "node scripts/document-hub-check.mjs",
+    "document-hub-polish:check": "node scripts/document-hub-polish-check.mjs",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

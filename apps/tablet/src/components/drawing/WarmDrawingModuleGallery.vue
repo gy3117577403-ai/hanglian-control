@@ -1,21 +1,29 @@
 <script setup lang="ts">
-import { Image, UploadCloud } from 'lucide-vue-next'
+import { ChevronLeft, FileText, Image, UploadCloud } from 'lucide-vue-next'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
+import type { DrawingItem } from '@/types/production'
 
 const store = useDocumentHubStore()
+
+function iconFor(item: DrawingItem) {
+  return item.fileType === 'pdf' ? FileText : Image
+}
 </script>
 
 <template>
   <div class="module-gallery" data-scroll-key="module">
     <section v-if="store.selectedModule" class="gallery-head">
+      <PrimeButton severity="secondary" outlined rounded title="返回图纸详情" @click="store.goBack()">
+        <ChevronLeft :size="20" />
+      </PrimeButton>
       <div>
-        <p>{{ store.selectedProduct?.productModel }}</p>
-        <h2>{{ store.selectedModule.moduleName }}</h2>
-        <span>{{ store.selectedModule.remark }}</span>
+        <p>{{ store.productDrawingDetail?.customer?.customerName || '待补充客户资料' }}</p>
+        <h2>{{ store.selectedProduct?.productModel }} / {{ store.selectedModule.moduleName }}</h2>
+        <span>资料数量：{{ store.selectedModule.items.length }} 项</span>
       </div>
-      <PrimeButton @click="store.uploadDialogOpen = true">
+      <PrimeButton @click="store.openModuleUpload(store.selectedModule)">
         <UploadCloud :size="18" />
-        <span>上传到本模块</span>
+        <span>上传更多</span>
       </PrimeButton>
     </section>
     <div class="gallery-grid">
@@ -26,16 +34,19 @@ const store = useDocumentHubStore()
         @click="store.openImageDetail(item)"
       >
         <div class="thumb">
-          <Image :size="32" />
-          <b>{{ item.fileType.toUpperCase() }}</b>
+          <component :is="iconFor(item)" :size="34" />
+          <b>{{ item.fileType === 'pdf' ? 'PDF 预览' : '图片预览' }}</b>
         </div>
         <h3>{{ item.title }}</h3>
         <span>{{ item.version }} / {{ item.uploadedAt.slice(0, 10) }}</span>
         <p>{{ item.remark }}</p>
       </button>
       <div v-if="!store.selectedModule?.items.length" class="empty-gallery">
-        <b>暂无资料</b>
-        <span>可以点击“上传到本模块”补充 SOP、成品图、辅料规格或配套工装。</span>
+        <b>该模块暂无资料，可点击上传补充。</b>
+        <PrimeButton @click="store.selectedModule && store.openModuleUpload(store.selectedModule)">
+          <UploadCloud :size="18" />
+          <span>上传到本模块</span>
+        </PrimeButton>
       </div>
     </div>
   </div>
@@ -45,14 +56,16 @@ const store = useDocumentHubStore()
 .module-gallery {
   height: calc(100% - 58px);
   overflow: auto;
+  padding-right: 2px;
 }
 
 .gallery-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 12px;
-  padding: 16px;
+  padding: 13px;
   border-radius: 18px;
   background: linear-gradient(145deg, #fff7ea, #ffd79d);
 }
@@ -66,14 +79,25 @@ h3 {
 
 p {
   color: #9b5125;
+  font-size: 13px;
   font-weight: 950;
 }
 
 h2 {
+  overflow: hidden;
   margin-top: 3px;
   color: #342112;
-  font-size: 28px;
+  font-size: 25px;
   font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-head span {
+  display: block;
+  margin-top: 4px;
+  color: #73512c;
+  font-weight: 850;
 }
 
 .gallery-grid {
@@ -84,7 +108,7 @@ h2 {
 
 button,
 .empty-gallery {
-  min-height: 230px;
+  min-height: 214px;
   padding: 12px;
   border: 1px solid rgba(139, 90, 42, 0.16);
   border-radius: 16px;
@@ -96,7 +120,7 @@ button,
 .thumb {
   display: grid;
   place-items: center;
-  min-height: 126px;
+  min-height: 116px;
   border-radius: 14px;
   background: linear-gradient(145deg, #f5b65e, #be6427);
   color: #fff8ed;
@@ -126,8 +150,14 @@ button p,
 
 .empty-gallery {
   display: grid;
+  gap: 12px;
   place-items: center;
   grid-column: 1 / -1;
+  min-height: 240px;
   text-align: center;
+}
+
+.empty-gallery b {
+  color: #5c3419;
 }
 </style>

@@ -12,7 +12,7 @@ const store = useDocumentHubStore()
       <div>
         <p>独立搜索</p>
         <h2>治具参数</h2>
-        <span>只搜索治具编号、治具名称、工位和适用产品。</span>
+        <span>只搜索治具编号、治具名称、工位、适用产品和存放位置。</span>
       </div>
       <b>{{ store.fixtureRows.length }} 条</b>
     </section>
@@ -36,7 +36,7 @@ const store = useDocumentHubStore()
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
-  padding: 16px;
+  padding: 14px;
   border-radius: 18px;
   background: linear-gradient(145deg, #fff7ea, #ffd79d);
 }
@@ -55,7 +55,7 @@ p {
 h2 {
   margin-top: 3px;
   color: #342112;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 950;
 }
 
@@ -69,6 +69,7 @@ b {
   border-radius: 999px;
   background: rgba(255, 250, 240, 0.78);
   color: #7a421f;
+  white-space: nowrap;
 }
 
 .scroll-area {

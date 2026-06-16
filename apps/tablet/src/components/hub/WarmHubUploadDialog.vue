@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { UploadCloud } from 'lucide-vue-next'
+import { mockHubProducts } from '@/mock/order-hub-data'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DrawingModuleKey } from '@/types/production'
 
@@ -28,9 +29,22 @@ const moduleOptions: Array<{ label: string; value: DrawingModuleKey }> = [
   { label: '配套工装', value: 'tooling' },
 ]
 
+const isModuleUpload = computed(() => store.uploadDialogSource === 'module')
+const selectedModuleName = computed(() => moduleOptions.find((item) => item.value === form.moduleKey)?.label ?? '资料模块')
+const selectedProductModel = computed(() => {
+  const product = mockHubProducts.find((item) => item.productId === form.productId) ?? store.productDrawingDetail?.product
+  return product?.productModel ?? '待选择产品型号'
+})
+const dialogTitle = computed(() => {
+  if (isModuleUpload.value) return `上传到：${selectedProductModel.value} / ${selectedModuleName.value}`
+  return '上传资料'
+})
+
 const productOptions = computed(() => {
-  if (!form.customerId) return []
-  return store.productModels.length ? store.productModels : []
+  const map = new Map(mockHubProducts.map((product) => [product.productId, product]))
+  if (store.productDrawingDetail) map.set(store.productDrawingDetail.product.productId, store.productDrawingDetail.product)
+  store.productModels.forEach((product) => map.set(product.productId, product))
+  return [...map.values()].filter((product) => !form.customerId || product.customerId === form.customerId)
 })
 
 watch(visible, (next) => {
@@ -43,6 +57,11 @@ watch(visible, (next) => {
   form.remark = ''
   form.keywords = ''
   file.value = null
+})
+
+watch(() => form.productId, (productId) => {
+  const product = mockHubProducts.find((item) => item.productId === productId)
+  if (product && !form.customerId) form.customerId = product.customerId
 })
 
 function onFileChange(event: Event) {
@@ -62,18 +81,18 @@ async function submit() {
 </script>
 
 <template>
-  <PrimeDialog v-model:visible="visible" modal header="上传资料到产品模块" :style="{ width: '760px' }">
+  <PrimeDialog v-model:visible="visible" modal :header="dialogTitle" :style="{ width: '760px' }">
     <div class="hint-card">
       <UploadCloud :size="26" />
       <div>
-        <b>模块内上传会自动绑定当前产品资料包</b>
-        <span>当前阶段写入 Mock 状态；后续原图默认由企业微信微盘同步，SOP、成品图和辅料等可在软件内补充。</span>
+        <b>{{ isModuleUpload ? '模块内上传会自动绑定当前产品和资料模块' : '顶部上传可手动选择客户、产品型号和资料模块' }}</b>
+        <span>当前阶段写入 Mock 状态；文件支持 PDF / JPG / PNG / WEBP，上传备注会保留。</span>
       </div>
     </div>
     <div class="upload-grid">
       <label>
         客户
-        <select v-model="form.customerId">
+        <select v-model="form.customerId" :disabled="isModuleUpload">
           <option value="">请选择客户</option>
           <option v-for="customer in store.customers" :key="customer.customerId" :value="customer.customerId">
             {{ customer.customerName }}
@@ -82,11 +101,8 @@ async function submit() {
       </label>
       <label>
         产品型号
-        <select v-model="form.productId">
+        <select v-model="form.productId" :disabled="isModuleUpload">
           <option value="">请选择产品型号</option>
-          <option v-if="store.productDrawingDetail" :value="store.productDrawingDetail.product.productId">
-            {{ store.productDrawingDetail.product.productModel }}
-          </option>
           <option v-for="product in productOptions" :key="product.productId" :value="product.productId">
             {{ product.productModel }}
           </option>
@@ -94,7 +110,7 @@ async function submit() {
       </label>
       <label>
         模块类型
-        <select v-model="form.moduleKey">
+        <select v-model="form.moduleKey" :disabled="isModuleUpload">
           <option v-for="item in moduleOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
       </label>
@@ -181,6 +197,11 @@ input[type='file'] {
   background: rgba(255, 248, 235, 0.95);
   color: #432813;
   font-weight: 850;
+}
+
+select:disabled {
+  color: #6b4a28;
+  background: rgba(237, 221, 198, 0.75);
 }
 
 .file-row span {

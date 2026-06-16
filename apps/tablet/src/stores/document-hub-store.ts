@@ -110,6 +110,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const selectedFixture = ref<FixtureParameter | null>(null)
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
+  const uploadDialogSource = ref<'top' | 'module'>('top')
   const connectorDetailOpen = ref(false)
   const fixtureDetailOpen = ref(false)
   const loading = ref(false)
@@ -119,9 +120,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const localFixtures = ref<FixtureParameter[]>(clone(mockFixtureParameters))
 
   const currentSearchPlaceholder = computed(() => {
-    if (activeMode.value === 'connector') return '搜索连接器型号 / 端子型号 / 孔位数 / 厂家'
-    if (activeMode.value === 'fixture') return '搜索治具编号 / 治具名称 / 工位 / 适用产品'
-    return '搜索客户 / 产品型号 / 图纸 / SOP / 成品图'
+    if (activeMode.value === 'connector') return '搜索连接器型号、端子型号、孔位数、厂家'
+    if (activeMode.value === 'fixture') return '搜索治具编号、治具名称、工位、适用产品'
+    return '搜索客户、产品型号、图纸、SOP、成品图'
   })
 
   const visibleTodayOrders = computed(() => todayOrders.value.filter((order) => !order.completed))
@@ -154,6 +155,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   async function completeOrder(order: HubOrder) {
+    saveCurrentScroll('orders')
+    saveCurrentScroll('today-orders')
+    saveCurrentScroll('week-orders')
     try {
       await completeHubOrder(order.orderId)
     } catch {
@@ -164,7 +168,27 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       }
     }
     await loadOrders()
-    toast.success('订单已完成', { description: order.productModel })
+    await restoreScroll('orders')
+    await restoreScroll('today-orders')
+    await restoreScroll('week-orders')
+    toast.success(`已完成：${order.productModel}`)
+  }
+
+  async function reopenOrder(order: HubOrder) {
+    const restored = { ...order, completed: false, completedAt: undefined }
+    const local = localOrders.value.find((item) => item.orderId === order.orderId)
+    if (local) {
+      local.completed = false
+      local.completedAt = undefined
+    }
+    completedOrders.value = completedOrders.value.filter((item) => item.orderId !== order.orderId)
+    if (restored.scope === 'today' && !todayOrders.value.some((item) => item.orderId === restored.orderId)) {
+      todayOrders.value.unshift(restored)
+    }
+    if (restored.scope === 'week' && !weekOrders.value.some((item) => item.orderId === restored.orderId)) {
+      weekOrders.value.unshift(restored)
+    }
+    toast.success('已重新加入待完成', { description: order.productModel })
   }
 
   async function loadCustomers() {
@@ -190,7 +214,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     await restoreScroll('products')
   }
 
-  async function openProduct(product: HubProductModel, source: 'drawing' | 'orders' | 'search' = 'drawing') {
+  async function openProduct(product: HubProductModel, source: 'drawing' | 'orders' | 'overview' | 'search' = 'drawing') {
     saveCurrentScroll(drawingViewLevel.value)
     selectedProduct.value = product
     selectedModule.value = null
@@ -199,9 +223,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (source !== 'drawing') {
       navigation.pushReturnPoint({
         source,
-        label: source === 'orders' ? '返回订单列表' : '返回搜索结果',
+        label: source === 'orders' ? '返回订单列表' : source === 'overview' ? '返回订单总览' : '返回搜索结果',
         state: { level: 'product', productId: product.productId },
-        scrollKey: source,
+        scrollKey: source === 'overview' ? 'order-overview' : source,
       })
     }
     try {
@@ -217,13 +241,13 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     await restoreScroll('product')
   }
 
-  async function openOrderProduct(order: HubOrder) {
+  async function openOrderProduct(order: HubOrder, source: 'orders' | 'overview' = 'orders') {
     activeMode.value = 'drawing'
     navigation.rememberFunction('drawing')
     const product = order.productId ? mockHubProducts.find((item) => item.productId === order.productId) : undefined
     if (product) {
       selectedCustomer.value = mockHubCustomers.find((customer) => customer.customerId === product.customerId) ?? null
-      await openProduct(product, 'orders')
+      await openProduct(product, source)
       return
     }
     try {
@@ -242,6 +266,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedCustomer.value = productDrawingDetail.value.customer ?? null
     selectedProduct.value = productDrawingDetail.value.product
     drawingViewLevel.value = 'product'
+    navigation.pushReturnPoint({
+      source,
+      label: source === 'overview' ? '返回订单总览' : '返回订单列表',
+      state: { level: 'product', productId: selectedProduct.value.productId },
+      scrollKey: source === 'overview' ? 'order-overview' : 'orders',
+    })
   }
 
   function openModule(module: DrawingModule) {
@@ -286,6 +316,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         selectedProduct.value = null
         productDrawingDetail.value = null
         await restoreScroll('orders')
+        return
+      }
+      if (returnPoint?.source === 'overview') {
+        drawingViewLevel.value = 'customers'
+        selectedProduct.value = null
+        productDrawingDetail.value = null
+        orderOverviewOpen.value = true
+        await restoreScroll('order-overview')
         return
       }
       drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
@@ -364,9 +402,24 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     activeMode.value = mode
     navigation.rememberFunction(mode)
     searchKeyword.value = ''
+    selectedConnector.value = null
+    selectedFixture.value = null
+    selectedModule.value = null
+    selectedDrawingItem.value = null
     if (mode === 'drawing' && !productDrawingDetail.value) drawingViewLevel.value = 'customers'
     if (mode === 'connector') void loadConnectors()
     if (mode === 'fixture') void loadFixtures()
+  }
+
+  function openTopUpload() {
+    uploadDialogSource.value = 'top'
+    uploadDialogOpen.value = true
+  }
+
+  function openModuleUpload(module: DrawingModule) {
+    selectedModule.value = module
+    uploadDialogSource.value = 'module'
+    uploadDialogOpen.value = true
   }
 
   function openConnectorDetail(row: ConnectorParameter) {
@@ -380,14 +433,23 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   async function uploadToModule(payload: DocumentHubUploadPayload) {
-    if (!productDrawingDetail.value || !selectedModule.value) return
-    const moduleKey = payload.moduleKey ?? selectedModule.value.moduleKey
+    const targetDetail = productDrawingDetail.value ?? localDetails.value.find((detail) => detail.product.productId === payload.productId)
+    if (!targetDetail) {
+      toast.error('请先选择产品型号后再上传资料')
+      return
+    }
+    productDrawingDetail.value = targetDetail
+    const moduleKey = payload.moduleKey ?? selectedModule.value?.moduleKey
+    if (!moduleKey) {
+      toast.error('请选择资料模块')
+      return
+    }
     try {
-      await uploadHubDrawingItem(productDrawingDetail.value.product.productId, moduleKey, payload)
+      await uploadHubDrawingItem(targetDetail.product.productId, moduleKey, payload)
     } catch {
       // Local fallback below.
     }
-    const module = productDrawingDetail.value.modules.find((item) => item.moduleKey === moduleKey)
+    const module = targetDetail.modules.find((item) => item.moduleKey === moduleKey)
     if (!module) return
     const nextItem: DrawingItem = {
       itemId: `manual-${Date.now()}`,
@@ -403,6 +465,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     module.status = 'uploaded'
     module.updatedAt = nextItem.uploadedAt
     selectedModule.value = module
+    selectedDrawingItem.value = nextItem
     uploadDialogOpen.value = false
     toast.success('资料已补充到当前产品模块', { description: `${module.moduleName} / ${payload.title}` })
   }
@@ -438,6 +501,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedFixture,
     orderOverviewOpen,
     uploadDialogOpen,
+    uploadDialogSource,
     connectorDetailOpen,
     fixtureDetailOpen,
     loading,
@@ -447,6 +511,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     initialize,
     loadOrders,
     completeOrder,
+    reopenOrder,
     loadCustomers,
     openCustomer,
     openProduct,
@@ -458,6 +523,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     loadConnectors,
     loadFixtures,
     setActiveMode,
+    openTopUpload,
+    openModuleUpload,
     openConnectorDetail,
     openFixtureDetail,
     uploadToModule,
