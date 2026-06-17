@@ -1,4 +1,8 @@
 import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function isTrue(value) {
   return String(value ?? '').toLowerCase() === 'true';
@@ -7,7 +11,7 @@ function isTrue(value) {
 function run(command, args) {
   const executable = process.platform === 'win32' && command === 'npx' ? 'npx.cmd' : command;
   const result = spawnSync(executable, args, {
-    cwd: process.cwd(),
+    cwd: apiDir,
     env: process.env,
     stdio: 'inherit',
     shell: false,
@@ -40,7 +44,7 @@ function assertCloudMigrationAllowed() {
 
 if (isTrue(process.env.RUN_PRISMA_MIGRATE_DEPLOY)) {
   assertCloudMigrationAllowed();
-  run('npx', ['prisma', 'migrate', 'deploy', '--schema=apps/api/prisma/schema.prisma']);
+  run('npx', ['prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma']);
 }
 
-run('node', ['apps/api/dist/src/main.js']);
+run('node', ['dist/src/main.js']);
