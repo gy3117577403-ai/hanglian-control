@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
 const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const defaultCloudSchema = 'hanglian_control';
 
 function isTrue(value) {
   return String(value ?? '').toLowerCase() === 'true';
@@ -13,10 +15,35 @@ function readDatabaseTarget() {
     const databaseUrl = new URL(process.env.DATABASE_URL);
     const databaseName = databaseUrl.pathname.replace(/^\/+/, '') || '(missing)';
     const schemaName = databaseUrl.searchParams.get('schema') || 'public';
-    return { databaseName, schemaName };
+    return { databaseName, schemaName, databaseUrl };
   } catch {
     console.error('Refusing to run prisma migrate deploy. DATABASE_URL is not a valid PostgreSQL URL.');
     process.exit(1);
+  }
+}
+
+function normalizeCloudDatabaseUrl() {
+  const { databaseName, schemaName, databaseUrl } = readDatabaseTarget();
+  if (databaseName === 'postgres' && schemaName === 'public') {
+    databaseUrl.searchParams.set('schema', defaultCloudSchema);
+    process.env.DATABASE_URL = databaseUrl.toString();
+    console.log(`Cloud database target normalized to isolated schema "${defaultCloudSchema}".`);
+    return defaultCloudSchema;
+  }
+  return schemaName;
+}
+
+async function ensureSchema(schemaName) {
+  if (!schemaName || schemaName === 'public') return;
+
+  const schemaSetupUrl = new URL(process.env.DATABASE_URL);
+  schemaSetupUrl.searchParams.delete('schema');
+  const client = new pg.Client({ connectionString: schemaSetupUrl.toString() });
+  await client.connect();
+  try {
+    await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName.replaceAll('"', '""')}"`);
+  } finally {
+    await client.end();
   }
 }
 
@@ -53,21 +80,12 @@ function assertCloudMigrationAllowed() {
     process.exit(1);
   }
 
-  const { databaseName, schemaName } = readDatabaseTarget();
-  if (databaseName === 'postgres' && schemaName === 'public') {
-    console.error(
-      [
-        'Refusing to run prisma migrate deploy against the default postgres/public target.',
-        'Use a dedicated empty database, or change DATABASE_URL to use ?schema=hanglian_control.',
-        'Do not paste DATABASE_URL into chat.',
-      ].join('\n'),
-    );
-    process.exit(1);
-  }
+  return normalizeCloudDatabaseUrl();
 }
 
 if (isTrue(process.env.RUN_PRISMA_MIGRATE_DEPLOY)) {
-  assertCloudMigrationAllowed();
+  const schemaName = assertCloudMigrationAllowed();
+  await ensureSchema(schemaName);
   run('npx', ['prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma']);
 }
 
