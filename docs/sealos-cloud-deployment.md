@@ -50,7 +50,7 @@ DATA_SOURCE=prisma
 DEMO_DATA_MODE=empty
 DEPLOYMENT_STAGE=sealos-test
 DB_TARGET=test
-DATABASE_URL=<fill in Sealos PostgreSQL connection string in Sealos UI only>
+DATABASE_URL=<fill in Sealos PostgreSQL connection string in Sealos UI only, prefer schema=hanglian_control>
 DATABASE_SSL_MODE=require
 DATABASE_CONNECT_TIMEOUT_SECONDS=10
 
@@ -61,6 +61,21 @@ ALLOW_DESTRUCTIVE_DB_ACTIONS=false
 RUN_PRISMA_MIGRATE_DEPLOY=true
 SEED_MODE=dry-run
 ```
+
+If the Sealos connection string points to the default database and schema:
+
+```text
+database: postgres
+schema: public
+```
+
+change only the schema query parameter in Sealos, for example:
+
+```text
+?schema=hanglian_control
+```
+
+Do not paste the full connection string into chat. Do not migrate into `postgres/public`.
 
 Health check:
 

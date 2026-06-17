@@ -8,6 +8,18 @@ function isTrue(value) {
   return String(value ?? '').toLowerCase() === 'true';
 }
 
+function readDatabaseTarget() {
+  try {
+    const databaseUrl = new URL(process.env.DATABASE_URL);
+    const databaseName = databaseUrl.pathname.replace(/^\/+/, '') || '(missing)';
+    const schemaName = databaseUrl.searchParams.get('schema') || 'public';
+    return { databaseName, schemaName };
+  } catch {
+    console.error('Refusing to run prisma migrate deploy. DATABASE_URL is not a valid PostgreSQL URL.');
+    process.exit(1);
+  }
+}
+
 function run(command, args) {
   const executable = process.platform === 'win32' && command === 'npx' ? 'npx.cmd' : command;
   const result = spawnSync(executable, args, {
@@ -38,6 +50,18 @@ function assertCloudMigrationAllowed() {
   }
   if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('USER:PASSWORD@HOST')) {
     console.error('Refusing to run prisma migrate deploy. DATABASE_URL is missing or still an example value.');
+    process.exit(1);
+  }
+
+  const { databaseName, schemaName } = readDatabaseTarget();
+  if (databaseName === 'postgres' && schemaName === 'public') {
+    console.error(
+      [
+        'Refusing to run prisma migrate deploy against the default postgres/public target.',
+        'Use a dedicated empty database, or change DATABASE_URL to use ?schema=hanglian_control.',
+        'Do not paste DATABASE_URL into chat.',
+      ].join('\n'),
+    );
     process.exit(1);
   }
 }
