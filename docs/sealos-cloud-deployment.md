@@ -28,13 +28,11 @@ Create these new resources only:
 
 ## API app
 
-Use repository:
+Use image:
 
-`https://github.com/gy3117577403-ai/hanglian-control.git`
+`ghcr.io/gy3117577403-ai/hanglian-control-api:sealos-test`
 
-Use Dockerfile:
-
-`Dockerfile.api`
+Do not use the default `nginx` image.
 
 Expose port:
 
@@ -74,13 +72,11 @@ Swagger:
 
 ## Tablet PWA app
 
-Use repository:
+Use image:
 
-`https://github.com/gy3117577403-ai/hanglian-control.git`
+`ghcr.io/gy3117577403-ai/hanglian-control-tablet:sealos-test`
 
-Use Dockerfile:
-
-`Dockerfile.tablet`
+Do not use the default `nginx` image.
 
 Expose port:
 
@@ -116,6 +112,17 @@ only when:
 - `DATABASE_URL` is not the example value
 
 No seed script runs automatically.
+
+## GitHub image build
+
+The workflow `.github/workflows/build-images.yml` builds and pushes two images to GitHub Container Registry:
+
+- `ghcr.io/gy3117577403-ai/hanglian-control-api:sealos-test`
+- `ghcr.io/gy3117577403-ai/hanglian-control-tablet:sealos-test`
+
+It runs automatically when `feature/v3-6-sealos-cloud-deploy-prep` or `main` is pushed, and it can also be started manually from GitHub Actions.
+
+If Sealos reports that it cannot pull an image, make the GHCR package visible to Sealos or configure Sealos with an image pull credential. Do not paste package tokens into chat.
 
 ## Verification
 
