@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const defaultCloudSchema = process.env.CLOUD_DATABASE_SCHEMA || 'hanglian_control_live';
-const startupRevision = 'schema-isolation-v5';
+const defaultCloudSchema = process.env.CLOUD_DATABASE_SCHEMA || 'hanglian_control_final';
+const startupRevision = 'schema-isolation-v6';
 
 console.log(`Hanglian cloud startup revision: ${startupRevision}`);
 
@@ -29,16 +29,26 @@ function normalizeCloudDatabaseUrl() {
   const { databaseName, schemaName, databaseUrl } = readDatabaseTarget();
   console.log(`Cloud database target before normalization: database="${databaseName}", schema="${schemaName}".`);
   if ((databaseName === 'postgres' || databaseName === '(missing)') && schemaName === 'public') {
-    if (databaseName === '(missing)') {
-      databaseUrl.pathname = '/postgres';
-    }
-    databaseUrl.searchParams.set('schema', defaultCloudSchema);
-    process.env.DATABASE_URL = databaseUrl.toString();
+    applyDatabaseSchema(databaseUrl, databaseName, defaultCloudSchema);
     console.log(`Cloud database target normalized to isolated schema "${defaultCloudSchema}".`);
     return defaultCloudSchema;
   }
+  applyDatabaseSchema(databaseUrl, databaseName, schemaName);
   console.log(`Cloud database target uses configured schema "${schemaName}".`);
   return schemaName;
+}
+
+function applyDatabaseSchema(databaseUrl, databaseName, schemaName) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(schemaName)) {
+    console.error(`Refusing to use invalid PostgreSQL schema name "${schemaName}".`);
+    process.exit(1);
+  }
+  if (databaseName === '(missing)') {
+    databaseUrl.pathname = '/postgres';
+  }
+  databaseUrl.searchParams.set('schema', schemaName);
+  databaseUrl.searchParams.set('options', `-c search_path=${schemaName},public`);
+  process.env.DATABASE_URL = databaseUrl.toString();
 }
 
 async function ensureSchema(schemaName) {
@@ -46,6 +56,7 @@ async function ensureSchema(schemaName) {
 
   const schemaSetupUrl = new URL(process.env.DATABASE_URL);
   schemaSetupUrl.searchParams.delete('schema');
+  schemaSetupUrl.searchParams.delete('options');
   const client = new pg.Client({ connectionString: schemaSetupUrl.toString() });
   await client.connect();
   try {
@@ -58,6 +69,7 @@ async function ensureSchema(schemaName) {
 function createDatabaseClient() {
   const schemaSetupUrl = new URL(process.env.DATABASE_URL);
   schemaSetupUrl.searchParams.delete('schema');
+  schemaSetupUrl.searchParams.delete('options');
   return new pg.Client({ connectionString: schemaSetupUrl.toString() });
 }
 
