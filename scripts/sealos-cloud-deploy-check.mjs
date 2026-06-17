@@ -38,7 +38,8 @@ requireIncludes('apps/api/src/database/database-safety.ts', 'DEPLOYMENT_STAGE', 
 requireIncludes('apps/api/src/database/database-safety.ts', 'sealos-test', 'Database safety must require Sealos test deployment mode.');
 requireIncludes('apps/tablet/src/config/api-base.ts', '__HANG_LIAN_CONFIG__', 'Tablet API base URL must support runtime config.');
 requireIncludes('apps/tablet/index.html', '/runtime-config.js', 'Tablet index must load runtime config before Vue app.');
-requireIncludes('apps/api/.env.example', 'DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public', 'API env example must keep placeholder DATABASE_URL.');
+requireIncludes('apps/api/.env.example', 'DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?', 'API env example must keep placeholder DATABASE_URL.');
+requireIncludes('apps/api/.env.example', 'schema=hanglian_control', 'API env example must prefer isolated Sealos schema.');
 requireIncludes('apps/api/.env.example', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API env example must default cloud migration to false.');
 requireIncludes('apps/tablet/.env.example', 'API_BASE_URL=', 'Tablet env example must document runtime API_BASE_URL.');
 
