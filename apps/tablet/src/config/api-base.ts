@@ -9,6 +9,19 @@ export interface ApiHostInfo {
 
 const localHosts = new Set(['localhost', '127.0.0.1', '::1'])
 
+declare global {
+  interface Window {
+    __HANG_LIAN_CONFIG__?: {
+      apiBaseUrl?: string
+    }
+  }
+}
+
+function normalizeApiBaseUrl(value?: string) {
+  const configured = value?.trim()
+  return configured ? configured.replace(/\/$/, '') : ''
+}
+
 export function isLocalhostAccess(hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost') {
   return localHosts.has(hostname)
 }
@@ -18,8 +31,13 @@ export function isLanAccess(hostname = typeof window !== 'undefined' ? window.lo
 }
 
 export function getApiBaseUrl() {
-  const configured = import.meta.env.VITE_API_BASE_URL?.trim()
-  if (configured) return configured.replace(/\/$/, '')
+  const runtimeConfigured = typeof window === 'undefined'
+    ? ''
+    : normalizeApiBaseUrl(window.__HANG_LIAN_CONFIG__?.apiBaseUrl)
+  if (runtimeConfigured) return runtimeConfigured
+
+  const configured = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+  if (configured) return configured
 
   if (typeof window === 'undefined') return 'http://localhost:3000/api'
 
