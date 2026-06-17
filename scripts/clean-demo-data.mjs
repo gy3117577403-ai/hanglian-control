@@ -41,6 +41,7 @@ const metadataFiles = [
   'system-feedback-records.json',
   'pilot-check-records.json',
   'settings-records.json',
+  'delete-lock-settings.json',
 ];
 
 const blockedPrefixes = [

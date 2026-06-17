@@ -28,6 +28,15 @@ apps/api/generated
 # Local Codex state
 .codex/
 local-backups/
+demo-upload-assets/
+
+# Generated runtime reports, screenshots, and browser helper state
+docs/generated/real-data-*.md
+docs/generated/tablet-production-preview-*.png
+docs/generated/tablet-ui-interaction-*.png
+docs/generated/v3-5-*.png
+docs/generated/tmp-browser-*.json
+docs/generated/tmp-browser-*.log
 
 # Local storage and uploaded documents
 apps/api/storage/uploads/*

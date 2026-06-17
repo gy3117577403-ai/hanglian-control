@@ -1,33 +1,14 @@
 import type { App } from 'vue'
+import { defineAsyncComponent } from 'vue'
 import PrimeVue from 'primevue/config'
 import ConfirmationService from 'primevue/confirmationservice'
 import ToastService from 'primevue/toastservice'
 import Aura from '@primeuix/themes/aura'
 import Badge from 'primevue/badge'
 import Button from 'primevue/button'
-import Card from 'primevue/card'
 import ConfirmDialog from 'primevue/confirmdialog'
-import Column from 'primevue/column'
-import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
-import Divider from 'primevue/divider'
-import FileUpload from 'primevue/fileupload'
 import InputText from 'primevue/inputtext'
-import Menu from 'primevue/menu'
-import Message from 'primevue/message'
-import Panel from 'primevue/panel'
-import ProgressBar from 'primevue/progressbar'
-import Select from 'primevue/select'
-import Skeleton from 'primevue/skeleton'
-import SplitButton from 'primevue/splitbutton'
-import Tab from 'primevue/tab'
-import TabList from 'primevue/tablist'
-import TabPanel from 'primevue/tabpanel'
-import TabPanels from 'primevue/tabpanels'
-import Tabs from 'primevue/tabs'
-import Tag from 'primevue/tag'
-import Textarea from 'primevue/textarea'
-import Timeline from 'primevue/timeline'
 import Toast from 'primevue/toast'
 
 export function installPrimeVue(app: App) {
@@ -51,28 +32,28 @@ export function installPrimeVue(app: App) {
 
   app.component('PrimeBadge', Badge)
   app.component('PrimeButton', Button)
-  app.component('PrimeCard', Card)
-  app.component('PrimeColumn', Column)
   app.component('PrimeConfirmDialog', ConfirmDialog)
-  app.component('PrimeDataTable', DataTable)
   app.component('PrimeDialog', Dialog)
-  app.component('PrimeDivider', Divider)
-  app.component('PrimeFileUpload', FileUpload)
   app.component('PrimeInputText', InputText)
-  app.component('PrimeMenu', Menu)
-  app.component('PrimeMessage', Message)
-  app.component('PrimePanel', Panel)
-  app.component('PrimeProgressBar', ProgressBar)
-  app.component('PrimeSelect', Select)
-  app.component('PrimeSkeleton', Skeleton)
-  app.component('PrimeSplitButton', SplitButton)
-  app.component('PrimeTab', Tab)
-  app.component('PrimeTabList', TabList)
-  app.component('PrimeTabPanel', TabPanel)
-  app.component('PrimeTabPanels', TabPanels)
-  app.component('PrimeTabs', Tabs)
-  app.component('PrimeTag', Tag)
-  app.component('PrimeTextarea', Textarea)
-  app.component('PrimeTimeline', Timeline)
   app.component('PrimeToast', Toast)
+  app.component('PrimeCard', defineAsyncComponent(() => import('primevue/card')))
+  app.component('PrimeColumn', defineAsyncComponent(() => import('primevue/column')))
+  app.component('PrimeDataTable', defineAsyncComponent(() => import('primevue/datatable')))
+  app.component('PrimeDivider', defineAsyncComponent(() => import('primevue/divider')))
+  app.component('PrimeFileUpload', defineAsyncComponent(() => import('primevue/fileupload')))
+  app.component('PrimeMenu', defineAsyncComponent(() => import('primevue/menu')))
+  app.component('PrimeMessage', defineAsyncComponent(() => import('primevue/message')))
+  app.component('PrimePanel', defineAsyncComponent(() => import('primevue/panel')))
+  app.component('PrimeProgressBar', defineAsyncComponent(() => import('primevue/progressbar')))
+  app.component('PrimeSelect', defineAsyncComponent(() => import('primevue/select')))
+  app.component('PrimeSkeleton', defineAsyncComponent(() => import('primevue/skeleton')))
+  app.component('PrimeSplitButton', defineAsyncComponent(() => import('primevue/splitbutton')))
+  app.component('PrimeTab', defineAsyncComponent(() => import('primevue/tab')))
+  app.component('PrimeTabList', defineAsyncComponent(() => import('primevue/tablist')))
+  app.component('PrimeTabPanel', defineAsyncComponent(() => import('primevue/tabpanel')))
+  app.component('PrimeTabPanels', defineAsyncComponent(() => import('primevue/tabpanels')))
+  app.component('PrimeTabs', defineAsyncComponent(() => import('primevue/tabs')))
+  app.component('PrimeTag', defineAsyncComponent(() => import('primevue/tag')))
+  app.component('PrimeTextarea', defineAsyncComponent(() => import('primevue/textarea')))
+  app.component('PrimeTimeline', defineAsyncComponent(() => import('primevue/timeline')))
 }

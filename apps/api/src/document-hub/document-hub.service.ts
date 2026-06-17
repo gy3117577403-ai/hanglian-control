@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { DocumentTypeV03, RequiredProcess } from '../common/enums/production.enum';
+import type { ProductDocument } from '../common/types/production.types';
+import { DocumentsService } from '../documents/documents.service';
+import { LocalStorageService } from '../storage/local-storage.service';
+import type { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
+import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
+import { safeDeleteUploadedFile } from '../unified-documents/helpers/safe-delete';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
@@ -37,6 +44,12 @@ export class DocumentHubService {
   private readonly drawingDetails: ProductDrawingDetail[] = clone(drawingDetails);
   private readonly connectors: ConnectorParameter[] = clone(connectorParameters);
   private readonly fixtures: FixtureParameter[] = clone(fixtureParameters);
+
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly localStorageService: LocalStorageService,
+    private readonly deleteLockService: DeleteLockService,
+  ) {}
 
   getOrders(scope: 'today' | 'week' | 'all' = 'today', includeCompleted?: string) {
     const shouldIncludeCompleted = parseBoolean(includeCompleted);
@@ -85,20 +98,20 @@ export class DocumentHubService {
     });
   }
 
-  getProduct(productId: string) {
+  async getProduct(productId: string) {
     const detail = this.drawingDetails.find((item) => item.product.productId === productId);
     if (!detail) throw new NotFoundException('产品图纸资料不存在。');
-    return detail;
+    return this.withUploadedDocuments(detail);
   }
 
-  getProductByModel(productModel: string) {
+  async getProductByModel(productModel: string) {
     const product = hubProducts.find((item) => item.productModel === productModel);
     if (!product) return null;
     return this.getProduct(product.productId);
   }
 
-  getModule(productId: string, moduleKey: DrawingModuleKey) {
-    const detail = this.getProduct(productId);
+  async getModule(productId: string, moduleKey: DrawingModuleKey) {
+    const detail = await this.getProduct(productId);
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
     if (!module) throw new NotFoundException('图纸模块不存在。');
     return {
@@ -108,29 +121,63 @@ export class DocumentHubService {
     };
   }
 
-  uploadDrawingItem(productId: string, moduleKey: DrawingModuleKey, dto: UploadDrawingItemDto, file?: Express.Multer.File) {
-    const detail = this.getProduct(productId);
+  async uploadDrawingItem(productId: string, moduleKey: DrawingModuleKey, dto: UploadDrawingItemDto, file?: Express.Multer.File) {
+    const detail = await this.getProduct(productId);
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
     if (!module) throw new NotFoundException('图纸模块不存在。');
-    const fileType = this.resolveFileType(file?.mimetype);
-    const nextItem: DrawingItem = {
-      itemId: `manual-${Date.now()}`,
+
+    const document = await this.documentsService.upload({
+      productId,
+      documentType: this.documentTypeForModule(moduleKey),
       title: dto.title,
-      fileType,
-      fileName: file?.originalname ?? `${dto.title}.${fileType === 'pdf' ? 'pdf' : 'png'}`,
       version: dto.version,
-      remark: dto.remark || '模块内手动补充资料，当前仅为内存 Mock。',
-      uploadedAt: new Date().toISOString(),
-      source: 'manual_upload',
-    };
-    module.items.unshift(nextItem);
-    module.status = 'uploaded';
-    module.updatedAt = nextItem.uploadedAt;
+      status: 'effective',
+      requiredForProcess: this.requiredProcessForModule(moduleKey),
+      keywords: dto.keywords,
+      remark: dto.remark || '主页面资料库上传到本地沙盒存储。',
+    }, file);
+
+    const nextItem = this.documentToDrawingItem(document);
+    const mergedDetail = await this.getProduct(productId);
+    const mergedModule = mergedDetail.modules.find((item) => item.moduleKey === moduleKey) ?? module;
     return {
       success: true,
       item: nextItem,
+      module: mergedModule,
+      product: mergedDetail.product,
+      detail: mergedDetail,
+    };
+  }
+
+  async deleteDrawingItem(productId: string, moduleKey: DrawingModuleKey, itemId: string, dto: DeleteItemDto) {
+    this.deleteLockService.assertVerified(dto.password);
+    const documents = this.localStorageService.readDocumentsSync() as ProductDocument[];
+    const index = documents.findIndex((document) => {
+      const id = document.documentId ?? document.id;
+      return id === itemId && document.productId === productId && document.source === 'manual_upload';
+    });
+    if (index < 0) {
+      throw new BadRequestException('当前资料不是本地上传资料，不能从主页面执行物理删除。');
+    }
+
+    const document = documents[index];
+    if (this.moduleForDocumentType(document.documentType) !== moduleKey) {
+      throw new BadRequestException('资料模块不匹配，已拒绝删除。');
+    }
+
+    documents.splice(index, 1);
+    this.localStorageService.writeDocumentsSync(documents);
+    const fileResult = safeDeleteUploadedFile(this.localStorageService.getUploadsDir(), document.storedFileName);
+    const detail = await this.getProduct(productId);
+    const module = detail.modules.find((item) => item.moduleKey === moduleKey);
+    return {
+      success: true,
+      deletedItemId: itemId,
+      fileResult,
       module,
       product: detail.product,
+      detail,
+      reason: dto.reason,
     };
   }
 
@@ -176,11 +223,12 @@ export class DocumentHubService {
     return fixture;
   }
 
-  search(query: HubSearchQueryDto) {
+  async search(query: HubSearchQueryDto) {
     const q = query.q?.trim().toLowerCase() ?? '';
     if (query.mode === 'connector') return { mode: query.mode, items: this.getConnectors({ q }) };
     if (query.mode === 'fixture') return { mode: query.mode, items: this.getFixtures({ q }) };
-    const items = this.drawingDetails.flatMap((detail) => {
+    const details = await Promise.all(this.drawingDetails.map((detail) => this.withUploadedDocuments(detail)));
+    const items = details.flatMap((detail) => {
       const customer = detail.customer;
       const product = detail.product;
       const matched = !q || [
@@ -204,5 +252,75 @@ export class DocumentHubService {
     if (mimeType === 'application/pdf') return 'pdf';
     if (mimeType?.startsWith('image/')) return 'image';
     return 'card';
+  }
+
+  private async withUploadedDocuments(detail: ProductDrawingDetail): Promise<ProductDrawingDetail> {
+    const next = clone(detail);
+    const uploaded = await this.documentsService.findAll({ productId: next.product.productId }) as ProductDocument[];
+    const uploadedItems = uploaded
+      .filter((document) => document.source === 'manual_upload' && !document.archived)
+      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+
+    for (const document of uploadedItems) {
+      const moduleKey = this.moduleForDocumentType(document.documentType);
+      const module = next.modules.find((item) => item.moduleKey === moduleKey);
+      if (!module) continue;
+      const item = this.documentToDrawingItem(document);
+      if (!module.items.some((entry) => entry.itemId === item.itemId)) {
+        module.items.unshift(item);
+      }
+      module.status = 'uploaded';
+      module.updatedAt = document.updatedAt ?? module.updatedAt;
+    }
+
+    if (next.modules.some((module) => module.items.length)) {
+      next.product.drawingStatus = next.modules.every((module) => module.items.length) ? 'available' : 'partial';
+    } else {
+      next.product.drawingStatus = 'no_drawing';
+    }
+    return next;
+  }
+
+  private documentToDrawingItem(document: ProductDocument): DrawingItem {
+    return {
+      itemId: document.documentId ?? document.id,
+      title: document.title,
+      fileType: document.previewType ?? this.resolveFileType(document.mimeType),
+      previewUrl: document.previewUrl,
+      fileName: document.originalFileName ?? document.title,
+      version: document.version,
+      remark: document.remark ?? document.description ?? document.mockPreviewText,
+      uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
+      source: 'manual_upload',
+    };
+  }
+
+  private documentTypeForModule(moduleKey: DrawingModuleKey): DocumentTypeV03 {
+    const map: Record<DrawingModuleKey, DocumentTypeV03> = {
+      original_drawing: 'drawing_pdf',
+      sop: 'sop_image',
+      finished_images: 'finished_detail_image',
+      accessory_specs: 'process_card',
+      notes: 'process_card',
+      tooling: 'process_card',
+    };
+    return map[moduleKey];
+  }
+
+  private moduleForDocumentType(documentType: DocumentTypeV03): DrawingModuleKey {
+    const map: Record<DocumentTypeV03, DrawingModuleKey> = {
+      drawing_pdf: 'original_drawing',
+      sop_image: 'sop',
+      connector_manual: 'sop',
+      pinout_diagram: 'notes',
+      finished_detail_image: 'finished_images',
+      process_card: 'accessory_specs',
+    };
+    return map[documentType];
+  }
+
+  private requiredProcessForModule(moduleKey: DrawingModuleKey): RequiredProcess {
+    if (moduleKey === 'sop' || moduleKey === 'finished_images') return 'back';
+    return 'common';
   }
 }

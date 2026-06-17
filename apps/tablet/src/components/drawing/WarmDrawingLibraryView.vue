@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import WarmCustomerGrid from './WarmCustomerGrid.vue'
+import { defineAsyncComponent } from 'vue'
 import WarmDrawingBreadcrumb from './WarmDrawingBreadcrumb.vue'
-import WarmDrawingModuleGallery from './WarmDrawingModuleGallery.vue'
-import WarmImageDetailViewer from './WarmImageDetailViewer.vue'
 import WarmProductDrawingHome from './WarmProductDrawingHome.vue'
-import WarmProductModelGrid from './WarmProductModelGrid.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const WarmCustomerGrid = defineAsyncComponent(() => import('./WarmCustomerGrid.vue'))
+const WarmProductModelGrid = defineAsyncComponent(() => import('./WarmProductModelGrid.vue'))
+const WarmDrawingModuleGallery = defineAsyncComponent(() => import('./WarmDrawingModuleGallery.vue'))
+const WarmImageDetailViewer = defineAsyncComponent(() => import('./WarmImageDetailViewer.vue'))
 </script>
 
 <template>
   <div class="drawing-library">
-    <WarmDrawingBreadcrumb />
+    <WarmDrawingBreadcrumb v-if="store.drawingViewLevel === 'customers' || store.drawingViewLevel === 'products'" />
     <WarmCustomerGrid v-if="store.drawingViewLevel === 'customers'" />
     <WarmProductModelGrid v-else-if="store.drawingViewLevel === 'products'" />
     <WarmProductDrawingHome v-else-if="store.drawingViewLevel === 'product'" />
@@ -24,7 +25,7 @@ const store = useDocumentHubStore()
 <style scoped>
 .drawing-library {
   height: 100%;
-  padding: 14px;
+  padding: 12px;
   overflow: hidden;
 }
 </style>

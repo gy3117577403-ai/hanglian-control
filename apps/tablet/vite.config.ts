@@ -63,4 +63,35 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replaceAll('\\', '/')
+          if (!normalizedId.includes('node_modules')) return undefined
+          if (
+            normalizedId.includes('/vue/')
+            || normalizedId.includes('/@vue/')
+            || normalizedId.includes('/pinia/')
+            || normalizedId.includes('/vue-router/')
+          ) {
+            return 'vendor-vue'
+          }
+          if (normalizedId.includes('/lucide-vue-next/')) return 'vendor-icons'
+          if (normalizedId.includes('/echarts/') || normalizedId.includes('/vue-echarts/')) return 'vendor-charts'
+          if (
+            normalizedId.includes('/pdfjs-dist/')
+            || normalizedId.includes('/vue-pdf-embed/')
+            || normalizedId.includes('/viewerjs/')
+          ) {
+            return 'vendor-preview'
+          }
+          if (normalizedId.includes('/ofetch/') || normalizedId.includes('/@vueuse/') || normalizedId.includes('/fuse.js/')) {
+            return 'vendor-utils'
+          }
+          return undefined
+        },
+      },
+    },
+  },
 })

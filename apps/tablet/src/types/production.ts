@@ -1770,7 +1770,7 @@ export interface SystemQaAcceptanceReport {
 
 export type HubMode = 'drawing' | 'connector' | 'fixture'
 export type HubOrderScope = 'today' | 'week' | 'all'
-export type HubOrderStatus = 'front' | 'back' | 'no_drawing'
+export type HubOrderStatus = 'front' | 'back' | 'no_drawing' | 'exception'
 export type DrawingStatus = 'available' | 'no_drawing' | 'partial'
 export type DrawingModuleStatus = 'uploaded' | 'pending' | 'no_drawing'
 export type DrawingModuleKey = 'original_drawing' | 'sop' | 'finished_images' | 'accessory_specs' | 'notes' | 'tooling'
@@ -1782,6 +1782,10 @@ export interface HubOrder {
   productId?: string
   productModel: string
   customerName: string
+  quantity?: number
+  plannedQuantity?: number
+  planQuantity?: number
+  planQty?: number
   status: HubOrderStatus
   completed: boolean
   completedAt?: string
@@ -1878,4 +1882,25 @@ export interface DocumentHubUploadPayload {
   remark?: string
   keywords?: string
   file?: File | null
+}
+
+export interface DocumentHubUploadResponse {
+  success: boolean
+  item: DrawingItem
+  module: DrawingModule
+  product: HubProductModel
+  detail?: ProductDrawingDetail
+}
+
+export interface DocumentHubDeleteResponse {
+  success: boolean
+  deletedItemId: string
+  fileResult?: {
+    deleted: boolean
+    reason: string
+  }
+  module?: DrawingModule
+  product: HubProductModel
+  detail?: ProductDrawingDetail
+  reason?: string
 }

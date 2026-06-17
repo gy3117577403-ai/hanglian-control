@@ -1,5 +1,5 @@
 import { apiBaseUrl } from '@/services/api'
-import type { AuditAction, DocumentTab, DocumentTypeV03, ProductDocument, RequiredProcess } from '@/types/production'
+import type { AuditAction, DocumentTab, DocumentTypeV03, HubOrder, ProductDocument, RequiredProcess } from '@/types/production'
 
 export type PreviewFolderTab = DocumentTab | 'connector' | 'process-card'
 
@@ -114,6 +114,17 @@ export function auditActionLabel(action: AuditAction | string) {
     migration_preview_generated: '迁移预览生成',
   }
   return labels[action] ?? action
+}
+
+export function orderQuantity(order: Pick<HubOrder, 'quantity' | 'plannedQuantity' | 'planQuantity' | 'planQty'>) {
+  const value = [order.quantity, order.plannedQuantity, order.planQuantity, order.planQty]
+    .find((candidate) => Number.isFinite(Number(candidate)))
+  const numeric = Number(value)
+  return numeric > 0 ? numeric : 1
+}
+
+export function orderQuantityTotal(orders: Array<Pick<HubOrder, 'quantity' | 'plannedQuantity' | 'planQuantity' | 'planQty'>>) {
+  return orders.reduce((sum, order) => sum + orderQuantity(order), 0)
 }
 
 export function compareFieldLabel(field: string) {

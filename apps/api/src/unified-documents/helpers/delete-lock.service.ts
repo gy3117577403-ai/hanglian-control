@@ -14,7 +14,7 @@ interface DeleteLockSetting {
 const fileName = 'delete-lock-settings.json';
 const maxAttempts = 5;
 const lockMs = 5 * 60 * 1000;
-const defaultDeletePasswordHash = '$2b$10$/riUA.Z3r56REnWhnxoLJu7xL7h4soa5yLExMRpkHA9RYGPncj37a';
+const defaultDeletePasswordHash = '$2b$10$GtGiZo5KXyurerdMofpKaOjqZDPHag6rNhRg5mblu3GP.jumH7xQC';
 
 function defaultSetting(): DeleteLockSetting {
   return {
@@ -105,8 +105,17 @@ export class DeleteLockService {
     }
   }
 
-  private read() {
-    return this.localStorageService.readMetadataSync<DeleteLockSetting>(fileName, defaultSetting());
+  private read(): DeleteLockSetting {
+    const fallback = defaultSetting();
+    const setting = this.localStorageService.readMetadataSync<Partial<DeleteLockSetting>>(fileName, fallback);
+    return {
+      enabled: typeof setting.enabled === 'boolean' ? setting.enabled : fallback.enabled,
+      passwordHash: setting.passwordHash || fallback.passwordHash,
+      updatedAt: setting.updatedAt ?? fallback.updatedAt,
+      updatedBy: setting.updatedBy ?? fallback.updatedBy,
+      failedAttempts: Number.isFinite(setting.failedAttempts) ? Number(setting.failedAttempts) : fallback.failedAttempts,
+      lockedUntil: setting.lockedUntil ?? fallback.lockedUntil,
+    };
   }
 
   private write(setting: DeleteLockSetting) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
@@ -11,6 +11,9 @@ import { HubSearchQueryDto } from './dto/search-query.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import { DocumentHubService } from './document-hub.service';
 import type { DrawingModuleKey } from './mock/document-hub.seed';
+import { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
+
+const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
 @ApiTags('document-hub')
 @Controller('document-hub')
@@ -71,7 +74,7 @@ export class DocumentHubController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['title', 'version'],
+      required: ['file', 'title', 'version'],
       properties: {
         file: { type: 'string', format: 'binary' },
         title: { type: 'string' },
@@ -87,6 +90,13 @@ export class DocumentHubController {
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),
     limits: { fileSize: 30 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => {
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        callback(new BadRequestException('仅允许上传 PDF、JPG、PNG、WEBP 文件。'), false);
+        return;
+      }
+      callback(null, true);
+    },
   }))
   uploadDrawingItem(
     @Param('productId') productId: string,
@@ -95,6 +105,17 @@ export class DocumentHubController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.documentHubService.uploadDrawingItem(productId, moduleKey, dto, file);
+  }
+
+  @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/delete')
+  @ApiOperation({ summary: '删除主页面资料库本地上传项，校验删除密码并清理本地文件' })
+  deleteDrawingItem(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: DeleteItemDto,
+  ) {
+    return this.documentHubService.deleteDrawingItem(productId, moduleKey, itemId, dto);
   }
 
   @Get('connectors')

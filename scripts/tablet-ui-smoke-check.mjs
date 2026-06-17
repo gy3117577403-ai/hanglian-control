@@ -1,0 +1,323 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const root = process.cwd();
+const failures = [];
+
+function read(relativePath) {
+  const absolutePath = join(root, relativePath);
+  if (!existsSync(absolutePath)) {
+    failures.push(`Missing required file: ${relativePath}`);
+    return '';
+  }
+  return readFileSync(absolutePath, 'utf8');
+}
+
+function requireIncludes(relativePath, needle, message) {
+  const content = read(relativePath);
+  if (!content.includes(needle)) failures.push(message);
+}
+
+function requireNotIncludes(relativePath, needle, message) {
+  const content = read(relativePath);
+  if (content.includes(needle)) failures.push(message);
+}
+
+function requireAny(relativePath, needles, message) {
+  const content = read(relativePath);
+  if (!needles.some((needle) => content.includes(needle))) failures.push(message);
+}
+
+function requireNoLikelyMojibake(relativePath) {
+  const content = read(relativePath);
+  const suspicious = [
+    '璧勬枡',
+    '璇峰',
+    '閫夋嫨',
+    '涓婁紶',
+    '鏈湴',
+    '娌欑洅',
+    '瀛樺偍',
+    '銆',
+    '锛',
+    '妫',
+    '鐪',
+  ];
+  const hit = suspicious.find((needle) => content.includes(needle));
+  if (hit) failures.push(`${relativePath} contains likely mojibake text: ${hit}`);
+}
+
+console.log('Tablet UI smoke check');
+console.log('This check is read-only. It does not connect to a database and does not write data.');
+
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  ':aria-expanded="expanded"',
+  'Function orb must expose expanded state for the compact document hub menu.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  ':aria-hidden="!expanded"',
+  'Collapsed function menu must be hidden from assistive technology.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  ':inert="!expanded"',
+  'Collapsed function menu must not remain focusable/clickable.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  ':tabindex="expanded ? 0 : -1"',
+  'Collapsed function menu buttons must be removed from keyboard tab order.',
+);
+
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  '返回资料列表',
+  'Large image viewer must use a clear back-to-list control.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'title="关闭"',
+  'Large image viewer must not label the return control as close.',
+);
+
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'primary-grid',
+  'Drawing product page must keep original drawing and SOP in the primary A4 grid.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  "['original_drawing', 'sop']",
+  'Drawing product page must keep original drawing and SOP as the first row.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'backdrop-filter',
+  'A4 module cards must retain the glass effect.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'transform-style: preserve-3d',
+  'A4 module cards must keep the transparent 3D glass depth treatment.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'content-visibility: auto',
+  'A4 module cards should keep offscreen rendering optimization.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'perspective: 1400px',
+  'Document hub shell must keep the 3D glass perspective layer.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
+  'backdrop-filter: blur(24px)',
+  'Search bar must keep the transparent glass capsule treatment.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'rgba(245, 182, 94, 0.92)',
+  'A4 preview cards must not regress to the old solid orange block.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'linear-gradient(145deg, #f5b65e, #be6427)',
+  'A4 preview cards must not use the old solid orange gradient.',
+);
+
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  ':title="`上传${module.moduleName}`"',
+  'A4 module cards must keep the icon upload action.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  ':title="`查看全部${module.moduleName}`"',
+  'A4 module cards must keep the icon view-all action.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  '删除${module.moduleName}首页资料',
+  'A4 module cards must keep the icon delete action.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
+  'title="返回图纸详情"',
+  'Module gallery must return to the product drawing detail, not the home page.',
+);
+requireIncludes(
+  'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
+  'title="查看大图"',
+  'Module gallery must keep the large image viewer entry.',
+);
+
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  ':class="{ collapsed: store.orderSidebarCollapsed }"',
+  'Order sidebar must keep the compact collapsed rail.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'v-if="store.orderSidebarCollapsed"',
+  'Order sidebar collapse rail must not remount on every toggle.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'class="expanded-panel"',
+  'Order sidebar expanded panel must stay mounted for smoother toggles.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'transition: grid-template-columns',
+  'Order sidebar width changes must not animate grid-template-columns because it janks on tablet.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'class="order-section today"',
+  'Main order sidebar must not render the today-order section.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'visibleTodayOrders',
+  'Main order sidebar must not bind the today-order list.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  '完成订单',
+  'Homepage order cards must not keep the complete action.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderOverviewDialog.vue',
+  'statusOptions',
+  'Order overview must expose editable order status options.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderOverviewDialog.vue',
+  'updateOrderStatus',
+  'Order overview must update order status through the store.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderOverviewDialog.vue',
+  '确认完成',
+  'Order completion must move into the order overview dialog.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  'contain: layout paint style',
+  'Order cards should keep paint containment for smoother tablet scrolling.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  '--customer-accent',
+  'Order cards must keep a visible customer color accent.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'customerToneMap',
+  'Order sidebar must assign consistent customer tones.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'orderStatusRank',
+  'Visible order lists must keep the default back/front/no-drawing/exception ordering.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  'backdrop-filter',
+  'Individual order cards must not use backdrop-filter because it hurts scroll performance.',
+);
+requireIncludes(
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'scrollbar-gutter: stable',
+  'Order lists should reserve scrollbar space to reduce layout shift.',
+);
+
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'function goBack',
+  'Document hub store must keep layered back navigation.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'productDetailRequestId',
+  'Document hub store must guard against stale product detail requests.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'productDrawingDetail.value = localDetail',
+  'Order-driven product detail should show local fallback before slow API responses.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'restoreScroll',
+  'Document hub store must preserve scroll position when returning.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'deleteModuleCoverItem',
+  'Document hub store must keep password-gated module cover deletion.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'deleteDrawingItem',
+  'Document hub store must keep password-gated gallery item deletion.',
+);
+requireAny(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  ['openModuleUpload', 'openTopUpload'],
+  'Document hub store must keep upload entry points.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'MAX_UPLOAD_BYTES',
+  'Upload dialog must keep a front-end file size guard before real-data testing.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'allowedMimeTypes',
+  'Upload dialog must keep a front-end file type guard before real-data testing.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  '文件检查',
+  'Upload dialog must show a clear file validation summary.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'duplicateWarning',
+  'Upload dialog must warn when the current module already has the same title and version.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'clearFile',
+  'Upload dialog must allow users to clear a selected file before uploading.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'real-data-guard',
+  'Upload dialog must keep the real-data local test guard before upload.',
+);
+requireIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'testAcknowledged.value',
+  'Upload submit must require acknowledgement of the real-data local test guard.',
+);
+
+[
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+].forEach(requireNoLikelyMojibake);
+
+if (failures.length) {
+  console.error('\nTablet UI smoke check failed:');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log('Tablet UI smoke check passed.');

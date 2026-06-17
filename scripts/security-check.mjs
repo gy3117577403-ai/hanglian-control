@@ -105,6 +105,8 @@ function isPlaceholder(value) {
     lower.includes('form.') ||
     lower.includes('payload.') ||
     lower.includes('dto.') ||
+    lower.includes('trimmedpassword') ||
+    lower.includes('sandboxdeletepassword') ||
     lower.includes('process.env') ||
     lower.includes('user:password@host') ||
     lower === 'password' ||
@@ -244,6 +246,24 @@ function checkUploadFiles() {
   uploadFiles.forEach((file) => checkLocalOnlyFile(file));
 }
 
+function checkGeneratedRuntimeArtifacts() {
+  const generatedFiles = listFiles(join(rootDir, 'docs/generated')).filter((file) => {
+    return /^docs\/generated\/real-data-.*\.md$/.test(file)
+      || /^docs\/generated\/tablet-production-preview-.*\.png$/.test(file)
+      || /^docs\/generated\/tablet-ui-interaction-.*\.png$/.test(file)
+      || /^docs\/generated\/v3-5-.*\.png$/.test(file)
+      || /^docs\/generated\/tmp-browser-.*\.(json|log)$/.test(file);
+  });
+
+  for (const file of generatedFiles) {
+    if (isTracked(file)) {
+      addBlocker(file, '鐪熷疄娴嬭瘯/鍥炲綊鐢熸垚浜х墿宸茶 Git 璺熻釜');
+    } else if (insideGit && !isIgnored(file)) {
+      addBlocker(file, '鐪熷疄娴嬭瘯/鍥炲綊鐢熸垚浜х墿鏈 .gitignore 蹇界暐');
+    }
+  }
+}
+
 walk(rootDir);
 
 [
@@ -278,6 +298,7 @@ walk(rootDir);
 ].forEach((file) => checkLocalOnlyFile(file));
 
 checkUploadFiles();
+checkGeneratedRuntimeArtifacts();
 
 console.log('GitHub 上传前安全检查报告');
 console.log('==========================');

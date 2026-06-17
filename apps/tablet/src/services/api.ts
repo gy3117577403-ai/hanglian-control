@@ -109,7 +109,9 @@ import type {
   DeleteLockStatus,
   DeletePasswordPayload,
   ConnectorParameter,
+  DocumentHubDeleteResponse,
   DocumentHubUploadPayload,
+  DocumentHubUploadResponse,
   DrawingModule,
   DrawingModuleKey,
   FixtureParameter,
@@ -1075,11 +1077,22 @@ export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModule
   if (payload.moduleKey) formData.append('moduleKey', payload.moduleKey)
   if (payload.remark) formData.append('remark', payload.remark)
   if (payload.keywords) formData.append('keywords', payload.keywords)
-  return api(`/document-hub/drawings/products/${productId}/modules/${moduleKey}/upload`, {
+  return api<DocumentHubUploadResponse>(`/document-hub/drawings/products/${productId}/modules/${moduleKey}/upload`, {
     method: 'POST',
     body: formData,
     timeout: 15000,
   })
+}
+
+export function deleteHubDrawingItem(productId: string, moduleKey: DrawingModuleKey, itemId: string, payload: DeletePasswordPayload) {
+  return api<DocumentHubDeleteResponse>(
+    `/document-hub/drawings/products/${productId}/modules/${moduleKey}/items/${itemId}/delete`,
+    {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    },
+  )
 }
 
 export function getHubConnectors(q?: string) {

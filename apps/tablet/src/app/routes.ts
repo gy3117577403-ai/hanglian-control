@@ -1,7 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth-store'
-import TabletDashboard from '@/views/TabletDashboard.vue'
-import WarmLoginView from '@/views/WarmLoginView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -13,13 +11,13 @@ export const router = createRouter({
     {
       path: '/tablet',
       name: 'tablet-dashboard',
-      component: TabletDashboard,
+      component: () => import('@/views/TabletDashboard.vue'),
       meta: { public: true },
     },
     {
       path: '/login',
       name: 'warm-login',
-      component: WarmLoginView,
+      component: () => import('@/views/WarmLoginView.vue'),
       meta: { public: true },
     },
   ],
