@@ -10,6 +10,30 @@ const store = useDocumentHubStore()
 const customerToneNames = ['tone-amber', 'tone-teal', 'tone-sage', 'tone-rose', 'tone-violet', 'tone-gold']
 
 const weekOrders = computed(() => store.visibleWeekOrders)
+let lastTogglePointerAt = -1000
+
+function recentlyHandledPointer() {
+  return lastTogglePointerAt > 0 && performance.now() - lastTogglePointerAt < 350
+}
+
+function markPointerAction() {
+  lastTogglePointerAt = performance.now()
+}
+
+function toggleSidebar() {
+  store.toggleOrderSidebar()
+}
+
+function handleTogglePointerdown() {
+  markPointerAction()
+  toggleSidebar()
+}
+
+function handleToggleClick() {
+  if (recentlyHandledPointer()) return
+  toggleSidebar()
+}
+
 const customerToneMap = computed(() => {
   const map = new Map<string, string>()
   for (const order of weekOrders.value) {
@@ -45,7 +69,8 @@ function quantitySum(orders: HubOrder[]) {
       title="展开订单"
       :aria-hidden="!store.orderSidebarCollapsed"
       :tabindex="store.orderSidebarCollapsed ? 0 : -1"
-      @click="store.toggleOrderSidebar()"
+      @pointerdown.prevent.stop="handleTogglePointerdown"
+      @click="handleToggleClick"
     >
       <ChevronRight :size="19" />
       <span>订单</span>
@@ -63,7 +88,14 @@ function quantitySum(orders: HubOrder[]) {
           <h2>订单资料调用</h2>
           <p>点型号直接打开图纸资料</p>
         </div>
-        <PrimeButton severity="secondary" text rounded title="收起订单栏" @click="store.toggleOrderSidebar()">
+        <PrimeButton
+          severity="secondary"
+          text
+          rounded
+          title="收起订单栏"
+          @pointerdown.prevent.stop="handleTogglePointerdown"
+          @click="handleToggleClick"
+        >
           <ChevronLeft :size="18" />
         </PrimeButton>
       </div>
@@ -121,7 +153,12 @@ function quantitySum(orders: HubOrder[]) {
   -webkit-backdrop-filter: none;
   transform: translateZ(0);
   backface-visibility: hidden;
-  will-change: contents;
+  transition:
+    opacity 130ms ease,
+    border-color 130ms ease,
+    box-shadow 130ms ease,
+    background-color 130ms ease;
+  will-change: opacity;
 }
 
 .order-sidebar::before,
@@ -150,7 +187,10 @@ function quantitySum(orders: HubOrder[]) {
   grid-area: 1 / 1;
   min-width: 0;
   min-height: 0;
-  transition: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 120ms step-end;
 }
 
 .expanded-panel {
@@ -159,10 +199,14 @@ function quantitySum(orders: HubOrder[]) {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   opacity: 1;
+  transform: translateX(0) scale(1);
+  visibility: visible;
 }
 
 .order-sidebar.collapsed .expanded-panel {
   opacity: 0;
+  transform: translateX(-8px) scale(0.98);
+  visibility: hidden;
   pointer-events: none;
 }
 
@@ -311,6 +355,7 @@ p {
 
 .collapsed-rail {
   opacity: 0;
+  transform: translateX(-6px) scale(0.96);
   display: grid;
   box-sizing: border-box;
   gap: 8px;
@@ -338,7 +383,13 @@ p {
 
 .order-sidebar.collapsed .collapsed-rail {
   opacity: 1;
+  transform: translateX(0) scale(1);
   pointer-events: auto;
+}
+
+.collapsed-rail:active,
+.sidebar-head :deep(.p-button:active) {
+  transform: translateY(1px) scale(0.98);
 }
 
 .collapsed-rail span {

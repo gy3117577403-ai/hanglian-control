@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Mic, Search } from 'lucide-vue-next'
+import { Mic, Search, X } from 'lucide-vue-next'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
@@ -12,12 +12,29 @@ function simulateVoiceQuery() {
       : 'JIG-HL'
   void store.searchCurrentMode()
 }
+
+function clearSearch() {
+  store.searchKeyword = ''
+  void store.searchCurrentMode()
+}
 </script>
 
 <template>
-  <form class="hub-search" @submit.prevent="store.searchCurrentMode()">
+  <form class="hub-search" @submit.prevent="store.searchCurrentMode()" @keydown.esc.prevent="clearSearch">
     <Search :size="21" />
     <PrimeInputText v-model="store.searchKeyword" :placeholder="store.currentSearchPlaceholder" />
+    <PrimeButton
+      v-if="store.searchKeyword"
+      class="clear-button"
+      severity="secondary"
+      text
+      type="button"
+      title="清空搜索"
+      aria-label="清空搜索"
+      @click="clearSearch"
+    >
+      <X :size="16" />
+    </PrimeButton>
     <PrimeButton class="voice-button" severity="secondary" outlined type="button" title="语音输入" @click="simulateVoiceQuery">
       <Mic :size="17" />
       <span>按住说话</span>
@@ -31,7 +48,7 @@ function simulateVoiceQuery() {
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   gap: 7px;
   align-items: center;
   min-width: 0;
@@ -96,6 +113,16 @@ function simulateVoiceQuery() {
   min-height: 38px;
   border-radius: 11px;
   font-weight: 950;
+}
+
+.clear-button {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
+.clear-button :deep(.p-button-label) {
+  display: none;
 }
 
 .voice-button span {

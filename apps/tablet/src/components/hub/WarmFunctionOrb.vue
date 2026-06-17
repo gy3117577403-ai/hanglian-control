@@ -81,6 +81,7 @@ onBeforeUnmount(() => {
     ref="orbRef"
     class="orb-wrap"
     :class="{ expanded }"
+    @keydown.esc="expanded = false"
   >
     <button
       class="main-orb"
@@ -293,5 +294,10 @@ onBeforeUnmount(() => {
   box-shadow:
     0 14px 24px rgba(113, 55, 19, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.52);
+}
+
+.main-orb:active,
+.orb-menu button:active {
+  transform: translateY(1px) scale(0.98);
 }
 </style>

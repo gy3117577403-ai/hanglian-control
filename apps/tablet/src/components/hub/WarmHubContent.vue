@@ -9,9 +9,12 @@ const store = useDocumentHubStore()
 
 <template>
   <section class="hub-content">
-    <WarmDrawingLibraryView v-if="store.activeMode === 'drawing'" />
-    <WarmConnectorParameterView v-else-if="store.activeMode === 'connector'" />
-    <WarmFixtureParameterView v-else />
+    <div v-if="store.loading" class="hub-loading-pill">资料加载中</div>
+    <Transition name="hub-mode-fade" mode="out-in">
+      <WarmDrawingLibraryView v-if="store.activeMode === 'drawing'" key="drawing" />
+      <WarmConnectorParameterView v-else-if="store.activeMode === 'connector'" key="connector" />
+      <WarmFixtureParameterView v-else key="fixture" />
+    </Transition>
   </section>
 </template>
 
@@ -71,10 +74,53 @@ const store = useDocumentHubStore()
   transform: translateY(14px);
 }
 
+.hub-loading-pill {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #7b4b25;
+  font-size: 12px;
+  font-weight: 950;
+  background:
+    linear-gradient(125deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.12)),
+    rgba(255, 250, 241, 0.78);
+  box-shadow:
+    0 12px 24px rgba(88, 47, 20, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
+
+.hub-mode-fade-enter-active,
+.hub-mode-fade-leave-active {
+  transition:
+    opacity 110ms ease,
+    transform 110ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hub-mode-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.992);
+}
+
+.hub-mode-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.996);
+}
+
 @media (max-width: 1320px), (prefers-reduced-motion: reduce) {
   .hub-content {
     backdrop-filter: blur(14px) saturate(1.12);
     -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  }
+
+  .hub-mode-fade-enter-active,
+  .hub-mode-fade-leave-active {
+    transition: none;
   }
 }
 </style>
