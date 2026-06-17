@@ -27,12 +27,17 @@ function readDatabaseTarget() {
 
 function normalizeCloudDatabaseUrl() {
   const { databaseName, schemaName, databaseUrl } = readDatabaseTarget();
-  if (databaseName === 'postgres' && schemaName === 'public') {
+  console.log(`Cloud database target before normalization: database="${databaseName}", schema="${schemaName}".`);
+  if ((databaseName === 'postgres' || databaseName === '(missing)') && schemaName === 'public') {
+    if (databaseName === '(missing)') {
+      databaseUrl.pathname = '/postgres';
+    }
     databaseUrl.searchParams.set('schema', defaultCloudSchema);
     process.env.DATABASE_URL = databaseUrl.toString();
     console.log(`Cloud database target normalized to isolated schema "${defaultCloudSchema}".`);
     return defaultCloudSchema;
   }
+  console.log(`Cloud database target uses configured schema "${schemaName}".`);
   return schemaName;
 }
 
