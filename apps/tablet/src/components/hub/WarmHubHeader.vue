@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ClipboardList, UploadCloud } from 'lucide-vue-next'
+import { ClipboardList, ServerCog, UploadCloud } from 'lucide-vue-next'
 import WarmFunctionOrb from './WarmFunctionOrb.vue'
 import WarmHubSearchBar from './WarmHubSearchBar.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+
+defineEmits<{
+  'open-network': []
+}>()
 </script>
 
 <template>
@@ -14,6 +18,9 @@ const store = useDocumentHubStore()
       <WarmHubSearchBar />
     </div>
     <div class="header-actions">
+      <PrimeButton severity="secondary" outlined title="接口设置与诊断" aria-label="接口设置与诊断" @click="$emit('open-network')">
+        <ServerCog :size="18" />
+      </PrimeButton>
       <PrimeButton class="upload-button" title="上传资料" aria-label="上传资料" @click="store.openTopUpload()">
         <UploadCloud :size="18" />
       </PrimeButton>

@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import WarmHubContent from './WarmHubContent.vue'
 import WarmHubHeader from './WarmHubHeader.vue'
 import WarmHubUploadDialog from './WarmHubUploadDialog.vue'
 import WarmOrderOverviewDialog from '@/components/orders/WarmOrderOverviewDialog.vue'
 import WarmOrderSidebar from '@/components/orders/WarmOrderSidebar.vue'
+import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const networkDiagnosticsOpen = ref(false)
 
 onMounted(() => {
   void store.initialize()
@@ -16,13 +18,14 @@ onMounted(() => {
 
 <template>
   <div class="document-hub-shell" :class="{ 'orders-collapsed': store.orderSidebarCollapsed }">
-    <WarmHubHeader />
+    <WarmHubHeader @open-network="networkDiagnosticsOpen = true" />
     <main class="hub-body">
       <WarmOrderSidebar />
       <WarmHubContent />
     </main>
     <WarmOrderOverviewDialog />
     <WarmHubUploadDialog v-model:visible="store.uploadDialogOpen" />
+    <WarmNetworkDiagnosticsDialog v-model:visible="networkDiagnosticsOpen" />
   </div>
 </template>
 
