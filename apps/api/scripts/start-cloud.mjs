@@ -5,6 +5,9 @@ import pg from 'pg';
 
 const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultCloudSchema = 'hanglian_control';
+const startupRevision = 'schema-isolation-v3';
+
+console.log(`Hanglian cloud startup revision: ${startupRevision}`);
 
 function isTrue(value) {
   return String(value ?? '').toLowerCase() === 'true';

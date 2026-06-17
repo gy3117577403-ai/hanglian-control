@@ -81,4 +81,8 @@ jobs:
       - name: Print Sealos image names
         run: |
           echo "API image: ${API_IMAGE}:sealos-test"
+          echo "API image: ${API_IMAGE}:${SHA_TAG}"
+          echo "API image: ${API_IMAGE}:${BRANCH_TAG}"
           echo "Tablet image: ${TABLET_IMAGE}:sealos-test"
+          echo "Tablet image: ${TABLET_IMAGE}:${SHA_TAG}"
+          echo "Tablet image: ${TABLET_IMAGE}:${BRANCH_TAG}"
