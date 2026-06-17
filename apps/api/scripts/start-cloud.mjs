@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const defaultCloudSchema = process.env.CLOUD_DATABASE_SCHEMA || 'hanglian_control_final';
-const startupRevision = 'schema-isolation-v6';
+const defaultCloudSchema = process.env.CLOUD_DATABASE_SCHEMA || 'hanglian_control_ready';
+const startupRevision = 'schema-isolation-v7';
 
 console.log(`Hanglian cloud startup revision: ${startupRevision}`);
 

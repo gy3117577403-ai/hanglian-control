@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -13,6 +13,27 @@ function requireIncludes(path, needle, message) {
   if (!existsSync(join(root, path))) return;
   const content = readFileSync(join(root, path), 'utf8');
   if (!content.includes(needle)) failures.push(message);
+}
+
+function requireNoUtf8Bom(path) {
+  requireFile(path);
+  if (!existsSync(join(root, path))) return;
+  const content = readFileSync(join(root, path));
+  const hasBom = content.length >= 3 && content[0] === 0xef && content[1] === 0xbb && content[2] === 0xbf;
+  if (hasBom) failures.push(`${path} must not start with a UTF-8 BOM; PostgreSQL rejects it in migration SQL.`);
+}
+
+function requireTreeNoUtf8Bom(path) {
+  const fullPath = join(root, path);
+  if (!existsSync(fullPath)) return;
+  for (const entry of readdirSync(fullPath, { withFileTypes: true })) {
+    const childPath = `${path}/${entry.name}`;
+    if (entry.isDirectory()) {
+      requireTreeNoUtf8Bom(childPath);
+    } else {
+      requireNoUtf8Bom(childPath);
+    }
+  }
 }
 
 console.log('Sealos cloud deploy preparation check');
@@ -42,6 +63,7 @@ requireIncludes('apps/api/.env.example', 'DATABASE_URL=postgresql://USER:PASSWOR
 requireIncludes('apps/api/.env.example', 'schema=hanglian_control', 'API env example must prefer isolated Sealos schema.');
 requireIncludes('apps/api/.env.example', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API env example must default cloud migration to false.');
 requireIncludes('apps/tablet/.env.example', 'API_BASE_URL=', 'Tablet env example must document runtime API_BASE_URL.');
+requireTreeNoUtf8Bom('apps/api/prisma/migrations');
 
 if (failures.length) {
   console.error('\nSealos cloud deploy preparation check failed:');
