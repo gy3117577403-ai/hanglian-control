@@ -86,7 +86,7 @@ interface ParsedConnectorImportRow {
   connectorModel: string;
   specification: string;
   insertionLengthMm: number;
-  outerStripLengthMm: number;
+  outerStripLengthMm: number | null;
   innerStripLengthMm: number;
   status: string;
   remark: string;
@@ -113,7 +113,11 @@ const connectorImportAliases = {
   remark: ['备注', '注意事项', '备注注意事项', 'remark', 'note'],
 };
 
-function parseLengthCell(value: unknown, field: string): { value?: number; issue?: ConnectorImportIssue } {
+function parseLengthCell(
+  value: unknown,
+  field: string,
+  options: { allowBlank?: boolean } = {},
+): { value?: number | null; issue?: ConnectorImportIssue } {
   const raw = cellText(value);
   const text = raw
     .replace(/[，,]/g, '.')
@@ -122,6 +126,7 @@ function parseLengthCell(value: unknown, field: string): { value?: number; issue
     .trim();
 
   if (!text) {
+    if (options.allowBlank) return { value: null };
     return {
       issue: {
         field,
@@ -371,7 +376,7 @@ export class DocumentHubService {
       connectorModel,
       specification,
       insertionLengthMm: dto.insertionLengthMm,
-      outerStripLengthMm: dto.outerStripLengthMm,
+      outerStripLengthMm: dto.outerStripLengthMm ?? null,
       innerStripLengthMm: dto.innerStripLengthMm,
       status: dto.status?.trim() || '\u542f\u7528',
       remark: dto.remark?.trim() ?? '',
@@ -427,12 +432,11 @@ export class DocumentHubService {
     const requiredHeaders = [
       { label: '型号', aliases: connectorImportAliases.connectorModel },
       { label: '入长mm', aliases: connectorImportAliases.insertionLengthMm },
-      { label: '外剥皮mm', aliases: connectorImportAliases.outerStripLengthMm },
       { label: '内剥皮mm', aliases: connectorImportAliases.innerStripLengthMm },
     ];
     const missingHeaders = requiredHeaders.filter((item) => !hasConnectorImportHeader(headers, item.aliases));
     if (missingHeaders.length) {
-      throw new BadRequestException(`Excel 表头缺少：${missingHeaders.map((item) => item.label).join('、')}。当前支持表头：型号、外剥皮mm、内剥皮mm、入长mm、规格、备注。`);
+      throw new BadRequestException(`Excel 表头缺少：${missingHeaders.map((item) => item.label).join('、')}。必填表头：型号、入长mm、内剥皮mm；可选表头：外剥皮mm、规格、备注。`);
     }
 
     const parsedRows: ParsedConnectorImportRow[] = [];
@@ -449,7 +453,7 @@ export class DocumentHubService {
       const connectorModel = connectorImportValue(data, connectorImportAliases.connectorModel).trim();
       const specification = connectorImportValue(data, connectorImportAliases.specification).trim();
       const insertionLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.insertionLengthMm), '入长');
-      const outerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.outerStripLengthMm), '外剥皮');
+      const outerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.outerStripLengthMm), '外剥皮', { allowBlank: true });
       const innerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.innerStripLengthMm), '内剥皮');
       const status = connectorImportValue(data, connectorImportAliases.status).trim() || '启用';
       const remark = connectorImportValue(data, connectorImportAliases.remark).trim();
@@ -483,7 +487,7 @@ export class DocumentHubService {
         connectorModel,
         specification,
         insertionLengthMm: insertionLength.value ?? 0,
-        outerStripLengthMm: outerStripLength.value ?? 0,
+        outerStripLengthMm: outerStripLength.value ?? null,
         innerStripLengthMm: innerStripLength.value ?? 0,
         status,
         remark,

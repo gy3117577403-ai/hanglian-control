@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,11 +18,12 @@ export class CreateConnectorParameterDto {
   @Min(0)
   insertionLengthMm!: number;
 
-  @ApiProperty({ description: 'Outer strip length in mm', example: 12 })
-  @Type(() => Number)
+  @ApiPropertyOptional({ description: 'Outer strip length in mm. Leave empty when this connector has no outer strip parameter.', example: 12, nullable: true })
+  @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : Number(value)))
   @IsNumber()
   @Min(0)
-  outerStripLengthMm!: number;
+  outerStripLengthMm?: number | null;
 
   @ApiProperty({ description: 'Inner strip length in mm', example: 4 })
   @Type(() => Number)

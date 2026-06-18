@@ -12,9 +12,13 @@ const emit = defineEmits<{
   delete: [row: ConnectorParameter]
 }>()
 
-function formatMm(value?: number) {
+function formatMm(value?: number | null) {
   if (typeof value !== 'number' || Number.isNaN(value)) return ''
   return `${value}`
+}
+
+function hasMm(value?: number | null) {
+  return typeof value === 'number' && !Number.isNaN(value)
 }
 
 function cleanRemark(value?: string) {
@@ -63,7 +67,7 @@ function cleanRemark(value?: string) {
       <section class="metric-card">
         <span>参数 2</span>
         <strong>{{ formatMm(row.outerStripLengthMm) }}</strong>
-        <em>mm</em>
+        <em v-if="hasMm(row.outerStripLengthMm)">mm</em>
       </section>
 
       <section class="metric-card">
@@ -96,25 +100,32 @@ function cleanRemark(value?: string) {
 <style scoped>
 .connector-board {
   display: grid;
-  gap: 10px;
+  gap: 9px;
   min-width: 960px;
 }
 
 .board-labels {
+  position: sticky;
+  top: 0;
+  z-index: 8;
   display: grid;
   grid-template-columns: 1.18fr 1fr 0.62fr 0.7fr 0.7fr 1.1fr 126px;
   gap: 10px;
   align-items: center;
-  min-height: 38px;
+  min-height: 42px;
   padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 18px;
-  background: linear-gradient(90deg, rgba(127, 83, 43, 0.92), rgba(153, 98, 50, 0.82));
+  background:
+    linear-gradient(90deg, rgba(114, 72, 37, 0.94), rgba(154, 99, 50, 0.86)),
+    radial-gradient(circle at 90% 0%, rgba(255, 255, 255, 0.2), transparent 28%);
   color: rgba(255, 245, 230, 0.92);
   font-size: 12px;
   font-weight: 950;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 10px 24px rgba(70, 45, 25, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 22px rgba(70, 45, 25, 0.12);
+  backdrop-filter: blur(18px);
 }
 
 .board-labels span {

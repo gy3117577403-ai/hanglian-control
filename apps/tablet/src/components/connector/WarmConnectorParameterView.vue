@@ -30,6 +30,15 @@ const totalLabel = computed(() => `${store.connectorRows.length} 条`)
 const statusOptions = ['启用', '复核中', '停用']
 const importHasIssueRows = computed(() => Boolean(store.connectorImportResult?.rows.some((row) => !row.valid)))
 const importRequiresDecision = computed(() => Boolean(store.connectorImportResult?.requiresDecision || store.connectorImportResult?.requiresOverwrite))
+const importPreviewRows = computed(() => store.connectorImportResult?.rows.slice(0, 20) ?? [])
+const importSummaryText = computed(() => {
+  const result = store.connectorImportResult
+  if (!result) return ''
+  if (result.requiresDecision || result.requiresOverwrite) {
+    return `本次读取 ${result.totalRows} 行，${result.validRows ?? 0} 行可导入，${result.errorRows ?? 0} 行格式需修正，${result.duplicateRows?.length ?? 0} 行重复。当前尚未写入，请选择跳过重复、覆盖重复或取消。`
+  }
+  return `本次读取 ${result.totalRows} 行，成功导入 ${result.importedRows} 行，跳过 ${result.skippedRows} 行。`
+})
 
 const actionLabels: Record<string, string> = {
   created: '新增',
@@ -42,6 +51,11 @@ const actionLabels: Record<string, string> = {
 function cleanRemark(value?: string) {
   const remark = value?.trim() ?? ''
   return remark.includes('?') ? '' : remark
+}
+
+function optionalNumber(value: string) {
+  const text = value.trim()
+  return text ? Number(text) : null
 }
 
 function resetForm() {
@@ -77,7 +91,7 @@ function toPayload(): ConnectorParameterPayload {
     connectorModel: form.connectorModel,
     specification: form.specification,
     insertionLengthMm: Number(form.insertionLengthMm),
-    outerStripLengthMm: Number(form.outerStripLengthMm),
+    outerStripLengthMm: optionalNumber(form.outerStripLengthMm),
     innerStripLengthMm: Number(form.innerStripLengthMm),
     status: form.status,
     remark: form.remark,
@@ -118,7 +132,7 @@ async function handleFileChange(event: Event) {
   pendingImportFile.value = file
   const result = await store.importConnectorExcel(file)
   if (result && !result.requiresDecision && !result.requiresOverwrite) pendingImportFile.value = null
-  if (result) importResultOpen.value = true
+  if (result || store.connectorImportError) importResultOpen.value = true
 }
 
 function cancelImportConflict() {
@@ -132,6 +146,7 @@ async function importWithStrategy(strategy: 'skip' | 'overwrite') {
   if (result && !result.requiresDecision && !result.requiresOverwrite) {
     pendingImportFile.value = null
   }
+  if (result || store.connectorImportError) importResultOpen.value = true
 }
 
 function downloadImportReport() {
@@ -170,7 +185,7 @@ function downloadImportReport() {
         <div>
           <p>连接器数据库参数</p>
           <h2>连接器工艺参数库</h2>
-          <small>表头：连接器型号、规格、入长、外剥长度、内剥长度、备注</small>
+          <small>外剥可留空，错误行自动跳过并给出报告</small>
         </div>
       </div>
 
@@ -180,22 +195,15 @@ function downloadImportReport() {
         <button type="button" class="tool-button ghost" title="刷新" @click="store.loadConnectors(store.searchKeyword)">
           <RefreshCw :size="17" />
         </button>
-        <button type="button" class="tool-button" @click="triggerImport">
+        <button type="button" class="tool-button" :disabled="store.connectorMutationLoading" @click="triggerImport">
           <FileSpreadsheet :size="18" />
-          <span>Excel 导入</span>
+          <span>{{ store.connectorMutationLoading ? '正在解析' : 'Excel 导入' }}</span>
         </button>
         <button type="button" class="tool-button primary" @click="openCreate">
           <Plus :size="18" />
           <span>单型号导入</span>
         </button>
       </div>
-    </section>
-
-    <section class="usage-rules">
-      <span>Excel 支持表头：型号、外剥皮mm、内剥皮mm、入长mm、规格、备注</span>
-      <span>格式错误按行跳过，正确行仍可继续导入</span>
-      <span>规格用于区分同型号物料，备注可留空</span>
-      <span>重复型号需要选择跳过、覆盖或取消</span>
     </section>
 
     <input
@@ -236,7 +244,7 @@ function downloadImportReport() {
 
         <label class="field">
           <span>参数 2：外剥长度（mm）</span>
-          <PrimeInputText v-model="form.outerStripLengthMm" type="number" inputmode="decimal" placeholder="12" />
+          <PrimeInputText v-model="form.outerStripLengthMm" type="number" inputmode="decimal" placeholder="可留空" />
         </label>
 
         <label class="field">
@@ -276,16 +284,23 @@ function downloadImportReport() {
       </template>
     </PrimeDialog>
 
-    <PrimeDialog v-model:visible="importResultOpen" modal :header="importRequiresDecision ? '发现重复连接器型号' : 'Excel 导入结果'" :style="{ width: '860px' }">
+    <PrimeDialog v-model:visible="importResultOpen" modal :header="importRequiresDecision ? '发现重复连接器型号' : 'Excel 导入结果'" :style="{ width: '900px' }">
       <div v-if="store.connectorImportResult" class="import-result">
         <div v-if="importRequiresDecision" class="conflict-warning">
           <b>检测到重复型号，当前还没有写入任何数据。</b>
+          <p>{{ importSummaryText }}</p>
           <p>选择“跳过重复并导入”会只导入可新增的正确行；选择“覆盖重复并导入”会用 Excel 中的数据更新已有同型号记录；选择“取消导入”则保持当前参数库不变。</p>
         </div>
 
         <div v-else-if="store.connectorImportResult.errorRows" class="conflict-warning soft">
           <b>部分行格式有问题，已跳过错误行。</b>
-          <p>正确行已完成导入。请下载错误报告或按下方建议修改 Excel 后再次导入。</p>
+          <p>{{ importSummaryText }}</p>
+          <p>请下载错误报告或按下方建议修改 Excel 后再次导入。</p>
+        </div>
+
+        <div v-else class="conflict-warning success">
+          <b>Excel 导入完成。</b>
+          <p>{{ importSummaryText }}</p>
         </div>
 
         <div class="result-metrics">
@@ -299,7 +314,7 @@ function downloadImportReport() {
         </div>
 
         <div class="result-list">
-          <div v-for="row in store.connectorImportResult.rows.slice(0, 12)" :key="row.rowNumber" class="result-row" :class="{ invalid: !row.valid }">
+          <div v-for="row in importPreviewRows" :key="row.rowNumber" class="result-row" :class="{ invalid: !row.valid }">
             <span>第 {{ row.rowNumber }} 行</span>
             <b>{{ row.connectorModel }}</b>
             <small>{{ row.specification || '' }}</small>
@@ -308,6 +323,19 @@ function downloadImportReport() {
             <em>{{ actionLabels[row.action] ?? row.action }}</em>
           </div>
         </div>
+        <p v-if="store.connectorImportResult.rows.length > importPreviewRows.length" class="result-note">
+          当前只预览前 {{ importPreviewRows.length }} 条问题/处理记录，完整明细请下载错误报告。
+        </p>
+      </div>
+
+      <div v-else-if="store.connectorImportError" class="import-error">
+        <b>没有完成导入。</b>
+        <p>{{ store.connectorImportError }}</p>
+        <ul>
+          <li>确认后端 API 已启动，前端能访问上传接口。</li>
+          <li>Excel 第一行必须包含：型号、入长mm、内剥皮mm；外剥皮mm、规格、备注可选。</li>
+          <li>长度列只填数字或小数；“参照图号”等说明请放到备注列。</li>
+        </ul>
       </div>
 
       <template #footer>
@@ -329,67 +357,45 @@ function downloadImportReport() {
 <style scoped>
 .parameter-view {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
-  padding: 14px;
+  padding: 10px 14px 14px;
 }
 
 .view-head {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   align-items: center;
   justify-content: space-between;
-  min-height: 104px;
-  margin-bottom: 12px;
-  padding: 16px 18px;
+  min-height: 82px;
+  margin-bottom: 8px;
+  padding: 12px 16px;
   border: 1px solid rgba(255, 255, 255, 0.76);
-  border-radius: 26px;
+  border-radius: 24px;
   background:
     linear-gradient(128deg, rgba(255, 255, 255, 0.82), rgba(255, 234, 201, 0.58) 50%, rgba(152, 194, 180, 0.36)),
     radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.96), transparent 28%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -24px 46px rgba(125, 162, 150, 0.11),
-    0 18px 42px rgba(76, 54, 32, 0.12);
+    inset 0 -18px 36px rgba(125, 162, 150, 0.1),
+    0 14px 34px rgba(76, 54, 32, 0.1);
   backdrop-filter: blur(20px);
-}
-
-.usage-rules {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: -4px 0 12px;
-  padding: 0 4px;
-}
-
-.usage-rules span {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  padding: 0 11px;
-  border: 1px solid rgba(255, 255, 255, 0.64);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.38);
-  color: rgba(92, 62, 37, 0.74);
-  font-size: 12px;
-  font-weight: 900;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 .title-block {
   display: flex;
   min-width: 0;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
 }
 
 .title-block i {
   display: grid;
-  flex: 0 0 58px;
-  width: 58px;
-  height: 58px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
   place-items: center;
-  border-radius: 20px;
+  border-radius: 18px;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(234, 202, 160, 0.68));
   color: #9b5125;
   box-shadow:
@@ -410,16 +416,16 @@ p {
 }
 
 h2 {
-  margin-top: 2px;
+  margin-top: 1px;
   color: #2f1d0f;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 950;
   letter-spacing: 0;
 }
 
 small {
   display: block;
-  margin-top: 5px;
+  margin-top: 3px;
   color: rgba(92, 62, 37, 0.66);
   font-size: 12px;
   font-weight: 850;
@@ -438,8 +444,8 @@ small {
   display: inline-flex;
   gap: 7px;
   align-items: center;
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.5);
@@ -470,7 +476,7 @@ small {
 }
 
 .tool-button.ghost {
-  width: 42px;
+  width: 38px;
   justify-content: center;
   padding: 0;
 }
@@ -488,7 +494,8 @@ small {
 .scroll-area {
   min-height: 0;
   overflow: auto;
-  padding-right: 3px;
+  padding: 0 3px 3px 0;
+  overscroll-behavior: contain;
 }
 
 .editor-panel {
@@ -624,6 +631,15 @@ small {
   color: #9b5125;
 }
 
+.conflict-warning.success {
+  border-color: rgba(47, 123, 104, 0.18);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(218, 241, 232, 0.5));
+}
+
+.conflict-warning.success b {
+  color: #2f7b68;
+}
+
 .conflict-warning p {
   margin-top: 5px;
   line-height: 1.55;
@@ -666,6 +682,47 @@ small {
   font-weight: 950;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.result-note {
+  color: rgba(92, 62, 37, 0.72);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.import-error {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid rgba(185, 68, 53, 0.18);
+  border-radius: 22px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(255, 226, 219, 0.5)),
+    radial-gradient(circle at 92% 0%, rgba(255, 255, 255, 0.9), transparent 34%);
+  color: #633624;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 14px 28px rgba(82, 48, 28, 0.1);
+}
+
+.import-error b {
+  color: #b94435;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.import-error p,
+.import-error ul {
+  margin: 0;
+}
+
+.import-error ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.55;
 }
 
 @media (max-width: 1180px) {

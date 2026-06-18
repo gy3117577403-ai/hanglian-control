@@ -138,6 +138,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const selectedConnector = ref<ConnectorParameter | null>(null)
   const selectedFixture = ref<FixtureParameter | null>(null)
   const connectorImportResult = ref<ConnectorImportResult | null>(null)
+  const connectorImportError = ref('')
   const connectorMutationLoading = ref(false)
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
@@ -153,7 +154,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   let productDetailRequestId = 0
 
   const currentSearchPlaceholder = computed(() => {
-    if (activeMode.value === 'connector') return '搜索连接器型号、规格、入长、外剥长度、内剥长度、备注'
+    if (activeMode.value === 'connector') return '搜索连接器型号、规格、入长、外剥长度、内剥长度、备注；外剥可为空'
     if (activeMode.value === 'fixture') return '搜索治具编号、治具名称、工位、适用产品'
     return '搜索客户、产品型号、图纸、SOP、成品图'
   })
@@ -499,11 +500,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   function normalizeConnectorPayload(payload: ConnectorParameterPayload): ConnectorParameterPayload {
+    const outerStripLengthMm = payload.outerStripLengthMm === null || payload.outerStripLengthMm === undefined
+      ? null
+      : Number(payload.outerStripLengthMm)
     return {
       connectorModel: payload.connectorModel.trim(),
       specification: payload.specification?.trim() ?? '',
       insertionLengthMm: Number(payload.insertionLengthMm),
-      outerStripLengthMm: Number(payload.outerStripLengthMm),
+      outerStripLengthMm,
       innerStripLengthMm: Number(payload.innerStripLengthMm),
       remark: payload.remark?.trim() ?? '',
       status: payload.status?.trim() || '启用',
@@ -536,8 +540,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       toast.error('请填写连接器型号')
       return false
     }
-    if ([normalized.insertionLengthMm, normalized.outerStripLengthMm, normalized.innerStripLengthMm].some((value) => !Number.isFinite(value) || value < 0)) {
-      toast.error('入长、外剥长度、内剥长度必须是有效数字')
+    if ([normalized.insertionLengthMm, normalized.innerStripLengthMm].some((value) => !Number.isFinite(value) || value < 0)) {
+      toast.error('入长、内剥长度必须是有效数字')
+      return false
+    }
+    if (normalized.outerStripLengthMm !== null && (!Number.isFinite(normalized.outerStripLengthMm) || normalized.outerStripLengthMm < 0)) {
+      toast.error('外剥长度可以留空；如果填写，必须是有效数字')
       return false
     }
     const normalizedSpec = normalized.specification?.toLowerCase() ?? ''
@@ -603,6 +611,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function importConnectorExcel(file: File, duplicateStrategy: 'review' | 'skip' | 'overwrite' = 'review') {
     connectorMutationLoading.value = true
     connectorImportResult.value = null
+    connectorImportError.value = ''
     try {
       const result = await importHubConnectors(file, duplicateStrategy)
       connectorImportResult.value = result
@@ -619,8 +628,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         description: `新增 ${result.createdRows} 条，更新 ${result.updatedRows} 条，跳过 ${result.skippedRows} 条，错误 ${result.errorRows ?? 0} 条`,
       })
       return result
-    } catch {
-      toast.error('Excel 导入失败，请确认后端服务可用且表头包含连接器型号、规格、入长、外剥长度、内剥长度')
+    } catch (error) {
+      const apiError = error as { data?: { message?: string | string[] }; message?: string }
+      const rawMessage = apiError.data?.message ?? apiError.message
+      const message = Array.isArray(rawMessage) ? rawMessage.join('；') : rawMessage
+      connectorImportError.value = message || '后端服务未响应，或 Excel 表头/格式不符合当前连接器导入规则。'
+      toast.error('Excel 导入失败', {
+        description: connectorImportError.value,
+      })
       return null
     } finally {
       connectorMutationLoading.value = false
@@ -807,6 +822,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedConnector,
     selectedFixture,
     connectorImportResult,
+    connectorImportError,
     connectorMutationLoading,
     orderOverviewOpen,
     uploadDialogOpen,

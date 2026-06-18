@@ -65,7 +65,7 @@ export interface ConnectorParameter {
   connectorModel: string;
   specification?: string;
   insertionLengthMm: number;
-  outerStripLengthMm: number;
+  outerStripLengthMm: number | null;
   innerStripLengthMm: number;
   remark?: string;
   status?: string;
