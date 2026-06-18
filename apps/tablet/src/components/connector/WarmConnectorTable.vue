@@ -21,9 +21,23 @@ function hasMm(value?: number | null) {
   return typeof value === 'number' && !Number.isNaN(value)
 }
 
+function metricText(value?: number | null, fallback = '') {
+  return hasMm(value) ? `${value}` : fallback
+}
+
 function cleanRemark(value?: string) {
   const remark = value?.trim() ?? ''
   return remark.includes('?') ? '' : remark
+}
+
+function isOuterBlank(row: ConnectorParameter) {
+  return row.outerStripLengthMm === null || row.outerStripLengthMm === undefined
+}
+
+function statusClass(status?: string) {
+  if (status === '复核中') return 'status-review'
+  if (status === '停用') return 'status-disabled'
+  return 'status-enabled'
 }
 </script>
 
@@ -44,13 +58,14 @@ function cleanRemark(value?: string) {
       :key="row.connectorId"
       type="button"
       class="parameter-row"
+      :class="{ 'missing-outer': isOuterBlank(row) }"
       @click="emit('open', row)"
     >
       <section class="model-cell">
         <i><Cable :size="21" /></i>
         <div>
           <b>{{ row.connectorModel }}</b>
-          <small>{{ row.status || '启用' }}</small>
+          <small :class="statusClass(row.status)">{{ row.status || '启用' }}</small>
         </div>
       </section>
 
@@ -59,19 +74,19 @@ function cleanRemark(value?: string) {
       </section>
 
       <section class="metric-card">
-        <span>参数 1</span>
+        <span>入长</span>
         <strong>{{ formatMm(row.insertionLengthMm) }}</strong>
         <em>mm</em>
       </section>
 
-      <section class="metric-card">
-        <span>参数 2</span>
-        <strong>{{ formatMm(row.outerStripLengthMm) }}</strong>
+      <section class="metric-card optional" :class="{ missing: isOuterBlank(row) }">
+        <span>外剥</span>
+        <strong>{{ metricText(row.outerStripLengthMm, '未设') }}</strong>
         <em v-if="hasMm(row.outerStripLengthMm)">mm</em>
       </section>
 
       <section class="metric-card">
-        <span>参数 3</span>
+        <span>内剥</span>
         <strong>{{ formatMm(row.innerStripLengthMm) }}</strong>
         <em>mm</em>
       </section>
@@ -238,6 +253,16 @@ function cleanRemark(value?: string) {
   font-weight: 950;
 }
 
+.model-cell small.status-review {
+  background: rgba(236, 181, 81, 0.24);
+  color: #8f6418;
+}
+
+.model-cell small.status-disabled {
+  background: rgba(114, 103, 92, 0.16);
+  color: rgba(72, 62, 52, 0.74);
+}
+
 .spec-cell,
 .remark-cell {
   display: flex;
@@ -284,6 +309,18 @@ function cleanRemark(value?: string) {
   font-size: 12px;
   font-style: normal;
   font-weight: 950;
+}
+
+.metric-card.optional.missing {
+  border-color: rgba(213, 142, 73, 0.28);
+  background:
+    linear-gradient(145deg, rgba(255, 250, 241, 0.72), rgba(240, 216, 178, 0.32)),
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.72), transparent 38%);
+}
+
+.metric-card.optional.missing strong {
+  color: rgba(137, 89, 45, 0.7);
+  font-size: 19px;
 }
 
 .remark-cell.empty {

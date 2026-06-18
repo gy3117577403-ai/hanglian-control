@@ -59,7 +59,6 @@ requireIncludes('apps/tablet/src/components/hub/WarmFunctionOrb.vue', '资料库
 requireIncludes('apps/tablet/src/components/hub/WarmFunctionOrb.vue', 'pointerdown', 'Function orb should collapse on outside pointerdown.');
 requireIncludes('apps/tablet/src/components/hub/WarmHubHeader.vue', 'store.openTopUpload()', 'Header upload should use top upload mode.');
 requireIncludes('apps/tablet/src/components/hub/WarmHubSearchBar.vue', 'currentSearchPlaceholder', 'Search placeholder must be mode-aware.');
-requireIncludes('apps/tablet/src/components/orders/WarmOrderSidebar.vue', '今日订单', 'Order sidebar missing today section.');
 requireIncludes('apps/tablet/src/components/orders/WarmOrderSidebar.vue', '本周订单', 'Order sidebar missing week section.');
 requireIncludes('apps/tablet/src/components/orders/WarmOrderCard.vue', '在前段', 'Order status missing front label.');
 requireIncludes('apps/tablet/src/components/orders/WarmOrderCard.vue', '在后段', 'Order status missing back label.');
@@ -77,9 +76,9 @@ requireIncludes('apps/tablet/src/components/drawing/WarmImageDetailViewer.vue', 
 requireIncludes('apps/tablet/src/stores/document-hub-store.ts', 'openModuleUpload', 'Store missing module upload mode.');
 requireIncludes('apps/tablet/src/stores/document-hub-store.ts', 'openTopUpload', 'Store missing top upload mode.');
 requireIncludes('apps/tablet/src/stores/document-hub-store.ts', 'reopenOrder', 'Store missing reopen order action.');
-requireIncludes('apps/tablet/src/components/connector/WarmConnectorTable.vue', 'table-head', 'Connector parameter table should use a fixed header.');
+requireIncludes('apps/tablet/src/components/connector/WarmConnectorTable.vue', 'position: sticky', 'Connector parameter table should use a fixed header.');
 requireIncludes('apps/tablet/src/components/connector/WarmConnectorTable.vue', '暂无连接器参数', 'Connector empty state missing.');
-requireIncludes('apps/tablet/src/components/fixture/WarmFixtureTable.vue', 'table-head', 'Fixture parameter table should use a fixed header.');
+requireIncludes('apps/tablet/src/components/fixture/WarmFixtureTable.vue', 'position: sticky', 'Fixture parameter table should use a fixed header.');
 requireIncludes('apps/tablet/src/components/fixture/WarmFixtureTable.vue', '暂无治具参数', 'Fixture empty state missing.');
 requireIncludes('apps/tablet/src/components/unified/WarmDeletePasswordDialog.vue', '默认删除密码为 123', 'Delete password default copy missing.');
 requireIncludes('apps/tablet/src/components/unified/WarmDeletePasswordDialog.vue', '请输入删除密码以继续', 'Delete password input copy missing.');

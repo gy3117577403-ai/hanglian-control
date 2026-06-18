@@ -27,6 +27,12 @@ const form = reactive({
 })
 
 const totalLabel = computed(() => `${store.connectorRows.length} 条`)
+const blankOuterLabel = computed(() => `${store.connectorRows.filter((row) => row.outerStripLengthMm === null || row.outerStripLengthMm === undefined).length} 条`)
+const reviewLabel = computed(() => `${store.connectorRows.filter((row) => row.status === '复核中').length} 条`)
+const disabledLabel = computed(() => `${store.connectorRows.filter((row) => row.status === '停用').length} 条`)
+const hasBlankOuter = computed(() => store.connectorRows.some((row) => row.outerStripLengthMm === null || row.outerStripLengthMm === undefined))
+const hasReviewRows = computed(() => store.connectorRows.some((row) => row.status === '复核中'))
+const hasDisabledRows = computed(() => store.connectorRows.some((row) => row.status === '停用'))
 const statusOptions = ['启用', '复核中', '停用']
 const importHasIssueRows = computed(() => Boolean(store.connectorImportResult?.rows.some((row) => !row.valid)))
 const importRequiresDecision = computed(() => Boolean(store.connectorImportResult?.requiresDecision || store.connectorImportResult?.requiresOverwrite))
@@ -124,6 +130,24 @@ function triggerImport() {
   fileInput.value?.click()
 }
 
+function downloadConnectorTemplate() {
+  const rows = [
+    ['型号', '规格', '入长mm', '外剥皮mm', '内剥皮mm', '备注'],
+    ['PL182X-301-50', '50P 插件端', '65', '26.5', '17.5', '外剥可留空'],
+    ['HVC2PG80FS150', '150 规格', '65', '', '15.5', '无外剥参数时留空'],
+  ]
+  const lines = rows.map((row) => row.map((value) => `"${value.replace(/"/g, '""')}"`).join(','))
+  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = '连接器参数导入模板.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 async function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
@@ -192,8 +216,14 @@ function downloadImportReport() {
       <div class="head-tools">
         <span class="metric-pill"><Ruler :size="15" />单位 mm</span>
         <span class="metric-pill total">{{ totalLabel }}</span>
+        <span v-if="hasBlankOuter" class="metric-pill warning">外剥空 {{ blankOuterLabel }}</span>
+        <span v-if="hasReviewRows" class="metric-pill review">复核 {{ reviewLabel }}</span>
+        <span v-if="hasDisabledRows" class="metric-pill muted">停用 {{ disabledLabel }}</span>
         <button type="button" class="tool-button ghost" title="刷新" @click="store.loadConnectors(store.searchKeyword)">
           <RefreshCw :size="17" />
+        </button>
+        <button type="button" class="tool-button ghost" title="下载 Excel 导入模板" @click="downloadConnectorTemplate">
+          <Download :size="17" />
         </button>
         <button type="button" class="tool-button" :disabled="store.connectorMutationLoading" @click="triggerImport">
           <FileSpreadsheet :size="18" />
@@ -460,6 +490,18 @@ small {
 
 .metric-pill.total {
   color: #2f7b68;
+}
+
+.metric-pill.warning {
+  color: #a75b24;
+}
+
+.metric-pill.review {
+  color: #8f6b17;
+}
+
+.metric-pill.muted {
+  color: rgba(83, 74, 65, 0.72);
 }
 
 .tool-button {

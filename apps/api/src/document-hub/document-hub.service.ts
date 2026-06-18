@@ -176,6 +176,55 @@ function connectorsOverlap(
     && connectorSpecsOverlap(leftSpecification, rightSpecification);
 }
 
+const connectorStatusRank: Record<string, number> = {
+  '\u542f\u7528': 0,
+  '\u590d\u6838\u4e2d': 1,
+  '\u505c\u7528': 2,
+};
+
+function compareConnectors(left: ConnectorParameter, right: ConnectorParameter) {
+  const statusDiff = (connectorStatusRank[left.status ?? ''] ?? 9) - (connectorStatusRank[right.status ?? ''] ?? 9);
+  if (statusDiff) return statusDiff;
+  const modelDiff = left.connectorModel.localeCompare(right.connectorModel, 'zh-Hans-CN', { numeric: true });
+  if (modelDiff) return modelDiff;
+  return (left.specification ?? '').localeCompare(right.specification ?? '', 'zh-Hans-CN', { numeric: true });
+}
+
+function connectorFieldSearch(item: ConnectorParameter, normalizedKeyword: string) {
+  const fieldSearches = [
+    { aliases: ['\u5165\u957f', '\u5165\u957fmm', '\u5165\u957f\u6beb\u7c73'], value: item.insertionLengthMm },
+    { aliases: ['\u5916\u5265', '\u5916\u5265\u76ae', '\u5916\u5265\u957f\u5ea6', '\u5916\u5265mm', '\u5916\u5265\u76aemm'], value: item.outerStripLengthMm },
+    { aliases: ['\u5185\u5265', '\u5185\u5265\u76ae', '\u5185\u5265\u957f\u5ea6', '\u5185\u5265mm', '\u5185\u5265\u76aemm'], value: item.innerStripLengthMm },
+  ];
+  return fieldSearches.some(({ aliases, value }) => aliases.some((alias) => {
+    if (!normalizedKeyword.startsWith(alias)) return false;
+    const numericText = normalizedKeyword
+      .replace(alias, '')
+      .replace(/mm|\u6beb\u7c73/g, '')
+      .trim();
+    return numericText ? String(value ?? '').includes(numericText) : value !== null && value !== undefined;
+  }));
+}
+
+function connectorMatchesKeyword(item: ConnectorParameter, q: string) {
+  if (!q) return true;
+  const normalizedKeyword = q.replace(/\s+/g, '').toLowerCase();
+  const outerBlankWords = ['\u5916\u5265\u7a7a', '\u5916\u5265\u4e3a\u7a7a', '\u672a\u586b\u5916\u5265', '\u65e0\u5916\u5265', '\u7a7a\u5916\u5265', '\u5916\u5265\u7559\u7a7a'];
+  if (outerBlankWords.some((word) => normalizedKeyword.includes(word))) {
+    return item.outerStripLengthMm === null || item.outerStripLengthMm === undefined;
+  }
+  if (connectorFieldSearch(item, normalizedKeyword)) return true;
+  return [
+    item.connectorModel,
+    item.specification,
+    item.insertionLengthMm,
+    item.outerStripLengthMm,
+    item.innerStripLengthMm,
+    item.remark,
+    item.status,
+  ].some((value) => includes(value, q));
+}
+
 function makeImportRowResult(
   row: Pick<ParsedConnectorImportRow, 'rowNumber' | 'connectorModel' | 'specification'>,
   action: ConnectorImportAction,
@@ -346,16 +395,9 @@ export class DocumentHubService {
 
   getConnectors(query?: ConnectorQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    if (!q) return this.connectors;
-    return this.connectors.filter((item) => [
-      item.connectorModel,
-      item.specification,
-      item.insertionLengthMm,
-      item.outerStripLengthMm,
-      item.innerStripLengthMm,
-      item.remark,
-      item.status,
-    ].some((value) => includes(value, q)));
+    return this.connectors
+      .filter((item) => connectorMatchesKeyword(item, q ?? ''))
+      .sort(compareConnectors);
   }
 
   getConnector(id: string) {
@@ -382,6 +424,7 @@ export class DocumentHubService {
       remark: dto.remark?.trim() ?? '',
     };
     this.connectors.unshift(connector);
+    this.connectors.sort(compareConnectors);
     return connector;
   }
 
@@ -407,6 +450,7 @@ export class DocumentHubService {
     if (dto.innerStripLengthMm !== undefined) connector.innerStripLengthMm = dto.innerStripLengthMm;
     if (dto.remark !== undefined) connector.remark = dto.remark.trim();
     if (dto.status !== undefined) connector.status = dto.status.trim() || '\u542f\u7528';
+    this.connectors.sort(compareConnectors);
     return connector;
   }
 
@@ -578,6 +622,8 @@ export class DocumentHubService {
         rows.push(makeImportRowResult(row, 'created', true, '已新增连接器参数。'));
       }
     }
+
+    this.connectors.sort(compareConnectors);
 
     const errorRows = rows.filter((row) => row.action === 'error').length;
     return {

@@ -57,6 +57,59 @@ function match(value: unknown, keyword: string) {
   return String(value ?? '').toLowerCase().includes(keyword)
 }
 
+const connectorStatusRank: Record<string, number> = {
+  启用: 0,
+  复核中: 1,
+  停用: 2,
+}
+
+function compareConnectors(a: ConnectorParameter, b: ConnectorParameter) {
+  const statusDiff = (connectorStatusRank[a.status ?? ''] ?? 9) - (connectorStatusRank[b.status ?? ''] ?? 9)
+  if (statusDiff) return statusDiff
+  const modelDiff = a.connectorModel.localeCompare(b.connectorModel, 'zh-Hans-CN', { numeric: true })
+  if (modelDiff) return modelDiff
+  return (a.specification ?? '').localeCompare(b.specification ?? '', 'zh-Hans-CN', { numeric: true })
+}
+
+function sortConnectors(rows: ConnectorParameter[]) {
+  return [...rows].sort(compareConnectors)
+}
+
+function connectorFieldSearch(item: ConnectorParameter, normalizedKeyword: string) {
+  const fieldSearches = [
+    { aliases: ['入长', '入长mm', '入长毫米'], value: item.insertionLengthMm },
+    { aliases: ['外剥', '外剥皮', '外剥长度', '外剥mm', '外剥皮mm'], value: item.outerStripLengthMm },
+    { aliases: ['内剥', '内剥皮', '内剥长度', '内剥mm', '内剥皮mm'], value: item.innerStripLengthMm },
+  ]
+  return fieldSearches.some(({ aliases, value }) => aliases.some((alias) => {
+    if (!normalizedKeyword.startsWith(alias)) return false
+    const numericText = normalizedKeyword
+      .replace(alias, '')
+      .replace(/mm|毫米/g, '')
+      .trim()
+    return numericText ? String(value ?? '').includes(numericText) : value !== null && value !== undefined
+  }))
+}
+
+function connectorMatchesKeyword(item: ConnectorParameter, keyword: string) {
+  if (!keyword) return true
+  const normalizedKeyword = keyword.replace(/\s+/g, '').toLowerCase()
+  const outerBlankWords = ['外剥空', '外剥为空', '未填外剥', '无外剥', '空外剥', '外剥留空']
+  if (outerBlankWords.some((word) => normalizedKeyword.includes(word))) {
+    return item.outerStripLengthMm === null || item.outerStripLengthMm === undefined
+  }
+  if (connectorFieldSearch(item, normalizedKeyword)) return true
+  return [
+    item.connectorModel,
+    item.specification,
+    item.insertionLengthMm,
+    item.outerStripLengthMm,
+    item.innerStripLengthMm,
+    item.remark,
+    item.status,
+  ].some((value) => match(value, keyword))
+}
+
 function fileTypeFromFile(file?: File | null): DrawingItem['fileType'] {
   if (file?.type === 'application/pdf') return 'pdf'
   if (file?.type?.startsWith('image/')) return 'image'
@@ -429,17 +482,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
   async function loadConnectors(q = '') {
     const keyword = q.trim().toLowerCase()
-    const localMatches = localConnectors.value.filter((item) => !keyword || [
-      item.connectorModel,
-      item.specification,
-      item.insertionLengthMm,
-      item.outerStripLengthMm,
-      item.innerStripLengthMm,
-      item.remark,
-      item.status,
-    ].some((value) => match(value, keyword)))
+    const localMatches = sortConnectors(localConnectors.value.filter((item) => connectorMatchesKeyword(item, keyword)))
     try {
-      connectorRows.value = withFallback(await getHubConnectors(q), localMatches)
+      connectorRows.value = sortConnectors(withFallback(await getHubConnectors(q), localMatches))
     } catch {
       connectorRows.value = localMatches
     }
@@ -519,6 +564,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       const existing = list.find((entry) => entry.connectorId === connector.connectorId)
       if (existing) Object.assign(existing, connector)
       else list.unshift({ ...connector })
+      list.sort(compareConnectors)
     }
     if (selectedConnector.value?.connectorId === connector.connectorId) {
       selectedConnector.value = { ...selectedConnector.value, ...connector }
@@ -621,8 +667,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         })
         return result
       }
-      localConnectors.value = clone(result.connectors)
-      connectorRows.value = clone(result.connectors)
+      localConnectors.value = sortConnectors(clone(result.connectors))
+      connectorRows.value = sortConnectors(clone(result.connectors))
       if (searchKeyword.value.trim()) await loadConnectors(searchKeyword.value)
       toast.success('Excel 导入完成', {
         description: `新增 ${result.createdRows} 条，更新 ${result.updatedRows} 条，跳过 ${result.skippedRows} 条，错误 ${result.errorRows ?? 0} 条`,

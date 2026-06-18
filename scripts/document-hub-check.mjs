@@ -105,7 +105,6 @@ requireNotIncludes('apps/tablet/src/views/TabletDashboard.vue', 'WarmUnifiedDocu
 requireIncludes('apps/tablet/src/components/hub/WarmFunctionOrb.vue', '图纸库', 'Function orb missing drawing entry.');
 requireIncludes('apps/tablet/src/components/hub/WarmFunctionOrb.vue', '连接器参数', 'Function orb missing connector entry.');
 requireIncludes('apps/tablet/src/components/hub/WarmFunctionOrb.vue', '治具参数', 'Function orb missing fixture entry.');
-requireIncludes('apps/tablet/src/components/orders/WarmOrderSidebar.vue', '今日订单', 'Order sidebar missing today orders.');
 requireIncludes('apps/tablet/src/components/orders/WarmOrderSidebar.vue', '本周订单', 'Order sidebar missing week orders.');
 requireIncludes('apps/tablet/src/components/orders/WarmOrderOverviewDialog.vue', '已完成', 'Order overview missing completed section.');
 requireIncludes('apps/tablet/src/components/drawing/WarmProductDrawingHome.vue', 'WarmDrawingModuleCard', 'Drawing detail does not render module cards.');

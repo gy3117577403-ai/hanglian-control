@@ -54,7 +54,7 @@ function close() {
           <ChevronLeft :size="22" />
         </PrimeButton>
         <div class="large-preview">
-          <div v-if="loadFailed" class="failed">资料加载失败，请返回资料列表重新打开。</div>
+          <div v-if="loadFailed" class="failed">图片加载失败，请返回资料列表重新打开。</div>
           <iframe
             v-else-if="hasPreviewSource && isPdf"
             class="real-preview pdf-preview"
