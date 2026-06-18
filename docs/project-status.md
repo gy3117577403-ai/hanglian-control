@@ -140,3 +140,13 @@
 ## 下一步建议
 
 完成全流程总验收后，可选择路线 A 创建 PR / 合并 main / 打演示 tag，或路线 B 进入 Sealos PostgreSQL 测试库只读接入准备。
+## V3.10 storage cloud alignment
+
+- Current branch: `feature/v3-10-storage-cloud-alignment`.
+- Purpose: add a storage adapter layer and align local file paths with a future Sealos persistent volume.
+- Active storage provider remains `local`.
+- Future volume mount target: `/data/hanglian`.
+- Prepared but disabled: S3/Object Storage adapter.
+- Still paused: Sealos PostgreSQL, database writes, WeCom Drive, real voice.
+- New checks: `storage-flow:check`, `cloud-alignment:check`, `storage:legacy-scan`.
+- Do not run `db:readonly-check`, `prisma migrate`, `prisma db push`, `prisma db seed`, or `prisma:seed:test-db` in this stage.

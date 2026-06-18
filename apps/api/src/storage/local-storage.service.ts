@@ -1,8 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import type {
   AuditLog,
   ImportedBusinessDataSnapshot,
@@ -11,6 +10,8 @@ import type {
   MaintenanceRecord,
   ProductDocument,
 } from '../common/types/production.types';
+import { StorageConfigService } from './storage.config';
+import { StorageService } from './storage.service';
 
 export interface StoredFileInfo {
   absolutePath: string;
@@ -18,13 +19,6 @@ export interface StoredFileInfo {
   size: number;
   stream: ReturnType<typeof createReadStream>;
 }
-
-const mimeExtensions: Record<string, string> = {
-  'application/pdf': '.pdf',
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-};
 
 const mimeTypesByExtension: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -36,15 +30,32 @@ const mimeTypesByExtension: Record<string, string> = {
 
 @Injectable()
 export class LocalStorageService implements OnModuleInit {
-  private readonly storageRoot = resolve(process.cwd(), 'storage');
-  private readonly uploadsDir = join(this.storageRoot, 'uploads');
-  private readonly metadataDir = join(this.storageRoot, 'metadata');
-  private readonly documentsFile = join(this.metadataDir, 'documents.json');
-  private readonly auditLogsFile = join(this.metadataDir, 'audit-logs.json');
-  private readonly importRecordsFile = join(this.metadataDir, 'import-records.json');
-  private readonly importedBusinessDataFile = join(this.metadataDir, 'imported-business-data.json');
-  private readonly importPreviewsFile = join(this.metadataDir, 'import-previews.json');
-  private readonly maintenanceRecordsFile = join(this.metadataDir, 'maintenance-records.json');
+  private readonly storageRoot: string;
+  private readonly uploadsDir: string;
+  private readonly metadataDir: string;
+  private readonly tempDir: string;
+  private readonly documentsFile: string;
+  private readonly auditLogsFile: string;
+  private readonly importRecordsFile: string;
+  private readonly importedBusinessDataFile: string;
+  private readonly importPreviewsFile: string;
+  private readonly maintenanceRecordsFile: string;
+
+  constructor(
+    private readonly storageConfig: StorageConfigService,
+    private readonly storageService: StorageService,
+  ) {
+    this.storageRoot = storageConfig.storageRoot;
+    this.uploadsDir = storageConfig.uploadsRoot;
+    this.metadataDir = storageConfig.metadataRoot;
+    this.tempDir = storageConfig.tempRoot;
+    this.documentsFile = join(this.metadataDir, 'documents.json');
+    this.auditLogsFile = join(this.metadataDir, 'audit-logs.json');
+    this.importRecordsFile = join(this.metadataDir, 'import-records.json');
+    this.importedBusinessDataFile = join(this.metadataDir, 'imported-business-data.json');
+    this.importPreviewsFile = join(this.metadataDir, 'import-previews.json');
+    this.maintenanceRecordsFile = join(this.metadataDir, 'maintenance-records.json');
+  }
 
   async onModuleInit() {
     await this.ensureStorage();
@@ -54,75 +65,88 @@ export class LocalStorageService implements OnModuleInit {
     return this.uploadsDir;
   }
 
+  getMetadataDir() {
+    return this.metadataDir;
+  }
+
+  getTempDir() {
+    return this.tempDir;
+  }
+
   async ensureStorage() {
     await mkdir(this.uploadsDir, { recursive: true });
     await mkdir(this.metadataDir, { recursive: true });
+    await mkdir(this.tempDir, { recursive: true });
     try {
       await stat(this.documentsFile);
     } catch {
-      await writeFile(this.documentsFile, '[]', 'utf8');
+      await this.writeTextAtomic(this.documentsFile, '[]');
     }
     try {
       await stat(this.auditLogsFile);
     } catch {
-      await writeFile(this.auditLogsFile, '[]', 'utf8');
+      await this.writeTextAtomic(this.auditLogsFile, '[]');
     }
     try {
       await stat(this.importRecordsFile);
     } catch {
-      await writeFile(this.importRecordsFile, '[]', 'utf8');
+      await this.writeTextAtomic(this.importRecordsFile, '[]');
     }
     try {
       await stat(this.importedBusinessDataFile);
     } catch {
-      await writeFile(this.importedBusinessDataFile, this.emptyImportedBusinessData(), 'utf8');
+      await this.writeTextAtomic(this.importedBusinessDataFile, this.emptyImportedBusinessData());
     }
     try {
       await stat(this.importPreviewsFile);
     } catch {
-      await writeFile(this.importPreviewsFile, '[]', 'utf8');
+      await this.writeTextAtomic(this.importPreviewsFile, '[]');
     }
     try {
       await stat(this.maintenanceRecordsFile);
     } catch {
-      await writeFile(this.maintenanceRecordsFile, '[]', 'utf8');
+      await this.writeTextAtomic(this.maintenanceRecordsFile, '[]');
     }
   }
 
   ensureStorageSync() {
     mkdirSync(this.uploadsDir, { recursive: true });
     mkdirSync(this.metadataDir, { recursive: true });
+    mkdirSync(this.tempDir, { recursive: true });
     if (!existsSync(this.documentsFile)) {
-      writeFileSync(this.documentsFile, '[]', 'utf8');
+      this.writeTextAtomicSync(this.documentsFile, '[]');
     }
     if (!existsSync(this.auditLogsFile)) {
-      writeFileSync(this.auditLogsFile, '[]', 'utf8');
+      this.writeTextAtomicSync(this.auditLogsFile, '[]');
     }
     if (!existsSync(this.importRecordsFile)) {
-      writeFileSync(this.importRecordsFile, '[]', 'utf8');
+      this.writeTextAtomicSync(this.importRecordsFile, '[]');
     }
     if (!existsSync(this.importedBusinessDataFile)) {
-      writeFileSync(this.importedBusinessDataFile, this.emptyImportedBusinessData(), 'utf8');
+      this.writeTextAtomicSync(this.importedBusinessDataFile, this.emptyImportedBusinessData());
     }
     if (!existsSync(this.importPreviewsFile)) {
-      writeFileSync(this.importPreviewsFile, '[]', 'utf8');
+      this.writeTextAtomicSync(this.importPreviewsFile, '[]');
     }
     if (!existsSync(this.maintenanceRecordsFile)) {
-      writeFileSync(this.maintenanceRecordsFile, '[]', 'utf8');
+      this.writeTextAtomicSync(this.maintenanceRecordsFile, '[]');
     }
   }
 
   safeStoredFileName(originalName: string, mimeType: string) {
-    const ext = mimeExtensions[mimeType] ?? extname(originalName).toLowerCase();
-    return `${Date.now()}-${randomUUID()}${ext}`;
+    const ext = mimeTypesByExtension[mimeType] ? extname(originalName).toLowerCase() : extname(originalName).toLowerCase();
+    return `${Date.now()}${ext || '.bin'}`;
   }
 
   async saveFile(file: Express.Multer.File) {
-    await this.ensureStorage();
-    const storedFileName = this.safeStoredFileName(file.originalname, file.mimetype);
-    const absolutePath = join(this.uploadsDir, storedFileName);
-    await writeFile(absolutePath, file.buffer);
-    return storedFileName;
+    const stored = await this.storageService.putObject({
+      originalFileName: file.originalname,
+      mimeType: file.mimetype,
+      buffer: file.buffer,
+      fileSize: file.size,
+      prefix: 'documents',
+    });
+    return stored.storedFileName;
   }
 
   async readDocuments(): Promise<ProductDocument[]> {
@@ -146,7 +170,7 @@ export class LocalStorageService implements OnModuleInit {
 
   async writeDocuments(documents: ProductDocument[]) {
     await this.ensureStorage();
-    await writeFile(this.documentsFile, JSON.stringify(documents, null, 2), 'utf8');
+    await this.writeJsonAtomic(this.documentsFile, documents);
   }
 
   async readAuditLogs(): Promise<AuditLog[]> {
@@ -170,7 +194,7 @@ export class LocalStorageService implements OnModuleInit {
 
   async writeAuditLogs(logs: AuditLog[]) {
     await this.ensureStorage();
-    await writeFile(this.auditLogsFile, JSON.stringify(logs, null, 2), 'utf8');
+    await this.writeJsonAtomic(this.auditLogsFile, logs);
   }
 
   readImportRecordsSync(): ImportRecord[] {
@@ -180,7 +204,7 @@ export class LocalStorageService implements OnModuleInit {
 
   writeImportRecordsSync(records: ImportRecord[]) {
     this.ensureStorageSync();
-    writeFileSync(this.importRecordsFile, JSON.stringify(records, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.importRecordsFile, records);
   }
 
   readImportedBusinessDataSync(): ImportedBusinessDataSnapshot {
@@ -193,7 +217,7 @@ export class LocalStorageService implements OnModuleInit {
 
   writeImportedBusinessDataSync(snapshot: ImportedBusinessDataSnapshot) {
     this.ensureStorageSync();
-    writeFileSync(this.importedBusinessDataFile, JSON.stringify(snapshot, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.importedBusinessDataFile, snapshot);
   }
 
   readImportPreviewsSync(): ImportPreviewResult[] {
@@ -203,7 +227,7 @@ export class LocalStorageService implements OnModuleInit {
 
   writeImportPreviewsSync(previews: ImportPreviewResult[]) {
     this.ensureStorageSync();
-    writeFileSync(this.importPreviewsFile, JSON.stringify(previews, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.importPreviewsFile, previews);
   }
 
   readMaintenanceRecordsSync(): MaintenanceRecord[] {
@@ -213,45 +237,45 @@ export class LocalStorageService implements OnModuleInit {
 
   writeMaintenanceRecordsSync(records: MaintenanceRecord[]) {
     this.ensureStorageSync();
-    writeFileSync(this.maintenanceRecordsFile, JSON.stringify(records, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.maintenanceRecordsFile, records);
   }
 
   readMetadataArraySync<T>(fileName: string, fallback: T[] = []): T[] {
     this.ensureStorageSync();
     const file = this.metadataFilePath(fileName);
     if (!existsSync(file)) {
-      writeFileSync(file, JSON.stringify(fallback, null, 2), 'utf8');
+      this.writeJsonAtomicSync(file, fallback);
     }
     return this.readJsonFileSync<T[]>(file, fallback);
   }
 
   writeMetadataArraySync<T>(fileName: string, records: T[]) {
     this.ensureStorageSync();
-    writeFileSync(this.metadataFilePath(fileName), JSON.stringify(records, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.metadataFilePath(fileName), records);
   }
 
   readMetadataSync<T>(fileName: string, fallback: T): T {
     this.ensureStorageSync();
     const file = this.metadataFilePath(fileName);
     if (!existsSync(file)) {
-      writeFileSync(file, JSON.stringify(fallback, null, 2), 'utf8');
+      this.writeJsonAtomicSync(file, fallback);
     }
     return this.readJsonFileSync<T>(file, fallback);
   }
 
   writeMetadataSync<T>(fileName: string, value: T) {
     this.ensureStorageSync();
-    writeFileSync(this.metadataFilePath(fileName), JSON.stringify(value, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.metadataFilePath(fileName), value);
   }
 
   writeAuditLogsSync(logs: AuditLog[]) {
     this.ensureStorageSync();
-    writeFileSync(this.auditLogsFile, JSON.stringify(logs, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.auditLogsFile, logs);
   }
 
   writeDocumentsSync(documents: ProductDocument[]) {
     this.ensureStorageSync();
-    writeFileSync(this.documentsFile, JSON.stringify(documents, null, 2), 'utf8');
+    this.writeJsonAtomicSync(this.documentsFile, documents);
   }
 
   async upsertDocument(document: ProductDocument) {
@@ -279,23 +303,14 @@ export class LocalStorageService implements OnModuleInit {
   }
 
   async getStoredFile(storedFileName: string): Promise<StoredFileInfo | undefined> {
-    if (!/^[a-zA-Z0-9._-]+$/.test(storedFileName)) return undefined;
-
-    const absolutePath = resolve(this.uploadsDir, storedFileName);
-    if (!absolutePath.startsWith(this.uploadsDir)) return undefined;
-
-    try {
-      const fileStat = await stat(absolutePath);
-      if (!fileStat.isFile()) return undefined;
-      return {
-        absolutePath,
-        mimeType: mimeTypesByExtension[extname(storedFileName).toLowerCase()] ?? 'application/octet-stream',
-        size: fileStat.size,
-        stream: createReadStream(absolutePath),
-      };
-    } catch {
-      return undefined;
-    }
+    const file = await this.storageService.getObjectStream(storedFileName);
+    if (!file) return undefined;
+    return {
+      absolutePath: resolve(this.uploadsDir, storedFileName),
+      mimeType: file.mimeType,
+      size: file.fileSize,
+      stream: file.stream as ReturnType<typeof createReadStream>,
+    };
   }
 
   private readJsonFileSync<T>(file: string, fallback: T): T {
@@ -311,6 +326,28 @@ export class LocalStorageService implements OnModuleInit {
       throw new Error(`Unsafe metadata file name: ${fileName}`);
     }
     return join(this.metadataDir, fileName);
+  }
+
+  private async writeJsonAtomic(file: string, value: unknown) {
+    await this.writeTextAtomic(file, JSON.stringify(value, null, 2));
+  }
+
+  private writeJsonAtomicSync(file: string, value: unknown) {
+    this.writeTextAtomicSync(file, JSON.stringify(value, null, 2));
+  }
+
+  private async writeTextAtomic(file: string, content: string) {
+    await mkdir(this.tempDir, { recursive: true });
+    const tempFile = join(this.tempDir, `${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
+    await writeFile(tempFile, content, 'utf8');
+    await rename(tempFile, file);
+  }
+
+  private writeTextAtomicSync(file: string, content: string) {
+    mkdirSync(this.tempDir, { recursive: true });
+    const tempFile = join(this.tempDir, `${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
+    writeFileSync(tempFile, content, 'utf8');
+    renameSync(tempFile, file);
   }
 
   private emptyImportedBusinessDataObject(): ImportedBusinessDataSnapshot {

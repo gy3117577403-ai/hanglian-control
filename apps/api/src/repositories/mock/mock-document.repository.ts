@@ -85,9 +85,10 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
 
   createDocument(payload: CreateUploadedDocumentPayload): ProductDocument {
     const now = new Date().toISOString();
+    const documentIdValue = payload.documentId ?? `UPDOC-${Date.now()}-${randomUUID()}`;
     const document: ProductDocument = {
-      id: `UPDOC-${randomUUID()}`,
-      documentId: `UPDOC-${Date.now()}-${randomUUID()}`,
+      id: documentIdValue,
+      documentId: documentIdValue,
       productId: payload.productId,
       planId: payload.planId,
       type: legacyDocumentTypeMap[payload.documentType],
@@ -108,6 +109,10 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       localMockLabel: labelForDocument(payload.documentType),
       originalFileName: payload.originalFileName,
       storedFileName: payload.storedFileName,
+      storageProvider: payload.storageProvider ?? 'local',
+      storageKey: payload.storageKey ?? payload.storedFileName,
+      checksumSha256: payload.checksumSha256,
+      previewMode: payload.previewMode ?? 'proxy',
       mimeType: payload.mimeType,
       fileSize: payload.fileSize,
       previewUrl: payload.previewUrl,

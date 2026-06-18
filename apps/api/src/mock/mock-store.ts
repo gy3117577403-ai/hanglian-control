@@ -35,6 +35,16 @@ function clone<T>(value: T): T {
 }
 
 function importedBusinessDataPath() {
+  const metadataRoot = process.env.METADATA_ROOT?.trim();
+  if (metadataRoot) {
+    const configured = resolve(process.cwd(), metadataRoot, 'imported-business-data.json');
+    if (existsSync(configured)) return configured;
+  }
+  const storageRoot = process.env.STORAGE_ROOT?.trim();
+  if (storageRoot) {
+    const configured = resolve(process.cwd(), storageRoot, 'metadata', 'imported-business-data.json');
+    if (existsSync(configured)) return configured;
+  }
   const cwdStorage = resolve(process.cwd(), 'storage', 'metadata', 'imported-business-data.json');
   if (existsSync(cwdStorage)) return cwdStorage;
   return resolve(process.cwd(), 'apps', 'api', 'storage', 'metadata', 'imported-business-data.json');

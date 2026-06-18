@@ -15,6 +15,17 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV API_PREFIX=api
+ENV FILE_STORAGE_PROVIDER=local
+ENV STORAGE_ROOT=/data/hanglian
+ENV METADATA_ROOT=/data/hanglian/metadata
+ENV STORAGE_TEMP_ROOT=/data/hanglian/tmp
+ENV STORAGE_MAX_FILE_SIZE_MB=30
+ENV STORAGE_URL_MODE=proxy
+ENV RUN_PRISMA_MIGRATE_DEPLOY=false
+ENV ALLOW_PRISMA_WRITE=false
+ENV ALLOW_DESTRUCTIVE_DB_ACTIONS=false
+
+RUN mkdir -p /data/hanglian/uploads /data/hanglian/metadata /data/hanglian/tmp
 
 EXPOSE 3000
 

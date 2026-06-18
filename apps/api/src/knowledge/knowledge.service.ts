@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import { shouldLoadDemoBusinessData } from '../config/mock-data-mode';
 import { mockStore } from '../mock/production.mock';
@@ -39,7 +39,10 @@ const abnormalStatuses = ['active', 'pending_review', 'closed'] as const;
 const qualityStatuses = ['effective', 'pending_review', 'expired'] as const;
 
 function knowledgeStorageFile(fileName: string) {
-  return join(resolve(process.cwd(), 'storage', 'metadata'), fileName);
+  const metadataRoot = process.env.METADATA_ROOT?.trim();
+  if (metadataRoot) return join(resolve(process.cwd(), metadataRoot), fileName);
+  const storageRoot = process.env.STORAGE_ROOT?.trim() || './storage';
+  return join(resolve(process.cwd(), storageRoot), 'metadata', fileName);
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -51,8 +54,11 @@ function readJson<T>(file: string, fallback: T): T {
 }
 
 function writeJson<T>(file: string, value: T) {
-  mkdirSync(resolve(process.cwd(), 'storage', 'metadata'), { recursive: true });
-  writeFileSync(file, JSON.stringify(value, null, 2), 'utf8');
+  const directory = dirname(file);
+  mkdirSync(directory, { recursive: true });
+  const tempFile = join(directory, `.tmp-${Date.now()}-${randomUUID()}.json`);
+  writeFileSync(tempFile, JSON.stringify(value, null, 2), 'utf8');
+  renameSync(tempFile, file);
 }
 
 function operatorFrom(value?: KnowledgeOperator) {

@@ -342,3 +342,20 @@ Release Notes：`docs/release-notes-v2.7.md`
 Sealos gap analysis：`docs/sealos-gap-analysis-v2.7.md`
 
 当前仍为 Mock / 本地 metadata 演示版，未接 Sealos、企业微信微盘、企业微信登录或真实语音。
+## V3.10 storage cloud alignment
+
+V3.10 adds a backend storage adapter layer. Uploaded files now go through `StorageService` with local storage as the default provider. S3/Object Storage support is prepared but disabled until a real provider is selected.
+
+- Current default: `FILE_STORAGE_PROVIDER=local`.
+- Future Sealos volume target: `/data/hanglian`.
+- New safe status endpoint: `GET /api/storage/status`.
+- New document routes: `/api/files/documents/:documentId/preview` and `/api/files/documents/:documentId/download`.
+- Database, Sealos PostgreSQL, WeCom Drive, and real voice integration remain paused.
+
+Useful local checks:
+
+```bash
+npm run storage-flow:check
+npm run cloud-alignment:check
+npm run storage:legacy-scan
+```

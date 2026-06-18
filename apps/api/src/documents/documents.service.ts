@@ -1,11 +1,11 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { extname, resolve } from 'node:path';
-import { stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import type { MockUser } from '../auth/mock-users';
 import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
 import type { DocumentStatus } from '../common/enums/production.enum';
-import { LocalStorageService } from '../storage/local-storage.service';
+import { StorageService } from '../storage/storage.service';
 import type { ProductDocument } from '../common/types/production.types';
 import type { DocumentRepositoryInterface } from '../repositories/interfaces/document.repository.interface';
 import type { CompareDocumentsDto } from './dto/compare-documents.dto';
@@ -122,7 +122,7 @@ export class DocumentsService {
   constructor(
     @Inject(REPOSITORY_TOKENS.document)
     private readonly documentRepository: DocumentRepositoryInterface,
-    private readonly localStorageService: LocalStorageService,
+    private readonly storageService: StorageService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -152,7 +152,7 @@ export class DocumentsService {
       planId: query.planId,
       productId: query.productId,
     });
-    const uploadsDir = this.localStorageService.getUploadsDir();
+    const storageStatus = this.storageService.getSafeStatus();
     const duplicateGroups = new Map<string, ProductDocument[]>();
 
     for (const document of documents) {
@@ -162,13 +162,14 @@ export class DocumentsService {
     }
 
     const items = await Promise.all(documents.map(async (document) => {
-      const hasStoredFile = Boolean(document.storedFileName);
+      const hasStoredFile = Boolean(document.storedFileName || document.storageKey);
       const status = rawStatus(document);
       const key = document.versionGroupKey ?? versionGroupKey(document);
       const duplicateKey = `${key}::${document.version}`;
       const duplicateVersionWarning = (duplicateGroups.get(duplicateKey)?.length ?? 0) > 1
         ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。'
         : undefined;
+      const documentStorage = this.storageService.resolveDocumentStorage(document);
       let fileExists = false;
       let healthStatus: FileHealthStatus = 'demo';
 
@@ -177,19 +178,13 @@ export class DocumentsService {
           healthStatus = 'demo';
         } else if (!previewableMimeTypes.has(document.mimeType ?? '')) {
           healthStatus = 'unsupported';
-        } else if (!hasStoredFile) {
+        } else if (!hasStoredFile || !documentStorage.storageKey) {
           healthStatus = 'missing_file';
         } else {
-          const absolutePath = resolve(uploadsDir, document.storedFileName ?? '');
-          if (!absolutePath.startsWith(uploadsDir)) {
-            healthStatus = 'missing_file';
-          } else {
-            const fileStat = await stat(absolutePath);
-            fileExists = fileStat.isFile();
-            healthStatus = !fileExists
-              ? 'missing_file'
-              : (!document.previewUrl || !document.previewType ? 'broken' : 'ok');
-          }
+          fileExists = await this.storageService.documentObjectExists(document);
+          healthStatus = !fileExists
+            ? 'missing_file'
+            : (!document.previewUrl || !document.previewType ? 'broken' : 'ok');
         }
       } catch {
         healthStatus = hasStoredFile ? 'missing_file' : 'demo';
@@ -202,6 +197,12 @@ export class DocumentsService {
         documentType: document.documentType,
         version: document.version,
         versionGroupKey: key,
+        storageProvider: documentStorage.provider,
+        storageKeyPresent: Boolean(documentStorage.storageKey),
+        legacyStorageRecord: documentStorage.legacyRecord,
+        previewMode: document.previewMode ?? (documentStorage.provider === 's3' ? 'signed-url' : 'proxy'),
+        checksumAvailable: Boolean(document.checksumSha256),
+        s3ConfigurationReady: storageStatus.s3Configured,
         source: document.source,
         previewType: document.previewType,
         hasStoredFile,
@@ -231,6 +232,8 @@ export class DocumentsService {
         productId: query.productId,
       },
       summary: {
+        storageProvider: storageStatus.provider,
+        storageConfigured: storageStatus.provider === 'local' ? storageStatus.localReady : storageStatus.s3Configured,
         totalDocuments: items.length,
         uploadedDocuments: items.filter((item) => item.source === 'manual_upload').length,
         mockDocuments: items.filter((item) => item.source === 'mock').length,
@@ -273,9 +276,24 @@ export class DocumentsService {
       ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。'
       : undefined;
 
-    const storedFileName = await this.localStorageService.saveFile(file);
-    const apiPrefix = process.env.API_PREFIX ?? 'api';
+    const documentId = `UPDOC-${Date.now()}-${randomUUID()}`;
+    const stored = await this.storageService.putObject({
+      originalFileName: file.originalname,
+      mimeType: file.mimetype,
+      buffer: file.buffer,
+      fileSize: file.size,
+      prefix: 'documents',
+      metadata: {
+        productId: dto.productId,
+        planId: dto.planId,
+        documentType: dto.documentType,
+        version: dto.version.trim(),
+      },
+    });
+    const previewUrl = await this.storageService.createPreviewUrl(stored.storageKey, documentId);
+    const downloadUrl = await this.storageService.createDownloadUrl(stored.storageKey, documentId, file.originalname);
     const document = await this.documentRepository.createDocument({
+      documentId,
       productId: dto.productId,
       planId: dto.planId,
       documentType: dto.documentType,
@@ -286,12 +304,16 @@ export class DocumentsService {
       keywords: parseKeywords(dto.keywords),
       remark: dto.remark,
       originalFileName: file.originalname,
-      storedFileName,
+      storedFileName: stored.storedFileName,
+      storageProvider: stored.provider,
+      storageKey: stored.storageKey,
+      checksumSha256: stored.checksumSha256,
+      previewMode: stored.previewMode,
       mimeType: file.mimetype,
       fileSize: file.size,
       previewType: previewTypeFor(file.mimetype),
-      previewUrl: `/${apiPrefix}/files/${storedFileName}`,
-      downloadUrl: `/${apiPrefix}/files/${storedFileName}`,
+      previewUrl,
+      downloadUrl,
     });
     document.duplicateVersionWarning = duplicateVersionWarning;
     document.recommendedAction = '如需用于生产，请确认版本状态为当前有效。';

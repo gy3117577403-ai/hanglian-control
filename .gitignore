@@ -40,6 +40,7 @@ docs/generated/tmp-browser-*.log
 
 # Local storage and uploaded documents
 apps/api/storage/uploads/*
+apps/api/storage/tmp/*
 apps/api/storage/metadata/documents.json
 apps/api/storage/metadata/audit-logs.json
 apps/api/storage/metadata/import-records.json
@@ -70,6 +71,7 @@ apps/api/storage/metadata/prisma-migration-preview.sql
 
 # Keep empty directories
 !apps/api/storage/uploads/.gitkeep
+!apps/api/storage/tmp/.gitkeep
 !apps/api/storage/metadata/.gitkeep
 
 # Logs and temporary files

@@ -9,6 +9,18 @@ const startupRevision = 'schema-isolation-v7';
 
 console.log(`Hanglian cloud startup revision: ${startupRevision}`);
 
+process.env.HOST ??= '0.0.0.0';
+process.env.PORT ??= '3000';
+process.env.API_PREFIX ??= 'api';
+process.env.FILE_STORAGE_PROVIDER ??= 'local';
+process.env.STORAGE_ROOT ??= '/data/hanglian';
+process.env.METADATA_ROOT ??= '/data/hanglian/metadata';
+process.env.STORAGE_TEMP_ROOT ??= '/data/hanglian/tmp';
+process.env.STORAGE_URL_MODE ??= 'proxy';
+process.env.RUN_PRISMA_MIGRATE_DEPLOY ??= 'false';
+process.env.ALLOW_PRISMA_WRITE ??= 'false';
+process.env.ALLOW_DESTRUCTIVE_DB_ACTIONS ??= 'false';
+
 function isTrue(value) {
   return String(value ?? '').toLowerCase() === 'true';
 }

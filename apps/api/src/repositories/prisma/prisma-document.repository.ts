@@ -147,6 +147,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     });
     const row = await this.prisma.client.productDocument.create({
       data: {
+        ...(payload.documentId ? { id: payload.documentId } : {}),
         productId: payload.productId,
         productionPlanId: payload.planId,
         documentType: apiDocumentTypeToPrisma(payload.documentType),
@@ -163,8 +164,9 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
         fileSize: payload.fileSize,
         previewUrl: payload.previewUrl,
         downloadUrl: payload.downloadUrl,
-        storageProvider: 'local',
-        storageKey: payload.storedFileName,
+        storageProvider: payload.storageProvider ?? 'local',
+        storageKey: payload.storageKey ?? payload.storedFileName,
+        checksum: payload.checksumSha256,
         mockPreviewText: payload.remark ?? `本地上传 ${payload.title}`,
         keywords: payload.keywords,
         remark: payload.remark,

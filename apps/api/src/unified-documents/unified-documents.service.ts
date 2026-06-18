@@ -7,6 +7,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { mockStore } from '../mock/production.mock';
 import { LocalStorageService } from '../storage/local-storage.service';
+import { StorageService } from '../storage/storage.service';
 import type { BulkDeleteDto, DeleteItemDto } from './dto/delete-item.dto';
 import type { BulkPurgeDto, PurgeItemDto } from './dto/purge-item.dto';
 import type { BulkRestoreDto, RestoreItemDto } from './dto/restore-item.dto';
@@ -14,7 +15,6 @@ import type { UnifiedSearchDto } from './dto/unified-search.dto';
 import type { UnifiedUploadDto } from './dto/unified-upload.dto';
 import type { UpdateUnifiedItemDto } from './dto/update-unified-item.dto';
 import { DeleteLockService } from './helpers/delete-lock.service';
-import { safeDeleteUploadedFile } from './helpers/safe-delete';
 import {
   documentId,
   matchKeyword,
@@ -62,6 +62,7 @@ export class UnifiedDocumentsService {
     private readonly documentsService: DocumentsService,
     private readonly knowledgeService: KnowledgeService,
     private readonly localStorageService: LocalStorageService,
+    private readonly storageService: StorageService,
     private readonly auditService: AuditService,
     private readonly deleteLockService: DeleteLockService,
   ) {}
@@ -221,7 +222,7 @@ export class UnifiedDocumentsService {
       throw new NotFoundException('未找到可彻底删除的本地上传资料。');
     }
     this.localStorageService.writeDocumentsSync(nextDocuments);
-    const fileResult = safeDeleteUploadedFile(this.localStorageService.getUploadsDir(), String(document.storedFileName ?? ''));
+    const fileResult = await this.storageService.deleteDocumentObject(document);
     await this.record('document', id, dto.reason ?? '统一资料中心彻底删除资料', document, { purged: true, fileResult });
     return {
       success: true,
@@ -312,7 +313,7 @@ export class UnifiedDocumentsService {
     const document = this.findStoredDocument(id);
     const documents = this.localStorageService.readDocumentsSync() as MutableDocument[];
     this.localStorageService.writeDocumentsSync(documents.filter((item) => documentId(item) !== id));
-    const fileResult = safeDeleteUploadedFile(this.localStorageService.getUploadsDir(), String(document.storedFileName ?? ''));
+    const fileResult = await this.storageService.deleteDocumentObject(document);
     await this.record('document', id, reason ?? '统一资料中心批量彻底删除资料', document, { purged: true, fileResult });
     return { success: true, id, fileResult };
   }

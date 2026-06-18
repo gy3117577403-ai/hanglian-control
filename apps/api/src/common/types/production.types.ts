@@ -140,6 +140,10 @@ export interface ProductDocument {
   localMockLabel: string;
   originalFileName?: string;
   storedFileName?: string;
+  storageProvider?: 'local' | 's3';
+  storageKey?: string;
+  checksumSha256?: string;
+  previewMode?: 'proxy' | 'signed-url';
   mimeType?: string;
   fileSize?: number;
   previewUrl?: string;
@@ -231,6 +235,7 @@ export interface DocumentQuery {
 }
 
 export interface CreateUploadedDocumentPayload {
+  documentId?: string;
   productId: string;
   planId?: string;
   documentType: DocumentTypeV03;
@@ -242,6 +247,10 @@ export interface CreateUploadedDocumentPayload {
   remark?: string;
   originalFileName: string;
   storedFileName: string;
+  storageProvider?: 'local' | 's3';
+  storageKey?: string;
+  checksumSha256?: string;
+  previewMode?: 'proxy' | 'signed-url';
   mimeType: string;
   fileSize: number;
   previewType: PreviewType;

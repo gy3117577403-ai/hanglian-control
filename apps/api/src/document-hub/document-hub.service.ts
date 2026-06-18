@@ -5,9 +5,9 @@ import type { DocumentTypeV03, RequiredProcess } from '../common/enums/productio
 import type { ProductDocument } from '../common/types/production.types';
 import { DocumentsService } from '../documents/documents.service';
 import { LocalStorageService } from '../storage/local-storage.service';
+import { StorageService } from '../storage/storage.service';
 import type { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
 import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
-import { safeDeleteUploadedFile } from '../unified-documents/helpers/safe-delete';
 import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
@@ -245,6 +245,7 @@ export class DocumentHubService {
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly localStorageService: LocalStorageService,
+    private readonly storageService: StorageService,
     private readonly deleteLockService: DeleteLockService,
   ) {}
 
@@ -364,7 +365,7 @@ export class DocumentHubService {
 
     documents.splice(index, 1);
     this.localStorageService.writeDocumentsSync(documents);
-    const fileResult = safeDeleteUploadedFile(this.localStorageService.getUploadsDir(), document.storedFileName);
+    const fileResult = await this.storageService.deleteDocumentObject(document);
     const detail = await this.getProduct(productId);
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
     return {
