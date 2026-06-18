@@ -45,7 +45,6 @@ function statusClass(status?: string) {
   <div class="connector-board">
     <div class="board-labels" aria-hidden="true">
       <span>连接器型号</span>
-      <span>规格</span>
       <span>入长</span>
       <span>外剥长度</span>
       <span>内剥长度</span>
@@ -64,13 +63,9 @@ function statusClass(status?: string) {
       <section class="model-cell">
         <i><Cable :size="21" /></i>
         <div>
-          <b>{{ row.connectorModel }}</b>
+          <b :title="row.connectorModel">{{ row.connectorModel }}</b>
           <small :class="statusClass(row.status)">{{ row.status || '启用' }}</small>
         </div>
-      </section>
-
-      <section class="spec-cell">
-        <span>{{ row.specification || '' }}</span>
       </section>
 
       <section class="metric-card">
@@ -116,7 +111,7 @@ function statusClass(status?: string) {
 .connector-board {
   display: grid;
   gap: 9px;
-  min-width: 960px;
+  min-width: 900px;
 }
 
 .board-labels {
@@ -124,7 +119,7 @@ function statusClass(status?: string) {
   top: 0;
   z-index: 8;
   display: grid;
-  grid-template-columns: 1.18fr 1fr 0.62fr 0.7fr 0.7fr 1.1fr 126px;
+  grid-template-columns: minmax(260px, 1.52fr) 0.58fr 0.64fr 0.64fr minmax(180px, 1fr) 116px;
   gap: 10px;
   align-items: center;
   min-height: 42px;
@@ -151,7 +146,7 @@ function statusClass(status?: string) {
 .parameter-row {
   position: relative;
   display: grid;
-  grid-template-columns: 1.18fr 1fr 0.62fr 0.7fr 0.7fr 1.1fr 126px;
+  grid-template-columns: minmax(260px, 1.52fr) 0.58fr 0.64fr 0.64fr minmax(180px, 1fr) 116px;
   gap: 10px;
   align-items: stretch;
   width: 100%;
@@ -195,7 +190,6 @@ function statusClass(status?: string) {
 }
 
 .model-cell,
-.spec-cell,
 .metric-card,
 .remark-cell {
   min-width: 0;
@@ -217,6 +211,10 @@ function statusClass(status?: string) {
   padding: 12px;
 }
 
+.model-cell > div {
+  min-width: 0;
+}
+
 .model-cell i {
   display: grid;
   flex: 0 0 44px;
@@ -232,14 +230,16 @@ function statusClass(status?: string) {
 }
 
 .model-cell b {
-  display: block;
+  display: -webkit-box;
   overflow: hidden;
   color: #2f1d0f;
   font-size: 19px;
   font-weight: 950;
   letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .model-cell small {
@@ -263,7 +263,6 @@ function statusClass(status?: string) {
   color: rgba(72, 62, 52, 0.74);
 }
 
-.spec-cell,
 .remark-cell {
   display: flex;
   align-items: center;
@@ -274,7 +273,6 @@ function statusClass(status?: string) {
   line-height: 1.35;
 }
 
-.spec-cell span,
 .remark-cell span {
   display: -webkit-box;
   overflow: hidden;
@@ -376,12 +374,12 @@ function statusClass(status?: string) {
 
 @media (max-width: 1180px) {
   .connector-board {
-    min-width: 860px;
+    min-width: 820px;
   }
 
   .board-labels,
   .parameter-row {
-    grid-template-columns: 1.08fr 0.92fr 0.58fr 0.66fr 0.66fr 0.92fr 112px;
+    grid-template-columns: minmax(230px, 1.4fr) 0.56fr 0.62fr 0.62fr minmax(150px, 0.84fr) 102px;
   }
 
   .model-cell b {

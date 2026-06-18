@@ -18,7 +18,6 @@ const pendingImportFile = ref<File | null>(null)
 
 const form = reactive({
   connectorModel: '',
-  specification: '',
   insertionLengthMm: '',
   outerStripLengthMm: '',
   innerStripLengthMm: '',
@@ -67,7 +66,6 @@ function optionalNumber(value: string) {
 function resetForm() {
   editingId.value = null
   form.connectorModel = ''
-  form.specification = ''
   form.insertionLengthMm = ''
   form.outerStripLengthMm = ''
   form.innerStripLengthMm = ''
@@ -83,7 +81,6 @@ function openCreate() {
 function openEdit(row: ConnectorParameter) {
   editingId.value = row.connectorId
   form.connectorModel = row.connectorModel
-  form.specification = row.specification ?? ''
   form.insertionLengthMm = String(row.insertionLengthMm ?? '')
   form.outerStripLengthMm = String(row.outerStripLengthMm ?? '')
   form.innerStripLengthMm = String(row.innerStripLengthMm ?? '')
@@ -95,7 +92,7 @@ function openEdit(row: ConnectorParameter) {
 function toPayload(): ConnectorParameterPayload {
   return {
     connectorModel: form.connectorModel,
-    specification: form.specification,
+    specification: '',
     insertionLengthMm: Number(form.insertionLengthMm),
     outerStripLengthMm: optionalNumber(form.outerStripLengthMm),
     innerStripLengthMm: Number(form.innerStripLengthMm),
@@ -132,9 +129,9 @@ function triggerImport() {
 
 function downloadConnectorTemplate() {
   const rows = [
-    ['型号', '规格', '入长mm', '外剥皮mm', '内剥皮mm', '备注'],
-    ['PL182X-301-50', '50P 插件端', '65', '26.5', '17.5', '外剥可留空'],
-    ['HVC2PG80FS150', '150 规格', '65', '', '15.5', '无外剥参数时留空'],
+    ['型号', '入长mm', '外剥皮mm', '内剥皮mm', '备注'],
+    ['PL182X-301-50', '65', '26.5', '17.5', '外剥可留空'],
+    ['HVC2PG80FS150', '65', '', '15.5', '无外剥参数时留空'],
   ]
   const lines = rows.map((row) => row.map((value) => `"${value.replace(/"/g, '""')}"`).join(','))
   const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
@@ -177,13 +174,12 @@ function downloadImportReport() {
   const result = store.connectorImportResult
   if (!result) return
   const issueRows = result.rows.filter((row) => !row.valid)
-  const header = ['行号', '型号', '规格', '处理状态', '问题', '建议']
+  const header = ['行号', '型号', '处理状态', '问题', '建议']
   const lines = [
     header.join(','),
     ...issueRows.map((row) => [
       row.rowNumber,
       row.connectorModel,
-      row.specification ?? '',
       actionLabels[row.action] ?? row.action,
       row.message,
       row.resolution ?? row.issues?.map((issue) => issue.resolution).join('；') ?? '',
@@ -209,7 +205,7 @@ function downloadImportReport() {
         <div>
           <p>连接器数据库参数</p>
           <h2>连接器工艺参数库</h2>
-          <small>外剥可留空，错误行自动跳过并给出报告</small>
+          <small>表头：连接器型号、入长、外剥长度、内剥长度、备注；外剥可留空</small>
         </div>
       </div>
 
@@ -260,11 +256,6 @@ function downloadImportReport() {
         <label class="field full">
           <span>连接器型号</span>
           <PrimeInputText v-model="form.connectorModel" placeholder="例如 CONN-16P-A" />
-        </label>
-
-        <label class="field full">
-          <span>规格</span>
-          <PrimeInputText v-model="form.specification" placeholder="例如 16P 防水公端 / 白色母端 / 滑锁结构" />
         </label>
 
         <label class="field">
@@ -347,7 +338,6 @@ function downloadImportReport() {
           <div v-for="row in importPreviewRows" :key="row.rowNumber" class="result-row" :class="{ invalid: !row.valid }">
             <span>第 {{ row.rowNumber }} 行</span>
             <b>{{ row.connectorModel }}</b>
-            <small>{{ row.specification || '' }}</small>
             <strong>{{ row.message }}</strong>
             <small>{{ row.resolution || row.issues?.map((issue) => issue.resolution).join('；') || '' }}</small>
             <em>{{ actionLabels[row.action] ?? row.action }}</em>
@@ -363,7 +353,7 @@ function downloadImportReport() {
         <p>{{ store.connectorImportError }}</p>
         <ul>
           <li>确认后端 API 已启动，前端能访问上传接口。</li>
-          <li>Excel 第一行必须包含：型号、入长mm、内剥皮mm；外剥皮mm、规格、备注可选。</li>
+          <li>Excel 第一行必须包含：型号、入长mm、内剥皮mm；外剥皮mm、备注可选。</li>
           <li>长度列只填数字或小数；“参照图号”等说明请放到备注列。</li>
         </ul>
       </div>
@@ -689,7 +679,7 @@ small {
 
 .result-row {
   display: grid;
-  grid-template-columns: 84px 1fr 1fr 1.4fr 1.6fr 70px;
+  grid-template-columns: 84px 1.2fr 1.4fr 1.8fr 70px;
   gap: 10px;
   align-items: center;
   min-height: 44px;
@@ -785,10 +775,10 @@ small {
   }
 
   .result-row {
-    grid-template-columns: 74px 1fr 1fr 1.3fr 64px;
+    grid-template-columns: 74px 1.1fr 1.4fr 64px;
   }
 
-  .result-row small:nth-of-type(2) {
+  .result-row small {
     display: none;
   }
 }

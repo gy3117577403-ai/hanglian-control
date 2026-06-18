@@ -42,10 +42,6 @@ async function saveRemark() {
       </section>
 
       <div class="detail-grid">
-        <div class="full">
-          <span>规格</span>
-          <b>{{ store.selectedConnector.specification || '' }}</b>
-        </div>
         <div>
           <span>参数 1：入长</span>
           <b>{{ formatMm(store.selectedConnector.insertionLengthMm) }}</b>

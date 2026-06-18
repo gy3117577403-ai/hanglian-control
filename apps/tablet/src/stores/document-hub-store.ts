@@ -66,9 +66,7 @@ const connectorStatusRank: Record<string, number> = {
 function compareConnectors(a: ConnectorParameter, b: ConnectorParameter) {
   const statusDiff = (connectorStatusRank[a.status ?? ''] ?? 9) - (connectorStatusRank[b.status ?? ''] ?? 9)
   if (statusDiff) return statusDiff
-  const modelDiff = a.connectorModel.localeCompare(b.connectorModel, 'zh-Hans-CN', { numeric: true })
-  if (modelDiff) return modelDiff
-  return (a.specification ?? '').localeCompare(b.specification ?? '', 'zh-Hans-CN', { numeric: true })
+  return a.connectorModel.localeCompare(b.connectorModel, 'zh-Hans-CN', { numeric: true })
 }
 
 function sortConnectors(rows: ConnectorParameter[]) {
@@ -101,7 +99,6 @@ function connectorMatchesKeyword(item: ConnectorParameter, keyword: string) {
   if (connectorFieldSearch(item, normalizedKeyword)) return true
   return [
     item.connectorModel,
-    item.specification,
     item.insertionLengthMm,
     item.outerStripLengthMm,
     item.innerStripLengthMm,
@@ -207,7 +204,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   let productDetailRequestId = 0
 
   const currentSearchPlaceholder = computed(() => {
-    if (activeMode.value === 'connector') return '搜索连接器型号、规格、入长、外剥长度、内剥长度、备注；外剥可为空'
+    if (activeMode.value === 'connector') return '搜索连接器型号、入长、外剥长度、内剥长度、备注；外剥可为空'
     if (activeMode.value === 'fixture') return '搜索治具编号、治具名称、工位、适用产品'
     return '搜索客户、产品型号、图纸、SOP、成品图'
   })
@@ -594,13 +591,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       toast.error('外剥长度可以留空；如果填写，必须是有效数字')
       return false
     }
-    const normalizedSpec = normalized.specification?.toLowerCase() ?? ''
     const duplicatedModel = [...localConnectors.value, ...connectorRows.value]
       .some((item) => {
         if (item.connectorId === connectorId) return false
-        const itemSpec = item.specification?.toLowerCase() ?? ''
         return item.connectorModel.toLowerCase() === normalized.connectorModel.toLowerCase()
-          && (!itemSpec || !normalizedSpec || itemSpec === normalizedSpec)
       })
     if (duplicatedModel) {
       toast.warning('连接器型号已存在', { description: '请编辑原记录，或在 Excel 导入时选择跳过/覆盖重复。' })

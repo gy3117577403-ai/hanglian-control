@@ -160,20 +160,8 @@ function parseLengthCell(
   return { value: numberValue };
 }
 
-function connectorSpecsOverlap(left?: string, right?: string) {
-  const leftSpec = (left ?? '').trim().toLowerCase();
-  const rightSpec = (right ?? '').trim().toLowerCase();
-  return !leftSpec || !rightSpec || leftSpec === rightSpec;
-}
-
-function connectorsOverlap(
-  leftModel: string,
-  leftSpecification: string | undefined,
-  rightModel: string,
-  rightSpecification: string | undefined,
-) {
-  return leftModel.trim().toLowerCase() === rightModel.trim().toLowerCase()
-    && connectorSpecsOverlap(leftSpecification, rightSpecification);
+function connectorsOverlap(leftModel: string, rightModel: string) {
+  return leftModel.trim().toLowerCase() === rightModel.trim().toLowerCase();
 }
 
 const connectorStatusRank: Record<string, number> = {
@@ -185,9 +173,7 @@ const connectorStatusRank: Record<string, number> = {
 function compareConnectors(left: ConnectorParameter, right: ConnectorParameter) {
   const statusDiff = (connectorStatusRank[left.status ?? ''] ?? 9) - (connectorStatusRank[right.status ?? ''] ?? 9);
   if (statusDiff) return statusDiff;
-  const modelDiff = left.connectorModel.localeCompare(right.connectorModel, 'zh-Hans-CN', { numeric: true });
-  if (modelDiff) return modelDiff;
-  return (left.specification ?? '').localeCompare(right.specification ?? '', 'zh-Hans-CN', { numeric: true });
+  return left.connectorModel.localeCompare(right.connectorModel, 'zh-Hans-CN', { numeric: true });
 }
 
 function connectorFieldSearch(item: ConnectorParameter, normalizedKeyword: string) {
@@ -216,7 +202,6 @@ function connectorMatchesKeyword(item: ConnectorParameter, q: string) {
   if (connectorFieldSearch(item, normalizedKeyword)) return true;
   return [
     item.connectorModel,
-    item.specification,
     item.insertionLengthMm,
     item.outerStripLengthMm,
     item.innerStripLengthMm,
@@ -409,8 +394,8 @@ export class DocumentHubService {
   createConnector(dto: CreateConnectorParameterDto) {
     const connectorModel = dto.connectorModel.trim();
     if (!connectorModel) throw new BadRequestException('Connector model is required.');
-    const specification = dto.specification?.trim() ?? '';
-    if (this.connectors.some((item) => connectorsOverlap(item.connectorModel, item.specification, connectorModel, specification))) {
+    const specification = '';
+    if (this.connectors.some((item) => connectorsOverlap(item.connectorModel, connectorModel))) {
       throw new BadRequestException('Connector model already exists.');
     }
     const connector: ConnectorParameter = {
@@ -433,14 +418,9 @@ export class DocumentHubService {
     if (!connector) throw new NotFoundException('Connector parameter not found.');
     if (dto.connectorModel !== undefined || dto.specification !== undefined) {
       const connectorModel = dto.connectorModel?.trim() ?? connector.connectorModel;
-      const specification = dto.specification?.trim() ?? connector.specification ?? '';
+      const specification = '';
       if (!connectorModel) throw new BadRequestException('Connector model is required.');
-      const duplicate = this.connectors.find((item) => item.connectorId !== id && connectorsOverlap(
-        item.connectorModel,
-        item.specification,
-        connectorModel,
-        specification,
-      ));
+      const duplicate = this.connectors.find((item) => item.connectorId !== id && connectorsOverlap(item.connectorModel, connectorModel));
       if (duplicate) throw new BadRequestException('Connector model already exists.');
       connector.connectorModel = connectorModel;
       connector.specification = specification;
@@ -480,7 +460,7 @@ export class DocumentHubService {
     ];
     const missingHeaders = requiredHeaders.filter((item) => !hasConnectorImportHeader(headers, item.aliases));
     if (missingHeaders.length) {
-      throw new BadRequestException(`Excel 表头缺少：${missingHeaders.map((item) => item.label).join('、')}。必填表头：型号、入长mm、内剥皮mm；可选表头：外剥皮mm、规格、备注。`);
+      throw new BadRequestException(`Excel 表头缺少：${missingHeaders.map((item) => item.label).join('、')}。必填表头：型号、入长mm、内剥皮mm；可选表头：外剥皮mm、备注。`);
     }
 
     const parsedRows: ParsedConnectorImportRow[] = [];
@@ -495,7 +475,7 @@ export class DocumentHubService {
       if (![...data.values()].some((value) => value.trim())) continue;
 
       const connectorModel = connectorImportValue(data, connectorImportAliases.connectorModel).trim();
-      const specification = connectorImportValue(data, connectorImportAliases.specification).trim();
+      const specification = '';
       const insertionLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.insertionLengthMm), '入长');
       const outerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.outerStripLengthMm), '外剥皮', { allowBlank: true });
       const innerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.innerStripLengthMm), '内剥皮');
@@ -542,8 +522,8 @@ export class DocumentHubService {
     const duplicateRows: ConnectorImportRowResult[] = [];
 
     for (const row of parsedRows) {
-      const previous = previousRows.find((item) => connectorsOverlap(item.connectorModel, item.specification, row.connectorModel, row.specification));
-      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, item.specification, row.connectorModel, row.specification));
+      const previous = previousRows.find((item) => connectorsOverlap(item.connectorModel, row.connectorModel));
+      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, row.connectorModel));
       if (previous || existing) {
         duplicateRows.push(makeImportRowResult(
           row,
@@ -582,7 +562,7 @@ export class DocumentHubService {
 
     for (const row of parsedRows) {
       const duplicate = duplicateRows.find((item) => item.rowNumber === row.rowNumber);
-      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, item.specification, row.connectorModel, row.specification));
+      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, row.connectorModel));
 
       if (duplicate && duplicateStrategy === 'skip') {
         skippedDuplicateRows += 1;
