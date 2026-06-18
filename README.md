@@ -359,6 +359,19 @@ npm run storage-flow:check
 npm run cloud-alignment:check
 npm run storage:legacy-scan
 ```
+# V3.12 image build validation and deployment dry run
+
+V3.12 prepares GitHub Actions image validation for API and Tablet without deploying to Sealos. The workflow is manual and also limited to push events on `feature/v3-12-image-build-validation`.
+
+Useful checks:
+
+```bash
+npm run image-build:check
+npm run sealos:deploy-dry-run
+```
+
+This stage does not connect to PostgreSQL, does not run migration or seed, does not connect S3, and does not modify Sealos.
+
 # V3.11 Sealos persistent runtime preparation
 
 V3.11 prepares split API and Tablet container deployment while keeping database and S3 integration paused. API runtime defaults to Mock data plus local storage at the future Sealos volume path `/data/hanglian`; Tablet reads its API endpoint from startup-generated `runtime-config.js`; GitHub image builds are manual only.

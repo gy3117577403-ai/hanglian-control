@@ -61,6 +61,8 @@
     "cloud-alignment:check": "node scripts/cloud-alignment-check.mjs",
     "cloud:runtime-preflight": "node scripts/cloud-runtime-preflight.mjs",
     "runtime-config:check": "node scripts/runtime-config-check.mjs",
+    "image-build:check": "node scripts/image-build-config-check.mjs",
+    "sealos:deploy-dry-run": "node scripts/sealos-deploy-dry-run-check.mjs",
     "storage:legacy-scan": "node scripts/storage-legacy-scan.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

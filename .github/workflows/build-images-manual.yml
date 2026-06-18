@@ -1,4 +1,4 @@
-name: Build API and Tablet Images Manually
+name: Build API and Tablet Images
 
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       git_ref:
         description: Git ref to build. Leave empty for the workflow branch.
         required: false
-        default: ''
+        default: ""
       image_tag:
-        description: Extra image tag.
+        description: Extra safe image tag. Do not use latest, production, or stable.
         required: false
-        default: manual
+        default: v3.12-candidate
       build_api:
         description: Build API image.
         required: true
@@ -21,6 +21,17 @@ on:
         required: true
         default: true
         type: boolean
+  push:
+    branches:
+      - feature/v3-12-image-build-validation
+    paths:
+      - "apps/api/**"
+      - "apps/tablet/**"
+      - "Dockerfile.api"
+      - "Dockerfile.tablet"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-images-manual.yml"
 
 permissions:
   contents: read
@@ -28,26 +39,50 @@ permissions:
 
 jobs:
   build-images:
-    name: Build selected images
+    name: Build API and Tablet Images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout selected ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.git_ref || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.git_ref || github.ref }}
 
       - name: Set image metadata
         id: meta
         shell: bash
         run: |
-          short_sha="$(git rev-parse --short HEAD)"
+          full_sha="$(git rev-parse HEAD)"
+          short_sha="$(git rev-parse --short=12 HEAD)"
           owner_lower="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           repo_name="$(basename '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
-          tag="${{ inputs.image_tag }}"
+          extra_tag="${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || 'v3.12-candidate' }}"
+          extra_tag="$(echo "${extra_tag:-v3.12-candidate}" | tr '[:upper:]' '[:lower:]')"
+          case "$extra_tag" in
+            latest|production|stable)
+              echo "Unsafe image tag is not allowed: $extra_tag" >&2
+              exit 1
+              ;;
+          esac
+          echo "full_sha=${full_sha}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/${repo_name}-api" >> "$GITHUB_OUTPUT"
           echo "tablet_image=ghcr.io/${owner_lower}/${repo_name}-tablet" >> "$GITHUB_OUTPUT"
-          echo "tag=${tag:-manual}" >> "$GITHUB_OUTPUT"
+          echo "version_tag=v3.12-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "extra_tag=${extra_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Preflight checks
+        run: |
+          npm run security:check
+          npm run storage-flow:check
+          npm run cloud-alignment:check
+          npm run cloud:runtime-preflight
+          npm run runtime-config:check
+          npm run build
+          npm run check
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -60,23 +95,61 @@ jobs:
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build and push API image
-        if: ${{ inputs.build_api }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_api }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.api
           push: true
+          build-args: |
+            OCI_SOURCE=https://github.com/${{ github.repository }}
+            OCI_REVISION=${{ steps.meta.outputs.full_sha }}
+            OCI_VERSION=${{ steps.meta.outputs.version_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version_tag }}
           tags: |
-            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.tag }}
-            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.short_sha }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.version_tag }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.extra_tag }}
 
       - name: Build and push Tablet image
-        if: ${{ inputs.build_tablet }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_tablet }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.tablet
           push: true
+          build-args: |
+            OCI_SOURCE=https://github.com/${{ github.repository }}
+            OCI_REVISION=${{ steps.meta.outputs.full_sha }}
+            OCI_VERSION=${{ steps.meta.outputs.version_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version_tag }}
           tags: |
-            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.tag }}
-            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.short_sha }}
+            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.version_tag }}
+            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.extra_tag }}
+
+      - name: Write build summary
+        shell: bash
+        run: |
+          {
+            echo "## Hanglian V3.12 image build"
+            echo ""
+            echo "- Git ref: \`${{ github.ref }}\`"
+            echo "- Commit SHA: \`${{ steps.meta.outputs.full_sha }}\`"
+            echo "- API image: \`${{ steps.meta.outputs.api_image }}\`"
+            echo "- API tags: \`${{ steps.meta.outputs.version_tag }}\`, \`${{ steps.meta.outputs.sha_tag }}\`, \`${{ steps.meta.outputs.extra_tag }}\`"
+            echo "- Tablet image: \`${{ steps.meta.outputs.tablet_image }}\`"
+            echo "- Tablet tags: \`${{ steps.meta.outputs.version_tag }}\`, \`${{ steps.meta.outputs.sha_tag }}\`, \`${{ steps.meta.outputs.extra_tag }}\`"
+            echo "- API Dockerfile: \`Dockerfile.api\`"
+            echo "- Tablet Dockerfile: \`Dockerfile.tablet\`"
+            echo "- Database connection: not executed"
+            echo "- Database migration: not executed"
+            echo "- Sealos deployment: not executed"
+            echo "- S3 connection: not executed"
+          } >> "$GITHUB_STEP_SUMMARY"

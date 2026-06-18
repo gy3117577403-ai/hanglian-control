@@ -150,6 +150,19 @@
 - Still paused: Sealos PostgreSQL, database writes, WeCom Drive, real voice.
 - New checks: `storage-flow:check`, `cloud-alignment:check`, `storage:legacy-scan`.
 - Do not run `db:readonly-check`, `prisma migrate`, `prisma db push`, `prisma db seed`, or `prisma:seed:test-db` in this stage.
+# V3.12 image build validation and deployment dry run
+
+- Current branch: `feature/v3-12-image-build-validation`.
+- Purpose: validate API and Tablet image build configuration before any Sealos deployment.
+- V3.11 branch has been pushed as a backup before this branch.
+- Workflow `.github/workflows/build-images-manual.yml` now keeps manual dispatch and only auto-runs on this V3.12 branch.
+- Image tags are SHA-based: `v3.12-<short-sha>`, `sha-<short-sha>`, and optional `v3.12-candidate`.
+- Forbidden image tags: `latest`, `production`, `stable`.
+- Added deployment parameter sheet and existing app diff template for manual Sealos review.
+- Added local compose smoke template, but it is not started in this stage.
+- Added local-only checks: `image-build:check` and `sealos:deploy-dry-run`.
+- Still paused: Sealos app modification, Sealos deployment, PostgreSQL connection, Prisma migration, db push, seed, S3 connection, and WeCom Drive.
+
 # V3.11 Sealos persistent runtime preparation
 
 - Current branch: `feature/v3-11-sealos-persistent-runtime`.

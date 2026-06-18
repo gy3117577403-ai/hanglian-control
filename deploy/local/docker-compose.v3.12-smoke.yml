@@ -1,0 +1,39 @@
+services:
+  api:
+    image: ghcr.io/gy3117577403-ai/hanglian-control-api:v3.12-candidate
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      API_PREFIX: api
+      DATA_SOURCE: mock
+      DEMO_DATA_MODE: empty
+      FILE_STORAGE_PROVIDER: local
+      STORAGE_ROOT: /data/hanglian
+      METADATA_ROOT: /data/hanglian/metadata
+      STORAGE_TEMP_ROOT: /data/hanglian/tmp
+      STORAGE_URL_MODE: proxy
+      CORS_ORIGINS: http://localhost:8080
+      CORS_ALLOW_CREDENTIALS: "false"
+      RUN_PRISMA_MIGRATE_DEPLOY: "false"
+      ALLOW_TEST_DB_CONNECT: "false"
+      ALLOW_PRISMA_WRITE: "false"
+      ALLOW_DESTRUCTIVE_DB_ACTIONS: "false"
+    volumes:
+      - hanglian_v312_data:/data/hanglian
+
+  tablet:
+    image: ghcr.io/gy3117577403-ai/hanglian-control-tablet:v3.12-candidate
+    ports:
+      - "8080:80"
+    environment:
+      RUNTIME_API_BASE_URL: http://localhost:3000/api
+      RUNTIME_APP_ENV: local-smoke
+      RUNTIME_STORAGE_MODE: persistent-volume
+    depends_on:
+      - api
+
+volumes:
+  hanglian_v312_data:
