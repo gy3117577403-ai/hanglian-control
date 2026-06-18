@@ -15,11 +15,20 @@ class S3SafeStatusDto {
 }
 
 export class StorageStatusDto {
+  @ApiProperty({ enum: ['local', 'persistent-volume', 's3'] })
+  mode!: 'local' | 'persistent-volume' | 's3';
+
   @ApiProperty({ enum: ['local', 's3'] })
   provider!: 'local' | 's3';
 
   @ApiProperty()
   configured!: boolean;
+
+  @ApiProperty()
+  persistentVolumeExpected!: boolean;
+
+  @ApiProperty()
+  rootConfigured!: boolean;
 
   @ApiProperty()
   localReady!: boolean;
@@ -41,6 +50,15 @@ export class StorageStatusDto {
 
   @ApiProperty()
   tempDirectoryExists!: boolean;
+
+  @ApiProperty()
+  urlMode!: 'proxy' | 'signed-url';
+
+  @ApiProperty()
+  maxFileSizeMb!: number;
+
+  @ApiProperty()
+  legacyRecords!: number;
 
   @ApiProperty()
   databaseConnected!: false;

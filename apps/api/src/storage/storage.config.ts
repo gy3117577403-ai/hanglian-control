@@ -75,9 +75,13 @@ export class StorageConfigService {
     const s3Ready = this.s3Configured;
     const localReady = existsSync(this.uploadsRoot) && existsSync(this.metadataRoot) && existsSync(this.tempRoot);
     const configured = this.provider === 'local' ? localReady : s3Ready;
+    const persistentVolumeExpected = this.provider === 'local' && this.storageRoot.replaceAll('\\', '/').includes('/data/hanglian');
     return {
+      mode: this.provider === 's3' ? 's3' : persistentVolumeExpected ? 'persistent-volume' : 'local',
       provider: this.provider,
       configured,
+      persistentVolumeExpected,
+      rootConfigured: Boolean(this.storageRoot),
       localReady,
       s3Configured: s3Ready,
       storageRootConfigured: Boolean(this.storageRoot),
@@ -87,6 +91,7 @@ export class StorageConfigService {
       tempDirectoryExists: existsSync(this.tempRoot),
       urlMode: this.provider === 's3' ? 'signed-url' : this.urlMode,
       maxFileSizeMb: this.maxFileSizeMb,
+      legacyRecords: 0,
       s3: {
         endpointConfigured: Boolean(this.s3Endpoint),
         bucketConfigured: Boolean(this.s3Bucket),

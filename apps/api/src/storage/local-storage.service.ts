@@ -58,7 +58,7 @@ export class LocalStorageService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.ensureStorage();
+    await this.ensureStorageDirectories();
   }
 
   getUploadsDir() {
@@ -74,9 +74,7 @@ export class LocalStorageService implements OnModuleInit {
   }
 
   async ensureStorage() {
-    await mkdir(this.uploadsDir, { recursive: true });
-    await mkdir(this.metadataDir, { recursive: true });
-    await mkdir(this.tempDir, { recursive: true });
+    await this.ensureStorageDirectories();
     try {
       await stat(this.documentsFile);
     } catch {
@@ -131,6 +129,12 @@ export class LocalStorageService implements OnModuleInit {
     if (!existsSync(this.maintenanceRecordsFile)) {
       this.writeTextAtomicSync(this.maintenanceRecordsFile, '[]');
     }
+  }
+
+  async ensureStorageDirectories() {
+    await mkdir(this.uploadsDir, { recursive: true });
+    await mkdir(this.metadataDir, { recursive: true });
+    await mkdir(this.tempDir, { recursive: true });
   }
 
   safeStoredFileName(originalName: string, mimeType: string) {

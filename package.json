@@ -59,6 +59,8 @@
     "real-data:cleanup:all-local": "node scripts/real-data-test-cleanup.mjs --apply --all-local",
     "storage-flow:check": "node scripts/storage-flow-check.mjs",
     "cloud-alignment:check": "node scripts/cloud-alignment-check.mjs",
+    "cloud:runtime-preflight": "node scripts/cloud-runtime-preflight.mjs",
+    "runtime-config:check": "node scripts/runtime-config-check.mjs",
     "storage:legacy-scan": "node scripts/storage-legacy-scan.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

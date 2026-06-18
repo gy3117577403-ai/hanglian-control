@@ -12,14 +12,22 @@ console.log(`Hanglian cloud startup revision: ${startupRevision}`);
 process.env.HOST ??= '0.0.0.0';
 process.env.PORT ??= '3000';
 process.env.API_PREFIX ??= 'api';
+process.env.DATA_SOURCE ??= 'mock';
+process.env.DEMO_DATA_MODE ??= 'empty';
 process.env.FILE_STORAGE_PROVIDER ??= 'local';
 process.env.STORAGE_ROOT ??= '/data/hanglian';
 process.env.METADATA_ROOT ??= '/data/hanglian/metadata';
 process.env.STORAGE_TEMP_ROOT ??= '/data/hanglian/tmp';
 process.env.STORAGE_URL_MODE ??= 'proxy';
+process.env.CORS_ALLOW_CREDENTIALS ??= 'false';
 process.env.RUN_PRISMA_MIGRATE_DEPLOY ??= 'false';
+process.env.ALLOW_TEST_DB_CONNECT ??= 'false';
 process.env.ALLOW_PRISMA_WRITE ??= 'false';
 process.env.ALLOW_DESTRUCTIVE_DB_ACTIONS ??= 'false';
+
+console.log(`Cloud runtime mode: dataSource="${process.env.DATA_SOURCE}", storageProvider="${process.env.FILE_STORAGE_PROVIDER}".`);
+console.log(`Cloud storage root configured: ${process.env.STORAGE_ROOT ? 'yes' : 'no'}.`);
+console.log(`Prisma migrate deploy requested: ${isTrue(process.env.RUN_PRISMA_MIGRATE_DEPLOY) ? 'yes' : 'no'}.`);
 
 function isTrue(value) {
   return String(value ?? '').toLowerCase() === 'true';
@@ -172,6 +180,10 @@ function assertCloudMigrationAllowed() {
 }
 
 if (isTrue(process.env.RUN_PRISMA_MIGRATE_DEPLOY)) {
+  if (process.env.DATA_SOURCE !== 'prisma') {
+    console.error('Refusing to run prisma migrate deploy while DATA_SOURCE is not prisma.');
+    process.exit(1);
+  }
   const schemaName = assertCloudMigrationAllowed();
   await ensureSchema(schemaName);
   const status = run('npx', ['prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma'], { allowFailure: true });

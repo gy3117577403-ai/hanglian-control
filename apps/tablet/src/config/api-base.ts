@@ -1,3 +1,10 @@
+import {
+  LOCAL_API_BASE_URL,
+  normalizeApiBaseUrl,
+  readPublicRuntimeConfig,
+  resolveAutomaticApiBaseUrl,
+} from './runtime-config'
+
 export interface ApiHostInfo {
   frontendOrigin: string
   frontendHostname: string
@@ -20,26 +27,13 @@ export interface ApiRuntimeConfig {
   canEdit: boolean
 }
 
-export const LOCAL_API_BASE_URL = 'http://localhost:3000/api'
-export const CLOUD_API_BASE_URL = 'https://fyeboolnlvqv.sealoshzh.site/api'
+export { LOCAL_API_BASE_URL }
+export const CLOUD_API_BASE_URL = ''
 
 export const API_RUNTIME_MODE_KEY = 'hanglian.tablet.apiRuntimeMode'
 export const API_RUNTIME_CUSTOM_URL_KEY = 'hanglian.tablet.customApiBaseUrl'
 
 const localHosts = new Set(['localhost', '127.0.0.1', '::1'])
-
-declare global {
-  interface Window {
-    __HANG_LIAN_CONFIG__?: {
-      apiBaseUrl?: string
-    }
-  }
-}
-
-function normalizeApiBaseUrl(value?: string) {
-  const configured = value?.trim()
-  return configured ? configured.replace(/\/$/, '') : ''
-}
 
 function readStorage(key: string) {
   if (typeof window === 'undefined') return ''
@@ -86,25 +80,49 @@ export function isLanAccess(hostname = typeof window !== 'undefined' ? window.lo
 }
 
 export function getApiRuntimeConfig(): ApiRuntimeConfig {
-  const storedMode = getStoredApiRuntimeMode()
+  const runtimeConfigured = readPublicRuntimeConfig().API_BASE_URL
+  if (runtimeConfigured) {
+    return {
+      apiBaseUrl: runtimeConfigured,
+      source: 'runtime',
+      mode: 'runtime',
+      label: 'Runtime API',
+      canEdit: false,
+    }
+  }
 
+  const envConfigured = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+  if (envConfigured) {
+    return {
+      apiBaseUrl: envConfigured,
+      source: 'env',
+      mode: 'env',
+      label: 'Build env API',
+      canEdit: false,
+    }
+  }
+
+  const storedMode = getStoredApiRuntimeMode()
   if (storedMode === 'local') {
     return {
       apiBaseUrl: LOCAL_API_BASE_URL,
       source: 'stored-local',
       mode: 'local',
-      label: '本机 API',
+      label: 'Local API',
       canEdit: true,
     }
   }
 
   if (storedMode === 'cloud') {
-    return {
-      apiBaseUrl: CLOUD_API_BASE_URL,
-      source: 'stored-cloud',
-      mode: 'cloud',
-      label: '云端 Sealos API',
-      canEdit: true,
+    const cloudUrl = normalizeApiBaseUrl(CLOUD_API_BASE_URL)
+    if (cloudUrl) {
+      return {
+        apiBaseUrl: cloudUrl,
+        source: 'stored-cloud',
+        mode: 'cloud',
+        label: 'Cloud API',
+        canEdit: true,
+      }
     }
   }
 
@@ -115,61 +133,19 @@ export function getApiRuntimeConfig(): ApiRuntimeConfig {
         apiBaseUrl: customUrl,
         source: 'stored-custom',
         mode: 'custom',
-        label: '自定义 API',
+        label: 'Custom API',
         canEdit: true,
       }
     }
   }
 
-  const runtimeConfigured = typeof window === 'undefined'
-    ? ''
-    : normalizeApiBaseUrl(window.__HANG_LIAN_CONFIG__?.apiBaseUrl)
-  if (runtimeConfigured) {
-    return {
-      apiBaseUrl: runtimeConfigured,
-      source: 'runtime',
-      mode: 'runtime',
-      label: '运行时配置 API',
-      canEdit: false,
-    }
-  }
-
-  const configured = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
-  if (configured) {
-    return {
-      apiBaseUrl: configured,
-      source: 'env',
-      mode: 'env',
-      label: '构建环境 API',
-      canEdit: false,
-    }
-  }
-
-  if (typeof window === 'undefined') {
-    return {
-      apiBaseUrl: LOCAL_API_BASE_URL,
-      source: 'auto-local',
-      mode: 'auto',
-      label: '默认本机 API',
-      canEdit: true,
-    }
-  }
-
-  const { hostname } = window.location
-  if (isLocalhostAccess(hostname)) {
-    return {
-      apiBaseUrl: LOCAL_API_BASE_URL,
-      source: 'auto-local',
-      mode: 'auto',
-      label: '自动本机 API',
-      canEdit: true,
-    }
-  }
+  const autoUrl = normalizeApiBaseUrl(resolveAutomaticApiBaseUrl())
+  const source = typeof window !== 'undefined' && isLanAccess(window.location.hostname) ? 'auto-lan' : 'auto-local'
   return {
-    apiBaseUrl: `http://${hostname}:3000/api`,
-    source: 'auto-lan',
+    apiBaseUrl: autoUrl,
+    source,
     mode: 'auto',
-    label: '自动局域网 API',
+    label: source === 'auto-lan' ? 'Auto LAN API' : 'Auto local API',
     canEdit: true,
   }
 }

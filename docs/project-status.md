@@ -150,3 +150,15 @@
 - Still paused: Sealos PostgreSQL, database writes, WeCom Drive, real voice.
 - New checks: `storage-flow:check`, `cloud-alignment:check`, `storage:legacy-scan`.
 - Do not run `db:readonly-check`, `prisma migrate`, `prisma db push`, `prisma db seed`, or `prisma:seed:test-db` in this stage.
+# V3.11 Sealos persistent runtime preparation
+
+- Current branch: `feature/v3-11-sealos-persistent-runtime`.
+- Purpose: prepare API and Tablet split container deployment with runtime configuration.
+- API default data source remains `mock`.
+- API local storage is aligned to the future Sealos persistent volume path `/data/hanglian`.
+- Tablet reads `RUNTIME_API_BASE_URL` at container startup through `runtime-config.js`.
+- Added safe runtime endpoints: `/api/health`, `/api/runtime/info`, `/api/storage/status`, `/api/storage/mount-readiness`.
+- Added local-only checks: `cloud:runtime-preflight`, `runtime-config:check`, `storage:mount-check -w api`.
+- Added manual-only GitHub image workflow. It is not triggered automatically by this commit.
+- Still paused: Sealos PostgreSQL, S3/Object Storage, WeCom Drive, real voice, Sealos app deployment changes.
+- Forbidden in this stage: `db:readonly-check`, Prisma migrate, Prisma db push, seed, and any database write.

@@ -5,6 +5,7 @@ import { LocalStorageProvider } from './providers/local-storage.provider';
 import { S3StorageProvider } from './providers/s3-storage.provider';
 import { StorageConfigService } from './storage.config';
 import { StorageKeyService } from './storage-key.service';
+import { StorageMountCheckService } from './storage-mount-check.service';
 import { StorageSafetyService } from './storage-safety.service';
 import { StorageService } from './storage.service';
 
@@ -13,12 +14,13 @@ import { StorageService } from './storage.service';
   providers: [
     StorageConfigService,
     StorageKeyService,
+    StorageMountCheckService,
     StorageSafetyService,
     LocalStorageProvider,
     S3StorageProvider,
     StorageService,
     LocalStorageService,
   ],
-  exports: [StorageConfigService, StorageService, LocalStorageService],
+  exports: [StorageConfigService, StorageMountCheckService, StorageService, LocalStorageService],
 })
 export class StorageModule {}

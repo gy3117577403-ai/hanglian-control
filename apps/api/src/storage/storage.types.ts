@@ -50,8 +50,11 @@ export interface StorageUrlOptions {
 }
 
 export interface StorageSafeStatus {
+  mode: 'local' | 'persistent-volume' | 's3';
   provider: FileStorageProviderName;
   configured: boolean;
+  persistentVolumeExpected: boolean;
+  rootConfigured: boolean;
   localReady: boolean;
   s3Configured: boolean;
   storageRootConfigured: boolean;
@@ -61,6 +64,11 @@ export interface StorageSafeStatus {
   tempDirectoryExists: boolean;
   urlMode: StoragePreviewMode;
   maxFileSizeMb: number;
+  lastMountCheck?: {
+    checkedAt: string;
+    ok: boolean;
+  };
+  legacyRecords: number;
   s3: {
     endpointConfigured: boolean;
     bucketConfigured: boolean;

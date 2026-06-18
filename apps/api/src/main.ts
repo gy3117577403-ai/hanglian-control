@@ -3,6 +3,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { networkInterfaces } from 'node:os';
 import { AppModule } from './app.module';
+import { buildCorsOptions } from './config/cors.config';
 
 function getLanIpv4List() {
   return Object.values(networkInterfaces())
@@ -19,7 +20,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? '0.0.0.0';
 
-  app.enableCors();
+  app.enableCors(buildCorsOptions(logger));
   app.setGlobalPrefix(apiPrefix);
   app.useGlobalPipes(
     new ValidationPipe({

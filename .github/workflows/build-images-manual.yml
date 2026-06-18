@@ -1,0 +1,82 @@
+name: Build API and Tablet Images Manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git ref to build. Leave empty for the workflow branch.
+        required: false
+        default: ''
+      image_tag:
+        description: Extra image tag.
+        required: false
+        default: manual
+      build_api:
+        description: Build API image.
+        required: true
+        default: true
+        type: boolean
+      build_tablet:
+        description: Build Tablet image.
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-images:
+    name: Build selected images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref || github.ref }}
+
+      - name: Set image metadata
+        id: meta
+        shell: bash
+        run: |
+          short_sha="$(git rev-parse --short HEAD)"
+          owner_lower="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          repo_name="$(basename '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          tag="${{ inputs.image_tag }}"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_image=ghcr.io/${owner_lower}/${repo_name}-api" >> "$GITHUB_OUTPUT"
+          echo "tablet_image=ghcr.io/${owner_lower}/${repo_name}-tablet" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag:-manual}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push API image
+        if: ${{ inputs.build_api }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.short_sha }}
+
+      - name: Build and push Tablet image
+        if: ${{ inputs.build_tablet }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.tablet
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.short_sha }}

@@ -16,6 +16,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
 import { MigrationModule } from './migration/migration.module';
 import { ProductionPlansModule } from './production-plans/production-plans.module';
 import { ProductsModule } from './products/products.module';
+import { RuntimeModule } from './runtime/runtime.module';
 import { SearchModule } from './search/search.module';
 import { SettingsModule } from './settings/settings.module';
 import { SystemModule } from './system/system.module';
@@ -43,6 +44,7 @@ import { UnifiedDocumentsModule } from './unified-documents/unified-documents.mo
     KnowledgeModule,
     MaintenanceModule,
     MigrationModule,
+    RuntimeModule,
     SearchModule,
     SettingsModule,
     FeedbackModule,

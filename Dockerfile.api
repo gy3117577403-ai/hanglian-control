@@ -1,4 +1,4 @@
-FROM node:22-alpine AS api
+FROM node:22-alpine AS deps
 
 WORKDIR /app
 
@@ -7,26 +7,51 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/tablet/package.json apps/tablet/package.json
 RUN npm ci
 
+FROM deps AS build
+
 COPY . .
 RUN npm run prisma:generate
 RUN npm run build:api
+
+FROM node:22-alpine AS api
+
+WORKDIR /app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV API_PREFIX=api
+ENV DATA_SOURCE=mock
+ENV DEMO_DATA_MODE=empty
 ENV FILE_STORAGE_PROVIDER=local
 ENV STORAGE_ROOT=/data/hanglian
 ENV METADATA_ROOT=/data/hanglian/metadata
 ENV STORAGE_TEMP_ROOT=/data/hanglian/tmp
 ENV STORAGE_MAX_FILE_SIZE_MB=30
 ENV STORAGE_URL_MODE=proxy
+ENV CORS_ORIGINS=
+ENV CORS_ALLOW_CREDENTIALS=false
 ENV RUN_PRISMA_MIGRATE_DEPLOY=false
+ENV ALLOW_TEST_DB_CONNECT=false
 ENV ALLOW_PRISMA_WRITE=false
 ENV ALLOW_DESTRUCTIVE_DB_ACTIONS=false
 
-RUN mkdir -p /data/hanglian/uploads /data/hanglian/metadata /data/hanglian/tmp
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=node:node /app/apps/api/generated ./apps/api/generated
+COPY --from=build --chown=node:node /app/apps/api/prisma ./apps/api/prisma
+COPY --from=build --chown=node:node /app/apps/api/scripts ./apps/api/scripts
+
+RUN mkdir -p /data/hanglian/uploads /data/hanglian/metadata /data/hanglian/tmp \
+  && chown -R node:node /data/hanglian /app
+
+USER node
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:cloud", "-w", "api"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
+
+CMD ["node", "apps/api/scripts/start-cloud.mjs"]

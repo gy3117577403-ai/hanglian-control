@@ -5,6 +5,8 @@ NODE_ENV=production
 HOST=0.0.0.0
 PORT=3000
 API_PREFIX=api
+CORS_ORIGINS=https://YOUR_TABLET_DOMAIN
+CORS_ALLOW_CREDENTIALS=false
 
 # Keep mock repositories until the database line is resumed.
 DATA_SOURCE=mock
