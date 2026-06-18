@@ -63,15 +63,19 @@ export interface ProductDrawingDetail {
 export interface ConnectorParameter {
   connectorId: string;
   connectorModel: string;
-  terminalModel: string;
-  pinCount: number;
-  color: string;
-  wireRange: string;
-  manufacturer: string;
-  lockType: string;
-  processSegment: string;
-  status: string;
+  specification?: string;
+  insertionLengthMm: number;
+  outerStripLengthMm: number;
+  innerStripLengthMm: number;
   remark?: string;
+  status?: string;
+  terminalModel?: string;
+  pinCount?: number;
+  color?: string;
+  wireRange?: string;
+  manufacturer?: string;
+  lockType?: string;
+  processSegment?: string;
 }
 
 export interface FixtureParameter {
@@ -175,11 +179,11 @@ export const hubOrders: HubOrder[] = [
 ];
 
 export const connectorParameters: ConnectorParameter[] = [
-  { connectorId: 'conn-001', connectorModel: 'CONN-16P-A', terminalModel: 'TM-025-A', pinCount: 16, color: '黑色', wireRange: '0.3-0.85mm2', manufacturer: '演示厂商 A', lockType: '二次锁', processSegment: '后段装配', status: '启用', remark: '用于 HL-CONN-16P-A。' },
-  { connectorId: 'conn-002', connectorModel: 'CONN-08P-B', terminalModel: 'TM-040-B', pinCount: 8, color: '白色', wireRange: '0.5-1.25mm2', manufacturer: '演示厂商 B', lockType: '卡扣', processSegment: '前段压接', status: '启用' },
-  { connectorId: 'conn-003', connectorModel: 'CONN-24P-C', terminalModel: 'TM-064-C', pinCount: 24, color: '灰色', wireRange: '0.35-0.75mm2', manufacturer: '演示厂商 C', lockType: '滑锁', processSegment: '后段装配', status: '复核中' },
-  { connectorId: 'conn-004', connectorModel: 'CONN-02P-D', terminalModel: 'TM-110-D', pinCount: 2, color: '蓝色', wireRange: '1.0-2.0mm2', manufacturer: '演示厂商 A', lockType: '弹片', processSegment: '通用', status: '启用' },
-  { connectorId: 'conn-005', connectorModel: 'CONN-12P-E', terminalModel: 'TM-025-E', pinCount: 12, color: '自然色', wireRange: '0.2-0.5mm2', manufacturer: '演示厂商 D', lockType: '卡扣', processSegment: '后段装配', status: '停用' },
+  { connectorId: 'conn-001', connectorModel: 'CONN-16P-A', specification: '16P 防水公端', insertionLengthMm: 18, outerStripLengthMm: 12, innerStripLengthMm: 4, status: '启用', remark: '' },
+  { connectorId: 'conn-002', connectorModel: 'CONN-08P-B', specification: '8P 白色母端', insertionLengthMm: 15, outerStripLengthMm: 10, innerStripLengthMm: 3.5, status: '启用', remark: '' },
+  { connectorId: 'conn-003', connectorModel: 'CONN-24P-C', specification: '24P 灰色滑锁', insertionLengthMm: 22, outerStripLengthMm: 14, innerStripLengthMm: 5, status: '复核中', remark: '' },
+  { connectorId: 'conn-004', connectorModel: 'CONN-02P-D', specification: '2P 蓝色弹片', insertionLengthMm: 11, outerStripLengthMm: 8, innerStripLengthMm: 3, status: '启用', remark: '' },
+  { connectorId: 'conn-005', connectorModel: 'CONN-12P-E', specification: '12P 自然色卡扣', insertionLengthMm: 16.5, outerStripLengthMm: 11, innerStripLengthMm: 4, status: '停用', remark: '' },
 ];
 
 export const fixtureParameters: FixtureParameter[] = [

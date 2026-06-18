@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { Workbook } from 'exceljs';
 import type { DocumentTypeV03, RequiredProcess } from '../common/enums/production.enum';
 import type { ProductDocument } from '../common/types/production.types';
 import { DocumentsService } from '../documents/documents.service';
@@ -6,10 +8,12 @@ import { LocalStorageService } from '../storage/local-storage.service';
 import type { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
 import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
 import { safeDeleteUploadedFile } from '../unified-documents/helpers/safe-delete';
+import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
+import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import {
   ConnectorParameter,
@@ -36,6 +40,160 @@ function includes(value: unknown, q: string) {
 
 function parseBoolean(value?: string) {
   return value === 'true' || value === '1';
+}
+
+function cellText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'object') {
+    const rich = value as { text?: string; result?: unknown; formula?: string; hyperlink?: string };
+    if (rich.text) return rich.text;
+    if (rich.result !== undefined) return cellText(rich.result);
+    if (rich.hyperlink) return rich.hyperlink;
+    if (rich.formula) return rich.formula;
+  }
+  return String(value).replace(/^\uFEFF/, '').trim();
+}
+
+function normalizeHeader(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^\uFEFF/, '')
+    .replace(/\s+/g, '')
+    .replace(/[()（）:：_\-]/g, '')
+    .replace(/毫米/g, 'mm');
+}
+
+function connectorImportValue(row: Map<string, string>, aliases: string[]) {
+  const normalizedAliases = aliases.map(normalizeHeader);
+  for (const [key, value] of row.entries()) {
+    if (normalizedAliases.includes(normalizeHeader(key))) return value;
+  }
+  return '';
+}
+
+type ConnectorImportStrategy = 'review' | 'skip' | 'overwrite';
+type ConnectorImportAction = 'created' | 'updated' | 'skipped' | 'conflict' | 'error';
+
+interface ConnectorImportIssue {
+  field: string;
+  message: string;
+  resolution: string;
+}
+
+interface ParsedConnectorImportRow {
+  rowNumber: number;
+  connectorModel: string;
+  specification: string;
+  insertionLengthMm: number;
+  outerStripLengthMm: number;
+  innerStripLengthMm: number;
+  status: string;
+  remark: string;
+}
+
+interface ConnectorImportRowResult {
+  rowNumber: number;
+  connectorModel: string;
+  specification?: string;
+  action: ConnectorImportAction;
+  valid: boolean;
+  message: string;
+  resolution?: string;
+  issues?: ConnectorImportIssue[];
+}
+
+const connectorImportAliases = {
+  connectorModel: ['连接器型号', '型号', '产品型号', '规格型号', 'connectorModel', 'connector_model', 'model'],
+  specification: ['规格', '规格描述', '规格参数', 'specification', 'spec'],
+  insertionLengthMm: ['入长', '入长mm', '入长(mm)', '入长毫米', '入线长度', 'insertionLengthMm', 'insertion_length_mm'],
+  outerStripLengthMm: ['外剥长度', '外剥长度mm', '外剥长度(mm)', '外剥皮', '外剥皮mm', '外剥皮(mm)', '外剥', 'outerStripLengthMm', 'outer_strip_length_mm'],
+  innerStripLengthMm: ['内剥长度', '内剥长度mm', '内剥长度(mm)', '内剥皮', '内剥皮mm', '内剥皮(mm)', '内剥', 'innerStripLengthMm', 'inner_strip_length_mm'],
+  status: ['状态', 'status'],
+  remark: ['备注', '注意事项', '备注注意事项', 'remark', 'note'],
+};
+
+function parseLengthCell(value: unknown, field: string): { value?: number; issue?: ConnectorImportIssue } {
+  const raw = cellText(value);
+  const text = raw
+    .replace(/[，,]/g, '.')
+    .replace(/\s+/g, '')
+    .replace(/毫米|mm/gi, '')
+    .trim();
+
+  if (!text) {
+    return {
+      issue: {
+        field,
+        message: `${field}为空`,
+        resolution: `请填写 ${field} 数字，例如 26.5。`,
+      },
+    };
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(text)) {
+    return {
+      issue: {
+        field,
+        message: `${field}格式不是数字`,
+        resolution: `请改成纯数字或小数，例如 26.5，不要填写文字或多个数值。`,
+      },
+    };
+  }
+
+  const numberValue = Number(text);
+  if (!Number.isFinite(numberValue) || numberValue < 0) {
+    return {
+      issue: {
+        field,
+        message: `${field}不是有效数值`,
+        resolution: '请填写大于等于 0 的数字。',
+      },
+    };
+  }
+
+  return { value: numberValue };
+}
+
+function connectorSpecsOverlap(left?: string, right?: string) {
+  const leftSpec = (left ?? '').trim().toLowerCase();
+  const rightSpec = (right ?? '').trim().toLowerCase();
+  return !leftSpec || !rightSpec || leftSpec === rightSpec;
+}
+
+function connectorsOverlap(
+  leftModel: string,
+  leftSpecification: string | undefined,
+  rightModel: string,
+  rightSpecification: string | undefined,
+) {
+  return leftModel.trim().toLowerCase() === rightModel.trim().toLowerCase()
+    && connectorSpecsOverlap(leftSpecification, rightSpecification);
+}
+
+function makeImportRowResult(
+  row: Pick<ParsedConnectorImportRow, 'rowNumber' | 'connectorModel' | 'specification'>,
+  action: ConnectorImportAction,
+  valid: boolean,
+  message: string,
+  resolution?: string,
+  issues?: ConnectorImportIssue[],
+): ConnectorImportRowResult {
+  return {
+    rowNumber: row.rowNumber,
+    connectorModel: row.connectorModel || '-',
+    specification: row.specification,
+    action,
+    valid,
+    message,
+    resolution,
+    issues,
+  };
+}
+
+function hasConnectorImportHeader(headers: string[], aliases: string[]) {
+  const normalizedAliases = aliases.map(normalizeHeader);
+  return headers.some((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
 @Injectable()
@@ -186,20 +344,253 @@ export class DocumentHubService {
     if (!q) return this.connectors;
     return this.connectors.filter((item) => [
       item.connectorModel,
-      item.terminalModel,
-      item.pinCount,
-      item.manufacturer,
-      item.color,
-      item.wireRange,
-      item.processSegment,
+      item.specification,
+      item.insertionLengthMm,
+      item.outerStripLengthMm,
+      item.innerStripLengthMm,
+      item.remark,
       item.status,
     ].some((value) => includes(value, q)));
   }
 
   getConnector(id: string) {
     const connector = this.connectors.find((item) => item.connectorId === id);
-    if (!connector) throw new NotFoundException('连接器参数不存在。');
+    if (!connector) throw new NotFoundException('Connector parameter not found.');
     return connector;
+  }
+
+  createConnector(dto: CreateConnectorParameterDto) {
+    const connectorModel = dto.connectorModel.trim();
+    if (!connectorModel) throw new BadRequestException('Connector model is required.');
+    const specification = dto.specification?.trim() ?? '';
+    if (this.connectors.some((item) => connectorsOverlap(item.connectorModel, item.specification, connectorModel, specification))) {
+      throw new BadRequestException('Connector model already exists.');
+    }
+    const connector: ConnectorParameter = {
+      connectorId: `conn-${randomUUID().slice(0, 8)}`,
+      connectorModel,
+      specification,
+      insertionLengthMm: dto.insertionLengthMm,
+      outerStripLengthMm: dto.outerStripLengthMm,
+      innerStripLengthMm: dto.innerStripLengthMm,
+      status: dto.status?.trim() || '\u542f\u7528',
+      remark: dto.remark?.trim() ?? '',
+    };
+    this.connectors.unshift(connector);
+    return connector;
+  }
+
+  updateConnector(id: string, dto: UpdateConnectorParameterDto) {
+    const connector = this.connectors.find((item) => item.connectorId === id);
+    if (!connector) throw new NotFoundException('Connector parameter not found.');
+    if (dto.connectorModel !== undefined || dto.specification !== undefined) {
+      const connectorModel = dto.connectorModel?.trim() ?? connector.connectorModel;
+      const specification = dto.specification?.trim() ?? connector.specification ?? '';
+      if (!connectorModel) throw new BadRequestException('Connector model is required.');
+      const duplicate = this.connectors.find((item) => item.connectorId !== id && connectorsOverlap(
+        item.connectorModel,
+        item.specification,
+        connectorModel,
+        specification,
+      ));
+      if (duplicate) throw new BadRequestException('Connector model already exists.');
+      connector.connectorModel = connectorModel;
+      connector.specification = specification;
+    }
+    if (dto.insertionLengthMm !== undefined) connector.insertionLengthMm = dto.insertionLengthMm;
+    if (dto.outerStripLengthMm !== undefined) connector.outerStripLengthMm = dto.outerStripLengthMm;
+    if (dto.innerStripLengthMm !== undefined) connector.innerStripLengthMm = dto.innerStripLengthMm;
+    if (dto.remark !== undefined) connector.remark = dto.remark.trim();
+    if (dto.status !== undefined) connector.status = dto.status.trim() || '\u542f\u7528';
+    return connector;
+  }
+
+  deleteConnector(id: string) {
+    const index = this.connectors.findIndex((item) => item.connectorId === id);
+    if (index < 0) throw new NotFoundException('Connector parameter not found.');
+    const [deleted] = this.connectors.splice(index, 1);
+    return { success: true, deletedId: id, connector: deleted };
+  }
+
+  async importConnectors(file?: Express.Multer.File, duplicateStrategy: ConnectorImportStrategy = 'review') {
+    if (!file) throw new BadRequestException('Excel file is required.');
+    const workbook = new Workbook();
+    await workbook.xlsx.load(file.buffer as unknown as ArrayBuffer);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) throw new BadRequestException('No readable worksheet found.');
+
+    const headers: string[] = [];
+    sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      headers[colNumber - 1] = cellText(cell.value);
+    });
+
+    const requiredHeaders = [
+      { label: '型号', aliases: connectorImportAliases.connectorModel },
+      { label: '入长mm', aliases: connectorImportAliases.insertionLengthMm },
+      { label: '外剥皮mm', aliases: connectorImportAliases.outerStripLengthMm },
+      { label: '内剥皮mm', aliases: connectorImportAliases.innerStripLengthMm },
+    ];
+    const missingHeaders = requiredHeaders.filter((item) => !hasConnectorImportHeader(headers, item.aliases));
+    if (missingHeaders.length) {
+      throw new BadRequestException(`Excel 表头缺少：${missingHeaders.map((item) => item.label).join('、')}。当前支持表头：型号、外剥皮mm、内剥皮mm、入长mm、规格、备注。`);
+    }
+
+    const parsedRows: ParsedConnectorImportRow[] = [];
+    const rows: ConnectorImportRowResult[] = [];
+
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+      const excelRow = sheet.getRow(rowNumber);
+      const data = new Map<string, string>();
+      headers.forEach((header, index) => {
+        if (header) data.set(header, cellText(excelRow.getCell(index + 1).value));
+      });
+      if (![...data.values()].some((value) => value.trim())) continue;
+
+      const connectorModel = connectorImportValue(data, connectorImportAliases.connectorModel).trim();
+      const specification = connectorImportValue(data, connectorImportAliases.specification).trim();
+      const insertionLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.insertionLengthMm), '入长');
+      const outerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.outerStripLengthMm), '外剥皮');
+      const innerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.innerStripLengthMm), '内剥皮');
+      const status = connectorImportValue(data, connectorImportAliases.status).trim() || '启用';
+      const remark = connectorImportValue(data, connectorImportAliases.remark).trim();
+      const issues: ConnectorImportIssue[] = [];
+
+      if (!connectorModel) {
+        issues.push({
+          field: '型号',
+          message: '型号为空',
+          resolution: '请在型号列填写连接器型号，例如 PL182X-301-50。',
+        });
+      }
+      if (insertionLength.issue) issues.push(insertionLength.issue);
+      if (outerStripLength.issue) issues.push(outerStripLength.issue);
+      if (innerStripLength.issue) issues.push(innerStripLength.issue);
+
+      if (issues.length) {
+        rows.push(makeImportRowResult(
+          { rowNumber, connectorModel: connectorModel || '-', specification },
+          'error',
+          false,
+          issues.map((issue) => issue.message).join('；'),
+          issues.map((issue) => issue.resolution).join(' '),
+          issues,
+        ));
+        continue;
+      }
+
+      parsedRows.push({
+        rowNumber,
+        connectorModel,
+        specification,
+        insertionLengthMm: insertionLength.value ?? 0,
+        outerStripLengthMm: outerStripLength.value ?? 0,
+        innerStripLengthMm: innerStripLength.value ?? 0,
+        status,
+        remark,
+      });
+    }
+
+    const previousRows: ParsedConnectorImportRow[] = [];
+    const duplicateRows: ConnectorImportRowResult[] = [];
+
+    for (const row of parsedRows) {
+      const previous = previousRows.find((item) => connectorsOverlap(item.connectorModel, item.specification, row.connectorModel, row.specification));
+      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, item.specification, row.connectorModel, row.specification));
+      if (previous || existing) {
+        duplicateRows.push(makeImportRowResult(
+          row,
+          'conflict',
+          false,
+          previous ? `Excel 内第 ${previous.rowNumber} 行已有相同型号。` : '参数库中已存在相同型号。',
+          duplicateStrategy === 'review'
+            ? '请选择“跳过重复并导入”或“覆盖重复并导入”。'
+            : '已按当前导入策略处理。',
+        ));
+      }
+      previousRows.push(row);
+    }
+
+    if (duplicateRows.length && duplicateStrategy === 'review') {
+      return {
+        requiresDecision: true,
+        requiresOverwrite: true,
+        duplicateStrategy,
+        totalRows: rows.length + parsedRows.length,
+        validRows: parsedRows.length,
+        importedRows: 0,
+        createdRows: 0,
+        updatedRows: 0,
+        skippedRows: rows.length,
+        errorRows: rows.length,
+        duplicateRows,
+        rows: [...rows, ...duplicateRows],
+        connectors: this.connectors,
+      };
+    }
+
+    let createdRows = 0;
+    let updatedRows = 0;
+    let skippedDuplicateRows = 0;
+
+    for (const row of parsedRows) {
+      const duplicate = duplicateRows.find((item) => item.rowNumber === row.rowNumber);
+      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, item.specification, row.connectorModel, row.specification));
+
+      if (duplicate && duplicateStrategy === 'skip') {
+        skippedDuplicateRows += 1;
+        rows.push(makeImportRowResult(
+          row,
+          'skipped',
+          false,
+          '重复型号已跳过。',
+          '如需更新已有参数，请重新导入并选择覆盖重复。',
+        ));
+        continue;
+      }
+
+      if (existing) {
+        Object.assign(existing, {
+          specification: row.specification,
+          insertionLengthMm: row.insertionLengthMm,
+          outerStripLengthMm: row.outerStripLengthMm,
+          innerStripLengthMm: row.innerStripLengthMm,
+          status: row.status,
+          remark: row.remark,
+        });
+        updatedRows += 1;
+        rows.push(makeImportRowResult(row, 'updated', true, '已更新已有连接器参数。'));
+      } else {
+        this.connectors.unshift({
+          connectorId: `conn-${randomUUID().slice(0, 8)}`,
+          connectorModel: row.connectorModel,
+          specification: row.specification,
+          insertionLengthMm: row.insertionLengthMm,
+          outerStripLengthMm: row.outerStripLengthMm,
+          innerStripLengthMm: row.innerStripLengthMm,
+          status: row.status,
+          remark: row.remark,
+        });
+        createdRows += 1;
+        rows.push(makeImportRowResult(row, 'created', true, '已新增连接器参数。'));
+      }
+    }
+
+    const errorRows = rows.filter((row) => row.action === 'error').length;
+    return {
+      requiresDecision: false,
+      requiresOverwrite: false,
+      duplicateStrategy,
+      totalRows: rows.length,
+      validRows: parsedRows.length,
+      importedRows: createdRows + updatedRows,
+      createdRows,
+      updatedRows,
+      skippedRows: errorRows + skippedDuplicateRows,
+      errorRows,
+      duplicateRows,
+      rows,
+      connectors: this.connectors,
+    };
   }
 
   getFixtures(query?: FixtureQueryDto) {

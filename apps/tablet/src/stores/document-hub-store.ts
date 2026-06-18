@@ -3,6 +3,8 @@ import { computed, nextTick, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import {
   completeHubOrder,
+  createHubConnector,
+  deleteHubConnector,
   deleteHubDrawingItem,
   getHubCustomers,
   getHubOrderOverview,
@@ -12,6 +14,8 @@ import {
   getHubProducts,
   getHubConnectors,
   getHubFixtures,
+  importHubConnectors,
+  updateHubConnector,
   uploadHubDrawingItem,
 } from '@/services/api'
 import {
@@ -25,6 +29,8 @@ import {
 import { useNavigationMemoryStore } from './navigation-memory-store'
 import type {
   ConnectorParameter,
+  ConnectorImportResult,
+  ConnectorParameterPayload,
   DocumentHubUploadPayload,
   DrawingItem,
   DrawingModule,
@@ -131,6 +137,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const fixtureRows = ref<FixtureParameter[]>([])
   const selectedConnector = ref<ConnectorParameter | null>(null)
   const selectedFixture = ref<FixtureParameter | null>(null)
+  const connectorImportResult = ref<ConnectorImportResult | null>(null)
+  const connectorMutationLoading = ref(false)
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
   const uploadDialogSource = ref<'top' | 'module'>('top')
@@ -145,7 +153,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   let productDetailRequestId = 0
 
   const currentSearchPlaceholder = computed(() => {
-    if (activeMode.value === 'connector') return '搜索连接器型号、端子型号、孔位数、厂家'
+    if (activeMode.value === 'connector') return '搜索连接器型号、规格、入长、外剥长度、内剥长度、备注'
     if (activeMode.value === 'fixture') return '搜索治具编号、治具名称、工位、适用产品'
     return '搜索客户、产品型号、图纸、SOP、成品图'
   })
@@ -422,10 +430,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const keyword = q.trim().toLowerCase()
     const localMatches = localConnectors.value.filter((item) => !keyword || [
       item.connectorModel,
-      item.terminalModel,
-      item.pinCount,
-      item.manufacturer,
-      item.processSegment,
+      item.specification,
+      item.insertionLengthMm,
+      item.outerStripLengthMm,
+      item.innerStripLengthMm,
+      item.remark,
+      item.status,
     ].some((value) => match(value, keyword)))
     try {
       connectorRows.value = withFallback(await getHubConnectors(q), localMatches)
@@ -476,6 +486,157 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   function openConnectorDetail(row: ConnectorParameter) {
     selectedConnector.value = row
     connectorDetailOpen.value = true
+  }
+
+  function patchConnector(connectorId: string, patch: Partial<ConnectorParameter>) {
+    for (const list of [localConnectors.value, connectorRows.value]) {
+      const item = list.find((entry) => entry.connectorId === connectorId)
+      if (item) Object.assign(item, patch)
+    }
+    if (selectedConnector.value?.connectorId === connectorId) {
+      selectedConnector.value = { ...selectedConnector.value, ...patch }
+    }
+  }
+
+  function normalizeConnectorPayload(payload: ConnectorParameterPayload): ConnectorParameterPayload {
+    return {
+      connectorModel: payload.connectorModel.trim(),
+      specification: payload.specification?.trim() ?? '',
+      insertionLengthMm: Number(payload.insertionLengthMm),
+      outerStripLengthMm: Number(payload.outerStripLengthMm),
+      innerStripLengthMm: Number(payload.innerStripLengthMm),
+      remark: payload.remark?.trim() ?? '',
+      status: payload.status?.trim() || '启用',
+    }
+  }
+
+  function upsertConnector(connector: ConnectorParameter) {
+    for (const list of [localConnectors.value, connectorRows.value]) {
+      const existing = list.find((entry) => entry.connectorId === connector.connectorId)
+      if (existing) Object.assign(existing, connector)
+      else list.unshift({ ...connector })
+    }
+    if (selectedConnector.value?.connectorId === connector.connectorId) {
+      selectedConnector.value = { ...selectedConnector.value, ...connector }
+    }
+  }
+
+  function removeConnector(connectorId: string) {
+    localConnectors.value = localConnectors.value.filter((entry) => entry.connectorId !== connectorId)
+    connectorRows.value = connectorRows.value.filter((entry) => entry.connectorId !== connectorId)
+    if (selectedConnector.value?.connectorId === connectorId) {
+      selectedConnector.value = null
+      connectorDetailOpen.value = false
+    }
+  }
+
+  async function saveConnector(payload: ConnectorParameterPayload, connectorId?: string) {
+    const normalized = normalizeConnectorPayload(payload)
+    if (!normalized.connectorModel) {
+      toast.error('请填写连接器型号')
+      return false
+    }
+    if ([normalized.insertionLengthMm, normalized.outerStripLengthMm, normalized.innerStripLengthMm].some((value) => !Number.isFinite(value) || value < 0)) {
+      toast.error('入长、外剥长度、内剥长度必须是有效数字')
+      return false
+    }
+    const normalizedSpec = normalized.specification?.toLowerCase() ?? ''
+    const duplicatedModel = [...localConnectors.value, ...connectorRows.value]
+      .some((item) => {
+        if (item.connectorId === connectorId) return false
+        const itemSpec = item.specification?.toLowerCase() ?? ''
+        return item.connectorModel.toLowerCase() === normalized.connectorModel.toLowerCase()
+          && (!itemSpec || !normalizedSpec || itemSpec === normalizedSpec)
+      })
+    if (duplicatedModel) {
+      toast.warning('连接器型号已存在', { description: '请编辑原记录，或在 Excel 导入时选择跳过/覆盖重复。' })
+      return false
+    }
+
+    connectorMutationLoading.value = true
+    try {
+      if (connectorId) {
+        patchConnector(connectorId, normalized)
+        const updated = await updateHubConnector(connectorId, normalized)
+        upsertConnector(updated)
+        toast.success('连接器参数已更新', { description: normalized.connectorModel })
+      } else {
+        const created = await createHubConnector(normalized)
+        upsertConnector(created)
+        toast.success('连接器参数已新增', { description: normalized.connectorModel })
+      }
+      return true
+    } catch {
+      if (connectorId) {
+        patchConnector(connectorId, normalized)
+        toast.warning('后端暂不可用，已保留本地演示修改', { description: normalized.connectorModel })
+        return true
+      }
+      const localConnector: ConnectorParameter = {
+        connectorId: `local-conn-${Date.now()}`,
+        ...normalized,
+      }
+      upsertConnector(localConnector)
+      toast.warning('后端暂不可用，已新增到本地演示数据', { description: normalized.connectorModel })
+      return true
+    } finally {
+      connectorMutationLoading.value = false
+    }
+  }
+
+  async function deleteConnector(row: ConnectorParameter) {
+    connectorMutationLoading.value = true
+    try {
+      await deleteHubConnector(row.connectorId)
+      removeConnector(row.connectorId)
+      toast.success('连接器参数已删除', { description: row.connectorModel })
+      return true
+    } catch {
+      removeConnector(row.connectorId)
+      toast.warning('后端暂不可用，已从本地演示列表移除', { description: row.connectorModel })
+      return true
+    } finally {
+      connectorMutationLoading.value = false
+    }
+  }
+
+  async function importConnectorExcel(file: File, duplicateStrategy: 'review' | 'skip' | 'overwrite' = 'review') {
+    connectorMutationLoading.value = true
+    connectorImportResult.value = null
+    try {
+      const result = await importHubConnectors(file, duplicateStrategy)
+      connectorImportResult.value = result
+      if (result.requiresDecision || result.requiresOverwrite) {
+        toast.warning('发现重复连接器型号', {
+          description: `共 ${result.duplicateRows?.length ?? 0} 条重复，请选择跳过、覆盖或取消。`,
+        })
+        return result
+      }
+      localConnectors.value = clone(result.connectors)
+      connectorRows.value = clone(result.connectors)
+      if (searchKeyword.value.trim()) await loadConnectors(searchKeyword.value)
+      toast.success('Excel 导入完成', {
+        description: `新增 ${result.createdRows} 条，更新 ${result.updatedRows} 条，跳过 ${result.skippedRows} 条，错误 ${result.errorRows ?? 0} 条`,
+      })
+      return result
+    } catch {
+      toast.error('Excel 导入失败，请确认后端服务可用且表头包含连接器型号、规格、入长、外剥长度、内剥长度')
+      return null
+    } finally {
+      connectorMutationLoading.value = false
+    }
+  }
+
+  async function updateConnectorRemark(connectorId: string, remark: string) {
+    const nextRemark = remark.trim()
+    patchConnector(connectorId, { remark: nextRemark })
+    try {
+      const updated = await updateHubConnector(connectorId, { remark: nextRemark })
+      patchConnector(connectorId, updated)
+    } catch {
+      // Keep local mock edits available when the API service is offline.
+    }
+    toast.success('连接器备注已更新')
   }
 
   function openFixtureDetail(row: FixtureParameter) {
@@ -645,6 +806,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     fixtureRows,
     selectedConnector,
     selectedFixture,
+    connectorImportResult,
+    connectorMutationLoading,
     orderOverviewOpen,
     uploadDialogOpen,
     uploadDialogSource,
@@ -674,6 +837,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     openTopUpload,
     openModuleUpload,
     openConnectorDetail,
+    saveConnector,
+    deleteConnector,
+    importConnectorExcel,
+    updateConnectorRemark,
     openFixtureDetail,
     uploadToModule,
     toggleOrderSidebar,

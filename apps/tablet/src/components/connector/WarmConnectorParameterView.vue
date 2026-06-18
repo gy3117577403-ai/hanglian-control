@@ -1,79 +1,696 @@
 <script setup lang="ts">
+import { computed, reactive, ref } from 'vue'
+import { Database, Download, FileSpreadsheet, Plus, RefreshCw, Ruler, Trash2 } from 'lucide-vue-next'
 import WarmConnectorDetailDialog from './WarmConnectorDetailDialog.vue'
 import WarmConnectorTable from './WarmConnectorTable.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
+import type { ConnectorParameter, ConnectorParameterPayload } from '@/types/production'
 
 const store = useDocumentHubStore()
+
+const fileInput = ref<HTMLInputElement | null>(null)
+const editorOpen = ref(false)
+const importResultOpen = ref(false)
+const deleteOpen = ref(false)
+const editingId = ref<string | null>(null)
+const deletingRow = ref<ConnectorParameter | null>(null)
+const pendingImportFile = ref<File | null>(null)
+
+const form = reactive({
+  connectorModel: '',
+  specification: '',
+  insertionLengthMm: '',
+  outerStripLengthMm: '',
+  innerStripLengthMm: '',
+  status: '启用',
+  remark: '',
+})
+
+const totalLabel = computed(() => `${store.connectorRows.length} 条`)
+const statusOptions = ['启用', '复核中', '停用']
+const importHasIssueRows = computed(() => Boolean(store.connectorImportResult?.rows.some((row) => !row.valid)))
+const importRequiresDecision = computed(() => Boolean(store.connectorImportResult?.requiresDecision || store.connectorImportResult?.requiresOverwrite))
+
+const actionLabels: Record<string, string> = {
+  created: '新增',
+  updated: '更新',
+  skipped: '跳过',
+  conflict: '重复',
+  error: '错误',
+}
+
+function cleanRemark(value?: string) {
+  const remark = value?.trim() ?? ''
+  return remark.includes('?') ? '' : remark
+}
+
+function resetForm() {
+  editingId.value = null
+  form.connectorModel = ''
+  form.specification = ''
+  form.insertionLengthMm = ''
+  form.outerStripLengthMm = ''
+  form.innerStripLengthMm = ''
+  form.status = '启用'
+  form.remark = ''
+}
+
+function openCreate() {
+  resetForm()
+  editorOpen.value = true
+}
+
+function openEdit(row: ConnectorParameter) {
+  editingId.value = row.connectorId
+  form.connectorModel = row.connectorModel
+  form.specification = row.specification ?? ''
+  form.insertionLengthMm = String(row.insertionLengthMm ?? '')
+  form.outerStripLengthMm = String(row.outerStripLengthMm ?? '')
+  form.innerStripLengthMm = String(row.innerStripLengthMm ?? '')
+  form.status = row.status || '启用'
+  form.remark = cleanRemark(row.remark)
+  editorOpen.value = true
+}
+
+function toPayload(): ConnectorParameterPayload {
+  return {
+    connectorModel: form.connectorModel,
+    specification: form.specification,
+    insertionLengthMm: Number(form.insertionLengthMm),
+    outerStripLengthMm: Number(form.outerStripLengthMm),
+    innerStripLengthMm: Number(form.innerStripLengthMm),
+    status: form.status,
+    remark: form.remark,
+  }
+}
+
+async function submitConnector() {
+  const saved = await store.saveConnector(toPayload(), editingId.value ?? undefined)
+  if (saved) {
+    editorOpen.value = false
+    resetForm()
+  }
+}
+
+function requestDelete(row: ConnectorParameter) {
+  deletingRow.value = row
+  deleteOpen.value = true
+}
+
+async function confirmDelete() {
+  if (!deletingRow.value) return
+  const deleted = await store.deleteConnector(deletingRow.value)
+  if (deleted) {
+    deleteOpen.value = false
+    deletingRow.value = null
+  }
+}
+
+function triggerImport() {
+  fileInput.value?.click()
+}
+
+async function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  target.value = ''
+  if (!file) return
+  pendingImportFile.value = file
+  const result = await store.importConnectorExcel(file)
+  if (result && !result.requiresDecision && !result.requiresOverwrite) pendingImportFile.value = null
+  if (result) importResultOpen.value = true
+}
+
+function cancelImportConflict() {
+  importResultOpen.value = false
+  pendingImportFile.value = null
+}
+
+async function importWithStrategy(strategy: 'skip' | 'overwrite') {
+  if (!pendingImportFile.value) return
+  const result = await store.importConnectorExcel(pendingImportFile.value, strategy)
+  if (result && !result.requiresDecision && !result.requiresOverwrite) {
+    pendingImportFile.value = null
+  }
+}
+
+function downloadImportReport() {
+  const result = store.connectorImportResult
+  if (!result) return
+  const issueRows = result.rows.filter((row) => !row.valid)
+  const header = ['行号', '型号', '规格', '处理状态', '问题', '建议']
+  const lines = [
+    header.join(','),
+    ...issueRows.map((row) => [
+      row.rowNumber,
+      row.connectorModel,
+      row.specification ?? '',
+      actionLabels[row.action] ?? row.action,
+      row.message,
+      row.resolution ?? row.issues?.map((issue) => issue.resolution).join('；') ?? '',
+    ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')),
+  ]
+  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `连接器导入错误报告-${Date.now()}.csv`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <template>
   <div class="parameter-view">
     <section class="view-head">
-      <div>
-        <p>独立搜索</p>
-        <h2>连接器参数</h2>
-        <span>只搜索连接器型号、端子型号、孔位数、厂家、锁止方式和适用工序。</span>
+      <div class="title-block">
+        <i><Database :size="22" /></i>
+        <div>
+          <p>连接器数据库参数</p>
+          <h2>连接器工艺参数库</h2>
+          <small>表头：连接器型号、规格、入长、外剥长度、内剥长度、备注</small>
+        </div>
       </div>
-      <b>{{ store.connectorRows.length }} 条</b>
+
+      <div class="head-tools">
+        <span class="metric-pill"><Ruler :size="15" />单位 mm</span>
+        <span class="metric-pill total">{{ totalLabel }}</span>
+        <button type="button" class="tool-button ghost" title="刷新" @click="store.loadConnectors(store.searchKeyword)">
+          <RefreshCw :size="17" />
+        </button>
+        <button type="button" class="tool-button" @click="triggerImport">
+          <FileSpreadsheet :size="18" />
+          <span>Excel 导入</span>
+        </button>
+        <button type="button" class="tool-button primary" @click="openCreate">
+          <Plus :size="18" />
+          <span>单型号导入</span>
+        </button>
+      </div>
     </section>
-    <div class="scroll-area">
-      <WarmConnectorTable :rows="store.connectorRows" @open="store.openConnectorDetail" />
+
+    <section class="usage-rules">
+      <span>Excel 支持表头：型号、外剥皮mm、内剥皮mm、入长mm、规格、备注</span>
+      <span>格式错误按行跳过，正确行仍可继续导入</span>
+      <span>规格用于区分同型号物料，备注可留空</span>
+      <span>重复型号需要选择跳过、覆盖或取消</span>
+    </section>
+
+    <input
+      ref="fileInput"
+      class="hidden-input"
+      type="file"
+      accept=".xlsx,.xls"
+      @change="handleFileChange"
+    >
+
+    <div class="scroll-area" data-scroll-key="connectors">
+      <WarmConnectorTable
+        :rows="store.connectorRows"
+        @open="store.openConnectorDetail"
+        @edit="openEdit"
+        @delete="requestDelete"
+      />
     </div>
+
     <WarmConnectorDetailDialog />
+
+    <PrimeDialog v-model:visible="editorOpen" modal :header="editingId ? '编辑连接器参数' : '单型号导入'" :style="{ width: '720px' }">
+      <div class="editor-panel">
+        <label class="field full">
+          <span>连接器型号</span>
+          <PrimeInputText v-model="form.connectorModel" placeholder="例如 CONN-16P-A" />
+        </label>
+
+        <label class="field full">
+          <span>规格</span>
+          <PrimeInputText v-model="form.specification" placeholder="例如 16P 防水公端 / 白色母端 / 滑锁结构" />
+        </label>
+
+        <label class="field">
+          <span>参数 1：入长（mm）</span>
+          <PrimeInputText v-model="form.insertionLengthMm" type="number" inputmode="decimal" placeholder="18" />
+        </label>
+
+        <label class="field">
+          <span>参数 2：外剥长度（mm）</span>
+          <PrimeInputText v-model="form.outerStripLengthMm" type="number" inputmode="decimal" placeholder="12" />
+        </label>
+
+        <label class="field">
+          <span>参数 3：内剥长度（mm）</span>
+          <PrimeInputText v-model="form.innerStripLengthMm" type="number" inputmode="decimal" placeholder="4" />
+        </label>
+
+        <label class="field">
+          <span>状态</span>
+          <PrimeSelect v-model="form.status" :options="statusOptions" />
+        </label>
+
+        <label class="field full">
+          <span>参数 4：备注 / 注意事项</span>
+          <PrimeTextarea v-model="form.remark" rows="4" auto-resize placeholder="可留空" />
+        </label>
+      </div>
+
+      <template #footer>
+        <PrimeButton label="取消" severity="secondary" text @click="editorOpen = false" />
+        <PrimeButton :label="editingId ? '保存修改' : '保存导入'" :loading="store.connectorMutationLoading" @click="submitConnector" />
+      </template>
+    </PrimeDialog>
+
+    <PrimeDialog v-model:visible="deleteOpen" modal header="删除连接器参数" :style="{ width: '460px' }">
+      <div class="delete-panel">
+        <i><Trash2 :size="24" /></i>
+        <div>
+          <b>{{ deletingRow?.connectorModel }}</b>
+          <p>删除后会从当前演示参数库移除。当前阶段仍为 Mock 数据，不会写入真实数据库。</p>
+        </div>
+      </div>
+
+      <template #footer>
+        <PrimeButton label="取消" severity="secondary" text @click="deleteOpen = false" />
+        <PrimeButton label="确认删除" severity="danger" :loading="store.connectorMutationLoading" @click="confirmDelete" />
+      </template>
+    </PrimeDialog>
+
+    <PrimeDialog v-model:visible="importResultOpen" modal :header="importRequiresDecision ? '发现重复连接器型号' : 'Excel 导入结果'" :style="{ width: '860px' }">
+      <div v-if="store.connectorImportResult" class="import-result">
+        <div v-if="importRequiresDecision" class="conflict-warning">
+          <b>检测到重复型号，当前还没有写入任何数据。</b>
+          <p>选择“跳过重复并导入”会只导入可新增的正确行；选择“覆盖重复并导入”会用 Excel 中的数据更新已有同型号记录；选择“取消导入”则保持当前参数库不变。</p>
+        </div>
+
+        <div v-else-if="store.connectorImportResult.errorRows" class="conflict-warning soft">
+          <b>部分行格式有问题，已跳过错误行。</b>
+          <p>正确行已完成导入。请下载错误报告或按下方建议修改 Excel 后再次导入。</p>
+        </div>
+
+        <div class="result-metrics">
+          <span><b>{{ store.connectorImportResult.totalRows }}</b>总行数</span>
+          <span><b>{{ store.connectorImportResult.importedRows }}</b>导入成功</span>
+          <span><b>{{ store.connectorImportResult.createdRows }}</b>新增</span>
+          <span><b>{{ store.connectorImportResult.updatedRows }}</b>更新</span>
+          <span><b>{{ store.connectorImportResult.skippedRows }}</b>跳过</span>
+          <span><b>{{ store.connectorImportResult.errorRows ?? 0 }}</b>错误</span>
+          <span><b>{{ store.connectorImportResult.duplicateRows?.length ?? 0 }}</b>重复</span>
+        </div>
+
+        <div class="result-list">
+          <div v-for="row in store.connectorImportResult.rows.slice(0, 12)" :key="row.rowNumber" class="result-row" :class="{ invalid: !row.valid }">
+            <span>第 {{ row.rowNumber }} 行</span>
+            <b>{{ row.connectorModel }}</b>
+            <small>{{ row.specification || '' }}</small>
+            <strong>{{ row.message }}</strong>
+            <small>{{ row.resolution || row.issues?.map((issue) => issue.resolution).join('；') || '' }}</small>
+            <em>{{ actionLabels[row.action] ?? row.action }}</em>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <PrimeButton v-if="importHasIssueRows" severity="secondary" text @click="downloadImportReport">
+          <Download :size="16" />
+          <span>下载错误报告</span>
+        </PrimeButton>
+        <template v-if="importRequiresDecision">
+          <PrimeButton label="取消导入" severity="secondary" text @click="cancelImportConflict" />
+          <PrimeButton label="跳过重复并导入" severity="secondary" :loading="store.connectorMutationLoading" @click="importWithStrategy('skip')" />
+          <PrimeButton label="覆盖重复并导入" :loading="store.connectorMutationLoading" @click="importWithStrategy('overwrite')" />
+        </template>
+        <PrimeButton v-else label="知道了" @click="importResultOpen = false" />
+      </template>
+    </PrimeDialog>
   </div>
 </template>
 
 <style scoped>
 .parameter-view {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   padding: 14px;
 }
 
 .view-head {
   display: flex;
+  gap: 16px;
   align-items: center;
   justify-content: space-between;
+  min-height: 104px;
   margin-bottom: 12px;
-  padding: 14px;
-  border-radius: 18px;
-  background: linear-gradient(145deg, #fff7ea, #ffd79d);
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 26px;
+  background:
+    linear-gradient(128deg, rgba(255, 255, 255, 0.82), rgba(255, 234, 201, 0.58) 50%, rgba(152, 194, 180, 0.36)),
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.96), transparent 28%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -24px 46px rgba(125, 162, 150, 0.11),
+    0 18px 42px rgba(76, 54, 32, 0.12);
+  backdrop-filter: blur(20px);
+}
+
+.usage-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 12px;
+  padding: 0 4px;
+}
+
+.usage-rules span {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  color: rgba(92, 62, 37, 0.74);
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.title-block {
+  display: flex;
+  min-width: 0;
+  gap: 14px;
+  align-items: center;
+}
+
+.title-block i {
+  display: grid;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(234, 202, 160, 0.68));
+  color: #9b5125;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 12px 22px rgba(82, 51, 26, 0.12);
 }
 
 p,
 h2,
-span {
+small {
   margin: 0;
 }
 
 p {
-  color: #9b5125;
+  color: rgba(117, 78, 43, 0.78);
+  font-size: 13px;
   font-weight: 950;
 }
 
 h2 {
-  margin-top: 3px;
-  color: #342112;
-  font-size: 28px;
+  margin-top: 2px;
+  color: #2f1d0f;
+  font-size: 30px;
   font-weight: 950;
+  letter-spacing: 0;
 }
 
-span {
-  color: #73512c;
+small {
+  display: block;
+  margin-top: 5px;
+  color: rgba(92, 62, 37, 0.66);
+  font-size: 12px;
   font-weight: 850;
 }
 
-b {
-  padding: 8px 12px;
+.head-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.metric-pill,
+.tool-button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 999px;
-  background: rgba(255, 250, 240, 0.78);
+  background: rgba(255, 255, 255, 0.5);
   color: #7a421f;
+  font-size: 14px;
+  font-weight: 950;
   white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 9px 18px rgba(76, 54, 32, 0.08);
+}
+
+.metric-pill.total {
+  color: #2f7b68;
+}
+
+.tool-button {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.tool-button:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 22px rgba(76, 54, 32, 0.12);
+}
+
+.tool-button.ghost {
+  width: 42px;
+  justify-content: center;
+  padding: 0;
+}
+
+.tool-button.primary {
+  border-color: rgba(210, 120, 54, 0.32);
+  background: linear-gradient(145deg, rgba(223, 132, 55, 0.88), rgba(165, 84, 36, 0.92));
+  color: #fff8ed;
+}
+
+.hidden-input {
+  display: none;
 }
 
 .scroll-area {
   min-height: 0;
   overflow: auto;
+  padding-right: 3px;
+}
+
+.editor-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(250, 225, 190, 0.38)),
+    radial-gradient(circle at 92% 12%, rgba(133, 180, 166, 0.2), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 12px 22px rgba(80, 42, 16, 0.07);
+}
+
+.field.full {
+  grid-column: 1 / -1;
+}
+
+.field span {
+  color: #76502e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+:deep(.p-inputtext),
+:deep(.p-select),
+:deep(textarea) {
+  width: 100%;
+  border-color: rgba(139, 90, 42, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 252, 245, 0.86);
+  color: #342112;
+  font-weight: 850;
+}
+
+.delete-panel {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid rgba(185, 68, 53, 0.14);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 225, 217, 0.42));
+}
+
+.delete-panel i {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(185, 68, 53, 0.1);
+  color: #b94435;
+}
+
+.delete-panel b {
+  color: #2f1d0f;
+  font-size: 19px;
+  font-weight: 950;
+}
+
+.delete-panel p {
+  margin-top: 6px;
+  color: rgba(90, 59, 36, 0.72);
+  line-height: 1.6;
+}
+
+.import-result {
+  display: grid;
+  gap: 12px;
+}
+
+.result-metrics {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.result-metrics span,
+.result-row {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.result-metrics span {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  color: #79512f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.result-metrics b {
+  color: #2f7b68;
+  font-size: 26px;
+  font-weight: 950;
+}
+
+.result-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.conflict-warning {
+  padding: 14px 16px;
+  border: 1px solid rgba(185, 68, 53, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 226, 219, 0.42));
+  color: #6e3d2d;
+}
+
+.conflict-warning b {
+  display: block;
+  color: #b94435;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.conflict-warning.soft b {
+  color: #9b5125;
+}
+
+.conflict-warning p {
+  margin-top: 5px;
+  line-height: 1.55;
+}
+
+.result-row {
+  display: grid;
+  grid-template-columns: 84px 1fr 1fr 1.4fr 1.6fr 70px;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: #5e4328;
+  font-weight: 850;
+}
+
+.result-row.invalid {
+  background: rgba(255, 226, 219, 0.52);
+}
+
+.result-row em {
+  justify-self: end;
+  color: #9b5125;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.result-row small {
+  overflow: hidden;
+  color: rgba(92, 62, 37, 0.72);
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-row strong {
+  overflow: hidden;
+  color: #5d3a21;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .view-head {
+    align-items: flex-start;
+  }
+
+  h2 {
+    font-size: 26px;
+  }
+
+  .tool-button span {
+    display: none;
+  }
+
+  .result-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .result-row {
+    grid-template-columns: 74px 1fr 1fr 1.3fr 64px;
+  }
+
+  .result-row small:nth-of-type(2) {
+    display: none;
+  }
 }
 </style>

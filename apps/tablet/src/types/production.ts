@@ -1848,15 +1848,60 @@ export interface ProductDrawingDetail {
 export interface ConnectorParameter {
   connectorId: string
   connectorModel: string
-  terminalModel: string
-  pinCount: number
-  color: string
-  wireRange: string
-  manufacturer: string
-  lockType: string
-  processSegment: string
-  status: string
+  specification?: string
+  insertionLengthMm: number
+  outerStripLengthMm: number
+  innerStripLengthMm: number
   remark?: string
+  status?: string
+  terminalModel?: string
+  pinCount?: number
+  color?: string
+  wireRange?: string
+  manufacturer?: string
+  lockType?: string
+  processSegment?: string
+}
+
+export interface ConnectorParameterPayload {
+  connectorModel: string
+  specification?: string
+  insertionLengthMm: number
+  outerStripLengthMm: number
+  innerStripLengthMm: number
+  remark?: string
+  status?: string
+}
+
+export interface ConnectorImportRowResult {
+  rowNumber: number
+  connectorModel: string
+  specification?: string
+  action: 'created' | 'updated' | 'skipped' | 'conflict' | 'error'
+  valid: boolean
+  message: string
+  resolution?: string
+  issues?: Array<{
+    field: string
+    message: string
+    resolution: string
+  }>
+}
+
+export interface ConnectorImportResult {
+  requiresOverwrite?: boolean
+  requiresDecision?: boolean
+  duplicateStrategy?: 'review' | 'skip' | 'overwrite'
+  totalRows: number
+  validRows?: number
+  importedRows: number
+  createdRows: number
+  updatedRows: number
+  skippedRows: number
+  errorRows?: number
+  duplicateRows?: ConnectorImportRowResult[]
+  rows: ConnectorImportRowResult[]
+  connectors: ConnectorParameter[]
 }
 
 export interface FixtureParameter {

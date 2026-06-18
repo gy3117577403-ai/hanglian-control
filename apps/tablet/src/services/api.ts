@@ -108,7 +108,9 @@ import type {
   DeleteLockSetupPayload,
   DeleteLockStatus,
   DeletePasswordPayload,
+  ConnectorImportResult,
   ConnectorParameter,
+  ConnectorParameterPayload,
   DocumentHubDeleteResponse,
   DocumentHubUploadPayload,
   DocumentHubUploadResponse,
@@ -1101,6 +1103,44 @@ export function getHubConnectors(q?: string) {
 
 export function getHubConnector(id: string) {
   return api<ConnectorParameter>(`/document-hub/connectors/${id}`)
+}
+
+export function createHubConnector(payload: ConnectorParameterPayload) {
+  return api<ConnectorParameter>('/document-hub/connectors', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateHubConnector(
+  id: string,
+  payload: Partial<ConnectorParameterPayload>,
+) {
+  return api<ConnectorParameter>(`/document-hub/connectors/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function deleteHubConnector(id: string) {
+  return api<{ success: boolean; deletedId: string; connector: ConnectorParameter }>(`/document-hub/connectors/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function importHubConnectors(
+  file: File,
+  duplicateStrategy: 'review' | 'skip' | 'overwrite' = 'review',
+) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('duplicateStrategy', duplicateStrategy)
+  formData.append('overwrite', String(duplicateStrategy === 'overwrite'))
+  return api<ConnectorImportResult>('/document-hub/connectors/import', {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
 }
 
 export function getHubFixtures(q?: string) {

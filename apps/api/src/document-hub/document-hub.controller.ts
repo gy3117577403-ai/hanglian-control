@@ -1,19 +1,32 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { CompleteOrderDto } from './dto/complete-order.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
+import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
+import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import { DocumentHubService } from './document-hub.service';
 import type { DrawingModuleKey } from './mock/document-hub.seed';
 import { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
 
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const allowedConnectorImportMimeTypes = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/octet-stream',
+];
+
+function normalizeConnectorImportStrategy(value?: string | boolean): 'review' | 'skip' | 'overwrite' {
+  if (value === true || value === 'true' || value === '1' || value === 'overwrite') return 'overwrite';
+  if (value === 'skip') return 'skip';
+  return 'review';
+}
 
 @ApiTags('document-hub')
 @Controller('document-hub')
@@ -124,10 +137,58 @@ export class DocumentHubController {
     return this.documentHubService.getConnectors(query);
   }
 
+  @Post('connectors')
+  @ApiOperation({ summary: '新增连接器工艺参数，当前仅内存 Mock' })
+  createConnector(@Body() dto: CreateConnectorParameterDto) {
+    return this.documentHubService.createConnector(dto);
+  }
+
+  @Post('connectors/import')
+  @ApiOperation({ summary: 'Excel 导入连接器工艺参数，当前仅内存 Mock' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        overwrite: { type: 'string', example: 'false' },
+        duplicateStrategy: { type: 'string', enum: ['review', 'skip', 'overwrite'], example: 'review' },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => {
+      if (!allowedConnectorImportMimeTypes.includes(file.mimetype)) {
+        callback(new BadRequestException('仅允许导入 Excel 文件'), false);
+        return;
+      }
+      callback(null, true);
+    },
+  }))
+  importConnectors(@UploadedFile() file?: Express.Multer.File, @Body() body?: { overwrite?: string | boolean; duplicateStrategy?: string }): Promise<unknown> {
+    const duplicateStrategy = body?.duplicateStrategy ?? body?.overwrite;
+    return this.documentHubService.importConnectors(file, normalizeConnectorImportStrategy(duplicateStrategy));
+  }
+
   @Get('connectors/:id')
   @ApiOperation({ summary: '连接器参数详情' })
   getConnector(@Param('id') id: string) {
     return this.documentHubService.getConnector(id);
+  }
+
+  @Patch('connectors/:id')
+  @ApiOperation({ summary: '更新连接器参数备注或长度参数，当前仅内存 Mock' })
+  updateConnector(@Param('id') id: string, @Body() dto: UpdateConnectorParameterDto) {
+    return this.documentHubService.updateConnector(id, dto);
+  }
+
+  @Delete('connectors/:id')
+  @ApiOperation({ summary: '删除连接器工艺参数，当前仅内存 Mock' })
+  deleteConnector(@Param('id') id: string) {
+    return this.documentHubService.deleteConnector(id);
   }
 
   @Get('fixtures')
