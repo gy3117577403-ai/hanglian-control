@@ -173,6 +173,8 @@ assert(!/new\s+PrismaClient|DATABASE_URL|Sealos|db push|migrate|S3|企业微信�
 const changed = changedFiles();
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/upload/',
+  'apps/tablet/src/components/viewer/',
+  'apps/tablet/src/composables/',
 ];
 const allowedChangedFiles = new Set([
   paths.hubUpload,
@@ -196,9 +198,14 @@ const allowedChangedFiles = new Set([
   'scripts/tablet-ui-smoke-check.mjs',
   'scripts/document-home-preview-check.mjs',
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
   'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
   'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
   'apps/tablet/src/lib/document-preview-url.ts',
+  'apps/tablet/src/types/document-viewer.ts',
+  'scripts/document-viewer-foundation-check.mjs',
   paths.packageJson,
 ]);
 for (const file of changed) {

@@ -285,6 +285,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const selectedDrawingItem = ref<DrawingItem | null>(null)
   const productDrawingDetail = ref<ProductDrawingDetail | null>(null)
   const drawingViewLevel = ref<DrawingViewLevel>('customers')
+  const documentViewerOpen = ref(false)
+  const documentViewerInitialItemId = ref('')
+  const documentViewerReturnLevel = ref<DrawingViewLevel>('product')
   const connectorRows = ref<ConnectorParameter[]>([])
   const fixtureRows = ref<FixtureParameter[]>([])
   const selectedConnector = ref<ConnectorParameter | null>(null)
@@ -422,8 +425,46 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
+  function resetDocumentViewerState() {
+    documentViewerOpen.value = false
+    documentViewerInitialItemId.value = ''
+    selectedDrawingItem.value = null
+  }
+
+  function isDeletedDrawingItem(item: DrawingItem) {
+    return Boolean(item.deleted || item.deletedAt)
+  }
+
+  function drawingItemDate(item: DrawingItem) {
+    return new Date(item.uploadedAt || '').getTime() || 0
+  }
+
+  function latestDrawingItems(items: DrawingItem[]) {
+    return [...items].sort((a, b) => drawingItemDate(b) - drawingItemDate(a))
+  }
+
+  function selectViewerInitialItem(module: DrawingModule, item?: DrawingItem | null) {
+    if (item && !isDeletedDrawingItem(item)) return item
+    const activeItems = module.items.filter((entry) => !isDeletedDrawingItem(entry))
+    const candidateItems = activeItems.some((entry) => Boolean(entry.previewUrl))
+      ? activeItems.filter((entry) => Boolean(entry.previewUrl))
+      : activeItems
+    const coverId = module.coverDocumentId
+    if (coverId) {
+      const cover = candidateItems.find((entry) => entry.itemId === coverId || entry.documentId === coverId)
+      if (cover) return cover
+    }
+    const effective = latestDrawingItems(candidateItems.filter((entry) => (entry.documentStatus ?? entry.status) === 'effective'))[0]
+    if (effective) return effective
+    const preferred = latestDrawingItems(candidateItems.filter((entry) => (
+      entry.source === 'manual_upload' || entry.source === 'camera_capture' || entry.source === 'pdf_import'
+    )))[0]
+    return preferred ?? latestDrawingItems(candidateItems)[0] ?? candidateItems[0] ?? null
+  }
+
   async function openCustomer(customer: HubCustomer) {
     saveCurrentScroll('customers')
+    resetDocumentViewerState()
     selectedCustomer.value = customer
     selectedProduct.value = null
     productDrawingDetail.value = null
@@ -440,6 +481,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function openProduct(product: HubProductModel, source: 'drawing' | 'orders' | 'overview' | 'search' = 'drawing') {
     const requestId = ++productDetailRequestId
     saveCurrentScroll(drawingViewLevel.value)
+    resetDocumentViewerState()
     selectedProduct.value = product
     selectedModule.value = null
     selectedDrawingItem.value = null
@@ -475,6 +517,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function openOrderProduct(order: HubOrder, source: 'orders' | 'overview' = 'orders') {
     activeMode.value = 'drawing'
     navigation.rememberFunction('drawing')
+    resetDocumentViewerState()
     const product = order.productId ? mockHubProducts.find((item) => item.productId === order.productId) : undefined
     if (product) {
       selectedCustomer.value = mockHubCustomers.find((customer) => customer.customerId === product.customerId) ?? null
@@ -508,6 +551,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
   function openModule(module: DrawingModule) {
     saveCurrentScroll('product')
+    resetDocumentViewerState()
     selectedModule.value = module
     selectedDrawingItem.value = null
     drawingViewLevel.value = 'module'
@@ -518,17 +562,44 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     void restoreScroll('module')
   }
 
-  function openImageDetail(item: DrawingItem) {
-    saveCurrentScroll('module')
-    selectedDrawingItem.value = item
-    drawingViewLevel.value = 'image'
+  function openModuleViewer(module: DrawingModule, item?: DrawingItem | null) {
+    saveCurrentScroll(drawingViewLevel.value)
+    selectedModule.value = module
+    const initialItem = selectViewerInitialItem(module, item)
+    selectedDrawingItem.value = initialItem
+    documentViewerInitialItemId.value = initialItem?.itemId ?? initialItem?.documentId ?? ''
+    documentViewerReturnLevel.value = drawingViewLevel.value
+    documentViewerOpen.value = true
     navigation.rememberBreadcrumb([
       ...navigation.drawingBreadcrumb,
-      { level: 'image', productId: selectedProduct.value?.productId, moduleKey: selectedModule.value?.moduleKey, itemId: item.itemId },
+      { level: 'image', productId: selectedProduct.value?.productId, moduleKey: module.moduleKey, itemId: initialItem?.itemId },
     ])
   }
 
+  function openImageDetail(item: DrawingItem) {
+    if (selectedModule.value) {
+      openModuleViewer(selectedModule.value, item)
+      return
+    }
+    selectedDrawingItem.value = item
+    documentViewerInitialItemId.value = item.itemId
+    documentViewerReturnLevel.value = drawingViewLevel.value
+    documentViewerOpen.value = true
+  }
+
+  async function closeDocumentViewer() {
+    documentViewerOpen.value = false
+    documentViewerInitialItemId.value = ''
+    selectedDrawingItem.value = null
+    if (documentViewerReturnLevel.value === 'product') selectedModule.value = null
+    await restoreScroll(documentViewerReturnLevel.value)
+  }
+
   async function goBack() {
+    if (documentViewerOpen.value) {
+      await closeDocumentViewer()
+      return
+    }
     if (drawingViewLevel.value === 'image') {
       drawingViewLevel.value = 'module'
       selectedDrawingItem.value = null
@@ -630,6 +701,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     activeMode.value = mode
     navigation.rememberFunction(mode)
     searchKeyword.value = ''
+    resetDocumentViewerState()
     selectedConnector.value = null
     selectedFixture.value = null
     selectedModule.value = null
@@ -1377,6 +1449,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedDrawingItem,
     productDrawingDetail,
     drawingViewLevel,
+    documentViewerOpen,
+    documentViewerInitialItemId,
     connectorRows,
     fixtureRows,
     selectedConnector,
@@ -1426,7 +1500,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     openProduct,
     openOrderProduct,
     openModule,
+    openModuleViewer,
     openImageDetail,
+    closeDocumentViewer,
     goBack,
     searchCurrentMode,
     loadConnectors,

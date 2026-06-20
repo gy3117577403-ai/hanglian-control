@@ -118,6 +118,10 @@ assert(types.includes('deletedAt?: string'), 'DrawingItem type should include op
 assert(packageJson.includes('"document-home-preview:check": "node scripts/document-home-preview-check.mjs"'), 'Root package.json should expose document-home-preview:check.');
 
 const changed = changedFiles();
+const allowedChangedPrefixes = [
+  'apps/tablet/src/components/viewer/',
+  'apps/tablet/src/composables/',
+];
 const allowedChanged = new Set([
   paths.moduleCard,
   paths.moduleCover,
@@ -126,11 +130,18 @@ const allowedChanged = new Set([
   paths.types,
   paths.packageJson,
   paths.script,
+  'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'apps/tablet/src/types/document-viewer.ts',
+  'scripts/document-viewer-foundation-check.mjs',
   'scripts/camera-upload-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
 ]);
 for (const file of changed) {
-  assert(allowedChanged.has(file), `Unexpected changed file: ${file}`);
+  const allowed = allowedChanged.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
+  assert(allowed, `Unexpected changed file: ${file}`);
 }
 assert(!changed.some((file) => file.startsWith('apps/api/')), 'Backend files must remain unchanged.');
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'Prisma schema must remain unchanged.');

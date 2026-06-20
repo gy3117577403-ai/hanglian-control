@@ -77,13 +77,20 @@ const uploadPhasePaths = [
   'scripts/real-upload-ui-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
   'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
   'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
   'apps/tablet/src/lib/document-preview-url.ts',
+  'apps/tablet/src/types/document-viewer.ts',
   'scripts/document-home-preview-check.mjs',
+  'scripts/document-viewer-foundation-check.mjs',
 ];
 const uploadPhasePrefixes = [
   'apps/tablet/src/components/upload/',
+  'apps/tablet/src/components/viewer/',
+  'apps/tablet/src/composables/',
 ];
 
 assert(header.includes("'open-pdf-import'"), 'Header should emit open-pdf-import.');

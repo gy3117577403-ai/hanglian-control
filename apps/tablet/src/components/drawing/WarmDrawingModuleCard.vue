@@ -11,6 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   open: [module: DrawingModule]
+  preview: [module: DrawingModule, item?: DrawingItem | null]
   upload: [module: DrawingModule]
   delete: [module: DrawingModule]
 }>()
@@ -91,7 +92,7 @@ const updatedDate = computed(() => (coverItem.value?.uploadedAt ?? props.module.
       :item-count="activeItems.length"
       :image-count="imageCount"
       :fixed-height="coverHeight"
-      @open="emit('open', module)"
+      @open="emit('preview', module, coverItem)"
     />
 
     <div class="module-body">
@@ -107,7 +108,7 @@ const updatedDate = computed(() => (coverItem.value?.uploadedAt ?? props.module.
         <PrimeButton severity="secondary" outlined rounded :title="`上传${module.moduleName}`" @click="emit('upload', module)">
           <UploadCloud :size="16" />
         </PrimeButton>
-        <PrimeButton rounded :title="`查看全部${module.moduleName}`" @click="emit('open', module)">
+        <PrimeButton rounded :title="`查看全部${module.moduleName}`" @click="emit('preview', module, coverItem)">
           <Eye :size="16" />
         </PrimeButton>
         <PrimeButton

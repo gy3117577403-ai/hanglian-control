@@ -70,6 +70,7 @@ async function confirmDelete() {
           featured
           :module="module"
           @open="store.openModule"
+          @preview="store.openModuleViewer"
           @upload="store.openModuleUpload"
           @delete="openDelete"
         />
@@ -81,6 +82,7 @@ async function confirmDelete() {
           :key="module.moduleKey"
           :module="module"
           @open="store.openModule"
+          @preview="store.openModuleViewer"
           @upload="store.openModuleUpload"
           @delete="openDelete"
         />
