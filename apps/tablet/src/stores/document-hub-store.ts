@@ -2,10 +2,12 @@ import { defineStore } from 'pinia'
 import { computed, nextTick, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import {
+  applyDrawingPdfImport,
   completeHubOrder,
   createHubConnector,
   deleteHubConnector,
   deleteHubDrawingItem,
+  getDrawingPdfImportBatch,
   getHubCustomers,
   getHubOrderOverview,
   getHubOrders,
@@ -15,6 +17,7 @@ import {
   getHubConnectors,
   getHubFixtures,
   importHubConnectors,
+  previewDrawingPdfImport,
   updateHubConnector,
   uploadHubDrawingItem,
 } from '@/services/api'
@@ -44,6 +47,13 @@ import type {
   HubProductModel,
   ProductDrawingDetail,
 } from '@/types/production'
+import type {
+  PdfImportApplyRequest,
+  PdfImportApplyResponse,
+  PdfImportEditableItemPatch,
+  PdfImportPreviewItemState,
+  PdfImportPreviewResponse,
+} from '@/types/pdf-import'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -111,6 +121,78 @@ function fileTypeFromFile(file?: File | null): DrawingItem['fileType'] {
   if (file?.type === 'application/pdf') return 'pdf'
   if (file?.type?.startsWith('image/')) return 'image'
   return 'card'
+}
+
+const PDF_IMPORT_MAX_FILES = 50
+const PDF_IMPORT_MAX_FILE_SIZE = 30 * 1024 * 1024
+const pdfImportItemPatchFields = ['selected', 'confirmedProductModel', 'confirmedVersion', 'productName', 'setAsEffective'] as const
+
+function cleanText(value: unknown) {
+  return String(value ?? '').trim()
+}
+
+function pdfImportErrorMessage(error: unknown, fallback = 'PDF 导入请求失败，请检查网络连接。') {
+  const value = error as {
+    data?: { message?: string | string[]; error?: string; statusCode?: number }
+    response?: { _data?: { message?: string | string[]; error?: string; statusCode?: number } }
+    message?: string
+  }
+  const raw = value?.data?.message
+    ?? value?.response?._data?.message
+    ?? value?.data?.error
+    ?? value?.response?._data?.error
+    ?? value?.message
+  const message = Array.isArray(raw) ? raw.join('；') : cleanText(raw)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) return fallback
+  return message
+}
+
+function isPdfFile(file: File) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
+}
+
+function normalizePdfImportFiles(files: readonly File[] | FileList) {
+  const input = Array.from(files)
+  const seenRefs = new Set<File>()
+  const seenKeys = new Set<string>()
+  const result: File[] = []
+  for (const file of input) {
+    if (seenRefs.has(file)) continue
+    seenRefs.add(file)
+    const key = `${file.name}::${file.size}`
+    if (seenKeys.has(key)) continue
+    seenKeys.add(key)
+    result.push(file)
+  }
+  return result
+}
+
+function toPdfImportItemState(
+  item: PdfImportPreviewResponse['items'][number],
+  previous?: PdfImportPreviewItemState,
+): PdfImportPreviewItemState {
+  return {
+    ...item,
+    selected: previous?.selected ?? (item.action !== 'skip_duplicate' && item.action !== 'skip' && item.action !== 'error'),
+    confirmedProductModel: previous?.confirmedProductModel ?? item.confirmedProductModel ?? item.parsedProductModel,
+    confirmedVersion: previous?.confirmedVersion ?? item.parsedVersion,
+    productName: previous?.productName,
+    setAsEffective: previous?.setAsEffective ?? item.action === 'create_product',
+  }
+}
+
+function pickPdfImportItemPatch(patch: PdfImportEditableItemPatch | Record<string, unknown>): PdfImportEditableItemPatch {
+  const next: PdfImportEditableItemPatch = {}
+  for (const field of pdfImportItemPatchFields) {
+    if (!(field in patch)) continue
+    const value = (patch as Record<string, unknown>)[field]
+    if (field === 'selected') next.selected = Boolean(value)
+    if (field === 'setAsEffective') next.setAsEffective = Boolean(value)
+    if (field === 'confirmedProductModel') next.confirmedProductModel = typeof value === 'string' ? value : cleanText(value)
+    if (field === 'confirmedVersion') next.confirmedVersion = typeof value === 'string' ? value : cleanText(value)
+    if (field === 'productName') next.productName = typeof value === 'string' ? value : cleanText(value)
+  }
+  return next
 }
 
 const orderStatusRank: Record<HubOrderStatus, number> = {
@@ -190,6 +272,17 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const connectorImportResult = ref<ConnectorImportResult | null>(null)
   const connectorImportError = ref('')
   const connectorMutationLoading = ref(false)
+  const pdfImportPreview = ref<PdfImportPreviewResponse | null>(null)
+  const pdfImportBatchId = ref('')
+  const pdfImportPreviewLoading = ref(false)
+  const pdfImportApplyLoading = ref(false)
+  const pdfImportBatchLoading = ref(false)
+  const pdfImportError = ref('')
+  const pdfImportSelectedCustomerId = ref<string | null>(null)
+  const pdfImportFiles = ref<File[]>([])
+  const pdfImportItems = ref<PdfImportPreviewItemState[]>([])
+  const pdfImportApplyResult = ref<PdfImportApplyResponse | null>(null)
+  const pdfImportLastUpdatedAt = ref<string | null>(null)
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
   const uploadDialogSource = ref<'top' | 'module'>('top')
@@ -682,6 +775,227 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
+  function clearPdfImportSession(keepCustomer = false) {
+    pdfImportPreview.value = null
+    pdfImportBatchId.value = ''
+    pdfImportFiles.value = []
+    pdfImportItems.value = []
+    pdfImportApplyResult.value = null
+    pdfImportError.value = ''
+    pdfImportLastUpdatedAt.value = null
+    if (!keepCustomer) pdfImportSelectedCustomerId.value = null
+  }
+
+  function setPdfImportCustomer(customerId: string | null) {
+    const nextCustomerId = cleanText(customerId) || null
+    if (pdfImportSelectedCustomerId.value !== nextCustomerId) {
+      clearPdfImportSession(true)
+      pdfImportSelectedCustomerId.value = nextCustomerId
+    }
+  }
+
+  function setPdfImportFiles(files: readonly File[] | FileList) {
+    const nextFiles = normalizePdfImportFiles(files)
+    const nonPdf = nextFiles.find((file) => !isPdfFile(file))
+    if (nonPdf) {
+      pdfImportError.value = '仅支持 PDF 图纸文件。'
+      return false
+    }
+    if (nextFiles.length > PDF_IMPORT_MAX_FILES) {
+      pdfImportError.value = '单次最多选择 50 个 PDF 文件。'
+      return false
+    }
+    const oversized = nextFiles.find((file) => file.size > PDF_IMPORT_MAX_FILE_SIZE)
+    if (oversized) {
+      pdfImportError.value = `文件超过 30 MB：${oversized.name}`
+      return false
+    }
+    pdfImportFiles.value = nextFiles
+    pdfImportPreview.value = null
+    pdfImportBatchId.value = ''
+    pdfImportItems.value = []
+    pdfImportApplyResult.value = null
+    pdfImportError.value = ''
+    pdfImportLastUpdatedAt.value = null
+    return true
+  }
+
+  function savePdfImportPreview(response: PdfImportPreviewResponse) {
+    const previousItems = new Map(pdfImportItems.value.map((item) => [item.importItemId, item]))
+    pdfImportPreview.value = response
+    pdfImportBatchId.value = response.importBatchId
+    pdfImportSelectedCustomerId.value = response.customer.customerId
+    pdfImportItems.value = response.items.map((item) => toPdfImportItemState(item, previousItems.get(item.importItemId)))
+    pdfImportLastUpdatedAt.value = new Date().toISOString()
+  }
+
+  async function previewPdfImport() {
+    if (!pdfImportSelectedCustomerId.value) {
+      pdfImportError.value = '请选择客户。'
+      return null
+    }
+    if (!pdfImportFiles.value.length) {
+      pdfImportError.value = '请选择 PDF 图纸文件。'
+      return null
+    }
+    pdfImportPreviewLoading.value = true
+    pdfImportError.value = ''
+    pdfImportApplyResult.value = null
+    try {
+      const response = await previewDrawingPdfImport(pdfImportSelectedCustomerId.value, pdfImportFiles.value)
+      savePdfImportPreview(response)
+      return response
+    } catch (error) {
+      pdfImportPreview.value = null
+      pdfImportBatchId.value = ''
+      pdfImportItems.value = []
+      pdfImportError.value = pdfImportErrorMessage(error)
+      return null
+    } finally {
+      pdfImportPreviewLoading.value = false
+    }
+  }
+
+  async function loadPdfImportBatch(importBatchId: string) {
+    const cleanImportBatchId = cleanText(importBatchId)
+    if (!cleanImportBatchId) {
+      pdfImportError.value = 'PDF 导入预览记录不存在。'
+      return null
+    }
+    pdfImportBatchLoading.value = true
+    pdfImportError.value = ''
+    try {
+      const response = await getDrawingPdfImportBatch(cleanImportBatchId)
+      savePdfImportPreview(response)
+      return response
+    } catch (error) {
+      pdfImportError.value = pdfImportErrorMessage(error)
+      return null
+    } finally {
+      pdfImportBatchLoading.value = false
+    }
+  }
+
+  function updatePdfImportItem(importItemId: string, patch: PdfImportEditableItemPatch | Record<string, unknown>) {
+    const cleanImportItemId = cleanText(importItemId)
+    const safePatch = pickPdfImportItemPatch(patch)
+    pdfImportItems.value = pdfImportItems.value.map((item) => (
+      item.importItemId === cleanImportItemId ? { ...item, ...safePatch } : item
+    ))
+  }
+
+  function isPdfImportPreviewExpired() {
+    if (pdfImportPreview.value?.status === 'expired') return true
+    const expiresAt = pdfImportPreview.value?.expiresAt
+    return Boolean(expiresAt && new Date(expiresAt).getTime() <= Date.now())
+  }
+
+  function makePdfImportApplyPayload(): PdfImportApplyRequest {
+    const selectedItems = pdfImportItems.value.filter((item) => item.selected)
+    return {
+      importBatchId: pdfImportBatchId.value,
+      items: selectedItems.map((item) => {
+        const confirmedProductModel = cleanText(item.confirmedProductModel || item.parsedProductModel)
+        const confirmedVersion = cleanText(item.confirmedVersion || item.parsedVersion)
+        const productName = cleanText(item.productName)
+        return {
+          importItemId: item.importItemId,
+          selected: true,
+          ...(confirmedProductModel ? { confirmedProductModel } : {}),
+          ...(confirmedVersion ? { confirmedVersion } : {}),
+          ...(productName ? { productName } : {}),
+          ...(typeof item.setAsEffective === 'boolean' ? { setAsEffective: item.setAsEffective } : {}),
+        }
+      }),
+    }
+  }
+
+  async function refreshDrawingDataAfterPdfApply(result: PdfImportApplyResponse) {
+    const customerId = result.customer.customerId
+    await loadCustomers()
+    if (selectedCustomer.value?.customerId === customerId || pdfImportSelectedCustomerId.value === customerId) {
+      try {
+        productModels.value = await getHubProducts(customerId)
+      } catch {
+        // Keep the current view unchanged if the refresh fails after a successful apply.
+      }
+    }
+
+    const affectedProductIds = new Set(result.items.map((item) => item.productId).filter(Boolean) as string[])
+    const currentProductId = selectedProduct.value?.productId
+    if (!currentProductId || !affectedProductIds.has(currentProductId)) return
+    try {
+      const detail = await getHubProductDetail(currentProductId)
+      productDrawingDetail.value = detail
+      selectedProduct.value = detail.product
+      if (selectedModule.value) {
+        selectedModule.value = detail.modules.find((module) => module.moduleKey === selectedModule.value?.moduleKey) ?? selectedModule.value
+      }
+    } catch {
+      // The apply result remains authoritative; a failed refresh should not create local fake data.
+    }
+  }
+
+  async function applyPdfImport() {
+    if (pdfImportApplyLoading.value) {
+      pdfImportError.value = '不允许重复点击。'
+      return null
+    }
+    if (!pdfImportBatchId.value) {
+      pdfImportError.value = 'PDF 导入预览记录不存在。'
+      return null
+    }
+    if (isPdfImportPreviewExpired()) {
+      pdfImportError.value = 'PDF 导入预览已过期，请重新选择文件。'
+      return null
+    }
+    const selectedItems = pdfImportItems.value.filter((item) => item.selected)
+    if (!selectedItems.length) {
+      pdfImportError.value = '请至少选择一项需要导入的 PDF。'
+      return null
+    }
+    const unconfirmedItem = selectedItems.find((item) => (
+      (item.needsConfirmation || item.action === 'needs_confirmation') &&
+      !cleanText(item.confirmedProductModel)
+    ))
+    if (unconfirmedItem) {
+      pdfImportError.value = '请先确认所有待确认文件的产品型号。'
+      return null
+    }
+
+    pdfImportApplyLoading.value = true
+    pdfImportError.value = ''
+    try {
+      const response = await applyDrawingPdfImport(makePdfImportApplyPayload())
+      pdfImportApplyResult.value = response
+      pdfImportLastUpdatedAt.value = new Date().toISOString()
+      if (response.status === 'partially_applied') {
+        pdfImportError.value = 'PDF 导入部分完成，请检查失败项。'
+      } else if (response.status === 'failed') {
+        pdfImportError.value = 'PDF 导入失败，请检查失败项。'
+      }
+      await refreshDrawingDataAfterPdfApply(response)
+      return response
+    } catch (error) {
+      pdfImportError.value = pdfImportErrorMessage(error)
+      return null
+    } finally {
+      pdfImportApplyLoading.value = false
+    }
+  }
+
+  function resetPdfImport() {
+    clearPdfImportSession(false)
+  }
+
+  async function retryPdfImportBatch() {
+    if (!pdfImportFiles.value.length) {
+      pdfImportError.value = '请重新选择 PDF 图纸文件。'
+      return null
+    }
+    return previewPdfImport()
+  }
+
   async function updateConnectorRemark(connectorId: string, remark: string) {
     const nextRemark = remark.trim()
     patchConnector(connectorId, { remark: nextRemark })
@@ -864,6 +1178,17 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     connectorImportResult,
     connectorImportError,
     connectorMutationLoading,
+    pdfImportPreview,
+    pdfImportBatchId,
+    pdfImportPreviewLoading,
+    pdfImportApplyLoading,
+    pdfImportBatchLoading,
+    pdfImportError,
+    pdfImportSelectedCustomerId,
+    pdfImportFiles,
+    pdfImportItems,
+    pdfImportApplyResult,
+    pdfImportLastUpdatedAt,
     orderOverviewOpen,
     uploadDialogOpen,
     uploadDialogSource,
@@ -896,6 +1221,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     saveConnector,
     deleteConnector,
     importConnectorExcel,
+    setPdfImportCustomer,
+    setPdfImportFiles,
+    previewPdfImport,
+    loadPdfImportBatch,
+    updatePdfImportItem,
+    applyPdfImport,
+    resetPdfImport,
+    retryPdfImportBatch,
     updateConnectorRemark,
     openFixtureDetail,
     uploadToModule,

@@ -130,6 +130,11 @@ import type {
   UnifiedSearchResponse,
   UnifiedUpdatePayload,
 } from '@/types/production'
+import type {
+  PdfImportApplyRequest,
+  PdfImportApplyResponse,
+  PdfImportPreviewResponse,
+} from '@/types/pdf-import'
 
 const API_BASE = getApiBaseUrl()
 
@@ -167,6 +172,32 @@ export const api = ofetch.create({
 })
 
 export const apiBaseUrl = API_BASE
+
+function readApiErrorMessage(error: unknown) {
+  const value = error as {
+    data?: { message?: string | string[]; error?: string; statusCode?: number }
+    response?: { _data?: { message?: string | string[]; error?: string; statusCode?: number } }
+    message?: string
+  }
+  const raw = value?.data?.message
+    ?? value?.response?._data?.message
+    ?? value?.data?.error
+    ?? value?.response?._data?.error
+    ?? value?.message
+  return Array.isArray(raw) ? raw.join('；') : String(raw ?? '').trim()
+}
+
+function toPdfImportRequestError(error: unknown) {
+  const message = readApiErrorMessage(error)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
+    return new Error('PDF 导入请求失败，请检查网络连接。')
+  }
+  return new Error(message)
+}
+
+function toFileArray(files: readonly File[] | FileList) {
+  return Array.isArray(files) ? [...files] : Array.from(files)
+}
 
 export function pingApi() {
   return api<{ ok: boolean; timestamp: string; service: string }>('/system/ping')
@@ -1095,6 +1126,45 @@ export function deleteHubDrawingItem(productId: string, moduleKey: DrawingModule
       timeout: 15000,
     },
   )
+}
+
+export async function previewDrawingPdfImport(customerId: string, files: readonly File[] | FileList) {
+  const formData = new FormData()
+  formData.append('customerId', customerId)
+  for (const file of toFileArray(files)) {
+    formData.append('files', file)
+  }
+  try {
+    return await api<PdfImportPreviewResponse>('/document-hub/drawings/pdf-import/preview', {
+      method: 'POST',
+      body: formData,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toPdfImportRequestError(error)
+  }
+}
+
+export async function getDrawingPdfImportBatch(importBatchId: string) {
+  try {
+    return await api<PdfImportPreviewResponse>(`/document-hub/drawings/pdf-import/${encodeURIComponent(importBatchId)}`, {
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toPdfImportRequestError(error)
+  }
+}
+
+export async function applyDrawingPdfImport(payload: PdfImportApplyRequest) {
+  try {
+    return await api<PdfImportApplyResponse>('/document-hub/drawings/pdf-import/apply', {
+      method: 'POST',
+      body: payload,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toPdfImportRequestError(error)
+  }
 }
 
 export function getHubConnectors(q?: string) {
