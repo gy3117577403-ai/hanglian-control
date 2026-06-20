@@ -17,6 +17,14 @@ function requireIncludes(relativePath, needle, message) {
   if (!read(relativePath).includes(needle)) blockers.push(message);
 }
 
+function requireAnyIncludes(candidates, message) {
+  const matched = candidates.some(({ relativePath, needles }) => {
+    const source = read(relativePath);
+    return needles.every((needle) => source.includes(needle));
+  });
+  if (!matched) blockers.push(message);
+}
+
 function requireNotIncludes(relativePath, needle, message) {
   if (read(relativePath).includes(needle)) blockers.push(message);
 }
@@ -34,6 +42,8 @@ console.log('This check is local-only. It does not connect to a database, Sealos
   'apps/api/src/files/files.controller.ts',
   'apps/api/src/files/files.service.ts',
   'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/document-lifecycle.service.ts',
+  'apps/api/src/document-hub/helpers/document-lifecycle-validator.ts',
   'apps/api/src/unified-documents/unified-documents.service.ts',
   'apps/api/src/common/types/production.types.ts',
 ].forEach((file) => read(file));
@@ -45,7 +55,26 @@ requireIncludes('apps/api/src/documents/documents.service.ts', 'checksumSha256: 
 requireIncludes('apps/api/src/files/files.controller.ts', "Get('documents/:documentId/preview')", 'FilesController must expose document preview route.');
 requireIncludes('apps/api/src/files/files.controller.ts', "Get('documents/:documentId/download')", 'FilesController must expose document download route.');
 requireIncludes('apps/api/src/files/files.service.ts', 'getDocumentFile', 'FilesService must resolve files by document id.');
-requireIncludes('apps/api/src/document-hub/document-hub.service.ts', 'deleteDocumentObject', 'DocumentHub delete must use StorageService.');
+requireAnyIncludes([
+  {
+    relativePath: 'apps/api/src/document-hub/document-hub.service.ts',
+    needles: ['deleteDocumentObject'],
+  },
+  {
+    relativePath: 'apps/api/src/document-hub/document-lifecycle.service.ts',
+    needles: [
+      'async trash',
+      'async restore',
+      'async purge',
+      'StorageService',
+      'assertSafeLifecycleStorageKey',
+      'const storageKey = assertSafeLifecycleStorageKey',
+      'this.storageService.deleteObject(storageKey)',
+    ],
+  },
+], 'DocumentHub delete must use StorageService.');
+requireIncludes('apps/api/src/document-hub/helpers/document-lifecycle-validator.ts', "normalized.includes('..')", 'Document lifecycle storage key validation must reject path traversal.');
+requireIncludes('apps/api/src/document-hub/helpers/document-lifecycle-validator.ts', 'normalized.split', 'Document lifecycle storage key validation must inspect path segments.');
 requireIncludes('apps/api/src/unified-documents/unified-documents.service.ts', 'deleteDocumentObject', 'Unified purge must use StorageService.');
 requireIncludes('apps/api/src/storage/local-storage.service.ts', 'writeTextAtomic', 'Local metadata writes must use atomic temp-file replacement.');
 requireIncludes('apps/api/src/storage/storage.config.ts', "env('FILE_STORAGE_PROVIDER', 'local')", 'Storage provider must default to local.');
