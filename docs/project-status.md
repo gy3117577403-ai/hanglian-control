@@ -175,3 +175,10 @@
 - Added manual-only GitHub image workflow. It is not triggered automatically by this commit.
 - Still paused: Sealos PostgreSQL, S3/Object Storage, WeCom Drive, real voice, Sealos app deployment changes.
 - Forbidden in this stage: `db:readonly-check`, Prisma migrate, Prisma db push, seed, and any database write.
+
+# V3.14 图纸 Prisma 数据模型草案
+
+- 当前分支：`feature/v3-14-drawing-product-workflow`。
+- 已定稿图纸业务 Prisma schema 草案，覆盖 `Customer`、`Product`、`ProductModule`、`ProductDocument`、`PdfImportBatch`、`PdfImportItem`、`AuditLog` 和 `DeleteLockSetting`。
+- 已补充 JSON metadata 到 Prisma 的字段映射文档，以及 V3.15 测试库迁移路径的 PostgreSQL readiness 说明。
+- 运行时仍使用 Mock / JSON metadata 和本地持久化文件索引。本阶段没有连接 PostgreSQL、没有执行迁移、没有建表、没有 seed、没有修改 Sealos。

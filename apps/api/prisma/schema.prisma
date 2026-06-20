@@ -58,6 +58,10 @@ enum DocumentSource {
   MOCK
   WECOM_DISK
   MANUAL_UPLOAD
+  PDF_IMPORT
+  MANUAL_CREATE
+  FUTURE_WECOM
+  SEED
 }
 
 enum ReadinessStatus {
@@ -76,6 +80,7 @@ enum FeedbackType {
 }
 
 enum AuditEntityType {
+  CUSTOMER
   DOCUMENT
   PLAN
   FEEDBACK
@@ -83,16 +88,32 @@ enum AuditEntityType {
   SYSTEM
   IMPORT
   KNOWLEDGE
+  PRODUCT
+  PRODUCT_MODULE
+  PDF_IMPORT_BATCH
+  PDF_IMPORT_ITEM
+  DELETE_LOCK
 }
 
 enum AuditAction {
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_MODULE_UPDATED
   DOCUMENT_UPLOADED
   DOCUMENT_STATUS_CHANGED
   DOCUMENT_VERSION_CHANGED
   DOCUMENT_SET_EFFECTIVE
   DOCUMENT_ARCHIVED
+  DOCUMENT_TRASHED
+  DOCUMENT_RESTORED
+  DOCUMENT_PURGED
   DOCUMENT_PREVIEWED
   DOCUMENT_DOWNLOADED
+  PDF_IMPORT_PREVIEWED
+  PDF_IMPORT_APPLIED
+  DELETE_LOCK_UPDATED
   READINESS_RECALCULATED
   MIGRATION_PREVIEW_GENERATED
   BUSINESS_DATA_IMPORTED
@@ -191,42 +212,64 @@ model User {
 }
 
 model Customer {
-  id         String    @id @default(cuid())
-  name       String    @unique
-  code       String?   @unique
-  salesOwner String?
-  deletedAt  DateTime?
-  products   Product[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                String           @id @default(cuid())
+  name              String
+  code              String?          @unique
+  customerName      String?
+  customerShortName String?
+  customerCode      String?
+  aliases           Json?
+  status            String           @default("active")
+  salesOwner        String?
+  deletedAt         DateTime?
+  products          Product[]
+  pdfImportBatches  PdfImportBatch[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([name])
+  @@index([customerName])
+  @@index([customerCode])
+  @@index([status])
   @@index([deletedAt])
 }
 
 model Product {
-  id               String                  @id @default(cuid())
-  customerId       String
-  customer         Customer                @relation(fields: [customerId], references: [id])
-  productCode      String                  @unique
-  productName      String
-  currentVersion   String
-  processSegment   ProcessSegment          @default(COMMON)
-  isActive         Boolean                 @default(true)
-  deletedAt        DateTime?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  plans            ProductionPlan[]
-  documents        ProductDocument[]
-  frontParameters  FrontProcessParameter[]
-  backPackages     BackProcessPackage[]
-  fixtures         Fixture[]
-  abnormalCases    AbnormalCase[]
-  qualityStandards QualityStandard[]
+  id                     String                  @id @default(cuid())
+  customerId             String
+  customer               Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  productCode            String                  @unique
+  productModel           String?
+  normalizedProductModel String
+  productName            String
+  currentVersion         String
+  drawingStatus          String                  @default("no_drawing")
+  source                 String                  @default("seed")
+  remark                 String?
+  searchKeywords         Json?
+  processSegment         ProcessSegment          @default(COMMON)
+  isActive               Boolean                 @default(true)
+  deletedAt              DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  plans                  ProductionPlan[]
+  modules                ProductModule[]
+  documents              ProductDocument[]
+  pdfImportExistingItems PdfImportItem[]         @relation("PdfImportExistingProduct")
+  pdfImportResultItems   PdfImportItem[]         @relation("PdfImportResultProduct")
+  frontParameters        FrontProcessParameter[]
+  backPackages           BackProcessPackage[]
+  fixtures               Fixture[]
+  abnormalCases          AbnormalCase[]
+  qualityStandards       QualityStandard[]
 
+  @@unique([customerId, normalizedProductModel])
   @@index([customerId])
+  @@index([normalizedProductModel])
+  @@index([drawingStatus])
   @@index([processSegment])
   @@index([deletedAt])
+  @@index([updatedAt])
 }
 
 model ProductionPlan {
@@ -264,47 +307,191 @@ model ProductionPlan {
 }
 
 model ProductDocument {
-  id                 String          @id @default(cuid())
-  productId          String
-  product            Product         @relation(fields: [productId], references: [id])
-  productionPlanId   String?
-  productionPlan     ProductionPlan? @relation(fields: [productionPlanId], references: [id])
-  documentType       DocumentType
-  versionGroupKey    String?
-  title              String
-  version            String
-  status             DocumentStatus  @default(PENDING_REVIEW)
-  source             DocumentSource  @default(MOCK)
-  requiredForProcess ProcessSegment  @default(COMMON)
-  previewType        String
-  originalFileName   String?
-  storedFileName     String?
-  mimeType           String?
-  fileSize           Int?
-  previewUrl         String?
-  downloadUrl        String?
-  storageProvider    String?
-  storageKey         String?
-  checksum           String?
-  mockPreviewText    String?
-  keywords           String[]
-  remark             String?
-  effectiveDate      DateTime?
-  archived           Boolean         @default(false)
-  archivedAt         DateTime?
-  archivedBy         String?
-  deletedAt          DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                     String          @id @default(cuid())
+  productId              String
+  product                Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productionPlanId       String?
+  productionPlan         ProductionPlan? @relation(fields: [productionPlanId], references: [id])
+  moduleId               String?
+  module                 ProductModule?  @relation("ProductModuleDocuments", fields: [moduleId], references: [id], onDelete: SetNull)
+  moduleKey              String?
+  documentType           DocumentType
+  versionGroupKey        String?
+  title                  String
+  version                String
+  contentKind            String          @default("document")
+  status                 DocumentStatus  @default(PENDING_REVIEW)
+  documentStatus         String          @default("pending_review")
+  source                 DocumentSource  @default(MOCK)
+  requiredForProcess     ProcessSegment  @default(COMMON)
+  previewType            String
+  previewMode            String?
+  originalFileName       String?
+  storedFileName         String?
+  mimeType               String?
+  fileSize               Int?
+  pageCount              Int?
+  imageWidth             Int?
+  imageHeight            Int?
+  previewUrl             String?
+  downloadUrl            String?
+  storageProvider        String?
+  storageKey             String?
+  checksum               String?
+  checksumSha256         String?
+  mockPreviewText        String?
+  keywords               String[]
+  keywordMeta            Json?
+  remark                 String?
+  sortOrder              Int             @default(0)
+  isCover                Boolean         @default(false)
+  effectiveDate          DateTime?
+  archived               Boolean         @default(false)
+  archivedAt             DateTime?
+  archivedBy             String?
+  deleted                Boolean         @default(false)
+  deletedAt              DateTime?
+  deletedBy              String?
+  deleteReason           String?
+  restoredAt             DateTime?
+  restoredBy             String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  coverForModules        ProductModule[] @relation("ProductModuleCoverDocument")
+  pdfImportExistingItems PdfImportItem[] @relation("PdfImportExistingDocument")
+  pdfImportResultItems   PdfImportItem[] @relation("PdfImportResultDocument")
 
   @@unique([productId, documentType, requiredForProcess, version])
   @@index([productId, documentType])
   @@index([versionGroupKey])
   @@index([productionPlanId])
+  @@index([moduleId])
+  @@index([moduleKey])
   @@index([status])
+  @@index([documentStatus])
   @@index([source])
+  @@index([checksumSha256])
   @@index([archived])
+  @@index([deleted])
   @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([productId, moduleKey, deleted])
+  @@index([productId, moduleKey, checksumSha256])
+}
+
+model ProductModule {
+  id              String            @id @default(cuid())
+  productId       String
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  moduleKey       String
+  moduleName      String
+  status          String            @default("empty")
+  remark          String?
+  coverDocumentId String?
+  coverDocument   ProductDocument?  @relation("ProductModuleCoverDocument", fields: [coverDocumentId], references: [id], onDelete: SetNull)
+  itemCount       Int               @default(0)
+  documents       ProductDocument[] @relation("ProductModuleDocuments")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([productId, moduleKey])
+  @@index([productId])
+  @@index([moduleKey])
+  @@index([status])
+  @@index([coverDocumentId])
+  @@index([updatedAt])
+}
+
+model PdfImportBatch {
+  id                     String          @id @default(cuid())
+  customerId             String
+  customer               Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status                 String          @default("previewed")
+  totalFiles             Int             @default(0)
+  successCount           Int             @default(0)
+  skippedCount           Int             @default(0)
+  errorCount             Int             @default(0)
+  needsConfirmationCount Int             @default(0)
+  expiresAt              DateTime
+  completedAt            DateTime?
+  appliedAt              DateTime?
+  applyStatus            String?
+  applySummary           Json?
+  remark                 String?
+  operatorId             String?
+  operatorName           String?
+  items                  PdfImportItem[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([appliedAt])
+}
+
+model PdfImportItem {
+  id                    String           @id @default(cuid())
+  importBatchId         String
+  batch                 PdfImportBatch   @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  originalFileName      String
+  stagedFileKey         String
+  mimeType              String
+  fileSize              Int
+  checksumSha256        String
+  parsedProductModel    String?
+  confirmedProductModel String?
+  parsedVersion         String?
+  confirmedVersion      String?
+  confidence            Float?
+  needsConfirmation     Boolean          @default(false)
+  parseWarnings         Json?
+  existingProductId     String?
+  existingProduct       Product?         @relation("PdfImportExistingProduct", fields: [existingProductId], references: [id], onDelete: SetNull)
+  existingDocumentId    String?
+  existingDocument      ProductDocument? @relation("PdfImportExistingDocument", fields: [existingDocumentId], references: [id], onDelete: SetNull)
+  action                String           @default("needs_confirmation")
+  selected              Boolean          @default(true)
+  setAsEffective        Boolean          @default(false)
+  productName           String?
+  result                String           @default("needs_confirmation")
+  resultProductId       String?
+  resultProduct         Product?         @relation("PdfImportResultProduct", fields: [resultProductId], references: [id], onDelete: SetNull)
+  resultDocumentId      String?
+  resultDocument        ProductDocument? @relation("PdfImportResultDocument", fields: [resultDocumentId], references: [id], onDelete: SetNull)
+  message               String?
+  errorMessage          String?
+  appliedAt             DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@unique([importBatchId, id])
+  @@index([importBatchId])
+  @@index([checksumSha256])
+  @@index([action])
+  @@index([result])
+  @@index([existingProductId])
+  @@index([resultProductId])
+  @@index([existingDocumentId])
+  @@index([resultDocumentId])
+  @@index([appliedAt])
+  @@index([createdAt])
+}
+
+model DeleteLockSetting {
+  id             String    @id @default("document-delete-lock")
+  enabled        Boolean   @default(true)
+  passwordHash   String
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  updatedBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([lockedUntil])
 }
 
 model AuditLog {
@@ -319,13 +506,18 @@ model AuditLog {
   operatorName String?
   operatorRole String?
   planId       String?
+  customerId   String?
   productId    String?
   createdAt    DateTime        @default(now())
 
+  @@index([entityType])
   @@index([entityType, entityId])
+  @@index([entityId])
   @@index([action])
   @@index([planId])
+  @@index([customerId])
   @@index([productId])
+  @@index([operatorId])
   @@index([createdAt])
 }
 
