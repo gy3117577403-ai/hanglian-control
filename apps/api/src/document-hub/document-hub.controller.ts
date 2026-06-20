@@ -27,6 +27,7 @@ import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
 import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
+import { ResolveDrawingProductDto } from './dto/resolve-drawing-product.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
@@ -173,6 +174,12 @@ export class DocumentHubController {
   @ApiOperation({ summary: '读取 PDF 导入 Preview 记录' })
   getPdfImportPreview(@Param('importBatchId') importBatchId: string) {
     return this.documentHubService.getPdfImportPreview(importBatchId);
+  }
+
+  @Get('drawings/products/resolve')
+  @ApiOperation({ summary: '按订单客户和产品型号解析真实图纸资料页' })
+  resolveDrawingProduct(@Query() query: ResolveDrawingProductDto) {
+    return this.documentHubService.resolveDrawingProduct(query);
   }
 
   @Get('drawings/products/by-model/:productModel')

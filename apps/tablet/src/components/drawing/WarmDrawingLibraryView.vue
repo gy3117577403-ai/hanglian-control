@@ -11,6 +11,7 @@ const WarmCustomerGrid = defineAsyncComponent(() => import('./WarmCustomerGrid.v
 const WarmProductModelGrid = defineAsyncComponent(() => import('./WarmProductModelGrid.vue'))
 const WarmDrawingModuleGallery = defineAsyncComponent(() => import('./WarmDrawingModuleGallery.vue'))
 const WarmImageDetailViewer = defineAsyncComponent(() => import('./WarmImageDetailViewer.vue'))
+const WarmUnarchivedProductPanel = defineAsyncComponent(() => import('./WarmUnarchivedProductPanel.vue'))
 const viewerItems = computed<DocumentViewerItem[]>(() => store.selectedModule?.items ?? [])
 </script>
 
@@ -19,6 +20,7 @@ const viewerItems = computed<DocumentViewerItem[]>(() => store.selectedModule?.i
     <WarmDrawingBreadcrumb v-if="store.drawingViewLevel === 'customers' || store.drawingViewLevel === 'products'" />
     <WarmCustomerGrid v-if="store.drawingViewLevel === 'customers'" />
     <WarmProductModelGrid v-else-if="store.drawingViewLevel === 'products'" />
+    <WarmUnarchivedProductPanel v-else-if="store.drawingViewLevel === 'unarchived'" />
     <WarmProductDrawingHome v-else-if="store.drawingViewLevel === 'product'" />
     <WarmDrawingModuleGallery v-else-if="store.drawingViewLevel === 'module'" />
     <WarmImageDetailViewer v-else />

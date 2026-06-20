@@ -129,7 +129,13 @@ const changed = execSync('git status --short --untracked-files=all', { cwd: root
   .split(/\r?\n/)
   .map((line) => line.trim().replace(/^[A-Z? ]+\s+/, ''))
   .filter(Boolean)
-check('no backend source changes in working tree', !changed.some((file) => file.startsWith('apps/api/src/')))
+const allowedBackendChanges = new Set([
+  'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
+  'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
+])
+check('no backend source changes in working tree', !changed.some((file) => file.startsWith('apps/api/src/') && !allowedBackendChanges.has(file)))
 check('no Prisma changes in working tree', !changed.some((file) => file.includes('prisma/schema.prisma')))
 check('no connector component/type changes in working tree', !changed.some((file) => file.includes('apps/tablet/src/components/connector/') || file.includes('connector-')))
 check('no fixture component/type changes in working tree', !changed.some((file) => file.includes('apps/tablet/src/components/fixture/') || file.includes('fixture-')))

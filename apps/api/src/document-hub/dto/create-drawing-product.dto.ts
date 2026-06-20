@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class CreateDrawingProductDto {
   @ApiProperty({ description: 'Customer id' })
@@ -19,4 +19,9 @@ export class CreateDrawingProductDto {
   @IsOptional()
   @IsString()
   remark?: string;
+
+  @ApiPropertyOptional({ description: 'Creation source', enum: ['manual_create'] })
+  @IsOptional()
+  @IsIn(['manual_create'])
+  source?: 'manual_create';
 }

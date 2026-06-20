@@ -67,6 +67,8 @@ const uploadPhasePaths = [
   'apps/api/src/common/types/production.types.ts',
   'apps/api/src/document-hub/document-hub.controller.ts',
   'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
+  'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
   'apps/api/src/document-hub/dto/upload-drawing-item.dto.ts',
   'apps/api/src/documents/documents.service.ts',
   'apps/api/src/documents/dto/upload-document.dto.ts',
@@ -75,15 +77,19 @@ const uploadPhasePaths = [
   'apps/api/src/repositories/prisma/prisma-mappers.ts',
   'scripts/camera-upload-check.mjs',
   'scripts/real-upload-ui-check.mjs',
+  'scripts/order-product-resolution-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
   'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
+  'apps/tablet/src/components/drawing/WarmCreateProductArchiveDialog.vue',
+  'apps/tablet/src/components/drawing/WarmUnarchivedProductPanel.vue',
   'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
   'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
   'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
   'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
   'apps/tablet/src/lib/document-preview-url.ts',
   'apps/tablet/src/types/document-viewer.ts',
+  'apps/tablet/src/types/product-resolution.ts',
   'scripts/document-home-preview-check.mjs',
   'scripts/document-viewer-foundation-check.mjs',
   'scripts/document-viewer-thumbnail-check.mjs',
@@ -102,7 +108,10 @@ assert(!header.includes('connector') && !header.includes('fixture'), 'Header ent
 
 assert(dashboard.includes('WarmPdfImportDialog'), 'Dashboard should mount WarmPdfImportDialog.');
 assert(dashboard.includes('@open-pdf-import'), 'Dashboard should listen to open-pdf-import.');
-assert(dashboard.includes('v-model:visible="pdfImportOpen"'), 'Dashboard should control PDF import dialog visibility.');
+assert(
+  dashboard.includes('v-model:visible="pdfImportOpen"') || dashboard.includes('v-model:visible="store.pdfImportDialogOpen"'),
+  'Dashboard should control PDF import dialog visibility.',
+);
 
 assert(dialog.includes('PrimeDialog'), 'Import dialog should use PrimeDialog.');
 assert(dialog.includes('useConfirm'), 'Import dialog should use PrimeVue ConfirmDialog.');

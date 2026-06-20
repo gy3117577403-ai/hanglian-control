@@ -26,6 +26,7 @@ import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
+import { ResolveDrawingProductDto } from './dto/resolve-drawing-product.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
@@ -74,6 +75,10 @@ function cleanText(value?: string) {
 function cleanOptionalText(value?: string) {
   const text = cleanText(value);
   return text || undefined;
+}
+
+function normalizeResolveLookup(value?: string) {
+  return cleanText(value).toLowerCase();
 }
 
 function uniqueAliases(values: Array<string | undefined>) {
@@ -534,6 +539,52 @@ export class DocumentHubService implements OnModuleInit {
     return this.getProduct(product.productId);
   }
 
+  async resolveDrawingProduct(query: ResolveDrawingProductDto) {
+    const requestedProductModel = cleanText(query.productModel);
+    const normalizedProductModel = normalizeProductModel(requestedProductModel);
+    if (!requestedProductModel || !normalizedProductModel) {
+      throw new BadRequestException('产品型号不能为空。');
+    }
+
+    const customer = this.findResolveCustomer(this.drawingMetadataStore.readCustomers(), query);
+    if (!customer) {
+      return {
+        status: 'customer_not_found' as const,
+        requestedCustomerName: cleanText(query.customerName),
+        requestedCustomerShortName: cleanText(query.customerShortName),
+        requestedProductModel,
+        normalizedProductModel,
+        message: '订单客户尚未建立客户资料。',
+      };
+    }
+
+    const product = this.drawingMetadataStore.readProducts().find((item) => (
+      item.customerId === customer.customerId &&
+      (item.normalizedProductModel ?? normalizeProductModel(item.productModel)) === normalizedProductModel
+    ));
+
+    if (!product) {
+      return {
+        status: 'product_not_found' as const,
+        customer: this.safeResolveCustomer(customer),
+        requestedProductModel,
+        normalizedProductModel,
+        message: '当前型号尚未建立产品资料页。',
+      };
+    }
+
+    const detail = await this.withUploadedDocuments(
+      this.findDrawingDetail(product.productId) ?? this.drawingMetadataStore.makeProductDetail(customer, product),
+    );
+
+    return {
+      status: 'found' as const,
+      customer: this.safeResolveCustomer(customer),
+      product: this.safeResolveProduct(detail.product),
+      modules: this.safeResolveModules(detail.modules),
+    };
+  }
+
   async getModule(productId: string, moduleKey: DrawingModuleKey) {
     const detail = await this.getProduct(productId);
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
@@ -952,6 +1003,79 @@ export class DocumentHubService implements OnModuleInit {
     if (customer) {
       this.drawingMetadataStore.upsertDetail(this.drawingMetadataStore.makeProductDetail(customer, product));
     }
+  }
+
+  private findResolveCustomer(customers: HubCustomer[], query: ResolveDrawingProductDto) {
+    const customerId = cleanText(query.customerId);
+    if (customerId) return customers.find((customer) => customer.customerId === customerId);
+
+    const requestedKeys = [
+      normalizeResolveLookup(query.customerName),
+      normalizeResolveLookup(query.customerShortName),
+    ].filter(Boolean);
+    if (!requestedKeys.length) return undefined;
+
+    return customers.find((customer) => {
+      const customerKeys = [
+        customer.customerName,
+        customer.customerShortName,
+        ...(customer.aliases ?? []),
+      ].map(normalizeResolveLookup).filter(Boolean);
+      return requestedKeys.some((key) => customerKeys.includes(key));
+    });
+  }
+
+  private safeResolveCustomer(customer: HubCustomer) {
+    return {
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      customerShortName: customer.customerShortName,
+      customerCode: customer.customerCode,
+      aliases: customer.aliases,
+      status: customer.status,
+    };
+  }
+
+  private safeResolveProduct(product: HubProductModel) {
+    return {
+      productId: product.productId,
+      customerId: product.customerId,
+      productModel: product.productModel,
+      normalizedProductModel: product.normalizedProductModel ?? normalizeProductModel(product.productModel),
+      productName: product.productName,
+      drawingStatus: product.drawingStatus,
+      source: product.source,
+      remark: product.remark,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    };
+  }
+
+  private safeResolveModules(modules: ProductDrawingDetail['modules']) {
+    return modules.map((module) => ({
+      moduleKey: module.moduleKey,
+      moduleName: module.moduleName,
+      status: module.status,
+      itemCount: module.itemCount ?? module.items.length,
+      coverDocumentId: module.coverDocumentId,
+      remark: module.remark,
+      updatedAt: module.updatedAt,
+      items: module.items.map((item) => ({
+        itemId: item.itemId,
+        title: item.title,
+        fileType: item.fileType,
+        previewUrl: item.previewUrl,
+        fileName: item.fileName,
+        version: item.version,
+        remark: item.remark,
+        uploadedAt: item.uploadedAt,
+        source: item.source,
+        fileSize: item.fileSize,
+        mimeType: item.mimeType,
+        pageCount: item.pageCount,
+        documentStatus: item.documentStatus,
+      })),
+    }));
   }
 
   private findDrawingDetail(productId: string): ProductDrawingDetail | undefined {

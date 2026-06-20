@@ -1775,7 +1775,7 @@ export type HubOrderStatus = 'front' | 'back' | 'no_drawing' | 'exception'
 export type DrawingStatus = 'available' | 'no_drawing' | 'partial'
 export type DrawingModuleStatus = 'uploaded' | 'pending' | 'no_drawing'
 export type DrawingModuleKey = 'original_drawing' | 'sop' | 'finished_images' | 'accessory_specs' | 'notes' | 'tooling'
-export type DrawingViewLevel = 'customers' | 'products' | 'product' | 'module' | 'image'
+export type DrawingViewLevel = 'customers' | 'products' | 'product' | 'unarchived' | 'module' | 'image'
 
 export interface HubOrder {
   orderId: string
@@ -1791,6 +1791,9 @@ export interface HubOrder {
   completed: boolean
   completedAt?: string
   remark?: string
+  resolvedProductId?: string
+  productResolutionStatus?: 'unknown' | 'resolving' | 'found' | 'product_not_found' | 'customer_not_found' | 'error'
+  productResolutionCheckedAt?: string
 }
 
 export interface HubOrderOverview {
@@ -1808,6 +1811,9 @@ export interface HubCustomer {
   customerId: string
   customerName: string
   customerShortName: string
+  customerCode?: string
+  aliases?: string[]
+  status?: 'active' | 'disabled'
 }
 
 export interface HubProductModel {
@@ -1816,6 +1822,11 @@ export interface HubProductModel {
   productModel: string
   productName: string
   drawingStatus: DrawingStatus
+  normalizedProductModel?: string
+  source?: 'pdf_import' | 'manual_create' | 'future_wecom' | 'seed'
+  searchKeywords?: string[]
+  createdAt?: string
+  updatedAt?: string
   remark?: string
 }
 

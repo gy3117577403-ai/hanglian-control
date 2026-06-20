@@ -46,6 +46,7 @@
     "pdf-import-apply:check": "node scripts/pdf-import-apply-check.mjs",
     "pdf-import-frontend-state:check": "node scripts/pdf-import-frontend-state-check.mjs",
     "pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs",
+    "order-product-resolution:check": "node scripts/order-product-resolution-check.mjs",
     "camera-upload:check": "node scripts/camera-upload-check.mjs",
     "real-upload-ui:check": "node scripts/real-upload-ui-check.mjs",
     "document-home-preview:check": "node scripts/document-home-preview-check.mjs",

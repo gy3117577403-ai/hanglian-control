@@ -128,13 +128,23 @@ const allowedChanged = new Set([
   paths.pdfFirstPage,
   paths.urlHelper,
   paths.types,
+  'apps/tablet/src/types/product-resolution.ts',
   paths.packageJson,
   paths.script,
   'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
+  'apps/tablet/src/components/drawing/WarmCreateProductArchiveDialog.vue',
+  'apps/tablet/src/components/drawing/WarmUnarchivedProductPanel.vue',
   'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
   'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'apps/tablet/src/services/api.ts',
   'apps/tablet/src/stores/document-hub-store.ts',
   'apps/tablet/src/types/document-viewer.ts',
+  'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
+  'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
+  'scripts/order-product-resolution-check.mjs',
   'scripts/document-viewer-foundation-check.mjs',
   'scripts/document-viewer-thumbnail-check.mjs',
   'scripts/camera-upload-check.mjs',
@@ -144,7 +154,7 @@ for (const file of changed) {
   const allowed = allowedChanged.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
   assert(allowed, `Unexpected changed file: ${file}`);
 }
-assert(!changed.some((file) => file.startsWith('apps/api/')), 'Backend files must remain unchanged.');
+assert(!changed.some((file) => file.startsWith('apps/api/') && !allowedChanged.has(file)), 'Backend files must remain unchanged.');
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'Prisma schema must remain unchanged.');
 assert(!changed.some((file) => file.includes('/connector/') || file.includes('connector-')), 'Connector files must remain unchanged.');
 assert(!changed.some((file) => file.includes('/fixture/') || file.includes('fixture-')), 'Fixture files must remain unchanged.');

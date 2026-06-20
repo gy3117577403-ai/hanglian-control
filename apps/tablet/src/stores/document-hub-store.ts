@@ -5,6 +5,8 @@ import {
   applyDrawingPdfImport,
   completeHubOrder,
   createHubConnector,
+  createHubDrawingCustomer,
+  createHubDrawingProduct,
   deleteHubConnector,
   getDrawingPdfImportBatch,
   getDeleteLockStatus,
@@ -12,7 +14,6 @@ import {
   getHubCustomers,
   getHubOrderOverview,
   getHubOrders,
-  getHubProductByModel,
   getHubProductDetail,
   getHubProducts,
   getHubConnectors,
@@ -20,6 +21,7 @@ import {
   importHubConnectors,
   previewDrawingPdfImport,
   purgeDrawingDocument,
+  resolveHubDrawingProduct,
   restoreDrawingDocument,
   trashDrawingDocument,
   updateHubConnector,
@@ -63,6 +65,11 @@ import type {
   PdfImportPreviewItemState,
   PdfImportPreviewResponse,
 } from '@/types/pdf-import'
+import type {
+  CreateDrawingCustomerPayload,
+  CreateDrawingProductArchivePayload,
+  UnarchivedOrderProductContext,
+} from '@/types/product-resolution'
 import type {
   DeleteLockStatus,
   DrawingLifecycleResponse,
@@ -146,6 +153,17 @@ const DEFAULT_TRASH_FILTERS: TrashQuery = { limit: 20, offset: 0 }
 
 function cleanText(value: unknown) {
   return String(value ?? '').trim()
+}
+
+function normalizeOrderProductModel(value: unknown) {
+  return cleanText(value).normalize('NFKC').toUpperCase().replace(/\s+/g, '')
+}
+
+function isUnsafeDrawingProductId(productId?: string | null, orderId?: string | null) {
+  const value = cleanText(productId)
+  if (!value) return true
+  if (value.startsWith('missing-') || value.startsWith('mock-')) return true
+  return Boolean(orderId && value === orderId)
 }
 
 function lifecycleDocumentId(item?: DrawingItem | DrawingTrashItem | null) {
@@ -290,44 +308,6 @@ function sortOrders(orders: HubOrder[]) {
   })
 }
 
-function createEmptyModule(moduleKey: DrawingModuleKey, moduleName: string): DrawingModule {
-  return {
-    moduleKey,
-    moduleName,
-    status: moduleKey === 'original_drawing' ? 'no_drawing' : 'pending',
-    items: [],
-    remark: moduleKey === 'original_drawing' ? '未发图 / 待上传资料。' : '待上传补充资料。',
-    updatedAt: new Date().toISOString(),
-  }
-}
-
-function createMissingDetail(order: HubOrder): ProductDrawingDetail {
-  const product: HubProductModel = {
-    productId: `missing-${order.orderId}`,
-    customerId: 'pending-customer',
-    productModel: order.productModel,
-    productName: '待补充产品资料',
-    drawingStatus: 'no_drawing',
-    remark: '该订单型号暂无图纸资料，待上传补充。',
-  }
-  return {
-    product,
-    customer: {
-      customerId: 'pending-customer',
-      customerName: order.customerName || '待补充客户资料',
-      customerShortName: '待补充',
-    },
-    modules: [
-      createEmptyModule('original_drawing', '原图'),
-      createEmptyModule('sop', 'SOP 指导书'),
-      createEmptyModule('finished_images', '成品图'),
-      createEmptyModule('accessory_specs', '辅料规格'),
-      createEmptyModule('notes', '注意事项'),
-      createEmptyModule('tooling', '配套工装'),
-    ],
-  }
-}
-
 export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const navigation = useNavigationMemoryStore()
   const activeMode = ref<HubMode>('drawing')
@@ -342,6 +322,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const selectedModule = ref<DrawingModule | null>(null)
   const selectedDrawingItem = ref<DrawingItem | null>(null)
   const productDrawingDetail = ref<ProductDrawingDetail | null>(null)
+  const unarchivedProductContext = ref<UnarchivedOrderProductContext | null>(null)
+  const productResolutionLoading = ref(false)
+  const productResolutionError = ref('')
   const drawingViewLevel = ref<DrawingViewLevel>('customers')
   const documentViewerOpen = ref(false)
   const documentViewerInitialItemId = ref('')
@@ -364,6 +347,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const pdfImportItems = ref<PdfImportPreviewItemState[]>([])
   const pdfImportApplyResult = ref<PdfImportApplyResponse | null>(null)
   const pdfImportLastUpdatedAt = ref<string | null>(null)
+  const pdfImportDialogOpen = ref(false)
+  const createProductArchiveDialogOpen = ref(false)
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
   const uploadDialogSource = ref<'top' | 'module'>('top')
@@ -504,6 +489,11 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedDrawingItem.value = null
   }
 
+  function clearUnarchivedProductContext() {
+    unarchivedProductContext.value = null
+    productResolutionError.value = ''
+  }
+
   function isDeletedDrawingItem(item: DrawingItem) {
     return Boolean(item.deleted || item.deletedAt)
   }
@@ -538,6 +528,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function openCustomer(customer: HubCustomer) {
     saveCurrentScroll('customers')
     resetDocumentViewerState()
+    clearUnarchivedProductContext()
     selectedCustomer.value = customer
     selectedProduct.value = null
     productDrawingDetail.value = null
@@ -555,6 +546,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const requestId = ++productDetailRequestId
     saveCurrentScroll(drawingViewLevel.value)
     resetDocumentViewerState()
+    clearUnarchivedProductContext()
     selectedProduct.value = product
     selectedModule.value = null
     selectedDrawingItem.value = null
@@ -591,34 +583,83 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     activeMode.value = 'drawing'
     navigation.rememberFunction('drawing')
     resetDocumentViewerState()
-    const product = order.productId ? mockHubProducts.find((item) => item.productId === order.productId) : undefined
-    if (product) {
-      selectedCustomer.value = mockHubCustomers.find((customer) => customer.customerId === product.customerId) ?? null
-      await openProduct(product, source)
-      return
-    }
-    const missingDetail = createMissingDetail(order)
-    productDrawingDetail.value = missingDetail
-    selectedCustomer.value = missingDetail.customer ?? null
-    selectedProduct.value = missingDetail.product
-    drawingViewLevel.value = 'product'
-    navigation.pushReturnPoint({
-      source,
-      label: source === 'overview' ? '返回订单总览' : '返回订单列表',
-      state: { level: 'product', productId: selectedProduct.value.productId },
-      scrollKey: source === 'overview' ? 'order-overview' : 'orders',
+    clearUnarchivedProductContext()
+    productDrawingDetail.value = null
+    selectedProduct.value = null
+    selectedModule.value = null
+    selectedDrawingItem.value = null
+    productResolutionLoading.value = true
+    patchOrder(order.orderId, {
+      productResolutionStatus: 'resolving',
+      productResolutionCheckedAt: new Date().toISOString(),
     })
     try {
-      const detail = await getHubProductByModel(order.productModel)
-      if (detail?.product) {
-        selectedCustomer.value = detail.customer ?? null
-        selectedProduct.value = detail.product
-        productDrawingDetail.value = detail
-        drawingViewLevel.value = 'product'
+      const resolution = await resolveHubDrawingProduct({
+        customerName: order.customerName,
+        productModel: order.productModel,
+      })
+      if (resolution.status === 'found') {
+        patchOrder(order.orderId, {
+          resolvedProductId: resolution.product.productId,
+          productResolutionStatus: 'found',
+          productResolutionCheckedAt: new Date().toISOString(),
+        })
+        selectedCustomer.value = resolution.customer
+        await openProduct(resolution.product, source)
         return
       }
+
+      const status = resolution.status
+      patchOrder(order.orderId, {
+        resolvedProductId: undefined,
+        productResolutionStatus: status,
+        productResolutionCheckedAt: new Date().toISOString(),
+      })
+      selectedCustomer.value = resolution.status === 'product_not_found' ? resolution.customer : null
+      drawingViewLevel.value = 'unarchived'
+      unarchivedProductContext.value = {
+        order,
+        source,
+        resolution,
+        status,
+        message: resolution.message,
+      }
+      navigation.pushReturnPoint({
+        source,
+        label: source === 'overview' ? '返回订单总览' : '返回订单列表',
+        state: { level: 'unarchived' },
+        scrollKey: source === 'overview' ? 'order-overview' : 'orders',
+      })
+      navigation.rememberBreadcrumb([{ level: 'customers' }, { level: 'unarchived' }])
+      await restoreScroll('unarchived')
     } catch {
-      // Use local missing detail below.
+      const message = '产品资料查询失败，请检查网络后重试。'
+      patchOrder(order.orderId, {
+        resolvedProductId: undefined,
+        productResolutionStatus: 'error',
+        productResolutionCheckedAt: new Date().toISOString(),
+      })
+      selectedCustomer.value = null
+      drawingViewLevel.value = 'unarchived'
+      productResolutionError.value = message
+      unarchivedProductContext.value = {
+        order,
+        source,
+        resolution: null,
+        status: 'error',
+        message,
+      }
+      navigation.pushReturnPoint({
+        source,
+        label: source === 'overview' ? '返回订单总览' : '返回订单列表',
+        state: { level: 'unarchived' },
+        scrollKey: source === 'overview' ? 'order-overview' : 'orders',
+      })
+      navigation.rememberBreadcrumb([{ level: 'customers' }, { level: 'unarchived' }])
+      toast.error(message)
+      await restoreScroll('unarchived')
+    } finally {
+      productResolutionLoading.value = false
     }
   }
 
@@ -685,12 +726,13 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       await restoreScroll('product')
       return
     }
-    if (drawingViewLevel.value === 'product') {
+    if (drawingViewLevel.value === 'product' || drawingViewLevel.value === 'unarchived') {
       const returnPoint = navigation.popReturnPoint()
       if (returnPoint?.source === 'orders') {
         drawingViewLevel.value = 'customers'
         selectedProduct.value = null
         productDrawingDetail.value = null
+        clearUnarchivedProductContext()
         await restoreScroll('orders')
         return
       }
@@ -698,6 +740,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         drawingViewLevel.value = 'customers'
         selectedProduct.value = null
         productDrawingDetail.value = null
+        clearUnarchivedProductContext()
         orderOverviewOpen.value = true
         await restoreScroll('order-overview')
         return
@@ -705,6 +748,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
       selectedProduct.value = null
       productDrawingDetail.value = null
+      clearUnarchivedProductContext()
       await restoreScroll(drawingViewLevel.value)
       return
     }
@@ -779,6 +823,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedFixture.value = null
     selectedModule.value = null
     selectedDrawingItem.value = null
+    clearUnarchivedProductContext()
     if (mode === 'drawing' && !productDrawingDetail.value) drawingViewLevel.value = 'customers'
     if (mode === 'connector') void loadConnectors()
     if (mode === 'fixture') void loadFixtures()
@@ -869,7 +914,39 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     Object.assign(target, patch)
   }
 
+  function warnUnarchivedUpload() {
+    const message = '当前型号尚未建立资料页，请先建档后再上传。'
+    uploadError.value = message
+    toast.warning(message)
+    if (unarchivedProductContext.value) createProductArchiveDialogOpen.value = true
+    return false
+  }
+
+  function canOpenUploadForCurrentProduct(productId?: string | null) {
+    if (drawingViewLevel.value === 'unarchived' || unarchivedProductContext.value) return warnUnarchivedUpload()
+    if (productId && isUnsafeDrawingProductId(productId)) return warnUnarchivedUpload()
+    return true
+  }
+
+  async function validateUploadProduct(productId: string) {
+    const orderId = unarchivedProductContext.value?.order.orderId
+    if (isUnsafeDrawingProductId(productId, orderId)) {
+      return warnUnarchivedUpload()
+    }
+    try {
+      const detail = await getHubProductDetail(productId)
+      if (!detail?.product?.productId || detail.product.productId !== productId) return warnUnarchivedUpload()
+      productDrawingDetail.value = detail
+      selectedProduct.value = detail.product
+      return true
+    } catch {
+      return warnUnarchivedUpload()
+    }
+  }
+
   function openTopUpload() {
+    const productId = productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId
+    if (!canOpenUploadForCurrentProduct(productId)) return
     uploadDialogSource.value = 'top'
     uploadContext.value = {
       entry: 'top',
@@ -882,6 +959,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   function openModuleUpload(module: DrawingModule) {
+    const productId = productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId
+    if (!canOpenUploadForCurrentProduct(productId)) return
     selectedModule.value = module
     uploadDialogSource.value = 'module'
     uploadContext.value = {
@@ -892,6 +971,100 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
     resetUploadState()
     uploadDialogOpen.value = true
+  }
+
+  function openPdfImportDialogForUnarchivedProduct() {
+    const resolution = unarchivedProductContext.value?.resolution
+    if (resolution?.status === 'product_not_found') {
+      setPdfImportCustomer(resolution.customer.customerId)
+    }
+    pdfImportDialogOpen.value = true
+  }
+
+  function openCreateProductArchiveDialog() {
+    createProductArchiveDialogOpen.value = true
+  }
+
+  async function resolveCurrentUnarchivedOrder() {
+    const context = unarchivedProductContext.value
+    if (!context) return null
+    const resolution = await resolveHubDrawingProduct({
+      customerName: context.order.customerName,
+      productModel: context.order.productModel,
+    })
+    if (resolution.status === 'found') {
+      patchOrder(context.order.orderId, {
+        resolvedProductId: resolution.product.productId,
+        productResolutionStatus: 'found',
+        productResolutionCheckedAt: new Date().toISOString(),
+      })
+      selectedCustomer.value = resolution.customer
+      createProductArchiveDialogOpen.value = false
+      await openProduct(resolution.product, context.source)
+      toast.success('该产品资料页已存在，已为你打开。')
+      return resolution
+    }
+    unarchivedProductContext.value = {
+      ...context,
+      resolution,
+      status: resolution.status,
+      message: resolution.message,
+    }
+    return resolution
+  }
+
+  async function createProductArchive(input: CreateDrawingProductArchivePayload & {
+    createCustomer?: boolean
+    customer?: CreateDrawingCustomerPayload
+  }) {
+    const productModel = cleanText(input.productModel)
+    if (!productModel) {
+      toast.error('产品型号不能为空。')
+      return null
+    }
+
+    let customerId = cleanText(input.customerId)
+    try {
+      if (!customerId) {
+        if (!input.createCustomer || !input.customer?.customerName?.trim()) {
+          toast.error('请先选择或创建客户资料。')
+          return null
+        }
+        const customer = await createHubDrawingCustomer({
+          ...input.customer,
+          customerName: input.customer.customerName.trim(),
+          customerShortName: input.customer.customerShortName?.trim() || input.customer.customerName.trim(),
+          status: input.customer.status ?? 'active',
+        })
+        customerId = customer.customerId
+        selectedCustomer.value = customer
+      }
+
+      const product = await createHubDrawingProduct({
+        customerId,
+        productModel,
+        productName: cleanText(input.productName) || productModel,
+        remark: cleanText(input.remark) || undefined,
+        source: 'manual_create',
+      })
+      toast.success('产品资料页已创建。')
+      createProductArchiveDialogOpen.value = false
+      await loadCustomers()
+      const context = unarchivedProductContext.value
+      if (context) {
+        const resolution = await resolveCurrentUnarchivedOrder()
+        if (resolution?.status === 'found') return resolution.product
+      }
+      selectedCustomer.value = customers.value.find((customer) => customer.customerId === customerId) ?? selectedCustomer.value
+      if (selectedCustomer.value) productModels.value = await getHubProducts(selectedCustomer.value.customerId)
+      await openProduct(product, 'drawing')
+      return product
+    } catch {
+      const resolution = await resolveCurrentUnarchivedOrder()
+      if (resolution?.status === 'found') return resolution.product
+      toast.error('产品资料页创建失败，请检查客户和型号后重试。')
+      return null
+    }
   }
 
   function openConnectorDetail(row: ConnectorParameter) {
@@ -1211,6 +1384,44 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
+  async function bindCurrentOrderAfterPdfApply(result: PdfImportApplyResponse) {
+    const context = unarchivedProductContext.value
+    if (!context) return
+    const orderModel = normalizeOrderProductModel(context.order.productModel)
+    const matched = result.items.find((item) => (
+      item.productId &&
+      normalizeOrderProductModel(item.confirmedProductModel) === orderModel &&
+      (item.result === 'created_product' || item.result === 'added_version' || item.result === 'skipped_duplicate')
+    ))
+    if (!matched?.productId) {
+      toast.warning('PDF 已导入，但导入型号与当前订单型号不一致。')
+      return
+    }
+    const resolution = await resolveCurrentUnarchivedOrder()
+    if (resolution?.status === 'found') return
+    try {
+      const detail = await getHubProductDetail(matched.productId)
+      patchOrder(context.order.orderId, {
+        resolvedProductId: detail.product.productId,
+        productResolutionStatus: 'found',
+        productResolutionCheckedAt: new Date().toISOString(),
+      })
+      clearUnarchivedProductContext()
+      selectedCustomer.value = detail.customer
+        ?? customers.value.find((customer) => customer.customerId === result.customer.customerId)
+        ?? {
+          customerId: result.customer.customerId,
+          customerName: result.customer.customerName,
+          customerShortName: result.customer.customerShortName ?? result.customer.customerName,
+        }
+      selectedProduct.value = detail.product
+      productDrawingDetail.value = detail
+      drawingViewLevel.value = 'product'
+    } catch {
+      toast.warning('PDF 已导入，产品资料页刷新失败，请稍后重新打开订单。')
+    }
+  }
+
   async function applyPdfImport() {
     if (pdfImportApplyLoading.value) {
       pdfImportError.value = '不允许重复点击。'
@@ -1250,6 +1461,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         pdfImportError.value = 'PDF 导入失败，请检查失败项。'
       }
       await refreshDrawingDataAfterPdfApply(response)
+      await bindCurrentOrderAfterPdfApply(response)
       return response
     } catch (error) {
       pdfImportError.value = pdfImportErrorMessage(error)
@@ -1318,6 +1530,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       uploadError.value = '请选择需要上传的资料。'
       return null
     }
+    const uploadTargetReady = await validateUploadProduct(productId)
+    if (!uploadTargetReady) return null
     uploadLoading.value = true
     uploadProgress.value = { total: candidates.length, completed: 0, failed: 0 }
     let latestDetail: ProductDrawingDetail | null = null
@@ -1393,6 +1607,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       return
     }
     productDrawingDetail.value = targetDetail
+    const uploadTargetReady = await validateUploadProduct(targetDetail.product.productId)
+    if (!uploadTargetReady) return
     const moduleKey = payload.moduleKey ?? selectedModule.value?.moduleKey
     if (!moduleKey) {
       toast.error('请选择资料模块')
@@ -1696,6 +1912,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedModule,
     selectedDrawingItem,
     productDrawingDetail,
+    unarchivedProductContext,
+    productResolutionLoading,
+    productResolutionError,
     drawingViewLevel,
     documentViewerOpen,
     documentViewerInitialItemId,
@@ -1717,6 +1936,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     pdfImportItems,
     pdfImportApplyResult,
     pdfImportLastUpdatedAt,
+    pdfImportDialogOpen,
+    createProductArchiveDialogOpen,
     orderOverviewOpen,
     uploadDialogOpen,
     uploadDialogSource,
@@ -1773,6 +1994,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     setActiveMode,
     openTopUpload,
     openModuleUpload,
+    openPdfImportDialogForUnarchivedProduct,
+    openCreateProductArchiveDialog,
+    createProductArchive,
     setUploadSource,
     addSelectedFiles,
     addCapturedPhoto,

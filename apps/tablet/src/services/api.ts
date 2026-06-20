@@ -134,6 +134,12 @@ import type {
   PdfImportPreviewResponse,
 } from '@/types/pdf-import'
 import type {
+  CreateDrawingCustomerPayload,
+  CreateDrawingProductArchivePayload,
+  DrawingProductResolution,
+  ResolveDrawingProductQuery,
+} from '@/types/product-resolution'
+import type {
   DeleteLockStatus,
   DrawingLifecycleResponse,
   DrawingTrashListResponse,
@@ -1112,6 +1118,26 @@ export function getHubProducts(customerId: string, q?: string) {
   })
 }
 
+export function createHubDrawingCustomer(payload: CreateDrawingCustomerPayload) {
+  return api<HubCustomer>('/document-hub/drawings/customers', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function createHubDrawingProduct(payload: CreateDrawingProductArchivePayload) {
+  return api<HubProductModel>('/document-hub/drawings/products', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function resolveHubDrawingProduct(query: ResolveDrawingProductQuery) {
+  return api<DrawingProductResolution>('/document-hub/drawings/products/resolve', {
+    query,
+  })
+}
+
 export function getHubProductDetail(productId: string) {
   return api<ProductDrawingDetail>(`/document-hub/drawings/products/${productId}`)
 }
@@ -1126,7 +1152,15 @@ export function getHubDrawingModule(productId: string, moduleKey: DrawingModuleK
   )
 }
 
+function assertRealDrawingProductId(productId: string) {
+  const value = productId.trim()
+  if (!value || value.startsWith('missing-') || value.startsWith('mock-')) {
+    throw new Error('请先建立产品资料页，再上传资料。')
+  }
+}
+
 export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModuleKey, payload: DocumentHubUploadPayload) {
+  assertRealDrawingProductId(productId)
   const formData = new FormData()
   if (payload.file) formData.append('file', payload.file)
   formData.append('title', payload.title)
