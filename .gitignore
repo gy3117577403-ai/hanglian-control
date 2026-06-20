@@ -46,6 +46,10 @@ apps/api/storage/metadata/audit-logs.json
 apps/api/storage/metadata/import-records.json
 apps/api/storage/metadata/imported-business-data.json
 apps/api/storage/metadata/import-previews.json
+apps/api/storage/metadata/drawing-customers.json
+apps/api/storage/metadata/drawing-products.json
+apps/api/storage/metadata/drawing-module-settings.json
+apps/api/storage/metadata/drawing-import-records.json
 apps/api/storage/metadata/maintenance-records.json
 apps/api/storage/metadata/knowledge-fixtures.json
 apps/api/storage/metadata/knowledge-abnormal-cases.json
