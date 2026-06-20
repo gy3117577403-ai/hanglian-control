@@ -5,10 +5,12 @@ import { DeleteLockService } from '../unified-documents/helpers/delete-lock.serv
 import { DocumentHubController } from './document-hub.controller';
 import { DocumentHubService } from './document-hub.service';
 import { DrawingMetadataStore } from './drawing-metadata.store';
+import { PdfImportPreviewService } from './pdf-import-preview.service';
+import { PdfImportTempStorageService } from './pdf-import-temp-storage.service';
 
 @Module({
   imports: [DocumentsModule, StorageModule],
   controllers: [DocumentHubController],
-  providers: [DocumentHubService, DeleteLockService, DrawingMetadataStore],
+  providers: [DocumentHubService, DeleteLockService, DrawingMetadataStore, PdfImportPreviewService, PdfImportTempStorageService],
 })
 export class DocumentHubModule {}

@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { CompleteOrderDto } from './dto/complete-order.dto';
@@ -11,6 +11,7 @@ import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
+import { PdfImportPreviewFormDto } from './dto/pdf-import.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
@@ -25,6 +26,11 @@ const allowedConnectorImportMimeTypes = [
   'application/vnd.ms-excel',
   'application/octet-stream',
 ];
+
+type PdfImportUploadedFiles = {
+  files?: Express.Multer.File[];
+  file?: Express.Multer.File[];
+};
 
 function normalizeConnectorImportStrategy(value?: string | boolean): 'review' | 'skip' | 'overwrite' {
   if (value === true || value === 'true' || value === '1' || value === 'overwrite') return 'overwrite';
@@ -89,6 +95,45 @@ export class DocumentHubController {
   @ApiOperation({ summary: '修改图纸产品' })
   updateDrawingProduct(@Param('productId') productId: string, @Body() dto: UpdateDrawingProductDto) {
     return this.documentHubService.updateDrawingProduct(productId, dto);
+  }
+
+  @Post('drawings/pdf-import/preview')
+  @ApiOperation({ summary: 'PDF 图纸批量导入 Preview' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['customerId', 'files'],
+      properties: {
+        customerId: { type: 'string', description: '已有图纸客户 ID' },
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: '一个或多个 PDF 文件，主字段名为 files',
+        },
+        file: { type: 'string', format: 'binary', description: '兼容单文件字段' },
+      },
+    },
+  })
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'files', maxCount: 51 },
+    { name: 'file', maxCount: 51 },
+  ], { storage: memoryStorage() }))
+  previewPdfImport(
+    @Body() dto: PdfImportPreviewFormDto,
+    @UploadedFiles() uploadedFiles?: PdfImportUploadedFiles,
+  ) {
+    const files = [
+      ...(uploadedFiles?.files ?? []),
+      ...(uploadedFiles?.file ?? []),
+    ];
+    return this.documentHubService.previewPdfImport(dto, files);
+  }
+
+  @Get('drawings/pdf-import/:importBatchId')
+  @ApiOperation({ summary: '读取 PDF 导入 Preview 记录' })
+  getPdfImportPreview(@Param('importBatchId') importBatchId: string) {
+    return this.documentHubService.getPdfImportPreview(importBatchId);
   }
 
   @Get('drawings/products/by-model/:productModel')

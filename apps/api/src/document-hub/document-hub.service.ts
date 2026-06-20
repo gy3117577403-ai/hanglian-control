@@ -1,4 +1,13 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,6 +31,7 @@ import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import { DrawingMetadataStore, createDefaultDrawingModules } from './drawing-metadata.store';
+import { PdfImportPreviewFormDto } from './dto/pdf-import.dto';
 import { normalizeProductModel } from './helpers/pdf-name-parser';
 import {
   ConnectorParameter,
@@ -36,6 +46,7 @@ import {
   fixtureParameters,
   hubOrders,
 } from './mock/document-hub.seed';
+import { PdfImportPreviewService } from './pdf-import-preview.service';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -289,6 +300,7 @@ export class DocumentHubService implements OnModuleInit {
     private readonly storageService: StorageService,
     private readonly deleteLockService: DeleteLockService,
     private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Optional() private readonly pdfImportPreviewService?: PdfImportPreviewService,
   ) {}
 
   onModuleInit() {
@@ -526,6 +538,20 @@ export class DocumentHubService implements OnModuleInit {
       customer: detail.customer,
       module,
     };
+  }
+
+  async previewPdfImport(dto: PdfImportPreviewFormDto, files: Express.Multer.File[]) {
+    if (!this.pdfImportPreviewService) {
+      throw new InternalServerErrorException('PDF 导入预览服务未初始化。');
+    }
+    return this.pdfImportPreviewService.preview(dto, files);
+  }
+
+  getPdfImportPreview(importBatchId: string) {
+    if (!this.pdfImportPreviewService) {
+      throw new InternalServerErrorException('PDF 导入预览服务未初始化。');
+    }
+    return this.pdfImportPreviewService.getPreview(importBatchId);
   }
 
   async uploadDrawingItem(productId: string, moduleKey: DrawingModuleKey, dto: UploadDrawingItemDto, file?: Express.Multer.File) {

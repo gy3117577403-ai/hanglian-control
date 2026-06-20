@@ -44,18 +44,29 @@ export interface DrawingMetadataStoreInitSummary {
 
 export interface PdfImportItemRecord {
   importItemId: string;
+  importBatchId?: string;
   fileName: string;
+  stagedFileName?: string;
+  stagedFileKey?: string;
   originalFileName: string;
   checksumSha256: string;
   fileSize: number;
   mimeType: string;
   parsedProductModel: string;
+  confirmedProductModel?: string;
   normalizedProductModel: string;
+  parsedVersion?: string;
+  parseWarnings?: string[];
+  needsConfirmation?: boolean;
   confidence: 'high' | 'medium' | 'low';
   status: 'parsed' | 'needs_confirmation' | 'error' | 'skipped' | 'imported';
-  action: 'create_product' | 'add_version' | 'skip' | 'needs_confirmation' | 'error';
+  action: 'create_product' | 'add_version' | 'skip' | 'skip_duplicate' | 'needs_confirmation' | 'error';
+  message?: string;
+  errorMessage?: string;
   reason?: string;
   productId?: string;
+  existingProductId?: string;
+  existingDocumentId?: string;
   version?: string;
 }
 
@@ -64,8 +75,14 @@ export interface PdfImportBatchRecord {
   customerId: string;
   createdAt: string;
   appliedAt?: string;
-  status: 'previewed' | 'applied' | 'partial' | 'error';
+  expiresAt?: string;
+  completedAt?: string | null;
+  status: 'previewed' | 'expired' | 'applied' | 'partial' | 'error';
   totalFiles: number;
+  successCount?: number;
+  skippedCount?: number;
+  errorCount?: number;
+  needsConfirmationCount?: number;
   parsedFiles: number;
   skippedFiles: number;
   importedFiles: number;
@@ -148,10 +165,11 @@ const importActions: PdfImportItemRecord['action'][] = [
   'create_product',
   'add_version',
   'skip',
+  'skip_duplicate',
   'needs_confirmation',
   'error',
 ];
-const batchStatuses: PdfImportBatchRecord['status'][] = ['previewed', 'applied', 'partial', 'error'];
+const batchStatuses: PdfImportBatchRecord['status'][] = ['previewed', 'expired', 'applied', 'partial', 'error'];
 
 function clone<T>(value: T): T {
   if (value === undefined || value === null) return value;
@@ -429,26 +447,47 @@ function normalizeModuleState(value: unknown): DrawingModuleState {
 function normalizeImportItem(value: unknown): PdfImportItemRecord | undefined {
   if (!isRecord(value)) return undefined;
   const importItemId = text(value.importItemId);
-  const fileName = text(value.fileName);
+  const fileName = text(value.fileName) || text(value.stagedFileName) || text(value.originalFileName);
   const parsedProductModel = text(value.parsedProductModel);
-  const normalizedProductModel = normalizeProductModel(text(value.normalizedProductModel) || parsedProductModel);
+  const confirmedProductModel = text(value.confirmedProductModel) || parsedProductModel;
+  const normalizedProductModel = normalizeProductModel(text(value.normalizedProductModel) || confirmedProductModel || parsedProductModel);
+  const action = isOneOf(value.action, importActions, normalizedProductModel ? 'add_version' : 'needs_confirmation');
+  const fallbackStatus: PdfImportItemRecord['status'] = action === 'error'
+    ? 'error'
+    : action === 'needs_confirmation'
+      ? 'needs_confirmation'
+      : action === 'skip' || action === 'skip_duplicate'
+        ? 'skipped'
+        : 'parsed';
+  const status = isOneOf(value.status, importStatuses, fallbackStatus);
 
   if (!importItemId || !fileName) return undefined;
 
   return {
     importItemId,
+    importBatchId: optionalText(value.importBatchId),
     fileName,
+    stagedFileName: optionalText(value.stagedFileName),
+    stagedFileKey: optionalText(value.stagedFileKey),
     originalFileName: text(value.originalFileName) || fileName,
     checksumSha256: text(value.checksumSha256),
     fileSize: numberOr(value.fileSize, 0),
     mimeType: text(value.mimeType) || 'application/pdf',
     parsedProductModel,
+    confirmedProductModel,
     normalizedProductModel,
+    parsedVersion: optionalText(value.parsedVersion) ?? optionalText(value.version),
+    parseWarnings: uniqueTexts(Array.isArray(value.parseWarnings) ? value.parseWarnings : [value.reason]).filter(Boolean),
+    needsConfirmation: value.needsConfirmation === true || status === 'needs_confirmation' || action === 'needs_confirmation',
     confidence: isOneOf(value.confidence, ['high', 'medium', 'low'], 'low'),
-    status: isOneOf(value.status, importStatuses, normalizedProductModel ? 'parsed' : 'needs_confirmation'),
-    action: isOneOf(value.action, importActions, normalizedProductModel ? 'add_version' : 'needs_confirmation'),
+    status,
+    action,
+    message: optionalText(value.message),
+    errorMessage: optionalText(value.errorMessage),
     reason: optionalText(value.reason),
     productId: optionalText(value.productId),
+    existingProductId: optionalText(value.existingProductId) ?? optionalText(value.productId),
+    existingDocumentId: optionalText(value.existingDocumentId),
     version: optionalText(value.version),
   };
 }
@@ -460,8 +499,12 @@ function normalizeImportBatch(value: unknown): PdfImportBatchRecord | undefined 
   const items = asArray(value.items).map(normalizeImportItem).filter(Boolean) as PdfImportItemRecord[];
   const totalFiles = items.length;
   const parsedFiles = items.filter((item) => ['parsed', 'imported'].includes(item.status)).length;
-  const skippedFiles = items.filter((item) => item.status === 'skipped').length;
+  const skippedFiles = items.filter((item) => item.status === 'skipped' || item.action === 'skip_duplicate' || item.action === 'skip').length;
   const importedFiles = items.filter((item) => item.status === 'imported').length;
+  const errorCount = items.filter((item) => item.status === 'error' || item.action === 'error').length;
+  const needsConfirmationCount = items.filter((item) => item.needsConfirmation || item.action === 'needs_confirmation').length;
+  const skippedCount = items.filter((item) => item.action === 'skip_duplicate' || item.action === 'skip').length;
+  const successCount = items.filter((item) => item.action === 'create_product' || item.action === 'add_version').length;
 
   if (!importBatchId || !customerId) return undefined;
 
@@ -470,8 +513,14 @@ function normalizeImportBatch(value: unknown): PdfImportBatchRecord | undefined 
     customerId,
     createdAt: timestamp(value.createdAt),
     appliedAt: optionalText(value.appliedAt),
+    expiresAt: optionalText(value.expiresAt),
+    completedAt: value.completedAt === null ? null : optionalText(value.completedAt),
     status: isOneOf(value.status, batchStatuses, 'previewed'),
     totalFiles,
+    successCount,
+    skippedCount,
+    errorCount,
+    needsConfirmationCount,
     parsedFiles,
     skippedFiles,
     importedFiles,
