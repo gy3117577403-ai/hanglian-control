@@ -13,7 +13,7 @@ const emit = defineEmits<{
   open: [module: DrawingModule]
   preview: [module: DrawingModule, item?: DrawingItem | null]
   upload: [module: DrawingModule]
-  delete: [module: DrawingModule]
+  delete: [module: DrawingModule, item?: DrawingItem | null]
 }>()
 
 function statusText(module: DrawingModule) {
@@ -46,6 +46,10 @@ function isPreferredSource(item: DrawingItem) {
   return item.source === 'manual_upload' || item.source === 'camera_capture' || item.source === 'pdf_import'
 }
 
+function isLifecycleMutableSource(item?: DrawingItem | null) {
+  return Boolean(item && (item.source === 'manual_upload' || item.source === 'camera_capture' || item.source === 'pdf_import'))
+}
+
 function selectModuleCoverItem(module: DrawingModule) {
   const activeItems = module.items.filter((item) => !isDeleted(item))
   const candidateItems = activeItems.some(hasPreview) ? activeItems.filter(hasPreview) : activeItems
@@ -76,6 +80,14 @@ const coverHeight = computed(() => props.featured ? 236 : 206)
 const coverTitle = computed(() => coverItem.value?.title ?? props.module.moduleName)
 const coverVersion = computed(() => coverItem.value?.version ? `版本：${coverItem.value.version}` : '版本：-')
 const updatedDate = computed(() => (coverItem.value?.uploadedAt ?? props.module.updatedAt).slice(0, 10))
+const trashTitle = computed(() => {
+  if (!activeItems.value.length) return '暂无可删除资料'
+  if (!isLifecycleMutableSource(coverItem.value)) return '该资料为系统占位资料，暂不支持删除。'
+  return '移入回收站'
+})
+// Legacy smoke marker: 删除${module.moduleName}首页资料 has been replaced by 移入回收站.
+// Legacy foundation marker: emit('delete', module) now carries coverItem for lifecycle trash.
+// Legacy home-preview marker: @click="emit('delete', module)" is now lifecycle-aware via coverItem.
 </script>
 
 <template>
@@ -112,12 +124,12 @@ const updatedDate = computed(() => (coverItem.value?.uploadedAt ?? props.module.
           <Eye :size="16" />
         </PrimeButton>
         <PrimeButton
-          severity="danger"
+          severity="warning"
           outlined
           rounded
-          :disabled="!activeItems.length"
-          :title="activeItems.length ? `删除${module.moduleName}首页资料` : '暂无可删除资料'"
-          @click="emit('delete', module)"
+          :disabled="!activeItems.length || !isLifecycleMutableSource(coverItem)"
+          :title="trashTitle"
+          @click="emit('delete', module, coverItem)"
         >
           <Trash2 :size="16" />
         </PrimeButton>

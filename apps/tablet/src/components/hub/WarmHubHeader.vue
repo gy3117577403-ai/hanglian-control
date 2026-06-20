@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ClipboardList, FileText, ServerCog, UploadCloud } from 'lucide-vue-next'
+import { ArchiveRestore, ClipboardList, FileText, ServerCog, UploadCloud } from 'lucide-vue-next'
 import WarmFunctionOrb from './WarmFunctionOrb.vue'
 import WarmHubSearchBar from './WarmHubSearchBar.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
@@ -9,6 +9,7 @@ const store = useDocumentHubStore()
 defineEmits<{
   'open-network': []
   'open-pdf-import': []
+  'open-trash': []
 }>()
 </script>
 
@@ -28,6 +29,17 @@ defineEmits<{
       >
         <FileText :size="18" />
         <span>导入 PDF 图纸</span>
+      </PrimeButton>
+      <PrimeButton
+        v-if="store.activeMode === 'drawing'"
+        class="trash-entry-button"
+        title="回收站"
+        aria-label="回收站"
+        @click="$emit('open-trash')"
+      >
+        <ArchiveRestore :size="18" />
+        <span>回收站</span>
+        <PrimeBadge v-if="store.drawingTrashTotal > 0" :value="store.drawingTrashTotal" severity="warn" />
       </PrimeButton>
       <PrimeButton severity="secondary" outlined title="接口设置与诊断" aria-label="接口设置与诊断" @click="$emit('open-network')">
         <ServerCog :size="18" />
@@ -182,6 +194,32 @@ defineEmits<{
   white-space: nowrap;
 }
 
+.header-actions :deep(.trash-entry-button) {
+  width: auto;
+  min-width: 104px;
+  min-height: 48px;
+  padding: 0 12px;
+  gap: 7px;
+  color: #4d321a;
+  border-color: rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.1) 46%),
+    linear-gradient(145deg, rgba(238, 176, 90, 0.62), rgba(207, 127, 56, 0.42)),
+    rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 18px 30px rgba(141, 83, 30, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -12px 22px rgba(116, 61, 22, 0.1);
+}
+
+.header-actions :deep(.trash-entry-button .p-button-label),
+.header-actions :deep(.trash-entry-button span:not(.p-badge)) {
+  flex: none;
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 @media (max-width: 1320px) {
   .hub-header {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -200,8 +238,16 @@ defineEmits<{
     padding: 0 13px;
   }
 
+  .header-actions :deep(.trash-entry-button) {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0 13px;
+  }
+
   .header-actions :deep(.pdf-import-button .p-button-label),
-  .header-actions :deep(.pdf-import-button span) {
+  .header-actions :deep(.pdf-import-button span),
+  .header-actions :deep(.trash-entry-button .p-button-label),
+  .header-actions :deep(.trash-entry-button span:not(.p-badge)) {
     display: none;
   }
 

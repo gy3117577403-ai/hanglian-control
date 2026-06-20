@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { ChevronLeft, LockKeyhole, Trash2, UploadCloud } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { ChevronLeft, UploadCloud } from 'lucide-vue-next'
 import WarmDrawingModuleCard from './WarmDrawingModuleCard.vue'
+import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
-import type { DrawingModule } from '@/types/production'
+import type { DrawingItem, DrawingModule } from '@/types/production'
 
 const store = useDocumentHubStore()
-const deleteOpen = ref(false)
-const deletePassword = ref('')
-const deleteError = ref('')
-const deleteTarget = ref<DrawingModule | null>(null)
+const moveToTrashOpen = ref(false)
+const moveToTrashItem = ref<DrawingItem | null>(null)
+const moveToTrashModule = ref<DrawingModule | null>(null)
 
 const modules = computed(() => store.productDrawingDetail?.modules ?? [])
 const primaryModules = computed(() => (
@@ -25,22 +25,22 @@ function statusText(status?: string) {
   return '未发图'
 }
 
-function openDelete(module: DrawingModule) {
-  deleteTarget.value = module
-  deletePassword.value = ''
-  deleteError.value = ''
-  deleteOpen.value = true
+async function openMoveToTrash(module: DrawingModule, item?: DrawingItem | null) {
+  const targetItem = item ?? module.items.find((entry) => !entry.deleted && !entry.deletedAt) ?? null
+  if (!targetItem) return
+  const ready = await store.prepareTrashDocument(targetItem, module)
+  if (!ready) return
+  moveToTrashItem.value = targetItem
+  moveToTrashModule.value = module
+  moveToTrashOpen.value = true
 }
 
-async function confirmDelete() {
-  if (!deleteTarget.value) return
-  const ok = await store.deleteModuleCoverItem(deleteTarget.value, deletePassword.value)
-  if (!ok) {
-    deleteError.value = '密码错误或该模块暂无资料。'
-    return
-  }
-  deleteOpen.value = false
-}
+watch(moveToTrashOpen, (visible) => {
+  if (visible) return
+  moveToTrashItem.value = null
+  moveToTrashModule.value = null
+  store.closeMoveToTrashDialog()
+})
 </script>
 
 <template>
@@ -72,7 +72,7 @@ async function confirmDelete() {
           @open="store.openModule"
           @preview="store.openModuleViewer"
           @upload="store.openModuleUpload"
-          @delete="openDelete"
+          @delete="openMoveToTrash"
         />
       </section>
 
@@ -84,7 +84,7 @@ async function confirmDelete() {
           @open="store.openModule"
           @preview="store.openModuleViewer"
           @upload="store.openModuleUpload"
-          @delete="openDelete"
+          @delete="openMoveToTrash"
         />
       </section>
     </template>
@@ -94,27 +94,11 @@ async function confirmDelete() {
       <span>请从左侧今日订单或本周订单点击产品型号。</span>
     </section>
 
-    <PrimeDialog v-model:visible="deleteOpen" modal header="删除资料" :style="{ width: '420px' }">
-      <div class="delete-panel">
-        <LockKeyhole :size="28" />
-        <div>
-          <b>请输入删除密码</b>
-          <span>{{ deleteTarget?.moduleName }} 将删除当前首页资料，完整资料可在“查看全部”中继续管理。</span>
-        </div>
-      </div>
-      <label class="password-field">
-        删除密码
-        <PrimeInputText v-model="deletePassword" type="password" autofocus @keydown.enter="confirmDelete" />
-      </label>
-      <p v-if="deleteError" class="delete-error">{{ deleteError }}</p>
-      <template #footer>
-        <PrimeButton label="取消" severity="secondary" text @click="deleteOpen = false" />
-        <PrimeButton severity="danger" @click="confirmDelete">
-          <Trash2 :size="17" />
-          <span>确认删除</span>
-        </PrimeButton>
-      </template>
-    </PrimeDialog>
+    <WarmMoveToTrashDialog
+      v-model:visible="moveToTrashOpen"
+      :item="moveToTrashItem"
+      :module="moveToTrashModule"
+    />
   </div>
 </template>
 
@@ -305,47 +289,6 @@ b.no_drawing {
 .empty-product b {
   color: #3d2815;
   font-size: 24px;
-}
-
-.delete-panel {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.66);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.38);
-  color: #70421d;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-.delete-panel b,
-.delete-panel span {
-  display: block;
-}
-
-.delete-panel span {
-  margin-top: 3px;
-  font-size: 12px;
-}
-
-.password-field {
-  display: grid;
-  gap: 6px;
-  color: #5f351a;
-  font-size: 13px;
-  font-weight: 950;
-}
-
-.delete-error {
-  margin-top: 9px;
-  color: #a23e31;
-  font-size: 13px;
-  font-weight: 900;
 }
 
 @media (max-width: 1320px) {

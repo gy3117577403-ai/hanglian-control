@@ -7,6 +7,7 @@ import WarmPdfImportDialog from '@/components/drawing/WarmPdfImportDialog.vue'
 import WarmOrderOverviewDialog from '@/components/orders/WarmOrderOverviewDialog.vue'
 import WarmOrderSidebar from '@/components/orders/WarmOrderSidebar.vue'
 import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
+import WarmDrawingTrashDialog from '@/components/trash/WarmDrawingTrashDialog.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
@@ -16,11 +17,19 @@ const pdfImportOpen = ref(false)
 onMounted(() => {
   void store.initialize()
 })
+
+function openDrawingTrash() {
+  void store.openDrawingTrash().catch(() => undefined)
+}
 </script>
 
 <template>
   <div class="document-hub-shell" :class="{ 'orders-collapsed': store.orderSidebarCollapsed }">
-    <WarmHubHeader @open-network="networkDiagnosticsOpen = true" @open-pdf-import="pdfImportOpen = true" />
+    <WarmHubHeader
+      @open-network="networkDiagnosticsOpen = true"
+      @open-pdf-import="pdfImportOpen = true"
+      @open-trash="openDrawingTrash"
+    />
     <main class="hub-body">
       <WarmOrderSidebar />
       <WarmHubContent />
@@ -28,6 +37,7 @@ onMounted(() => {
     <WarmOrderOverviewDialog />
     <WarmHubUploadDialog v-model:visible="store.uploadDialogOpen" />
     <WarmPdfImportDialog v-model:visible="pdfImportOpen" />
+    <WarmDrawingTrashDialog v-model:visible="store.drawingTrashDialogOpen" />
     <WarmNetworkDiagnosticsDialog v-model:visible="networkDiagnosticsOpen" />
   </div>
 </template>

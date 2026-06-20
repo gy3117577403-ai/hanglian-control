@@ -106,12 +106,10 @@ import type {
   BulkRestorePayload,
   DeleteLockChangePayload,
   DeleteLockSetupPayload,
-  DeleteLockStatus,
   DeletePasswordPayload,
   ConnectorImportResult,
   ConnectorParameter,
   ConnectorParameterPayload,
-  DocumentHubDeleteResponse,
   DocumentHubUploadPayload,
   DocumentHubUploadResponse,
   DrawingModule,
@@ -135,6 +133,15 @@ import type {
   PdfImportApplyResponse,
   PdfImportPreviewResponse,
 } from '@/types/pdf-import'
+import type {
+  DeleteLockStatus,
+  DrawingLifecycleResponse,
+  DrawingTrashListResponse,
+  PurgeDocumentPayload,
+  RestoreDocumentPayload,
+  TrashDocumentPayload,
+  TrashQuery,
+} from '@/types/document-lifecycle'
 
 const API_BASE = getApiBaseUrl()
 
@@ -193,6 +200,25 @@ function toPdfImportRequestError(error: unknown) {
     return new Error('PDF 导入请求失败，请检查网络连接。')
   }
   return new Error(message)
+}
+
+function toLifecycleRequestError(error: unknown) {
+  const message = readApiErrorMessage(error)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
+    return new Error('网络连接失败，请检查网络。')
+  }
+  return new Error(message)
+}
+
+function encodedDrawingItemPath(productId: string, moduleKey: string, itemId: string) {
+  return [
+    '/document-hub/drawings/products',
+    encodeURIComponent(productId),
+    'modules',
+    encodeURIComponent(moduleKey),
+    'items',
+    encodeURIComponent(itemId),
+  ].join('/')
 }
 
 function toFileArray(files: readonly File[] | FileList) {
@@ -1119,15 +1145,69 @@ export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModule
   })
 }
 
-export function deleteHubDrawingItem(productId: string, moduleKey: DrawingModuleKey, itemId: string, payload: DeletePasswordPayload) {
-  return api<DocumentHubDeleteResponse>(
-    `/document-hub/drawings/products/${productId}/modules/${moduleKey}/items/${itemId}/delete`,
-    {
+export async function getDrawingTrash(query?: TrashQuery) {
+  try {
+    return await api<DrawingTrashListResponse>('/document-hub/trash', {
+      query: {
+        ...query,
+        limit: query?.limit ?? undefined,
+        offset: query?.offset ?? undefined,
+      },
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function trashDrawingDocument(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: TrashDocumentPayload,
+) {
+  try {
+    return await api<DrawingLifecycleResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/trash`, {
       method: 'POST',
       body: payload,
       timeout: 15000,
-    },
-  )
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function restoreDrawingDocument(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: RestoreDocumentPayload,
+) {
+  try {
+    return await api<DrawingLifecycleResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/restore`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function purgeDrawingDocument(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: PurgeDocumentPayload,
+) {
+  try {
+    return await api<DrawingLifecycleResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/purge`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
 }
 
 export async function previewDrawingPdfImport(customerId: string, files: readonly File[] | FileList) {

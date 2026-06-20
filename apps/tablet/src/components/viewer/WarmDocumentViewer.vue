@@ -33,6 +33,7 @@ const pdfDocument = shallowRef<PdfDocumentProxy | null>(null)
 let bodyLocked = false
 
 const activeItem = computed(() => viewer.activeItem.value)
+const activeItemInTrash = computed(() => Boolean(activeItem.value?.inTrash))
 const hasDownload = computed(() => Boolean(resolveDocumentDownloadUrl(activeItem.value?.downloadUrl)))
 const title = computed(() => activeItem.value?.title || props.moduleName || '资料查看')
 const subtitle = computed(() => [props.productModel, props.moduleName].filter(Boolean).join(' / '))
@@ -287,6 +288,8 @@ onBeforeUnmount(() => {
         @close="closeViewer"
       />
 
+      <p v-if="activeItemInTrash" class="trash-viewer-note">此资料当前位于回收站。</p>
+
       <main class="viewer-main" :class="{ 'with-info': infoOpen, 'rail-collapsed': thumbnailRailCollapsed }">
         <WarmThumbnailRail
           v-model:collapsed="thumbnailRailCollapsed"
@@ -366,6 +369,10 @@ onBeforeUnmount(() => {
               <dt>备注</dt>
               <dd>{{ activeItem?.remark || activeItem?.description || '-' }}</dd>
             </div>
+            <div v-if="activeItemInTrash">
+              <dt>回收站状态</dt>
+              <dd>此资料当前位于回收站。</dd>
+            </div>
           </dl>
         </aside>
       </main>
@@ -383,7 +390,7 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 4200;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   padding: 12px;
   background:
@@ -458,6 +465,16 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(132px, 150px) minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
+}
+
+.trash-viewer-note {
+  margin: -2px 0 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 193, 115, 0.24);
+  border-radius: 14px;
+  background: rgba(134, 78, 32, 0.24);
+  color: #ffe4bd;
+  font-weight: 950;
 }
 
 .viewer-main.rail-collapsed {

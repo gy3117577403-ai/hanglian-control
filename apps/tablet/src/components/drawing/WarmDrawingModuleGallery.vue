@@ -1,35 +1,35 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ChevronLeft, FileText, Image, LockKeyhole, Trash2, UploadCloud } from 'lucide-vue-next'
+import { ref, watch } from 'vue'
+import { ChevronLeft, FileText, Image, Trash2, UploadCloud } from 'lucide-vue-next'
+import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DrawingItem } from '@/types/production'
 
 const store = useDocumentHubStore()
-const deleteOpen = ref(false)
-const deletePassword = ref('')
-const deleteError = ref('')
-const deleteTarget = ref<DrawingItem | null>(null)
+const moveToTrashOpen = ref(false)
+const moveToTrashItem = ref<DrawingItem | null>(null)
 
 function iconFor(item: DrawingItem) {
   return item.fileType === 'pdf' ? FileText : Image
 }
 
-function openDelete(item: DrawingItem) {
-  deleteTarget.value = item
-  deletePassword.value = ''
-  deleteError.value = ''
-  deleteOpen.value = true
+function isLifecycleMutableSource(item: DrawingItem) {
+  return item.source === 'manual_upload' || item.source === 'camera_capture' || item.source === 'pdf_import'
 }
 
-async function confirmDelete() {
-  if (!deleteTarget.value) return
-  const ok = await store.deleteDrawingItem(deleteTarget.value, deletePassword.value)
-  if (!ok) {
-    deleteError.value = '密码错误或该资料不存在。'
-    return
-  }
-  deleteOpen.value = false
+async function openMoveToTrash(item: DrawingItem) {
+  if (!store.selectedModule) return
+  const ready = await store.prepareTrashDocument(item, store.selectedModule)
+  if (!ready) return
+  moveToTrashItem.value = item
+  moveToTrashOpen.value = true
 }
+
+watch(moveToTrashOpen, (visible) => {
+  if (visible) return
+  moveToTrashItem.value = null
+  store.closeMoveToTrashDialog()
+})
 </script>
 
 <template>
@@ -64,7 +64,14 @@ async function confirmDelete() {
           <PrimeButton rounded title="查看大图" @click="store.openImageDetail(item)">
             <Image :size="16" />
           </PrimeButton>
-          <PrimeButton severity="danger" outlined rounded title="删除资料" @click="openDelete(item)">
+          <PrimeButton
+            severity="warning"
+            outlined
+            rounded
+            :disabled="!isLifecycleMutableSource(item)"
+            :title="isLifecycleMutableSource(item) ? '移入回收站' : '该资料为系统占位资料，暂不支持删除。'"
+            @click="openMoveToTrash(item)"
+          >
             <Trash2 :size="16" />
           </PrimeButton>
         </div>
@@ -76,27 +83,11 @@ async function confirmDelete() {
         </PrimeButton>
       </div>
     </div>
-    <PrimeDialog v-model:visible="deleteOpen" modal header="删除资料" :style="{ width: '420px' }">
-      <div class="delete-panel">
-        <LockKeyhole :size="28" />
-        <div>
-          <b>请输入删除密码</b>
-          <span>{{ deleteTarget?.title }} 删除后仅从当前 Mock 资料中移除。</span>
-        </div>
-      </div>
-      <label class="password-field">
-        删除密码
-        <PrimeInputText v-model="deletePassword" type="password" autofocus @keydown.enter="confirmDelete" />
-      </label>
-      <p v-if="deleteError" class="delete-error">{{ deleteError }}</p>
-      <template #footer>
-        <PrimeButton label="取消" severity="secondary" text @click="deleteOpen = false" />
-        <PrimeButton severity="danger" @click="confirmDelete">
-          <Trash2 :size="17" />
-          <span>确认删除</span>
-        </PrimeButton>
-      </template>
-    </PrimeDialog>
+    <WarmMoveToTrashDialog
+      v-model:visible="moveToTrashOpen"
+      :item="moveToTrashItem"
+      :module="store.selectedModule"
+    />
   </div>
 </template>
 
@@ -277,39 +268,4 @@ h3 {
   color: #5c3419;
 }
 
-.delete-panel {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.66);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.38);
-  color: #70421d;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-.delete-panel b,
-.delete-panel span {
-  display: block;
-}
-
-.password-field {
-  display: grid;
-  gap: 6px;
-  color: #5f351a;
-  font-size: 13px;
-  font-weight: 950;
-}
-
-.delete-error {
-  margin-top: 9px;
-  color: #a23e31;
-  font-size: 13px;
-  font-weight: 900;
-}
 </style>

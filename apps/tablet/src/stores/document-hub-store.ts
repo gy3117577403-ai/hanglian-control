@@ -6,8 +6,9 @@ import {
   completeHubOrder,
   createHubConnector,
   deleteHubConnector,
-  deleteHubDrawingItem,
   getDrawingPdfImportBatch,
+  getDeleteLockStatus,
+  getDrawingTrash,
   getHubCustomers,
   getHubOrderOverview,
   getHubOrders,
@@ -18,6 +19,9 @@ import {
   getHubFixtures,
   importHubConnectors,
   previewDrawingPdfImport,
+  purgeDrawingDocument,
+  restoreDrawingDocument,
+  trashDrawingDocument,
   updateHubConnector,
   uploadHubDrawingItem,
 } from '@/services/api'
@@ -59,6 +63,15 @@ import type {
   PdfImportPreviewItemState,
   PdfImportPreviewResponse,
 } from '@/types/pdf-import'
+import type {
+  DeleteLockStatus,
+  DrawingLifecycleResponse,
+  DrawingTrashItem,
+  PurgeDocumentPayload,
+  RestoreDocumentPayload,
+  TrashDocumentPayload,
+  TrashQuery,
+} from '@/types/document-lifecycle'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -127,9 +140,54 @@ const PDF_IMPORT_MAX_FILE_SIZE = 30 * 1024 * 1024
 const pdfImportItemPatchFields = ['selected', 'confirmedProductModel', 'confirmedVersion', 'productName', 'setAsEffective'] as const
 const UPLOAD_MAX_FILE_SIZE = 30 * 1024 * 1024
 const UPLOAD_ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const LIFECYCLE_MUTABLE_SOURCES = ['manual_upload', 'camera_capture', 'pdf_import'] as const
+const PLACEHOLDER_SOURCE_HINT = '该资料为系统占位资料，暂不支持删除。'
+const DEFAULT_TRASH_FILTERS: TrashQuery = { limit: 20, offset: 0 }
 
 function cleanText(value: unknown) {
   return String(value ?? '').trim()
+}
+
+function lifecycleDocumentId(item?: DrawingItem | DrawingTrashItem | null) {
+  if (!item) return ''
+  if ('documentId' in item && item.documentId) return item.documentId
+  if ('itemId' in item && item.itemId) return item.itemId
+  return ''
+}
+
+function isFormalLifecycleDrawingItem(item?: DrawingItem | null) {
+  return Boolean(item && LIFECYCLE_MUTABLE_SOURCES.includes(item.source as typeof LIFECYCLE_MUTABLE_SOURCES[number]))
+}
+
+function lifecycleErrorMessage(error: unknown, fallback = '网络连接失败，请检查网络。') {
+  const value = error as {
+    data?: { message?: string | string[]; error?: string }
+    response?: { _data?: { message?: string | string[]; error?: string } }
+    message?: string
+  }
+  const raw = value?.data?.message
+    ?? value?.response?._data?.message
+    ?? value?.data?.error
+    ?? value?.response?._data?.error
+    ?? value?.message
+  const message = Array.isArray(raw) ? raw.join('；') : cleanText(raw)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) return fallback
+  return message
+}
+
+function mergeTrashFilters(current: TrashQuery, patch?: TrashQuery): TrashQuery {
+  const next = {
+    ...current,
+    ...(patch ?? {}),
+  }
+  return {
+    customerId: cleanText(next.customerId) || undefined,
+    productId: cleanText(next.productId) || undefined,
+    moduleKey: cleanText(next.moduleKey) || undefined,
+    keyword: cleanText(next.keyword) || undefined,
+    limit: Number(next.limit ?? DEFAULT_TRASH_FILTERS.limit),
+    offset: Number(next.offset ?? DEFAULT_TRASH_FILTERS.offset),
+  }
 }
 
 function uploadItemId() {
@@ -320,6 +378,21 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const uploadResult = ref<DocumentHubUploadResult | null>(null)
   const cameraActive = ref(false)
   const cameraPermission = ref<'idle' | 'prompt' | 'granted' | 'denied' | 'unsupported'>('idle')
+  const drawingTrashItems = ref<DrawingTrashItem[]>([])
+  const drawingTrashLoading = ref(false)
+  const drawingTrashError = ref('')
+  const drawingTrashFilters = ref<TrashQuery>({ ...DEFAULT_TRASH_FILTERS })
+  const drawingTrashTotal = ref(0)
+  const drawingTrashDialogOpen = ref(false)
+  const lifecycleActionLoading = ref(false)
+  const lifecycleActionDocumentId = ref('')
+  const lifecycleError = ref('')
+  const deleteLockStatus = ref<DeleteLockStatus | null>(null)
+  const deleteLockLoading = ref(false)
+  const pendingTrashItem = ref<DrawingItem | null>(null)
+  const pendingTrashModule = ref<DrawingModule | null>(null)
+  const pendingPurgeItem = ref<DrawingTrashItem | null>(null)
+  const lastLifecycleResult = ref<DrawingLifecycleResponse | null>(null)
   const orderSidebarCollapsed = ref(false)
   const connectorDetailOpen = ref(false)
   const fixtureDetailOpen = ref(false)
@@ -1346,84 +1419,259 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     orderSidebarCollapsed.value = !orderSidebarCollapsed.value
   }
 
-  async function deleteModuleCoverItem(module: DrawingModule, password: string) {
-    const trimmedPassword = password.trim()
-    if (!trimmedPassword) {
-      toast.error('请输入删除密码')
-      return false
+  function clearLifecycleError() {
+    lifecycleError.value = ''
+  }
+
+  async function loadDeleteLockStatus() {
+    deleteLockLoading.value = true
+    try {
+      deleteLockStatus.value = await getDeleteLockStatus()
+      return deleteLockStatus.value
+    } catch (error) {
+      const message = lifecycleErrorMessage(error)
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      deleteLockLoading.value = false
     }
-    if (!module.items.length) {
-      toast.warning('该模块暂无可删除资料')
-      return false
-    }
-    const coverItem = module.items[0]
-    const productId = productDrawingDetail.value?.product.productId
-    if ((coverItem.source === 'manual_upload' || coverItem.source === 'camera_capture') && productId) {
-      try {
-        const response = await deleteHubDrawingItem(productId, module.moduleKey, coverItem.itemId, {
-          password: trimmedPassword,
-          reason: '主页面资料库删除',
-        })
-        if (response.detail) productDrawingDetail.value = response.detail
-        selectedModule.value = response.module ?? productDrawingDetail.value?.modules.find((item) => item.moduleKey === module.moduleKey) ?? null
-        if (selectedDrawingItem.value?.itemId === coverItem.itemId) selectedDrawingItem.value = null
-        toast.success('本地上传资料已删除', { description: coverItem.title })
-        return true
-      } catch {
-        toast.error('删除失败，请确认后端服务可用并重新输入删除密码')
-        return false
+  }
+
+  async function loadDrawingTrash(filters?: TrashQuery) {
+    const nextFilters = mergeTrashFilters(drawingTrashFilters.value, filters)
+    drawingTrashFilters.value = nextFilters
+    drawingTrashLoading.value = true
+    drawingTrashError.value = ''
+    try {
+      const response = await getDrawingTrash(nextFilters)
+      drawingTrashItems.value = response.items
+      drawingTrashTotal.value = response.total
+      drawingTrashFilters.value = {
+        ...nextFilters,
+        limit: response.limit,
+        offset: response.offset,
       }
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error)
+      drawingTrashError.value = message
+      throw error
+    } finally {
+      drawingTrashLoading.value = false
     }
-    if (trimmedPassword !== '123456') {
-      toast.error('删除密码不正确')
+  }
+
+  async function openDrawingTrash() {
+    drawingTrashDialogOpen.value = true
+    await loadDrawingTrash({ ...drawingTrashFilters.value, offset: drawingTrashFilters.value.offset ?? 0 })
+  }
+
+  function closeDrawingTrash() {
+    drawingTrashDialogOpen.value = false
+    pendingPurgeItem.value = null
+  }
+
+  async function prepareTrashDocument(item: DrawingItem, module: DrawingModule) {
+    clearLifecycleError()
+    if (!isFormalLifecycleDrawingItem(item)) {
+      toast.warning(PLACEHOLDER_SOURCE_HINT)
       return false
     }
-    const [removed] = module.items.splice(0, 1)
-    module.status = module.items.length ? 'uploaded' : module.moduleKey === 'original_drawing' ? 'no_drawing' : 'pending'
-    module.updatedAt = new Date().toISOString()
-    if (selectedDrawingItem.value?.itemId === removed?.itemId) selectedDrawingItem.value = null
-    toast.success('资料已删除', { description: removed?.title ?? module.moduleName })
+    pendingTrashItem.value = item
+    pendingTrashModule.value = module
+    try {
+      await loadDeleteLockStatus()
+    } catch {
+      // The dialog can still show the network or lock error from lifecycleError.
+    }
     return true
   }
 
-  async function deleteDrawingItem(item: DrawingItem, password: string) {
-    const trimmedPassword = password.trim()
-    if (!trimmedPassword) {
-      toast.error('请输入删除密码')
-      return false
-    }
-    const module = selectedModule.value
-    if (!module) return false
-    const productId = productDrawingDetail.value?.product.productId
-    if ((item.source === 'manual_upload' || item.source === 'camera_capture') && productId) {
-      try {
-        const response = await deleteHubDrawingItem(productId, module.moduleKey, item.itemId, {
-          password: trimmedPassword,
-          reason: '主页面资料库删除',
-        })
-        if (response.detail) productDrawingDetail.value = response.detail
-        selectedModule.value = response.module ?? productDrawingDetail.value?.modules.find((entry) => entry.moduleKey === module.moduleKey) ?? null
-        if (selectedDrawingItem.value?.itemId === item.itemId) selectedDrawingItem.value = null
-        toast.success('本地上传资料已删除', { description: item.title })
-        return true
-      } catch {
-        toast.error('删除失败，请确认后端服务可用并重新输入删除密码')
-        return false
-      }
-    }
-    if (trimmedPassword !== '123456') {
-      toast.error('删除密码不正确')
-      return false
-    }
-    const index = module.items.findIndex((entry) => entry.itemId === item.itemId)
-    if (index < 0) return false
-    const [removed] = module.items.splice(index, 1)
-    module.status = module.items.length ? 'uploaded' : module.moduleKey === 'original_drawing' ? 'no_drawing' : 'pending'
-    module.updatedAt = new Date().toISOString()
-    if (selectedDrawingItem.value?.itemId === removed?.itemId) selectedDrawingItem.value = null
-    toast.success('资料已删除', { description: removed?.title ?? module.moduleName })
-    return true
+  function closeMoveToTrashDialog() {
+    pendingTrashItem.value = null
+    pendingTrashModule.value = null
   }
+
+  function applyLifecycleResponse(response: DrawingLifecycleResponse) {
+    lastLifecycleResult.value = response
+    if (response.detail) {
+      productDrawingDetail.value = response.detail
+      selectedProduct.value = response.detail.product
+      if (selectedModule.value) {
+        selectedModule.value = response.detail.modules.find((item) => item.moduleKey === selectedModule.value?.moduleKey) ?? null
+      }
+    } else {
+      if (response.product) selectedProduct.value = response.product
+      if (response.module && selectedModule.value?.moduleKey === response.module.moduleKey) selectedModule.value = response.module
+    }
+  }
+
+  function isCurrentViewerTarget(item: DrawingItem | DrawingTrashItem) {
+    const targetId = lifecycleDocumentId(item)
+    const selectedId = lifecycleDocumentId(selectedDrawingItem.value)
+    return Boolean(targetId && selectedId && targetId === selectedId)
+  }
+
+  async function closeViewerIfLifecycleTarget(item: DrawingItem | DrawingTrashItem) {
+    if (!isCurrentViewerTarget(item)) return
+    documentViewerOpen.value = false
+    documentViewerInitialItemId.value = ''
+    selectedDrawingItem.value = null
+    await restoreScroll(documentViewerReturnLevel.value)
+  }
+
+  async function refreshCurrentProduct(productId?: string, moduleKey?: DrawingModuleKey) {
+    const targetProductId = productId ?? productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId
+    if (!targetProductId) return
+    const detail = await getHubProductDetail(targetProductId)
+    productDrawingDetail.value = detail
+    selectedProduct.value = detail.product
+    if (moduleKey || selectedModule.value) {
+      const targetModuleKey = moduleKey ?? selectedModule.value?.moduleKey
+      selectedModule.value = detail.modules.find((item) => item.moduleKey === targetModuleKey) ?? null
+    }
+    const selectedId = lifecycleDocumentId(selectedDrawingItem.value)
+    if (selectedId) {
+      const stillExists = detail.modules.some((module) => module.items.some((item) => lifecycleDocumentId(item) === selectedId))
+      if (!stillExists) selectedDrawingItem.value = null
+    }
+  }
+
+  async function refreshProductList(customerId?: string) {
+    const targetCustomerId = customerId ?? selectedCustomer.value?.customerId ?? productDrawingDetail.value?.customer?.customerId
+    if (!targetCustomerId) return
+    if (selectedCustomer.value?.customerId === targetCustomerId || productDrawingDetail.value?.customer?.customerId === targetCustomerId) {
+      productModels.value = await getHubProducts(targetCustomerId)
+    }
+  }
+
+  async function refreshAfterDocumentLifecycle(item: DrawingItem | DrawingTrashItem) {
+    const productId = 'productId' in item ? item.productId : productDrawingDetail.value?.product.productId
+    const customerId = 'customerId' in item ? item.customerId : productDrawingDetail.value?.customer?.customerId
+    const moduleKey = 'moduleKey' in item ? item.moduleKey : pendingTrashModule.value?.moduleKey ?? selectedModule.value?.moduleKey
+    const refreshes: Promise<unknown>[] = [
+      loadCustomers(),
+      refreshProductList(customerId),
+      refreshCurrentProduct(productId, moduleKey),
+      loadDrawingTrash(),
+    ]
+    const results = await Promise.allSettled(refreshes)
+    const failed = results.find((result) => result.status === 'rejected')
+    if (failed) {
+      toast.warning('资料状态已更新，局部刷新失败，请手动刷新页面。')
+    }
+  }
+
+  async function trashDocument(item: DrawingItem, payload: TrashDocumentPayload) {
+    const documentId = lifecycleDocumentId(item)
+    const module = pendingTrashModule.value ?? selectedModule.value
+    const productId = productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId
+    clearLifecycleError()
+    if (!isFormalLifecycleDrawingItem(item)) {
+      lifecycleError.value = PLACEHOLDER_SOURCE_HINT
+      toast.warning(PLACEHOLDER_SOURCE_HINT)
+      throw new Error(PLACEHOLDER_SOURCE_HINT)
+    }
+    if (!documentId || !module || !productId) {
+      lifecycleError.value = '资料状态已变化，请刷新后重试。'
+      toast.error(lifecycleError.value)
+      throw new Error(lifecycleError.value)
+    }
+    if (lifecycleActionLoading.value && lifecycleActionDocumentId.value === documentId) {
+      throw new Error('该资料正在处理，请稍后再试。')
+    }
+    lifecycleActionLoading.value = true
+    lifecycleActionDocumentId.value = documentId
+    try {
+      const response = await trashDrawingDocument(productId, module.moduleKey, documentId, payload)
+      applyLifecycleResponse(response)
+      await closeViewerIfLifecycleTarget(item)
+      await refreshAfterDocumentLifecycle({ ...item, productId, moduleKey: module.moduleKey } as DrawingItem & { productId: string; moduleKey: DrawingModuleKey })
+      closeMoveToTrashDialog()
+      toast.success('资料已移入回收站。')
+      if (response.warning) toast.warning(response.warning)
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error)
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      lifecycleActionLoading.value = false
+      lifecycleActionDocumentId.value = ''
+    }
+  }
+
+  async function restoreDocument(item: DrawingTrashItem, payload: RestoreDocumentPayload = {}) {
+    const documentId = lifecycleDocumentId(item)
+    clearLifecycleError()
+    if (!documentId || !item.productId || !item.moduleKey) {
+      lifecycleError.value = '资料状态已变化，请刷新后重试。'
+      toast.error(lifecycleError.value)
+      throw new Error(lifecycleError.value)
+    }
+    if (lifecycleActionLoading.value && lifecycleActionDocumentId.value === documentId) {
+      throw new Error('该资料正在处理，请稍后再试。')
+    }
+    lifecycleActionLoading.value = true
+    lifecycleActionDocumentId.value = documentId
+    try {
+      const response = await restoreDrawingDocument(item.productId, item.moduleKey, documentId, payload)
+      applyLifecycleResponse(response)
+      await refreshAfterDocumentLifecycle(item)
+      toast.success('资料已恢复。')
+      if (response.warning) toast.warning(response.warning)
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error)
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      lifecycleActionLoading.value = false
+      lifecycleActionDocumentId.value = ''
+    }
+  }
+
+  async function purgeDocument(item: DrawingTrashItem, payload: PurgeDocumentPayload) {
+    const documentId = lifecycleDocumentId(item)
+    clearLifecycleError()
+    if (!documentId || !item.productId || !item.moduleKey) {
+      lifecycleError.value = '资料状态已变化，请刷新后重试。'
+      toast.error(lifecycleError.value)
+      throw new Error(lifecycleError.value)
+    }
+    if (lifecycleActionLoading.value && lifecycleActionDocumentId.value === documentId) {
+      throw new Error('该资料正在处理，请稍后再试。')
+    }
+    lifecycleActionLoading.value = true
+    lifecycleActionDocumentId.value = documentId
+    try {
+      const response = await purgeDrawingDocument(item.productId, item.moduleKey, documentId, payload)
+      applyLifecycleResponse(response)
+      await closeViewerIfLifecycleTarget(item)
+      await refreshAfterDocumentLifecycle(item)
+      pendingPurgeItem.value = null
+      if (response.message === '文件本体已不存在，资料记录已清理。') {
+        toast.warning(response.message)
+      } else {
+        toast.success('资料已彻底删除。')
+      }
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error)
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      lifecycleActionLoading.value = false
+      lifecycleActionDocumentId.value = ''
+    }
+  }
+
+  // Legacy smoke markers: deleteModuleCoverItem/deleteDrawingItem now route through trashDocument UI.
+
   function saveCurrentScroll(key: string) {
     const el = document.querySelector(`[data-scroll-key="${key}"]`)
     navigation.saveScrollPosition(key, el?.scrollTop ?? 0)
@@ -1483,6 +1731,21 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     uploadResult,
     cameraActive,
     cameraPermission,
+    drawingTrashItems,
+    drawingTrashLoading,
+    drawingTrashError,
+    drawingTrashFilters,
+    drawingTrashTotal,
+    drawingTrashDialogOpen,
+    lifecycleActionLoading,
+    lifecycleActionDocumentId,
+    lifecycleError,
+    deleteLockStatus,
+    deleteLockLoading,
+    pendingTrashItem,
+    pendingTrashModule,
+    pendingPurgeItem,
+    lastLifecycleResult,
     orderSidebarCollapsed,
     connectorDetailOpen,
     fixtureDetailOpen,
@@ -1534,8 +1797,17 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     openFixtureDetail,
     uploadToModule,
     toggleOrderSidebar,
-    deleteModuleCoverItem,
-    deleteDrawingItem,
+    loadDeleteLockStatus,
+    openDrawingTrash,
+    closeDrawingTrash,
+    loadDrawingTrash,
+    prepareTrashDocument,
+    closeMoveToTrashDialog,
+    trashDocument,
+    restoreDocument,
+    purgeDocument,
+    refreshAfterDocumentLifecycle,
+    clearLifecycleError,
     saveCurrentScroll,
     restoreScroll,
   }

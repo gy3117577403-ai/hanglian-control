@@ -51,6 +51,7 @@ export interface DocumentViewerItem {
   uploadedAt: string
   deleted?: boolean
   deletedAt?: string
+  inTrash?: boolean
 }
 
 export interface ViewerState {
