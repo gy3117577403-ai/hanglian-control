@@ -5,11 +5,15 @@ import { memoryStorage } from 'multer';
 import { CompleteOrderDto } from './dto/complete-order.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
+import { CreateDrawingCustomerDto } from './dto/create-drawing-customer.dto';
+import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
+import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
+import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import { DocumentHubService } from './document-hub.service';
 import type { DrawingModuleKey } from './mock/document-hub.seed';
@@ -57,10 +61,34 @@ export class DocumentHubController {
     return this.documentHubService.getCustomers(query);
   }
 
+  @Post('drawings/customers')
+  @ApiOperation({ summary: '新增图纸客户' })
+  createDrawingCustomer(@Body() dto: CreateDrawingCustomerDto) {
+    return this.documentHubService.createDrawingCustomer(dto);
+  }
+
+  @Patch('drawings/customers/:customerId')
+  @ApiOperation({ summary: '修改图纸客户' })
+  updateDrawingCustomer(@Param('customerId') customerId: string, @Body() dto: UpdateDrawingCustomerDto) {
+    return this.documentHubService.updateDrawingCustomer(customerId, dto);
+  }
+
   @Get('drawings/customers/:customerId/products')
   @ApiOperation({ summary: '图纸库第二层：客户下产品型号列表' })
   getProducts(@Param('customerId') customerId: string, @Query() query: DrawingQueryDto) {
     return this.documentHubService.getProducts(customerId, query);
+  }
+
+  @Post('drawings/products')
+  @ApiOperation({ summary: '新增图纸产品' })
+  createDrawingProduct(@Body() dto: CreateDrawingProductDto) {
+    return this.documentHubService.createDrawingProduct(dto);
+  }
+
+  @Patch('drawings/products/:productId')
+  @ApiOperation({ summary: '修改图纸产品' })
+  updateDrawingProduct(@Param('productId') productId: string, @Body() dto: UpdateDrawingProductDto) {
+    return this.documentHubService.updateDrawingProduct(productId, dto);
   }
 
   @Get('drawings/products/by-model/:productModel')

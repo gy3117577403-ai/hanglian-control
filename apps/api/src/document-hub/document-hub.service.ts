@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Workbook } from 'exceljs';
 import type { DocumentTypeV03, RequiredProcess } from '../common/enums/production.enum';
 import type { ProductDocument } from '../common/types/production.types';
@@ -9,25 +11,30 @@ import { StorageService } from '../storage/storage.service';
 import type { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
 import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
 import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
+import { CreateDrawingCustomerDto } from './dto/create-drawing-customer.dto';
+import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
+import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
+import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
+import { DrawingMetadataStore, createDefaultDrawingModules } from './drawing-metadata.store';
+import { normalizeProductModel } from './helpers/pdf-name-parser';
 import {
   ConnectorParameter,
   DrawingItem,
   DrawingModuleKey,
   FixtureParameter,
+  HubCustomer,
   HubOrder,
+  HubProductModel,
   ProductDrawingDetail,
   connectorParameters,
-  drawingDetails,
   fixtureParameters,
-  hubCustomers,
   hubOrders,
-  hubProducts,
 } from './mock/document-hub.seed';
 
 function clone<T>(value: T): T {
@@ -40,6 +47,33 @@ function includes(value: unknown, q: string) {
 
 function parseBoolean(value?: string) {
   return value === 'true' || value === '1';
+}
+
+function normalizeDuplicateKey(value: string) {
+  return value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+}
+
+function cleanText(value?: string) {
+  return value?.normalize('NFKC').trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function cleanOptionalText(value?: string) {
+  const text = cleanText(value);
+  return text || undefined;
+}
+
+function uniqueAliases(values: Array<string | undefined>) {
+  return [...new Set(values.map(cleanText).filter(Boolean))];
+}
+
+function makeEntityId(prefix: string, value: string) {
+  const slug = value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return `${prefix}-${slug || 'item'}-${randomUUID().slice(0, 8)}`;
 }
 
 function cellText(value: unknown): string {
@@ -235,10 +269,17 @@ function hasConnectorImportHeader(headers: string[], aliases: string[]) {
   return headers.some((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
+const drawingMetadataFiles = [
+  'drawing-customers.json',
+  'drawing-products.json',
+  'drawing-module-settings.json',
+  'drawing-import-records.json',
+];
+
 @Injectable()
-export class DocumentHubService {
+export class DocumentHubService implements OnModuleInit {
+  private readonly logger = new Logger(DocumentHubService.name);
   private readonly orders: HubOrder[] = clone(hubOrders);
-  private readonly drawingDetails: ProductDrawingDetail[] = clone(drawingDetails);
   private readonly connectors: ConnectorParameter[] = clone(connectorParameters);
   private readonly fixtures: FixtureParameter[] = clone(fixtureParameters);
 
@@ -247,7 +288,43 @@ export class DocumentHubService {
     private readonly localStorageService: LocalStorageService,
     private readonly storageService: StorageService,
     private readonly deleteLockService: DeleteLockService,
+    private readonly drawingMetadataStore: DrawingMetadataStore,
   ) {}
+
+  onModuleInit() {
+    this.assertDrawingMetadataReadable();
+    this.initializeDrawingMetadataStore();
+  }
+
+  private initializeDrawingMetadataStore() {
+    const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
+    const store = this.drawingMetadataStore as DrawingMetadataStore & {
+      initializeFromSeedIfEmpty?: () => unknown;
+    };
+
+    if (mode === 'demo' && typeof store.initializeFromSeedIfEmpty === 'function') {
+      store.initializeFromSeedIfEmpty();
+      return;
+    }
+
+    this.drawingMetadataStore.ensureInitialized();
+  }
+
+  private assertDrawingMetadataReadable() {
+    const metadataDir = this.localStorageService.getMetadataDir();
+    for (const fileName of drawingMetadataFiles) {
+      const file = join(metadataDir, fileName);
+      if (!existsSync(file)) continue;
+
+      try {
+        JSON.parse(readFileSync(file, 'utf8'));
+      } catch (error) {
+        const message = `Drawing metadata file is not valid JSON: ${fileName}. Fix or move the damaged file before starting DocumentHubService.`;
+        this.logger.error(message, error instanceof Error ? error.stack : undefined);
+        throw new Error(message);
+      }
+    }
+  }
 
   getOrders(scope: 'today' | 'week' | 'all' = 'today', includeCompleted?: string) {
     const shouldIncludeCompleted = parseBoolean(includeCompleted);
@@ -283,27 +360,159 @@ export class DocumentHubService {
 
   getCustomers(query?: DrawingQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    if (!q) return hubCustomers;
-    return hubCustomers.filter((customer) => includes(customer.customerName, q) || includes(customer.customerShortName, q));
+    const customers = this.drawingMetadataStore.readCustomers();
+    if (!q) return customers;
+    return customers.filter((customer) => [
+      customer.customerName,
+      customer.customerShortName,
+      customer.customerCode,
+      ...(customer.aliases ?? []),
+    ].some((value) => includes(value, q)));
   }
 
   getProducts(customerId: string, query?: DrawingQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    return hubProducts.filter((product) => {
+    return this.drawingMetadataStore.readProducts().filter((product) => {
       const customerMatched = product.customerId === customerId;
-      const queryMatched = !q || [product.productModel, product.productName, product.remark].some((value) => includes(value, q));
+      const queryMatched = !q || [
+        product.productModel,
+        product.normalizedProductModel,
+        product.productName,
+        product.remark,
+        ...(product.searchKeywords ?? []),
+      ].some((value) => includes(value, q));
       return customerMatched && queryMatched;
     });
   }
 
+  createDrawingCustomer(dto: CreateDrawingCustomerDto) {
+    const customerName = normalizeDuplicateKey(dto.customerName ?? '');
+    if (!customerName) throw new BadRequestException('客户名称不能为空。');
+
+    const customers = this.drawingMetadataStore.readCustomers();
+    this.assertUniqueCustomerName(customers, customerName);
+
+    const timestamp = new Date().toISOString();
+    const customer: HubCustomer = {
+      customerId: makeEntityId('cust', customerName),
+      customerName,
+      customerShortName: cleanText(dto.customerShortName) || customerName,
+      customerCode: cleanOptionalText(dto.customerCode),
+      aliases: uniqueAliases([...(dto.aliases ?? []), customerName, dto.customerShortName]),
+      status: dto.status ?? 'active',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.drawingMetadataStore.writeCustomers([...customers, customer]);
+    return this.drawingMetadataStore.readCustomers().find((item) => item.customerId === customer.customerId) ?? customer;
+  }
+
+  updateDrawingCustomer(customerId: string, dto: UpdateDrawingCustomerDto) {
+    const customers = this.drawingMetadataStore.readCustomers();
+    const current = customers.find((customer) => customer.customerId === customerId);
+    if (!current) throw new NotFoundException('客户不存在。');
+
+    const nextName = dto.customerName !== undefined ? normalizeDuplicateKey(dto.customerName) : current.customerName;
+    if (!nextName) throw new BadRequestException('客户名称不能为空。');
+    this.assertUniqueCustomerName(customers, nextName, customerId);
+
+    const nextCustomer: HubCustomer = {
+      ...current,
+      customerName: nextName,
+      customerShortName: dto.customerShortName !== undefined
+        ? (cleanText(dto.customerShortName) || nextName)
+        : current.customerShortName,
+      customerCode: dto.customerCode !== undefined ? cleanOptionalText(dto.customerCode) : current.customerCode,
+      aliases: dto.aliases !== undefined
+        ? uniqueAliases([...dto.aliases, nextName, dto.customerShortName ?? current.customerShortName])
+        : uniqueAliases([...(current.aliases ?? []), nextName, current.customerShortName]),
+      status: dto.status ?? current.status ?? 'active',
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.drawingMetadataStore.writeCustomers(customers.map((customer) => (
+      customer.customerId === customerId ? nextCustomer : customer
+    )));
+    this.syncCustomerIntoDetails(nextCustomer);
+
+    return this.drawingMetadataStore.readCustomers().find((customer) => customer.customerId === customerId) ?? nextCustomer;
+  }
+
+  createDrawingProduct(dto: CreateDrawingProductDto) {
+    const customerId = cleanText(dto.customerId);
+    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === customerId);
+    if (!customer) throw new NotFoundException('客户不存在。');
+
+    const productModel = cleanText(dto.productModel);
+    const normalizedProductModel = normalizeProductModel(productModel);
+    if (!productModel || !normalizedProductModel) throw new BadRequestException('产品型号不能为空。');
+
+    const products = this.drawingMetadataStore.readProducts();
+    this.assertUniqueProductModel(products, customerId, normalizedProductModel);
+
+    const timestamp = new Date().toISOString();
+    const product: HubProductModel = {
+      productId: this.drawingMetadataStore.makeProductId(customerId, normalizedProductModel),
+      customerId,
+      productModel,
+      normalizedProductModel,
+      productName: cleanText(dto.productName) || productModel,
+      drawingStatus: 'no_drawing',
+      source: 'manual_create',
+      remark: cleanOptionalText(dto.remark),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.drawingMetadataStore.writeProducts([...products, product]);
+    const savedProduct = this.drawingMetadataStore.readProducts().find((item) => item.productId === product.productId) ?? product;
+    this.drawingMetadataStore.upsertDetail(this.drawingMetadataStore.makeProductDetail(customer, savedProduct));
+    return savedProduct;
+  }
+
+  updateDrawingProduct(productId: string, dto: UpdateDrawingProductDto) {
+    const products = this.drawingMetadataStore.readProducts();
+    const current = products.find((product) => product.productId === productId);
+    if (!current) throw new NotFoundException('产品不存在。');
+
+    const productModel = dto.productModel !== undefined ? cleanText(dto.productModel) : current.productModel;
+    const normalizedProductModel = normalizeProductModel(productModel);
+    if (!productModel || !normalizedProductModel) throw new BadRequestException('产品型号不能为空。');
+
+    this.assertUniqueProductModel(products, current.customerId, normalizedProductModel, productId);
+
+    const nextProduct: HubProductModel = {
+      ...current,
+      productModel,
+      normalizedProductModel,
+      productName: dto.productName !== undefined ? (cleanText(dto.productName) || productModel) : current.productName,
+      remark: dto.remark !== undefined ? cleanOptionalText(dto.remark) : current.remark,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.drawingMetadataStore.writeProducts(products.map((product) => (
+      product.productId === productId ? nextProduct : product
+    )));
+
+    const savedProduct = this.drawingMetadataStore.readProducts().find((product) => product.productId === productId) ?? nextProduct;
+    this.syncProductIntoDetail(savedProduct);
+    return savedProduct;
+  }
+
   async getProduct(productId: string) {
-    const detail = this.drawingDetails.find((item) => item.product.productId === productId);
+    const detail = this.findDrawingDetail(productId);
     if (!detail) throw new NotFoundException('产品图纸资料不存在。');
     return this.withUploadedDocuments(detail);
   }
 
   async getProductByModel(productModel: string) {
-    const product = hubProducts.find((item) => item.productModel === productModel);
+    const normalizedProductModel = normalizeProductModel(productModel);
+    const product = this.drawingMetadataStore.readProducts().find((item) => (
+      item.productModel === productModel ||
+      item.normalizedProductModel === normalizedProductModel ||
+      normalizeProductModel(item.productModel) === normalizedProductModel
+    ));
     if (!product) return null;
     return this.getProduct(product.productId);
   }
@@ -649,7 +858,9 @@ export class DocumentHubService {
     const q = query.q?.trim().toLowerCase() ?? '';
     if (query.mode === 'connector') return { mode: query.mode, items: this.getConnectors({ q }) };
     if (query.mode === 'fixture') return { mode: query.mode, items: this.getFixtures({ q }) };
-    const details = await Promise.all(this.drawingDetails.map((detail) => this.withUploadedDocuments(detail)));
+    const details = await Promise.all(
+      this.drawingMetadataStore.readDetails().map((detail) => this.withUploadedDocuments(this.withCurrentDrawingMetadata(detail))),
+    );
     const items = details.flatMap((detail) => {
       const customer = detail.customer;
       const product = detail.product;
@@ -668,6 +879,94 @@ export class DocumentHubService {
       return matched ? [{ type: 'drawing-product', customer, product, modules: detail.modules }] : [];
     });
     return { mode: query.mode, items };
+  }
+
+  private assertUniqueCustomerName(customers: HubCustomer[], customerName: string, currentCustomerId?: string) {
+    const duplicateKey = normalizeDuplicateKey(customerName);
+    const duplicate = customers.find((customer) => (
+      customer.customerId !== currentCustomerId &&
+      normalizeDuplicateKey(customer.customerName) === duplicateKey
+    ));
+    if (duplicate) throw new ConflictException('同名客户已存在。');
+  }
+
+  private assertUniqueProductModel(
+    products: HubProductModel[],
+    customerId: string,
+    normalizedProductModel: string,
+    currentProductId?: string,
+  ) {
+    const duplicate = products.find((product) => (
+      product.productId !== currentProductId &&
+      product.customerId === customerId &&
+      (product.normalizedProductModel ?? normalizeProductModel(product.productModel)) === normalizedProductModel
+    ));
+    if (duplicate) throw new ConflictException('同客户下产品型号已存在。');
+  }
+
+  private syncCustomerIntoDetails(customer: HubCustomer) {
+    const details = this.drawingMetadataStore.readDetails();
+    let changed = false;
+    const nextDetails = details.map((detail) => {
+      if (detail.product.customerId !== customer.customerId && detail.customer?.customerId !== customer.customerId) {
+        return detail;
+      }
+      changed = true;
+      return {
+        ...detail,
+        customer,
+      };
+    });
+    if (changed) this.drawingMetadataStore.writeDetails(nextDetails);
+  }
+
+  private syncProductIntoDetail(product: HubProductModel) {
+    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId);
+    const details = this.drawingMetadataStore.readDetails();
+    const detail = details.find((item) => item.product.productId === product.productId);
+
+    if (detail) {
+      this.drawingMetadataStore.upsertDetail({
+        ...detail,
+        product,
+        customer: customer ?? detail.customer,
+      });
+      return;
+    }
+
+    if (customer) {
+      this.drawingMetadataStore.upsertDetail(this.drawingMetadataStore.makeProductDetail(customer, product));
+    }
+  }
+
+  private findDrawingDetail(productId: string): ProductDrawingDetail | undefined {
+    const detail = this.drawingMetadataStore.readDetails().find((item) => item.product.productId === productId);
+    if (detail) return this.withCurrentDrawingMetadata(detail);
+
+    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === productId);
+    if (!product) return undefined;
+
+    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId);
+    return {
+      product: clone(product),
+      customer: customer ? clone(customer) : undefined,
+      modules: createDefaultDrawingModules(),
+    };
+  }
+
+  private withCurrentDrawingMetadata(detail: ProductDrawingDetail): ProductDrawingDetail {
+    const product = this.drawingMetadataStore
+      .readProducts()
+      .find((item) => item.productId === detail.product.productId) ?? detail.product;
+    const customer = this.drawingMetadataStore
+      .readCustomers()
+      .find((item) => item.customerId === product.customerId) ?? detail.customer;
+
+    return {
+      ...clone(detail),
+      product: clone(product),
+      customer: customer ? clone(customer) : undefined,
+    };
   }
 
   private resolveFileType(mimeType?: string): DrawingItem['fileType'] {
@@ -714,6 +1013,11 @@ export class DocumentHubService {
       remark: document.remark ?? document.description ?? document.mockPreviewText,
       uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
       source: 'manual_upload',
+      storageProvider: document.storageProvider,
+      storageKey: document.storageKey,
+      checksumSha256: document.checksumSha256,
+      fileSize: document.fileSize,
+      mimeType: document.mimeType,
     };
   }
 

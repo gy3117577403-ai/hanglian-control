@@ -4,10 +4,11 @@ import { StorageModule } from '../storage/storage.module';
 import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
 import { DocumentHubController } from './document-hub.controller';
 import { DocumentHubService } from './document-hub.service';
+import { DrawingMetadataStore } from './drawing-metadata.store';
 
 @Module({
   imports: [DocumentsModule, StorageModule],
   controllers: [DocumentHubController],
-  providers: [DocumentHubService, DeleteLockService],
+  providers: [DocumentHubService, DeleteLockService, DrawingMetadataStore],
 })
 export class DocumentHubModule {}

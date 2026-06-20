@@ -22,14 +22,26 @@ export interface HubCustomer {
   customerId: string;
   customerName: string;
   customerShortName: string;
+  customerCode?: string;
+  aliases?: string[];
+  status?: 'active' | 'disabled';
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string;
 }
 
 export interface HubProductModel {
   productId: string;
   customerId: string;
   productModel: string;
+  normalizedProductModel?: string;
   productName: string;
   drawingStatus: DrawingStatus;
+  source?: 'pdf_import' | 'manual_create' | 'future_wecom' | 'seed';
+  searchKeywords?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string;
   remark?: string;
 }
 
@@ -42,7 +54,21 @@ export interface DrawingItem {
   version: string;
   remark?: string;
   uploadedAt: string;
-  source: 'mock' | 'manual_upload' | 'wecom_disk_future';
+  source: 'mock' | 'manual_upload' | 'wecom_disk_future' | 'pdf_import' | 'camera_capture' | 'future_wecom' | 'seed';
+  storageProvider?: string;
+  storageKey?: string;
+  checksumSha256?: string;
+  fileSize?: number;
+  mimeType?: string;
+  pageCount?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+  isCover?: boolean;
+  documentStatus?: 'effective' | 'pending' | 'expired';
+  deletedAt?: string;
+  deletedBy?: string;
+  restoredAt?: string;
+  restoredBy?: string;
 }
 
 export interface DrawingModule {
@@ -50,6 +76,8 @@ export interface DrawingModule {
   moduleName: string;
   status: DrawingModuleStatus;
   items: DrawingItem[];
+  coverDocumentId?: string;
+  itemCount?: number;
   remark?: string;
   updatedAt: string;
 }
