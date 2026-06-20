@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ClipboardList, ServerCog, UploadCloud } from 'lucide-vue-next'
+import { ClipboardList, FileText, ServerCog, UploadCloud } from 'lucide-vue-next'
 import WarmFunctionOrb from './WarmFunctionOrb.vue'
 import WarmHubSearchBar from './WarmHubSearchBar.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
@@ -8,6 +8,7 @@ const store = useDocumentHubStore()
 
 defineEmits<{
   'open-network': []
+  'open-pdf-import': []
 }>()
 </script>
 
@@ -18,6 +19,16 @@ defineEmits<{
       <WarmHubSearchBar />
     </div>
     <div class="header-actions">
+      <PrimeButton
+        v-if="store.activeMode === 'drawing'"
+        class="pdf-import-button"
+        title="导入 PDF 图纸"
+        aria-label="导入 PDF 图纸"
+        @click="$emit('open-pdf-import')"
+      >
+        <FileText :size="18" />
+        <span>导入 PDF 图纸</span>
+      </PrimeButton>
       <PrimeButton severity="secondary" outlined title="接口设置与诊断" aria-label="接口设置与诊断" @click="$emit('open-network')">
         <ServerCog :size="18" />
       </PrimeButton>
@@ -146,6 +157,31 @@ defineEmits<{
     inset 0 -14px 24px rgba(101, 43, 16, 0.16);
 }
 
+.header-actions :deep(.pdf-import-button) {
+  width: auto;
+  min-width: 138px;
+  min-height: 48px;
+  padding: 0 14px;
+  gap: 7px;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.08) 46%),
+    linear-gradient(145deg, rgba(202, 112, 44, 0.78), rgba(139, 76, 37, 0.7)),
+    rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 18px 30px rgba(141, 68, 22, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -14px 24px rgba(101, 43, 16, 0.18);
+}
+
+.header-actions :deep(.pdf-import-button .p-button-label) {
+  flex: none;
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 @media (max-width: 1320px) {
   .hub-header {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -156,6 +192,17 @@ defineEmits<{
     width: 42px;
     min-width: 42px;
     min-height: 42px;
+  }
+
+  .header-actions :deep(.pdf-import-button) {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0 13px;
+  }
+
+  .header-actions :deep(.pdf-import-button .p-button-label),
+  .header-actions :deep(.pdf-import-button span) {
+    display: none;
   }
 
   .header-toolbox {

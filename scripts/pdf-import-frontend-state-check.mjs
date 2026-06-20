@@ -41,6 +41,15 @@ const storePath = 'apps/tablet/src/stores/document-hub-store.ts';
 const typePath = 'apps/tablet/src/types/pdf-import.ts';
 const scriptPath = 'scripts/pdf-import-frontend-state-check.mjs';
 const packagePath = 'package.json';
+const pdfImportUiPaths = [
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'apps/tablet/src/components/hub/WarmHubHeader.vue',
+  'apps/tablet/src/components/drawing/WarmPdfImportDialog.vue',
+  'apps/tablet/src/components/drawing/WarmPdfImportFilePanel.vue',
+  'apps/tablet/src/components/drawing/WarmPdfImportPreviewTable.vue',
+  'apps/tablet/src/components/drawing/WarmPdfImportResult.vue',
+  'scripts/pdf-import-ui-check.mjs',
+];
 
 assert(existsSync(join(root, typePath)), 'PDF import type file should exist.');
 assert(existsSync(join(root, scriptPath)), 'PDF import frontend state check script should exist.');
@@ -142,11 +151,12 @@ assert(!/mock|fake/i.test(sliceBetween(storeSource, 'async function previewPdfIm
 assert(!/mock|fake|localDetails\.value|mockHubProducts/i.test(applyAction), 'Apply action must not create mock/fake product data on failure.');
 
 const changed = changedFiles();
-const allowedChanges = new Set([apiPath, storePath, typePath, scriptPath, packagePath]);
+const allowedChanges = new Set([apiPath, storePath, typePath, scriptPath, packagePath, ...pdfImportUiPaths]);
 for (const file of changed) {
   assert(allowedChanges.has(file.replaceAll('\\', '/')), `Unexpected changed file: ${file}`);
 }
-assert(!changed.some((file) => file.includes('apps/tablet/src/components/') || file.includes('apps/tablet/src/views/')), 'Current visible UI components must remain unchanged.');
+assert(!changed.some((file) => file.includes('apps/tablet/src/components/') && !pdfImportUiPaths.includes(file.replaceAll('\\', '/'))), 'Unrelated visible UI components must remain unchanged.');
+assert(!changed.some((file) => file.includes('apps/tablet/src/views/')), 'Tablet views must remain unchanged.');
 assert(!changed.some((file) => file.includes('apps/api/')), 'Backend files must remain unchanged.');
 assert(!changed.some((file) => file.includes('prisma/')), 'Prisma files must remain unchanged.');
 assert(!changed.some((file) => file.includes('connector') && file !== storePath), 'Connector files must remain unchanged.');
