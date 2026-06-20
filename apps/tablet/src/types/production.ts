@@ -1821,14 +1821,28 @@ export interface HubProductModel {
 
 export interface DrawingItem {
   itemId: string
+  documentId?: string
   title: string
   fileType: 'pdf' | 'image' | 'text' | 'card'
+  contentKind?: 'pdf' | 'image' | 'text' | 'card'
   previewUrl?: string
+  downloadUrl?: string
   fileName?: string
   version: string
   remark?: string
+  description?: string
   uploadedAt: string
   source: 'mock' | 'manual_upload' | 'wecom_disk_future' | 'pdf_import' | 'camera_capture' | 'future_wecom' | 'seed'
+  status?: DocumentStatus | string
+  documentStatus?: DocumentStatus | string
+  deleted?: boolean
+  deletedAt?: string
+  pageCount?: number
+  fileSize?: number
+  mimeType?: string
+  storageProvider?: string
+  storageKey?: string
+  checksumSha256?: string
 }
 
 export interface DrawingModule {
@@ -1836,6 +1850,8 @@ export interface DrawingModule {
   moduleName: string
   status: DrawingModuleStatus
   items: DrawingItem[]
+  coverDocumentId?: string
+  itemCount?: number
   remark?: string
   updatedAt: string
 }

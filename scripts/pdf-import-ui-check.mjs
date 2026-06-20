@@ -76,6 +76,11 @@ const uploadPhasePaths = [
   'scripts/camera-upload-check.mjs',
   'scripts/real-upload-ui-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
+  'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
+  'apps/tablet/src/lib/document-preview-url.ts',
+  'scripts/document-home-preview-check.mjs',
 ];
 const uploadPhasePrefixes = [
   'apps/tablet/src/components/upload/',

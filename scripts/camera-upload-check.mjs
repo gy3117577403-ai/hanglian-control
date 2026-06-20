@@ -194,6 +194,11 @@ const allowedChangedFiles = new Set([
   'scripts/pdf-import-frontend-state-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
+  'scripts/document-home-preview-check.mjs',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
+  'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
+  'apps/tablet/src/lib/document-preview-url.ts',
   paths.packageJson,
 ]);
 for (const file of changed) {

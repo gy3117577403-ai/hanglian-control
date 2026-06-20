@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { Eye, FileText, Image, Trash2, UploadCloud } from 'lucide-vue-next'
-import type { DrawingModule } from '@/types/production'
+import { computed } from 'vue'
+import { Eye, Trash2, UploadCloud } from 'lucide-vue-next'
+import WarmModuleCoverPreview from './WarmModuleCoverPreview.vue'
+import type { DrawingItem, DrawingModule } from '@/types/production'
 
-defineProps<{
+const props = defineProps<{
   module: DrawingModule
   featured?: boolean
 }>()
@@ -19,32 +21,87 @@ function statusText(module: DrawingModule) {
   return '待上传'
 }
 
-function firstType(module: DrawingModule) {
-  return module.items[0]?.fileType === 'pdf' ? FileText : Image
+function isDeleted(item: DrawingItem) {
+  return Boolean(item.deleted || item.deletedAt)
 }
+
+function itemDate(item: DrawingItem) {
+  return new Date(item.uploadedAt || '').getTime() || 0
+}
+
+function latestFirst(items: DrawingItem[]) {
+  return [...items].sort((a, b) => itemDate(b) - itemDate(a))
+}
+
+function hasPreview(item: DrawingItem) {
+  return Boolean(item.previewUrl)
+}
+
+function isEffective(item: DrawingItem) {
+  return (item.documentStatus ?? item.status) === 'effective'
+}
+
+function isPreferredSource(item: DrawingItem) {
+  return item.source === 'manual_upload' || item.source === 'camera_capture' || item.source === 'pdf_import'
+}
+
+function selectModuleCoverItem(module: DrawingModule) {
+  const activeItems = module.items.filter((item) => !isDeleted(item))
+  const candidateItems = activeItems.some(hasPreview) ? activeItems.filter(hasPreview) : activeItems
+  const coverId = module.coverDocumentId
+  if (coverId) {
+    const cover = candidateItems.find((item) => item.itemId === coverId || item.documentId === coverId)
+    if (cover) return cover
+  }
+
+  const effective = latestFirst(candidateItems.filter(isEffective))[0]
+  if (effective) return effective
+
+  const preferredSource = latestFirst(candidateItems.filter(isPreferredSource))[0]
+  if (preferredSource) return preferredSource
+
+  return latestFirst(candidateItems)[0] ?? candidateItems[0] ?? null
+}
+
+const activeItems = computed(() => props.module.items.filter((item) => !isDeleted(item)))
+const coverItem = computed(() => selectModuleCoverItem(props.module))
+const imageCount = computed(() => activeItems.value.filter((item) => (item.contentKind ?? item.fileType) === 'image').length)
+const countLabel = computed(() => {
+  if (!activeItems.value.length) return '0 项'
+  if (imageCount.value === activeItems.value.length) return imageCount.value === 1 ? '1 张' : `共 ${imageCount.value} 张`
+  return activeItems.value.length === 1 ? '1 项' : `共 ${activeItems.value.length} 项`
+})
+const coverHeight = computed(() => props.featured ? 236 : 206)
+const coverTitle = computed(() => coverItem.value?.title ?? props.module.moduleName)
+const coverVersion = computed(() => coverItem.value?.version ? `版本：${coverItem.value.version}` : '版本：-')
+const updatedDate = computed(() => (coverItem.value?.uploadedAt ?? props.module.updatedAt).slice(0, 10))
 </script>
 
 <template>
-  <article class="module-card" :class="{ missing: !module.items.length, featured }">
-    <div class="preview-tile" :class="{ empty: !module.items.length }">
-      <component :is="firstType(module)" :size="32" />
-      <b>{{ module.items[0]?.title || module.moduleName }}</b>
-      <span>{{ module.items[0]?.fileType?.toUpperCase() || (module.moduleKey === 'original_drawing' ? '未发图' : '待上传') }}</span>
-    </div>
+  <article class="module-card" :class="{ missing: !activeItems.length, featured }">
+    <header class="module-head">
+      <h3>{{ module.moduleName }}</h3>
+      <span :class="module.status">{{ statusText(module) }}</span>
+    </header>
+
+    <WarmModuleCoverPreview
+      :item="coverItem"
+      :module-key="module.moduleKey"
+      :module-name="module.moduleName"
+      :item-count="activeItems.length"
+      :image-count="imageCount"
+      :fixed-height="coverHeight"
+      @open="emit('open', module)"
+    />
+
     <div class="module-body">
-      <div>
-        <h3>{{ module.moduleName }}</h3>
-        <p>
-          <template v-if="module.moduleKey === 'original_drawing' && !module.items.length">
-            后续可由企业微信微盘同步原图。
-          </template>
-          <template v-else>{{ module.remark }}</template>
-        </p>
+      <div class="module-copy">
+        <b>{{ coverTitle }}</b>
+        <span>{{ coverVersion }}</span>
       </div>
       <div class="meta-row">
-        <span :class="module.status">{{ statusText(module) }}</span>
-        <span>共 {{ module.items.length }} 项</span>
-        <span>{{ module.updatedAt.slice(0, 10) }}</span>
+        <span>{{ countLabel }}</span>
+        <span>{{ updatedDate }}</span>
       </div>
       <div class="actions">
         <PrimeButton severity="secondary" outlined rounded :title="`上传${module.moduleName}`" @click="emit('upload', module)">
@@ -57,8 +114,8 @@ function firstType(module: DrawingModule) {
           severity="danger"
           outlined
           rounded
-          :disabled="!module.items.length"
-          :title="module.items.length ? `删除${module.moduleName}首页资料` : '暂无可删除资料'"
+          :disabled="!activeItems.length"
+          :title="activeItems.length ? `删除${module.moduleName}首页资料` : '暂无可删除资料'"
           @click="emit('delete', module)"
         >
           <Trash2 :size="16" />
@@ -74,13 +131,13 @@ function firstType(module: DrawingModule) {
   isolation: isolate;
   transform-style: preserve-3d;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
   contain: layout paint style;
   content-visibility: auto;
   contain-intrinsic-size: 420px 594px;
   overflow: hidden;
-  aspect-ratio: 1 / 1.414;
+  height: 420px;
   min-height: 420px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.92);
@@ -149,19 +206,59 @@ function firstType(module: DrawingModule) {
   transform: translateY(-2px) rotateX(0.35deg);
 }
 
-.preview-tile {
+.module-head {
   position: relative;
   z-index: 1;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 5px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.module-head h3 {
   overflow: hidden;
   min-width: 0;
-  min-height: 0;
-  padding: 14px;
+  margin: 0;
+  color: #342112;
+  font-size: 17px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-head span {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow:
+    0 6px 12px rgba(86, 48, 22, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: #724722;
+  font-size: 11px;
+  font-weight: 950;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.module-head .uploaded {
+  color: #3f7a36;
+}
+
+.module-head .pending {
+  color: #a34f1f;
+}
+
+.module-head .no_drawing {
+  color: #9b3d32;
+}
+
+.module-card :deep(.module-cover) {
+  position: relative;
+  z-index: 1;
   border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 20px;
+  border-radius: 18px;
   background:
     linear-gradient(128deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.09) 34%, transparent 64%),
     linear-gradient(304deg, rgba(98, 148, 141, 0.14), rgba(98, 148, 141, 0.03) 56%, transparent),
@@ -180,7 +277,7 @@ function firstType(module: DrawingModule) {
   -webkit-backdrop-filter: blur(16px) saturate(1.14);
 }
 
-.preview-tile::before {
+.module-card :deep(.module-cover)::before {
   position: absolute;
   inset: 18px 22px 20px;
   z-index: 0;
@@ -204,7 +301,7 @@ function firstType(module: DrawingModule) {
   -webkit-backdrop-filter: blur(10px);
 }
 
-.preview-tile::after {
+.module-card :deep(.module-cover)::after {
   position: absolute;
   inset: -50% auto auto -13%;
   z-index: 1;
@@ -218,95 +315,42 @@ function firstType(module: DrawingModule) {
   transform: rotate(12deg);
 }
 
-.preview-tile.empty {
-  background:
-    linear-gradient(122deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.08) 54%),
-    rgba(255, 250, 241, 0.08);
-}
-
-.preview-tile b,
-.preview-tile span {
-  position: relative;
-  z-index: 2;
-  max-width: 76%;
-  overflow: hidden;
-  color: #3b2716;
-  text-overflow: ellipsis;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
-  white-space: nowrap;
-}
-
-.preview-tile b {
-  padding: 7px 12px 2px;
-  border: 1px solid rgba(255, 255, 255, 0.54);
-  border-radius: 999px;
-  background:
-    linear-gradient(128deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.13)),
-    rgba(255, 255, 255, 0.12);
-  font-size: 15px;
-  line-height: 1.15;
-  box-shadow:
-    0 10px 18px rgba(79, 44, 20, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.preview-tile span {
-  padding: 2px 10px 6px;
-  color: #73512c;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.preview-tile :deep(svg) {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  box-sizing: content-box;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 16px;
-  background:
-    linear-gradient(130deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.18)),
-    rgba(255, 255, 255, 0.2);
-  color: #b66028;
-  box-shadow:
-    0 14px 26px rgba(112, 58, 24, 0.13),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
 .module-body {
   position: static;
   z-index: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
+  gap: 6px 8px;
+  align-items: end;
   min-width: 0;
   padding: 2px 2px 0;
 }
 
-h3,
-p {
-  margin: 0;
+.module-copy {
+  min-width: 0;
 }
 
-h3 {
+.module-copy b,
+.module-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-copy b {
+  margin: 0;
   color: #342112;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 950;
 }
 
-p {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-top: 4px;
+.module-copy span {
+  margin-top: 2px;
   color: #7b542c;
   font-size: 12px;
   font-weight: 850;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .meta-row,
@@ -330,23 +374,11 @@ p {
   -webkit-backdrop-filter: blur(10px);
 }
 
-.meta-row .uploaded {
-  color: #3f7a36;
-}
-
-.meta-row .pending {
-  color: #a34f1f;
-}
-
-.meta-row .no_drawing {
-  color: #9b3d32;
-}
-
 .actions {
-  position: absolute;
-  top: 21px;
-  right: 21px;
-  z-index: 3;
+  position: static;
+  z-index: 2;
+  grid-row: 1 / span 2;
+  grid-column: 2;
   justify-content: flex-end;
   margin-top: 0;
   padding: 4px;
@@ -390,17 +422,18 @@ p {
 
 @media (max-width: 1320px) {
   .module-card {
+    height: 360px;
     min-height: 360px;
     backdrop-filter: blur(14px) saturate(1.12);
     -webkit-backdrop-filter: blur(14px) saturate(1.12);
   }
 
-  .preview-tile {
+  .module-card :deep(.module-cover) {
     backdrop-filter: blur(10px) saturate(1.08);
     -webkit-backdrop-filter: blur(10px) saturate(1.08);
   }
 
-  h3 {
+  .module-head h3 {
     font-size: 16px;
   }
 }

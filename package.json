@@ -48,6 +48,7 @@
     "pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs",
     "camera-upload:check": "node scripts/camera-upload-check.mjs",
     "real-upload-ui:check": "node scripts/real-upload-ui-check.mjs",
+    "document-home-preview:check": "node scripts/document-home-preview-check.mjs",
     "document-hub-polish:check": "node scripts/document-hub-polish-check.mjs",
     "tablet-ui-smoke:check": "node scripts/tablet-ui-smoke-check.mjs",
     "tablet-ui-interaction:check": "node scripts/tablet-ui-interaction-check.mjs",
