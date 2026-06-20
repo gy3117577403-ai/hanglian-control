@@ -85,6 +85,7 @@ export interface ProductDocumentSeed {
   effectiveDate: string;
   updatedAt: string;
   source: DocumentSource;
+  captureSource?: string;
   requiredForProcess: RequiredProcess;
   previewType: PreviewType;
   mockPreviewText: string;
@@ -132,6 +133,7 @@ export interface ProductDocument {
   effectiveDate: string;
   updatedAt: string;
   source: DocumentSource;
+  captureSource?: string;
   requiredForProcess: RequiredProcess;
   previewType: PreviewType;
   mockPreviewText: string;
@@ -222,6 +224,7 @@ export interface SearchResult {
   version?: string;
   status?: DocumentStatus | string;
   source?: DocumentSource;
+  captureSource?: string;
   isEffective?: boolean;
   isHistorical?: boolean;
   versionGroupKey?: string;
@@ -243,6 +246,7 @@ export interface CreateUploadedDocumentPayload {
   version: string;
   status: DocumentStatus;
   source?: DocumentSource;
+  captureSource?: string;
   requiredForProcess: RequiredProcess;
   keywords: string[];
   remark?: string;

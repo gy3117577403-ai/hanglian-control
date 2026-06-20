@@ -126,6 +126,7 @@ export interface CreateStoredDocumentMetadataInput {
   version: string;
   status: DocumentStatus;
   source?: ProductDocument['source'];
+  captureSource?: ProductDocument['captureSource'];
   requiredForProcess: ProductDocument['requiredForProcess'];
   keywords?: string[];
   remark?: string;
@@ -284,7 +285,7 @@ export class DocumentsService {
     if (!dto.productId) throw new BadRequestException('请先选择生产计划，再上传资料。');
     if (!dto.documentType) throw new BadRequestException('请选择资料类型。');
     if (!dto.title?.trim()) throw new BadRequestException('请填写资料标题。');
-    if (!dto.version?.trim()) throw new BadRequestException('请填写版本号。');
+    const version = dto.version?.trim() ?? '';
 
     const existingDocuments = await this.documentRepository.findDocuments({
       productId: dto.productId,
@@ -293,7 +294,7 @@ export class DocumentsService {
     const groupKey = `${dto.productId}::${dto.documentType}::${dto.requiredForProcess}`;
     const duplicateVersionWarning = existingDocuments.some((document) => {
       const sameGroup = (document.versionGroupKey ?? versionGroupKey(document)) === groupKey;
-      return sameGroup && document.version === dto.version;
+      return sameGroup && document.version === version;
     })
       ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。'
       : undefined;
@@ -309,7 +310,9 @@ export class DocumentsService {
         productId: dto.productId,
         planId: dto.planId,
         documentType: dto.documentType,
-        version: dto.version.trim(),
+        version,
+        source: dto.source ?? 'manual_upload',
+        captureSource: dto.captureSource,
       },
     });
     const previewUrl = await this.storageService.createPreviewUrl(stored.storageKey, documentId);
@@ -320,8 +323,10 @@ export class DocumentsService {
       planId: dto.planId,
       documentType: dto.documentType,
       title: dto.title.trim(),
-      version: dto.version.trim(),
+      version,
       status: dto.status ?? 'effective',
+      source: dto.source ?? 'manual_upload',
+      captureSource: dto.captureSource,
       requiredForProcess: dto.requiredForProcess,
       keywords: parseKeywords(dto.keywords),
       remark: dto.remark,
@@ -378,6 +383,8 @@ export class DocumentsService {
         planId: input.planId,
         documentType: input.documentType,
         version: input.version,
+        source: input.source ?? 'manual_upload',
+        captureSource: input.captureSource,
         ...input.metadata,
       },
     });
@@ -394,6 +401,7 @@ export class DocumentsService {
         version: input.version,
         status: input.status,
         source: input.source ?? 'manual_upload',
+        captureSource: input.captureSource,
         requiredForProcess: input.requiredForProcess,
         keywords: input.keywords ?? [],
         remark: input.remark,

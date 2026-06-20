@@ -59,6 +59,7 @@ export const documentSourceToPrisma: Record<DocumentSource, string> = {
   wecom_disk: 'WECOM_DISK',
   manual_upload: 'MANUAL_UPLOAD',
   pdf_import: 'MANUAL_UPLOAD',
+  camera_capture: 'MANUAL_UPLOAD',
 };
 
 export function nullable<T>(value: T | undefined | null) {

@@ -13,7 +13,7 @@ export type DocumentTypeV03 =
   | 'pinout_diagram'
   | 'finished_detail_image'
   | 'process_card'
-export type DocumentSource = 'mock' | 'wecom_disk' | 'manual_upload'
+export type DocumentSource = 'mock' | 'wecom_disk' | 'manual_upload' | 'pdf_import' | 'camera_capture'
 export type RequiredProcess = 'front' | 'back' | 'common'
 export type PreviewType = 'pdf' | 'image' | 'card'
 export type ReadinessStatus = 'ready' | 'need_review' | 'blocked'
@@ -1098,6 +1098,7 @@ export interface MaintenanceDocument {
   status?: DocumentStatus | string
   statusLabel?: string
   source?: DocumentSource
+  captureSource?: 'environment_camera' | string
   requiredForProcess?: RequiredProcess
   fileHealth?: string
   updatedAt?: string
@@ -1827,7 +1828,7 @@ export interface DrawingItem {
   version: string
   remark?: string
   uploadedAt: string
-  source: 'mock' | 'manual_upload' | 'wecom_disk_future'
+  source: 'mock' | 'manual_upload' | 'wecom_disk_future' | 'pdf_import' | 'camera_capture' | 'future_wecom' | 'seed'
 }
 
 export interface DrawingModule {
@@ -1926,7 +1927,51 @@ export interface DocumentHubUploadPayload {
   version: string
   remark?: string
   keywords?: string
+  source?: 'manual_upload' | 'camera_capture'
+  captureSource?: 'environment_camera'
   file?: File | null
+}
+
+export type DocumentHubUploadSource = 'file' | 'camera'
+export type DocumentHubUploadItemSource = 'manual_upload' | 'camera_capture'
+export type DocumentHubUploadItemStatus = 'ready' | 'error' | 'uploading' | 'success' | 'failed'
+
+export interface DocumentHubUploadContext {
+  entry: 'top' | 'module'
+  customerId?: string
+  productId?: string
+  moduleKey?: DrawingModuleKey
+}
+
+export interface DocumentHubUploadItem {
+  id: string
+  file: File
+  source: DocumentHubUploadItemSource
+  captureSource?: 'environment_camera'
+  title: string
+  version: string
+  keywords: string
+  remark: string
+  previewUrl: string
+  fileType: 'pdf' | 'image'
+  status: DocumentHubUploadItemStatus
+  progress: number
+  error?: string
+  resultItemId?: string
+}
+
+export interface DocumentHubUploadProgress {
+  total: number
+  completed: number
+  failed: number
+}
+
+export interface DocumentHubUploadResult {
+  status: 'idle' | 'success' | 'partial' | 'failed'
+  successCount: number
+  failedCount: number
+  total: number
+  message: string
 }
 
 export interface DocumentHubUploadResponse {

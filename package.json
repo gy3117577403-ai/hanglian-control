@@ -46,6 +46,8 @@
     "pdf-import-apply:check": "node scripts/pdf-import-apply-check.mjs",
     "pdf-import-frontend-state:check": "node scripts/pdf-import-frontend-state-check.mjs",
     "pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs",
+    "camera-upload:check": "node scripts/camera-upload-check.mjs",
+    "real-upload-ui:check": "node scripts/real-upload-ui-check.mjs",
     "document-hub-polish:check": "node scripts/document-hub-polish-check.mjs",
     "tablet-ui-smoke:check": "node scripts/tablet-ui-smoke-check.mjs",
     "tablet-ui-interaction:check": "node scripts/tablet-ui-interaction-check.mjs",

@@ -53,6 +53,33 @@ const previewTable = read(paths.previewTable);
 const result = read(paths.result);
 const packageJson = read(paths.packageJson);
 const uiSource = [dashboard, header, dialog, filePanel, previewTable, result].join('\n');
+const uploadPhasePaths = [
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadSourcePicker.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmFileSelectionPanel.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'apps/tablet/src/components/upload/WarmUploadProgress.vue',
+  'apps/tablet/src/services/api.ts',
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'apps/tablet/src/types/production.ts',
+  'apps/api/src/common/enums/production.enum.ts',
+  'apps/api/src/common/types/production.types.ts',
+  'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/upload-drawing-item.dto.ts',
+  'apps/api/src/documents/documents.service.ts',
+  'apps/api/src/documents/dto/upload-document.dto.ts',
+  'apps/api/src/migration/mappers/shared.ts',
+  'apps/api/src/repositories/mock/mock-document.repository.ts',
+  'apps/api/src/repositories/prisma/prisma-mappers.ts',
+  'scripts/camera-upload-check.mjs',
+  'scripts/real-upload-ui-check.mjs',
+  'scripts/tablet-ui-smoke-check.mjs',
+];
+const uploadPhasePrefixes = [
+  'apps/tablet/src/components/upload/',
+];
 
 assert(header.includes("'open-pdf-import'"), 'Header should emit open-pdf-import.');
 assert(header.includes("store.activeMode === 'drawing'"), 'PDF import entry should only show in drawing mode.');
@@ -116,13 +143,15 @@ const allowedChanges = new Set([
   paths.result,
   'scripts/pdf-import-ui-check.mjs',
   'scripts/pdf-import-frontend-state-check.mjs',
+  ...uploadPhasePaths,
   paths.packageJson,
 ]);
 for (const file of changed) {
-  assert(allowedChanges.has(file), `Unexpected changed file: ${file}`);
+  const allowedByPrefix = uploadPhasePrefixes.some((prefix) => file.startsWith(prefix));
+  assert(allowedChanges.has(file) || allowedByPrefix, `Unexpected changed file: ${file}`);
 }
-assert(!changed.some((file) => file.startsWith('apps/api/')), 'Backend files must remain unchanged.');
-assert(!changed.some((file) => file.includes('prisma/')), 'Prisma files must remain unchanged.');
+assert(!changed.some((file) => file.startsWith('apps/api/') && !uploadPhasePaths.includes(file)), 'Unexpected backend files must remain unchanged.');
+assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file)), 'Unexpected Prisma files must remain unchanged.');
 assert(!changed.some((file) => file.includes('/connector/')), 'Connector components must remain unchanged.');
 assert(!changed.some((file) => file.includes('/fixture/')), 'Fixture components must remain unchanged.');
 assert(packageJson.includes('"pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs"'), 'Root package.json should expose pdf-import-ui:check.');

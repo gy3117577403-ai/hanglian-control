@@ -176,6 +176,8 @@ export class DocumentHubController {
         moduleKey: { type: 'string' },
         remark: { type: 'string' },
         keywords: { type: 'string' },
+        source: { type: 'string', enum: ['manual_upload', 'camera_capture'] },
+        captureSource: { type: 'string', enum: ['environment_camera'] },
       },
     },
   })

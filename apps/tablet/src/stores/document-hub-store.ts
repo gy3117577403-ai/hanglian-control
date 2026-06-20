@@ -34,7 +34,12 @@ import type {
   ConnectorParameter,
   ConnectorImportResult,
   ConnectorParameterPayload,
+  DocumentHubUploadContext,
+  DocumentHubUploadItem,
+  DocumentHubUploadProgress,
   DocumentHubUploadPayload,
+  DocumentHubUploadResult,
+  DocumentHubUploadSource,
   DrawingItem,
   DrawingModule,
   DrawingModuleKey,
@@ -117,18 +122,33 @@ function connectorMatchesKeyword(item: ConnectorParameter, keyword: string) {
   ].some((value) => match(value, keyword))
 }
 
-function fileTypeFromFile(file?: File | null): DrawingItem['fileType'] {
-  if (file?.type === 'application/pdf') return 'pdf'
-  if (file?.type?.startsWith('image/')) return 'image'
-  return 'card'
-}
-
 const PDF_IMPORT_MAX_FILES = 50
 const PDF_IMPORT_MAX_FILE_SIZE = 30 * 1024 * 1024
 const pdfImportItemPatchFields = ['selected', 'confirmedProductModel', 'confirmedVersion', 'productName', 'setAsEffective'] as const
+const UPLOAD_MAX_FILE_SIZE = 30 * 1024 * 1024
+const UPLOAD_ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 
 function cleanText(value: unknown) {
   return String(value ?? '').trim()
+}
+
+function uploadItemId() {
+  return `upload-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function titleFromFileName(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, '').trim() || '未命名资料'
+}
+
+function isSupportedUploadFile(file: File) {
+  return UPLOAD_ALLOWED_TYPES.includes(file.type)
+}
+
+function uploadFileError(file: File) {
+  if (!isSupportedUploadFile(file)) return '仅支持 PDF、JPG、PNG 和 WEBP 文件。'
+  if (file.size <= 0) return `文件内容为空：${file.name}`
+  if (file.size > UPLOAD_MAX_FILE_SIZE) return `文件超过 30 MB：${file.name}`
+  return ''
 }
 
 function pdfImportErrorMessage(error: unknown, fallback = 'PDF 导入请求失败，请检查网络连接。') {
@@ -286,6 +306,17 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
   const uploadDialogSource = ref<'top' | 'module'>('top')
+  const uploadContext = ref<DocumentHubUploadContext>({ entry: 'top' })
+  const uploadSource = ref<DocumentHubUploadSource | null>(null)
+  const uploadFiles = ref<File[]>([])
+  const capturedPhotos = ref<File[]>([])
+  const uploadItems = ref<DocumentHubUploadItem[]>([])
+  const uploadProgress = ref<DocumentHubUploadProgress>({ total: 0, completed: 0, failed: 0 })
+  const uploadLoading = ref(false)
+  const uploadError = ref('')
+  const uploadResult = ref<DocumentHubUploadResult | null>(null)
+  const cameraActive = ref(false)
+  const cameraPermission = ref<'idle' | 'prompt' | 'granted' | 'denied' | 'unsupported'>('idle')
   const orderSidebarCollapsed = ref(false)
   const connectorDetailOpen = ref(false)
   const fixtureDetailOpen = ref(false)
@@ -608,14 +639,113 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (mode === 'fixture') void loadFixtures()
   }
 
+  function revokeUploadItem(item: DocumentHubUploadItem) {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+  }
+
+  function resetUploadState() {
+    uploadItems.value.forEach(revokeUploadItem)
+    uploadSource.value = null
+    uploadFiles.value = []
+    capturedPhotos.value = []
+    uploadItems.value = []
+    uploadProgress.value = { total: 0, completed: 0, failed: 0 }
+    uploadLoading.value = false
+    uploadError.value = ''
+    uploadResult.value = null
+    cameraActive.value = false
+    cameraPermission.value = 'idle'
+  }
+
+  function setUploadSource(source: DocumentHubUploadSource) {
+    uploadSource.value = source
+  }
+
+  function makeUploadItem(file: File, source: 'manual_upload' | 'camera_capture'): DocumentHubUploadItem {
+    const error = uploadFileError(file)
+    return {
+      id: uploadItemId(),
+      file,
+      source,
+      captureSource: source === 'camera_capture' ? 'environment_camera' : undefined,
+      title: titleFromFileName(file.name),
+      version: '',
+      keywords: '',
+      remark: '',
+      previewUrl: isSupportedUploadFile(file) && file.size > 0 ? URL.createObjectURL(file) : '',
+      fileType: file.type === 'application/pdf' ? 'pdf' : 'image',
+      status: error ? 'error' : 'ready',
+      progress: 0,
+      error,
+    }
+  }
+
+  function appendUploadFiles(files: readonly File[], source: 'manual_upload' | 'camera_capture') {
+    uploadError.value = ''
+    let duplicateCount = 0
+    const existingKeys = new Set(uploadItems.value.map((item) => (
+      `${item.file.name}::${item.file.size}::${item.file.lastModified}`
+    )))
+    const nextItems: DocumentHubUploadItem[] = []
+    for (const file of files) {
+      const key = `${file.name}::${file.size}::${file.lastModified}`
+      if (existingKeys.has(key)) {
+        duplicateCount += 1
+        continue
+      }
+      existingKeys.add(key)
+      nextItems.push(makeUploadItem(file, source))
+    }
+    if (source === 'manual_upload') uploadFiles.value = [...uploadFiles.value, ...nextItems.map((item) => item.file)]
+    if (source === 'camera_capture') capturedPhotos.value = [...capturedPhotos.value, ...nextItems.map((item) => item.file)]
+    uploadItems.value = [...uploadItems.value, ...nextItems]
+    if (duplicateCount) uploadError.value = '已忽略重复选择的文件。'
+  }
+
+  function addSelectedFiles(files: readonly File[] | FileList) {
+    appendUploadFiles(Array.from(files), 'manual_upload')
+  }
+
+  function addCapturedPhoto(file: File) {
+    appendUploadFiles([file], 'camera_capture')
+  }
+
+  function removeUploadItem(itemId: string) {
+    const target = uploadItems.value.find((item) => item.id === itemId)
+    if (target) revokeUploadItem(target)
+    uploadItems.value = uploadItems.value.filter((item) => item.id !== itemId)
+    uploadFiles.value = uploadItems.value.filter((item) => item.source === 'manual_upload').map((item) => item.file)
+    capturedPhotos.value = uploadItems.value.filter((item) => item.source === 'camera_capture').map((item) => item.file)
+  }
+
+  function updateUploadItemMetadata(itemId: string, patch: Partial<Pick<DocumentHubUploadItem, 'title' | 'version' | 'keywords' | 'remark'>>) {
+    const target = uploadItems.value.find((item) => item.id === itemId)
+    if (!target) return
+    Object.assign(target, patch)
+  }
+
   function openTopUpload() {
     uploadDialogSource.value = 'top'
+    uploadContext.value = {
+      entry: 'top',
+      customerId: productDrawingDetail.value?.customer?.customerId ?? selectedCustomer.value?.customerId,
+      productId: productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId,
+      moduleKey: selectedModule.value?.moduleKey ?? 'original_drawing',
+    }
+    resetUploadState()
     uploadDialogOpen.value = true
   }
 
   function openModuleUpload(module: DrawingModule) {
     selectedModule.value = module
     uploadDialogSource.value = 'module'
+    uploadContext.value = {
+      entry: 'module',
+      customerId: productDrawingDetail.value?.customer?.customerId ?? selectedCustomer.value?.customerId,
+      productId: productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId,
+      moduleKey: module.moduleKey,
+    }
+    resetUploadState()
     uploadDialogOpen.value = true
   }
 
@@ -1013,6 +1143,100 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     fixtureDetailOpen.value = true
   }
 
+  async function uploadAllItems(input?: { customerId?: string; productId?: string; moduleKey?: DrawingModuleKey; retryFailedOnly?: boolean }) {
+    const productId = input?.productId ?? uploadContext.value.productId ?? productDrawingDetail.value?.product.productId
+    const moduleKey = input?.moduleKey ?? uploadContext.value.moduleKey ?? selectedModule.value?.moduleKey
+    const customerId = input?.customerId ?? uploadContext.value.customerId ?? productDrawingDetail.value?.customer?.customerId ?? selectedCustomer.value?.customerId
+    uploadError.value = ''
+    uploadResult.value = null
+    if (!customerId) {
+      uploadError.value = '请选择客户。'
+      return null
+    }
+    if (!productId) {
+      uploadError.value = '请选择产品型号。'
+      return null
+    }
+    if (!moduleKey) {
+      uploadError.value = '请选择资料模块。'
+      return null
+    }
+    const invalid = uploadItems.value.find((item) => item.status === 'error' || !item.title.trim())
+    if (invalid) {
+      uploadError.value = invalid.status === 'error' ? (invalid.error || '请先移除无法上传的文件。') : '请填写所有待上传资料的标题。'
+      return null
+    }
+    const candidates = uploadItems.value.filter((item) => (
+      input?.retryFailedOnly ? item.status === 'failed' : item.status === 'ready' || item.status === 'failed'
+    ))
+    if (!candidates.length) {
+      uploadError.value = '请选择需要上传的资料。'
+      return null
+    }
+    uploadLoading.value = true
+    uploadProgress.value = { total: candidates.length, completed: 0, failed: 0 }
+    let latestDetail: ProductDrawingDetail | null = null
+    try {
+      for (const item of candidates) {
+        item.status = 'uploading'
+        item.progress = 20
+        item.error = ''
+        try {
+          const response = await uploadHubDrawingItem(productId, moduleKey, {
+            customerId,
+            productId,
+            moduleKey,
+            title: item.title.trim(),
+            version: item.version.trim(),
+            keywords: item.keywords.trim(),
+            remark: item.remark.trim(),
+            source: item.source,
+            captureSource: item.captureSource,
+            file: item.file,
+          })
+          item.status = 'success'
+          item.progress = 100
+          item.resultItemId = response.item.itemId
+          if (response.detail) {
+            latestDetail = response.detail
+            productDrawingDetail.value = response.detail
+          }
+          const persistedModule = response.detail?.modules.find((module) => module.moduleKey === moduleKey) ?? response.module
+          if (persistedModule) selectedModule.value = persistedModule
+          selectedDrawingItem.value = response.item
+          uploadProgress.value.completed += 1
+        } catch (error) {
+          item.status = 'failed'
+          item.progress = 0
+          item.error = pdfImportErrorMessage(error, '资料上传失败，请检查文件或网络。')
+          uploadProgress.value.failed += 1
+        }
+      }
+      const successCount = uploadProgress.value.completed
+      const failedCount = uploadProgress.value.failed
+      uploadResult.value = {
+        status: failedCount === 0 ? 'success' : successCount > 0 ? 'partial' : 'failed',
+        successCount,
+        failedCount,
+        total: candidates.length,
+        message: failedCount === 0 ? '资料上传成功。' : successCount > 0 ? '部分资料上传失败，请查看明细。' : '资料上传失败，请检查文件或网络。',
+      }
+      if (failedCount === 0) {
+        toast.success('资料上传成功。')
+      } else {
+        uploadError.value = uploadResult.value.message
+        toast.error(uploadResult.value.message)
+      }
+      return latestDetail ?? productDrawingDetail.value
+    } finally {
+      uploadLoading.value = false
+    }
+  }
+
+  function retryFailedItems(input?: { customerId?: string; productId?: string; moduleKey?: DrawingModuleKey }) {
+    return uploadAllItems({ ...input, retryFailedOnly: true })
+  }
+
   async function uploadToModule(payload: DocumentHubUploadPayload) {
     const targetDetail = productDrawingDetail.value ?? localDetails.value.find((detail) => detail.product.productId === payload.productId)
     if (!targetDetail) {
@@ -1038,30 +1262,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       if (persistedModule) selectedModule.value = persistedModule
       selectedDrawingItem.value = response.item
       uploadDialogOpen.value = false
-      toast.success('资料已上传到本地沙盒存储', { description: `${persistedModule?.moduleName ?? moduleKey} / ${response.item.title}` })
+      toast.success('资料上传成功。', { description: `${persistedModule?.moduleName ?? moduleKey} / ${response.item.title}` })
       return
-    } catch {
-      // Local fallback below.
+    } catch (error) {
+      toast.error(pdfImportErrorMessage(error, '资料上传失败，请检查文件或网络。'))
+      throw error
     }
-    const module = targetDetail.modules.find((item) => item.moduleKey === moduleKey)
-    if (!module) return
-    const nextItem: DrawingItem = {
-      itemId: `manual-${Date.now()}`,
-      title: payload.title,
-      fileType: fileTypeFromFile(payload.file),
-      fileName: payload.file?.name ?? `${payload.title}.png`,
-      version: payload.version,
-      remark: payload.remark || '模块内手动补充资料。',
-      uploadedAt: new Date().toISOString(),
-      source: 'manual_upload',
-    }
-    module.items.unshift(nextItem)
-    module.status = 'uploaded'
-    module.updatedAt = nextItem.uploadedAt
-    selectedModule.value = module
-    selectedDrawingItem.value = nextItem
-    uploadDialogOpen.value = false
-    toast.success('资料已补充到当前产品模块', { description: `${module.moduleName} / ${payload.title}` })
   }
 
   function toggleOrderSidebar() {
@@ -1080,7 +1286,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
     const coverItem = module.items[0]
     const productId = productDrawingDetail.value?.product.productId
-    if (coverItem.source === 'manual_upload' && productId) {
+    if ((coverItem.source === 'manual_upload' || coverItem.source === 'camera_capture') && productId) {
       try {
         const response = await deleteHubDrawingItem(productId, module.moduleKey, coverItem.itemId, {
           password: trimmedPassword,
@@ -1117,7 +1323,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const module = selectedModule.value
     if (!module) return false
     const productId = productDrawingDetail.value?.product.productId
-    if (item.source === 'manual_upload' && productId) {
+    if ((item.source === 'manual_upload' || item.source === 'camera_capture') && productId) {
       try {
         const response = await deleteHubDrawingItem(productId, module.moduleKey, item.itemId, {
           password: trimmedPassword,
@@ -1192,6 +1398,17 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     orderOverviewOpen,
     uploadDialogOpen,
     uploadDialogSource,
+    uploadContext,
+    uploadSource,
+    uploadFiles,
+    capturedPhotos,
+    uploadItems,
+    uploadProgress,
+    uploadLoading,
+    uploadError,
+    uploadResult,
+    cameraActive,
+    cameraPermission,
     orderSidebarCollapsed,
     connectorDetailOpen,
     fixtureDetailOpen,
@@ -1217,6 +1434,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     setActiveMode,
     openTopUpload,
     openModuleUpload,
+    setUploadSource,
+    addSelectedFiles,
+    addCapturedPhoto,
+    removeUploadItem,
+    updateUploadItemMetadata,
+    uploadAllItems,
+    retryFailedItems,
+    resetUploadState,
     openConnectorDetail,
     saveConnector,
     deleteConnector,

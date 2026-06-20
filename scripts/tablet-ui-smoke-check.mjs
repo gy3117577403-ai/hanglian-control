@@ -271,44 +271,78 @@ requireAny(
   'Document hub store must keep upload entry points.',
 );
 requireIncludes(
-  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
-  'MAX_UPLOAD_BYTES',
-  'Upload dialog must keep a front-end file size guard before real-data testing.',
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'UPLOAD_MAX_FILE_SIZE',
+  'Unified upload store must keep a front-end file size guard.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'UPLOAD_ALLOWED_TYPES',
+  'Unified upload store must keep a front-end file type guard.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'uploadFileError',
+  'Unified upload store must keep clear file validation errors.',
+);
+requireIncludes(
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'existingKeys',
+  'Unified upload store must de-duplicate repeated file selections.',
+);
+requireIncludes(
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'store.removeUploadItem',
+  'Unified upload preview must allow users to clear selected files before uploading.',
 );
 requireIncludes(
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
-  'allowedMimeTypes',
-  'Upload dialog must keep a front-end file type guard before real-data testing.',
+  'WarmUploadSourcePicker',
+  'Unified upload dialog must expose the shared upload source picker.',
 );
 requireIncludes(
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
-  '文件检查',
-  'Upload dialog must show a clear file validation summary.',
+  'WarmFileSelectionPanel',
+  'Unified upload dialog must expose the shared file selection panel.',
 );
 requireIncludes(
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
-  'duplicateWarning',
-  'Upload dialog must warn when the current module already has the same title and version.',
+  'WarmCameraCaptureDialog',
+  'Unified upload dialog must expose the shared camera capture panel.',
 );
 requireIncludes(
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
-  'clearFile',
-  'Upload dialog must allow users to clear a selected file before uploading.',
+  'store.uploadAllItems',
+  'Unified upload submit must call the real shared upload action.',
 );
 requireIncludes(
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'item.error',
+  'Unified upload preview must show per-file validation and upload errors.',
+);
+requireNotIncludes(
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
   'real-data-guard',
-  'Upload dialog must keep the real-data local test guard before upload.',
+  'Unified upload dialog must not keep the old local test guard.',
 );
-requireIncludes(
+requireNotIncludes(
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
-  'testAcknowledged.value',
-  'Upload submit must require acknowledgement of the real-data local test guard.',
+  'testAcknowledged',
+  'Unified upload submit must not require the old local test acknowledgement.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'HL_REAL_DATA_TEST',
+  'Unified upload dialog must not keep local test guard copy.',
 );
 
 [
   'apps/tablet/src/stores/document-hub-store.ts',
   'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'apps/tablet/src/components/upload/WarmFileSelectionPanel.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'apps/tablet/src/components/upload/WarmUploadProgress.vue',
   'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
   'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
   'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',

@@ -1110,6 +1110,8 @@ export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModule
   if (payload.moduleKey) formData.append('moduleKey', payload.moduleKey)
   if (payload.remark) formData.append('remark', payload.remark)
   if (payload.keywords) formData.append('keywords', payload.keywords)
+  if (payload.source) formData.append('source', payload.source)
+  if (payload.captureSource) formData.append('captureSource', payload.captureSource)
   return api<DocumentHubUploadResponse>(`/document-hub/drawings/products/${productId}/modules/${moduleKey}/upload`, {
     method: 'POST',
     body: formData,

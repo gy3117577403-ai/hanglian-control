@@ -576,6 +576,8 @@ export class DocumentHubService implements OnModuleInit {
       status: 'effective',
       requiredForProcess: this.requiredProcessForModule(moduleKey),
       keywords: dto.keywords,
+      source: dto.source ?? 'manual_upload',
+      captureSource: dto.captureSource,
       remark: dto.remark || '主页面资料库上传到本地沙盒存储。',
     }, file);
 
@@ -596,7 +598,9 @@ export class DocumentHubService implements OnModuleInit {
     const documents = this.localStorageService.readDocumentsSync() as ProductDocument[];
     const index = documents.findIndex((document) => {
       const id = document.documentId ?? document.id;
-      return id === itemId && document.productId === productId && document.source === 'manual_upload';
+      return id === itemId
+        && document.productId === productId
+        && (document.source === 'manual_upload' || document.source === 'camera_capture');
     });
     if (index < 0) {
       throw new BadRequestException('当前资料不是本地上传资料，不能从主页面执行物理删除。');
@@ -1014,7 +1018,11 @@ export class DocumentHubService implements OnModuleInit {
     const next = clone(detail);
     const uploaded = await this.documentsService.findAll({ productId: next.product.productId }) as ProductDocument[];
     const uploadedItems = uploaded
-      .filter((document) => (document.source === 'manual_upload' || document.source === 'pdf_import') && !document.archived)
+      .filter((document) => (
+        document.source === 'manual_upload'
+        || document.source === 'pdf_import'
+        || document.source === 'camera_capture'
+      ) && !document.archived)
       .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
 
     for (const document of uploadedItems) {
@@ -1047,7 +1055,11 @@ export class DocumentHubService implements OnModuleInit {
       version: document.version,
       remark: document.remark ?? document.description ?? document.mockPreviewText,
       uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
-      source: document.source === 'pdf_import' ? 'pdf_import' : 'manual_upload',
+      source: document.source === 'pdf_import'
+        ? 'pdf_import'
+        : document.source === 'camera_capture'
+          ? 'camera_capture'
+          : 'manual_upload',
       storageProvider: document.storageProvider,
       storageKey: document.storageKey,
       checksumSha256: document.checksumSha256,

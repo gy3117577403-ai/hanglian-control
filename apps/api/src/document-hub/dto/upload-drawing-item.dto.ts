@@ -26,4 +26,12 @@ export class UploadDrawingItemDto {
   @IsOptional()
   @IsString()
   keywords?: string;
+
+  @IsOptional()
+  @IsIn(['manual_upload', 'camera_capture'])
+  source?: 'manual_upload' | 'camera_capture';
+
+  @IsOptional()
+  @IsIn(['environment_camera'])
+  captureSource?: 'environment_camera';
 }

@@ -110,6 +110,7 @@ const DOCUMENT_SOURCE_TO_PRISMA: Record<DocumentSource, string> = {
   wecom_disk: 'WECOM_DISK',
   manual_upload: 'MANUAL_UPLOAD',
   pdf_import: 'MANUAL_UPLOAD',
+  camera_capture: 'MANUAL_UPLOAD',
 };
 
 const FEEDBACK_TO_PRISMA: Record<string, string> = {

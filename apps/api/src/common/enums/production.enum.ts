@@ -19,7 +19,7 @@ export type DocumentStatus =
   | 'missing'
   | 'inconsistent';
 
-export type DocumentSource = 'mock' | 'wecom_disk' | 'manual_upload' | 'pdf_import';
+export type DocumentSource = 'mock' | 'wecom_disk' | 'manual_upload' | 'pdf_import' | 'camera_capture';
 export type RequiredProcess = 'front' | 'back' | 'common';
 export type PreviewType = 'pdf' | 'image' | 'card';
 export type ReadinessStatus = 'ready' | 'need_review' | 'blocked';

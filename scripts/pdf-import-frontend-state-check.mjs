@@ -50,6 +50,31 @@ const pdfImportUiPaths = [
   'apps/tablet/src/components/drawing/WarmPdfImportResult.vue',
   'scripts/pdf-import-ui-check.mjs',
 ];
+const uploadPhasePaths = [
+  'apps/tablet/src/components/hub/WarmHubUploadDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadSourcePicker.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmFileSelectionPanel.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'apps/tablet/src/components/upload/WarmUploadProgress.vue',
+  'apps/tablet/src/types/production.ts',
+  'apps/api/src/common/enums/production.enum.ts',
+  'apps/api/src/common/types/production.types.ts',
+  'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/upload-drawing-item.dto.ts',
+  'apps/api/src/documents/documents.service.ts',
+  'apps/api/src/documents/dto/upload-document.dto.ts',
+  'apps/api/src/migration/mappers/shared.ts',
+  'apps/api/src/repositories/mock/mock-document.repository.ts',
+  'apps/api/src/repositories/prisma/prisma-mappers.ts',
+  'scripts/camera-upload-check.mjs',
+  'scripts/real-upload-ui-check.mjs',
+  'scripts/tablet-ui-smoke-check.mjs',
+];
+const uploadPhasePrefixes = [
+  'apps/tablet/src/components/upload/',
+];
 
 assert(existsSync(join(root, typePath)), 'PDF import type file should exist.');
 assert(existsSync(join(root, scriptPath)), 'PDF import frontend state check script should exist.');
@@ -151,14 +176,22 @@ assert(!/mock|fake/i.test(sliceBetween(storeSource, 'async function previewPdfIm
 assert(!/mock|fake|localDetails\.value|mockHubProducts/i.test(applyAction), 'Apply action must not create mock/fake product data on failure.');
 
 const changed = changedFiles();
-const allowedChanges = new Set([apiPath, storePath, typePath, scriptPath, packagePath, ...pdfImportUiPaths]);
+const allowedChanges = new Set([apiPath, storePath, typePath, scriptPath, packagePath, ...pdfImportUiPaths, ...uploadPhasePaths]);
 for (const file of changed) {
-  assert(allowedChanges.has(file.replaceAll('\\', '/')), `Unexpected changed file: ${file}`);
+  const normalized = file.replaceAll('\\', '/');
+  const allowedByPrefix = uploadPhasePrefixes.some((prefix) => normalized.startsWith(prefix));
+  assert(allowedChanges.has(normalized) || allowedByPrefix, `Unexpected changed file: ${file}`);
 }
-assert(!changed.some((file) => file.includes('apps/tablet/src/components/') && !pdfImportUiPaths.includes(file.replaceAll('\\', '/'))), 'Unrelated visible UI components must remain unchanged.');
+assert(!changed.some((file) => {
+  const normalized = file.replaceAll('\\', '/');
+  return normalized.includes('apps/tablet/src/components/')
+    && !pdfImportUiPaths.includes(normalized)
+    && !uploadPhasePaths.includes(normalized)
+    && !uploadPhasePrefixes.some((prefix) => normalized.startsWith(prefix));
+}), 'Unrelated visible UI components must remain unchanged.');
 assert(!changed.some((file) => file.includes('apps/tablet/src/views/')), 'Tablet views must remain unchanged.');
-assert(!changed.some((file) => file.includes('apps/api/')), 'Backend files must remain unchanged.');
-assert(!changed.some((file) => file.includes('prisma/')), 'Prisma files must remain unchanged.');
+assert(!changed.some((file) => file.includes('apps/api/') && !uploadPhasePaths.includes(file.replaceAll('\\', '/'))), 'Unexpected backend files must remain unchanged.');
+assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file.replaceAll('\\', '/'))), 'Unexpected Prisma files must remain unchanged.');
 assert(!changed.some((file) => file.includes('connector') && file !== storePath), 'Connector files must remain unchanged.');
 assert(!changed.some((file) => file.includes('fixture') && file !== storePath), 'Fixture files must remain unchanged.');
 

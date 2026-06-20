@@ -101,6 +101,7 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       updatedAt: now,
       createdAt: now,
       source: payload.source ?? 'manual_upload',
+      captureSource: payload.captureSource,
       requiredForProcess: payload.requiredForProcess,
       previewType: payload.previewType,
       mockPreviewText: payload.remark || `本地上传 ${payload.title}`,
