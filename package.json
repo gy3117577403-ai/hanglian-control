@@ -51,6 +51,7 @@
     "document-home-preview:check": "node scripts/document-home-preview-check.mjs",
     "document-viewer-foundation:check": "node scripts/document-viewer-foundation-check.mjs",
     "document-viewer-thumbnail:check": "node scripts/document-viewer-thumbnail-check.mjs",
+    "document-lifecycle-backend:check": "node scripts/document-lifecycle-backend-check.mjs",
     "document-hub-polish:check": "node scripts/document-hub-polish-check.mjs",
     "tablet-ui-smoke:check": "node scripts/tablet-ui-smoke-check.mjs",
     "tablet-ui-interaction:check": "node scripts/tablet-ui-interaction-check.mjs",

@@ -14,7 +14,7 @@ interface DeleteLockSetting {
 const fileName = 'delete-lock-settings.json';
 const maxAttempts = 5;
 const lockMs = 5 * 60 * 1000;
-const defaultDeletePasswordHash = '$2b$10$GtGiZo5KXyurerdMofpKaOjqZDPHag6rNhRg5mblu3GP.jumH7xQC';
+const defaultDeletePasswordHash = '$2b$10$UxaACK8OE5QQTeirgV2M1.TSdSzwyZaVjL9kmuCWx3WsJ6EF1nVma';
 
 function defaultSetting(): DeleteLockSetting {
   return {

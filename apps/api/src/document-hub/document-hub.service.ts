@@ -19,6 +19,7 @@ import { LocalStorageService } from '../storage/local-storage.service';
 import { StorageService } from '../storage/storage.service';
 import type { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
 import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
+import { DocumentLifecycleService } from './document-lifecycle.service';
 import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
 import { CreateDrawingCustomerDto } from './dto/create-drawing-customer.dto';
 import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
@@ -48,6 +49,7 @@ import {
 } from './mock/document-hub.seed';
 import { PdfImportPreviewService } from './pdf-import-preview.service';
 import { PdfImportApplyService } from './pdf-import-apply.service';
+import { isDocumentDeleted } from './helpers/document-lifecycle-validator';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -303,6 +305,7 @@ export class DocumentHubService implements OnModuleInit {
     private readonly drawingMetadataStore: DrawingMetadataStore,
     @Optional() private readonly pdfImportPreviewService?: PdfImportPreviewService,
     @Optional() private readonly pdfImportApplyService?: PdfImportApplyService,
+    @Optional() private readonly documentLifecycleService?: DocumentLifecycleService,
   ) {}
 
   onModuleInit() {
@@ -594,37 +597,10 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   async deleteDrawingItem(productId: string, moduleKey: DrawingModuleKey, itemId: string, dto: DeleteItemDto) {
-    this.deleteLockService.assertVerified(dto.password);
-    const documents = this.localStorageService.readDocumentsSync() as ProductDocument[];
-    const index = documents.findIndex((document) => {
-      const id = document.documentId ?? document.id;
-      return id === itemId
-        && document.productId === productId
-        && (document.source === 'manual_upload' || document.source === 'camera_capture');
-    });
-    if (index < 0) {
-      throw new BadRequestException('当前资料不是本地上传资料，不能从主页面执行物理删除。');
+    if (!this.documentLifecycleService) {
+      throw new InternalServerErrorException('Document lifecycle service is not available.');
     }
-
-    const document = documents[index];
-    if (this.moduleForDocumentType(document.documentType) !== moduleKey) {
-      throw new BadRequestException('资料模块不匹配，已拒绝删除。');
-    }
-
-    documents.splice(index, 1);
-    this.localStorageService.writeDocumentsSync(documents);
-    const fileResult = await this.storageService.deleteDocumentObject(document);
-    const detail = await this.getProduct(productId);
-    const module = detail.modules.find((item) => item.moduleKey === moduleKey);
-    return {
-      success: true,
-      deletedItemId: itemId,
-      fileResult,
-      module,
-      product: detail.product,
-      detail,
-      reason: dto.reason,
-    };
+    return this.documentLifecycleService.trash(productId, moduleKey, itemId, dto);
   }
 
   getConnectors(query?: ConnectorQueryDto) {
@@ -1016,13 +992,23 @@ export class DocumentHubService implements OnModuleInit {
 
   private async withUploadedDocuments(detail: ProductDrawingDetail): Promise<ProductDrawingDetail> {
     const next = clone(detail);
+    for (const module of next.modules) {
+      module.items = module.items.filter((item) => !item.deletedAt);
+      module.itemCount = module.items.length;
+      if (module.coverDocumentId && !module.items.some((item) => item.itemId === module.coverDocumentId)) {
+        module.coverDocumentId = module.items.find((item) => item.documentStatus === 'effective')?.itemId ?? module.items[0]?.itemId;
+      }
+      if (!module.items.length && module.status === 'uploaded') {
+        module.status = module.moduleKey === 'original_drawing' ? 'no_drawing' : 'pending';
+      }
+    }
     const uploaded = await this.documentsService.findAll({ productId: next.product.productId }) as ProductDocument[];
     const uploadedItems = uploaded
       .filter((document) => (
         document.source === 'manual_upload'
         || document.source === 'pdf_import'
         || document.source === 'camera_capture'
-      ) && !document.archived)
+      ) && !document.archived && !isDocumentDeleted(document))
       .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
 
     for (const document of uploadedItems) {
@@ -1034,11 +1020,17 @@ export class DocumentHubService implements OnModuleInit {
         module.items.unshift(item);
       }
       module.status = 'uploaded';
+      module.itemCount = module.items.length;
+      if (!module.coverDocumentId) module.coverDocumentId = item.itemId;
       module.updatedAt = document.updatedAt ?? module.updatedAt;
     }
 
-    if (next.modules.some((module) => module.items.length)) {
-      next.product.drawingStatus = next.modules.every((module) => module.items.length) ? 'available' : 'partial';
+    const original = next.modules.find((module) => module.moduleKey === 'original_drawing');
+    const totalItems = next.modules.reduce((sum, module) => sum + module.items.length, 0);
+    if (original?.items.length) {
+      next.product.drawingStatus = 'available';
+    } else if (totalItems > 0) {
+      next.product.drawingStatus = 'partial';
     } else {
       next.product.drawingStatus = 'no_drawing';
     }

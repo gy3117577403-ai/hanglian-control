@@ -46,6 +46,11 @@ function docId(document: { documentId?: string; id: string }) {
   return document.documentId ?? document.id;
 }
 
+function isDeletedDocument(document: ProductDocument) {
+  const item = document as ProductDocument & { deleted?: boolean; deletedAt?: string | null };
+  return item.deleted === true || Boolean(item.deletedAt);
+}
+
 function versionGroupKey(document: Pick<ProductDocument, 'productId' | 'documentType' | 'requiredForProcess'>) {
   return `${document.productId}::${document.documentType}::${document.requiredForProcess}`;
 }
@@ -150,7 +155,8 @@ export class DocumentsService {
   ) {}
 
   async findAll(query: DocumentQueryDto) {
-    return this.documentRepository.findDocuments(query);
+    const documents = await this.documentRepository.findDocuments(query);
+    return documents.filter((document) => !isDeletedDocument(document));
   }
 
   async findOne(id: string) {

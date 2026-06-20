@@ -1,4 +1,19 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  InternalServerErrorException,
+  Optional,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
@@ -19,6 +34,8 @@ import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import { DocumentHubService } from './document-hub.service';
 import type { DrawingModuleKey } from './mock/document-hub.seed';
 import { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
+import { DocumentLifecycleService } from './document-lifecycle.service';
+import { PurgeDocumentDto, RestoreDocumentDto, TrashDocumentDto, TrashQueryDto } from './dto/document-lifecycle.dto';
 
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 const allowedConnectorImportMimeTypes = [
@@ -41,7 +58,17 @@ function normalizeConnectorImportStrategy(value?: string | boolean): 'review' | 
 @ApiTags('document-hub')
 @Controller('document-hub')
 export class DocumentHubController {
-  constructor(private readonly documentHubService: DocumentHubService) {}
+  constructor(
+    private readonly documentHubService: DocumentHubService,
+    @Optional() private readonly documentLifecycleService?: DocumentLifecycleService,
+  ) {}
+
+  private lifecycleService() {
+    if (!this.documentLifecycleService) {
+      throw new InternalServerErrorException('Document lifecycle service is not available.');
+    }
+    return this.documentLifecycleService;
+  }
 
   @Get('orders')
   @ApiOperation({ summary: '查询今日 / 本周订单 Mock 数据' })
@@ -59,6 +86,12 @@ export class DocumentHubController {
   @ApiOperation({ summary: '订单总览：本周 / 待完成 / 已完成' })
   getOrderOverview() {
     return this.documentHubService.getOrderOverview();
+  }
+
+  @Get('trash')
+  @ApiOperation({ summary: '资料回收站列表' })
+  getTrash(@Query() query: TrashQueryDto) {
+    return this.lifecycleService().listTrash(query);
   }
 
   @Get('drawings/customers')
@@ -201,15 +234,48 @@ export class DocumentHubController {
     return this.documentHubService.uploadDrawingItem(productId, moduleKey, dto, file);
   }
 
+  @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/trash')
+  @ApiOperation({ summary: '资料移入回收站' })
+  trashDrawingItem(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: TrashDocumentDto,
+  ) {
+    return this.lifecycleService().trash(productId, moduleKey, itemId, dto);
+  }
+
+  @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/restore')
+  @ApiOperation({ summary: '恢复回收站资料' })
+  restoreDrawingItem(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: RestoreDocumentDto,
+  ) {
+    return this.lifecycleService().restore(productId, moduleKey, itemId, dto);
+  }
+
+  @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/purge')
+  @ApiOperation({ summary: '彻底删除回收站资料' })
+  purgeDrawingItem(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: PurgeDocumentDto,
+  ) {
+    return this.lifecycleService().purge(productId, moduleKey, itemId, dto);
+  }
+
   @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/delete')
-  @ApiOperation({ summary: '删除主页面资料库本地上传项，校验删除密码并清理本地文件' })
+  @ApiOperation({ summary: '旧删除接口，兼容为移入回收站', deprecated: true })
   deleteDrawingItem(
     @Param('productId') productId: string,
     @Param('moduleKey') moduleKey: DrawingModuleKey,
     @Param('itemId') itemId: string,
     @Body() dto: DeleteItemDto,
   ) {
-    return this.documentHubService.deleteDrawingItem(productId, moduleKey, itemId, dto);
+    return this.lifecycleService().trash(productId, moduleKey, itemId, dto);
   }
 
   @Get('connectors')
