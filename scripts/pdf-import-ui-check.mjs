@@ -86,6 +86,7 @@ const uploadPhasePaths = [
   'apps/tablet/src/types/document-viewer.ts',
   'scripts/document-home-preview-check.mjs',
   'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
 ];
 const uploadPhasePrefixes = [
   'apps/tablet/src/components/upload/',

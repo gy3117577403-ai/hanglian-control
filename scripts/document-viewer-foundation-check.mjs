@@ -147,6 +147,7 @@ const allowedChangedFiles = new Set([
   paths.viewerTypes,
   paths.packageJson,
   'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
   'scripts/document-home-preview-check.mjs',
   'scripts/camera-upload-check.mjs',
   'scripts/pdf-import-ui-check.mjs',

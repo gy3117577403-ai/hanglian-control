@@ -136,6 +136,7 @@ const allowedChanged = new Set([
   'apps/tablet/src/stores/document-hub-store.ts',
   'apps/tablet/src/types/document-viewer.ts',
   'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
   'scripts/camera-upload-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
 ]);

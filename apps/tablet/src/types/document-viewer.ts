@@ -2,6 +2,38 @@ import type { DrawingItem } from './production'
 
 export type ViewerMode = 'pdf' | 'image' | 'text' | 'unsupported'
 export type ViewerFitMode = 'actual' | 'width' | 'page'
+export type ThumbnailStatus = 'idle' | 'queued' | 'loading' | 'done' | 'failed'
+
+export interface PdfViewport {
+  width: number
+  height: number
+}
+
+export interface PdfPageProxy {
+  getViewport(input: { scale: number; rotation?: number }): PdfViewport
+  render(input: {
+    canvasContext: CanvasRenderingContext2D
+    viewport: unknown
+  }): { promise: Promise<void>; cancel: () => void }
+  cleanup?: () => void
+}
+
+export interface PdfDocumentProxy {
+  numPages: number
+  getPage(pageNumber: number): Promise<PdfPageProxy>
+  destroy?: () => Promise<void>
+}
+
+export interface PdfLoadingTask {
+  promise: Promise<PdfDocumentProxy>
+  destroy?: () => Promise<void>
+}
+
+export interface PdfDocumentReadyPayload {
+  source: string
+  pageCount: number
+  document: PdfDocumentProxy | null
+}
 
 export interface DocumentViewerItem {
   itemId: string

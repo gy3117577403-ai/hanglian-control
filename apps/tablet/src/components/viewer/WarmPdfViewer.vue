@@ -4,22 +4,14 @@ import { RotateCcw } from 'lucide-vue-next'
 import pdfjsUrl from 'pdfjs-dist/build/pdf.mjs?url'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { resolveDocumentPreviewUrl } from '@/lib/document-preview-url'
-import type { DocumentViewerItem, ViewerFitMode } from '@/types/document-viewer'
+import type {
+  DocumentViewerItem,
+  PdfDocumentProxy,
+  PdfDocumentReadyPayload,
+  PdfLoadingTask,
+  ViewerFitMode,
+} from '@/types/document-viewer'
 
-type PdfPageProxy = {
-  getViewport(input: { scale: number; rotation?: number }): { width: number; height: number }
-  render(input: { canvasContext: CanvasRenderingContext2D; viewport: unknown }): { promise: Promise<void>; cancel: () => void }
-  cleanup?: () => void
-}
-type PdfDocumentProxy = {
-  numPages: number
-  getPage(pageNumber: number): Promise<PdfPageProxy>
-  destroy?: () => Promise<void>
-}
-type PdfLoadingTask = {
-  promise: Promise<PdfDocumentProxy>
-  destroy?: () => Promise<void>
-}
 type PdfJsModule = {
   GlobalWorkerOptions: { workerSrc: string }
   getDocument(input: { url: string }): PdfLoadingTask
@@ -38,6 +30,7 @@ const emit = defineEmits<{
   loading: [value: boolean]
   error: [message: string]
   fitZoom: [mode: ViewerFitMode, zoom: number]
+  pdfDocument: [payload: PdfDocumentReadyPayload]
 }>()
 
 const stage = ref<HTMLElement | null>(null)
@@ -77,12 +70,14 @@ function cancelRender() {
 }
 
 function destroyDocument() {
+  const previousSource = loadedSource
   cancelRender()
   void loadingTask?.destroy?.()
   loadingTask = null
   void loadedDocument?.destroy?.()
   loadedDocument = null
   loadedSource = ''
+  if (previousSource) emit('pdfDocument', { source: previousSource, pageCount: 0, document: null })
 }
 
 async function ensureDocument(token: number) {
@@ -99,7 +94,9 @@ async function ensureDocument(token: number) {
   }
   loadedDocument = document
   loadedSource = source.value
-  emit('pageCount', Math.max(1, Number(document.numPages) || 1))
+  const pageCount = Math.max(1, Number(document.numPages) || 1)
+  emit('pageCount', pageCount)
+  emit('pdfDocument', { source: loadedSource, pageCount, document })
   return document
 }
 

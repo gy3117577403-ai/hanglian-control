@@ -206,6 +206,7 @@ const allowedChangedFiles = new Set([
   'apps/tablet/src/lib/document-preview-url.ts',
   'apps/tablet/src/types/document-viewer.ts',
   'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
   paths.packageJson,
 ]);
 for (const file of changed) {

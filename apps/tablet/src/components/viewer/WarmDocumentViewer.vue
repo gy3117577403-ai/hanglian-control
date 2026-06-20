@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { AlertTriangle, FileText, Info, X } from 'lucide-vue-next'
 import WarmImageViewer from './WarmImageViewer.vue'
 import WarmPdfViewer from './WarmPdfViewer.vue'
+import WarmThumbnailRail from './WarmThumbnailRail.vue'
 import WarmViewerToolbar from './WarmViewerToolbar.vue'
 import { useDocumentViewer } from '@/composables/use-document-viewer'
 import { resolveDocumentDownloadUrl } from '@/lib/document-preview-url'
-import type { DocumentViewerItem } from '@/types/document-viewer'
+import type { DocumentViewerItem, PdfDocumentProxy, PdfDocumentReadyPayload } from '@/types/document-viewer'
 
 const props = defineProps<{
   visible: boolean
@@ -24,9 +25,11 @@ const emit = defineEmits<{
 const viewer = useDocumentViewer()
 const viewerRoot = ref<HTMLElement | null>(null)
 const infoOpen = ref(false)
+const thumbnailRailCollapsed = ref(false)
 const fullscreenError = ref('')
 const downloadError = ref('')
 const previousBodyOverflow = ref('')
+const pdfDocument = shallowRef<PdfDocumentProxy | null>(null)
 let bodyLocked = false
 
 const activeItem = computed(() => viewer.activeItem.value)
@@ -68,6 +71,7 @@ function unlockBodyScroll() {
 function resetViewerFromProps() {
   viewer.state.open = props.visible
   if (props.visible) {
+    pdfDocument.value = null
     viewer.setItems(props.items, props.initialItemId)
     void nextTick(() => viewerRoot.value?.focus())
   }
@@ -78,6 +82,7 @@ function closeViewer() {
     void document.exitFullscreen().catch(() => undefined)
   }
   viewer.close()
+  pdfDocument.value = null
   infoOpen.value = false
   fullscreenError.value = ''
   downloadError.value = ''
@@ -122,10 +127,32 @@ function downloadActiveItem() {
   anchor.remove()
 }
 
-function setActiveItemId(value: string) {
-  const index = viewer.state.items.findIndex((item) => item.itemId === value)
+function setActiveItemIndex(index: number) {
+  if (index < 0) return
+  pdfDocument.value = null
   viewer.setActiveItemIndex(index)
 }
+
+function setActiveItemId(value: string) {
+  const index = viewer.state.items.findIndex((item) => item.itemId === value)
+  setActiveItemIndex(index)
+}
+
+function setActivePage(pageNumber: number) {
+  viewer.setActivePage(pageNumber)
+}
+
+function setPdfDocument(payload: PdfDocumentReadyPayload) {
+  if (payload.document) {
+    pdfDocument.value = payload.document
+    return
+  }
+  pdfDocument.value = null
+}
+
+watch(() => activeItem.value?.itemId, () => {
+  pdfDocument.value = null
+})
 
 function isEditableTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null
@@ -177,6 +204,7 @@ watch(() => props.visible, (visible) => {
     resetViewerFromProps()
   } else {
     unlockBodyScroll()
+    pdfDocument.value = null
     viewer.close()
   }
 }, { immediate: true })
@@ -259,7 +287,20 @@ onBeforeUnmount(() => {
         @close="closeViewer"
       />
 
-      <main class="viewer-main" :class="{ 'with-info': infoOpen }">
+      <main class="viewer-main" :class="{ 'with-info': infoOpen, 'rail-collapsed': thumbnailRailCollapsed }">
+        <WarmThumbnailRail
+          v-model:collapsed="thumbnailRailCollapsed"
+          :items="viewer.state.items"
+          :active-item="activeItem"
+          :active-item-index="viewer.state.activeItemIndex"
+          :active-page="viewer.state.activePage"
+          :page-count="viewer.state.pageCount"
+          :mode="viewer.state.mode"
+          :pdf-document="pdfDocument"
+          @select-page="setActivePage"
+          @select-item="setActiveItemIndex"
+        />
+
         <section class="viewer-canvas">
           <WarmPdfViewer
             v-if="activeItem && viewer.state.mode === 'pdf'"
@@ -272,6 +313,7 @@ onBeforeUnmount(() => {
             @loading="viewer.setLoading"
             @error="viewer.setError"
             @fit-zoom="viewer.setFitZoom"
+            @pdf-document="setPdfDocument"
           />
           <WarmImageViewer
             v-else-if="activeItem && viewer.state.mode === 'image'"
@@ -413,13 +455,21 @@ onBeforeUnmount(() => {
 
 .viewer-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(132px, 150px) minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
 }
 
+.viewer-main.rail-collapsed {
+  grid-template-columns: 54px minmax(0, 1fr);
+}
+
 .viewer-main.with-info {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: minmax(132px, 150px) minmax(0, 1fr) minmax(260px, 320px);
+}
+
+.viewer-main.with-info.rail-collapsed {
+  grid-template-columns: 54px minmax(0, 1fr) minmax(260px, 320px);
 }
 
 .viewer-canvas {
@@ -514,7 +564,24 @@ onBeforeUnmount(() => {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .viewer-main,
+  .viewer-main.rail-collapsed,
+  .viewer-main.with-info,
+  .viewer-main.with-info.rail-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .viewer-canvas {
+    grid-row: 1;
+  }
+
+  .viewer-main :deep(.thumbnail-rail) {
+    grid-row: 2;
+  }
+
   .info-panel {
+    grid-row: 3;
     max-height: 32vh;
   }
 }
