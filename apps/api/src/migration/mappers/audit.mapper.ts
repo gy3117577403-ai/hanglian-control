@@ -9,10 +9,13 @@ const entityToPrisma: Record<AuditEntityType, string> = {
   system: 'SYSTEM',
   import: 'IMPORT',
   knowledge: 'KNOWLEDGE',
+  product: 'IMPORT',
 };
 
 const actionToPrisma: Record<AuditAction, string> = {
   document_uploaded: 'DOCUMENT_UPLOADED',
+  pdf_drawing_imported: 'DOCUMENT_UPLOADED',
+  pdf_import_product_created: 'BUSINESS_DATA_IMPORTED',
   document_status_changed: 'DOCUMENT_STATUS_CHANGED',
   document_version_changed: 'DOCUMENT_VERSION_CHANGED',
   document_set_effective: 'DOCUMENT_SET_EFFECTIVE',

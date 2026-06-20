@@ -11,7 +11,7 @@ import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
-import { PdfImportPreviewFormDto } from './dto/pdf-import.dto';
+import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
@@ -128,6 +128,12 @@ export class DocumentHubController {
       ...(uploadedFiles?.file ?? []),
     ];
     return this.documentHubService.previewPdfImport(dto, files);
+  }
+
+  @Post('drawings/pdf-import/apply')
+  @ApiOperation({ summary: 'PDF 图纸批量导入 Apply' })
+  applyPdfImport(@Body() dto: PdfImportApplyDto) {
+    return this.documentHubService.applyPdfImport(dto);
   }
 
   @Get('drawings/pdf-import/:importBatchId')

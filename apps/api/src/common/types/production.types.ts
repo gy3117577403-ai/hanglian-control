@@ -242,6 +242,7 @@ export interface CreateUploadedDocumentPayload {
   title: string;
   version: string;
   status: DocumentStatus;
+  source?: DocumentSource;
   requiredForProcess: RequiredProcess;
   keywords: string[];
   remark?: string;

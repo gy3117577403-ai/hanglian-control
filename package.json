@@ -43,6 +43,7 @@
     "drawing-service-store:check": "node scripts/drawing-service-store-check.mjs",
     "drawing-customer-product-write:check": "node scripts/drawing-customer-product-write-check.mjs",
     "pdf-import-preview:check": "node scripts/pdf-import-preview-check.mjs",
+    "pdf-import-apply:check": "node scripts/pdf-import-apply-check.mjs",
     "document-hub-polish:check": "node scripts/document-hub-polish-check.mjs",
     "tablet-ui-smoke:check": "node scripts/tablet-ui-smoke-check.mjs",
     "tablet-ui-interaction:check": "node scripts/tablet-ui-interaction-check.mjs",

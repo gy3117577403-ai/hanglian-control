@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { LocalStorageService } from '../storage/local-storage.service';
 
@@ -68,6 +68,38 @@ export class PdfImportTempStorageService {
     if (!stagedFileKey) return;
     const absolutePath = this.pathFromStagedFileKey(stagedFileKey);
     await rm(absolutePath, { force: true });
+  }
+
+  async readStagedPdf(importBatchId: string, stagedFileKey: string) {
+    this.assertStagedFileBelongsToBatch(importBatchId, stagedFileKey);
+    const absolutePath = this.pathFromStagedFileKey(stagedFileKey);
+    const fileStat = await stat(absolutePath);
+    if (!fileStat.isFile()) throw new Error('Staged PDF is not a file.');
+    return {
+      buffer: await readFile(absolutePath),
+      fileSize: fileStat.size,
+      absolutePath,
+    };
+  }
+
+  assertStagedFileBelongsToBatch(importBatchId: string, stagedFileKey: string) {
+    const parts = stagedFileKey.split('/');
+    if (parts[0] !== pdfImportRootName || parts[1] !== importBatchId) {
+      throw new Error('Staged PDF import file does not belong to this batch.');
+    }
+  }
+
+  async removeBatchIfEmpty(importBatchId: string) {
+    const importRoot = await this.ensureImportRoot();
+    if (!this.isSafeSegment(importBatchId)) return;
+    const batchDir = this.assertInside(importRoot, join(importRoot, importBatchId));
+    try {
+      const entries = await readdir(batchDir);
+      const visibleEntries = entries.filter((entry) => entry !== batchMetaFileName);
+      if (!visibleEntries.length) await rm(batchDir, { recursive: true, force: true });
+    } catch {
+      // Already gone or not readable; there is nothing safe to clean here.
+    }
   }
 
   async removeBatch(importBatchId: string) {

@@ -109,6 +109,7 @@ const DOCUMENT_SOURCE_TO_PRISMA: Record<DocumentSource, string> = {
   mock: 'MOCK',
   wecom_disk: 'WECOM_DISK',
   manual_upload: 'MANUAL_UPLOAD',
+  pdf_import: 'MANUAL_UPLOAD',
 };
 
 const FEEDBACK_TO_PRISMA: Record<string, string> = {
@@ -137,6 +138,7 @@ const AUDIT_ENTITY_TO_PRISMA: Record<AuditEntityType, string> = {
   system: 'SYSTEM',
   import: 'IMPORT',
   knowledge: 'KNOWLEDGE',
+  product: 'IMPORT',
 };
 
 const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
@@ -151,6 +153,8 @@ const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
 
 const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {
   document_uploaded: 'DOCUMENT_UPLOADED',
+  pdf_drawing_imported: 'DOCUMENT_UPLOADED',
+  pdf_import_product_created: 'BUSINESS_DATA_IMPORTED',
   document_status_changed: 'DOCUMENT_STATUS_CHANGED',
   document_version_changed: 'DOCUMENT_VERSION_CHANGED',
   document_set_effective: 'DOCUMENT_SET_EFFECTIVE',

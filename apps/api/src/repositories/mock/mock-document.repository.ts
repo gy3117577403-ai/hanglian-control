@@ -100,7 +100,7 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       effectiveDate: now.slice(0, 10),
       updatedAt: now,
       createdAt: now,
-      source: 'manual_upload',
+      source: payload.source ?? 'manual_upload',
       requiredForProcess: payload.requiredForProcess,
       previewType: payload.previewType,
       mockPreviewText: payload.remark || `本地上传 ${payload.title}`,
@@ -325,7 +325,7 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
 
   private persistDocument(document: ProductDocument) {
     document.versionGroupKey = document.versionGroupKey ?? versionGroupKey(document);
-    if (document.source === 'manual_upload') {
+    if (document.source === 'manual_upload' || document.source === 'pdf_import') {
       this.localStorageService.upsertDocumentSync(document);
     }
     return document;

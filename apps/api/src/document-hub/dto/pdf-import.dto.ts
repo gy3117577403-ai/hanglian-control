@@ -1,6 +1,15 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class PdfImportPreviewFormDto {
   @ApiProperty({ description: '已有图纸客户 ID。Preview 只读取客户，不会自动创建或修改客户。' })
@@ -115,8 +124,11 @@ export class PdfImportPreviewResponseDto {
   @ApiProperty({ type: PdfImportPreviewCustomerDto })
   customer!: PdfImportPreviewCustomerDto;
 
-  @ApiProperty({ description: 'Preview 批次状态', enum: ['previewed', 'expired', 'applied', 'partial', 'error'] })
-  status!: 'previewed' | 'expired' | 'applied' | 'partial' | 'error';
+  @ApiProperty({
+    description: 'Preview 批次状态',
+    enum: ['previewed', 'expired', 'applying', 'completed', 'partially_applied', 'failed', 'applied', 'partial', 'error'],
+  })
+  status!: 'previewed' | 'expired' | 'applying' | 'completed' | 'partially_applied' | 'failed' | 'applied' | 'partial' | 'error';
 
   @ApiPropertyOptional({ description: '批次级中文提示' })
   message?: string;
@@ -129,6 +141,15 @@ export class PdfImportPreviewResponseDto {
 
   @ApiProperty({ type: [PdfImportPreviewItemDto] })
   items!: PdfImportPreviewItemDto[];
+
+  @ApiPropertyOptional({ type: Object })
+  applySummary?: PdfImportApplyResponseDto['summary'];
+
+  @ApiPropertyOptional({ type: Array })
+  applyItems?: PdfImportApplyResponseDto['items'];
+
+  @ApiPropertyOptional()
+  appliedAt?: string;
 }
 
 export class PdfImportItemDecisionDto {
@@ -151,7 +172,7 @@ export class PdfImportItemDecisionDto {
   action?: 'create_product' | 'add_version' | 'skip';
 }
 
-export class PdfImportApplyDto {
+export class LegacyPdfImportApplyDto {
   @ApiProperty({ description: 'Preview 批次 ID' })
   @IsString()
   importBatchId!: string;
@@ -160,4 +181,146 @@ export class PdfImportApplyDto {
   @IsOptional()
   @IsArray()
   items?: PdfImportItemDecisionDto[];
+}
+
+export class PdfImportApplyItemDto {
+  @ApiProperty({ description: 'Preview item ID' })
+  @IsString()
+  @IsNotEmpty()
+  importItemId!: string;
+
+  @ApiPropertyOptional({ description: '是否应用本文件；默认 true' })
+  @IsOptional()
+  @IsBoolean()
+  selected?: boolean;
+
+  @ApiPropertyOptional({ description: '用户确认或修正后的产品型号' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  confirmedProductModel?: string;
+
+  @ApiPropertyOptional({ description: '用户确认或修正后的版本号' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  confirmedVersion?: string;
+
+  @ApiPropertyOptional({ description: '新产品名称；为空时使用产品型号' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  productName?: string;
+
+  @ApiPropertyOptional({ description: '是否设为当前有效版本' })
+  @IsOptional()
+  @IsBoolean()
+  setAsEffective?: boolean;
+}
+
+export class PdfImportApplyDto {
+  @ApiProperty({ description: 'Preview 批次 ID' })
+  @IsString()
+  @IsNotEmpty()
+  importBatchId!: string;
+
+  @ApiProperty({ type: [PdfImportApplyItemDto], description: '本次要应用或跳过的 Preview item' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PdfImportApplyItemDto)
+  items!: PdfImportApplyItemDto[];
+
+  @ApiPropertyOptional({ description: '导入备注' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  remark?: string;
+
+  @ApiPropertyOptional({ description: '操作员 ID' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  operatorId?: string;
+
+  @ApiPropertyOptional({ description: '操作员名称' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  operatorName?: string;
+}
+
+export class PdfImportApplySummaryDto {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  createdProduct!: number;
+
+  @ApiProperty()
+  addedVersion!: number;
+
+  @ApiProperty()
+  skippedDuplicate!: number;
+
+  @ApiProperty()
+  needsConfirmation!: number;
+
+  @ApiProperty()
+  skippedByUser!: number;
+
+  @ApiProperty()
+  error!: number;
+}
+
+export class PdfImportApplyResultItemDto {
+  @ApiProperty()
+  importItemId!: string;
+
+  @ApiProperty()
+  originalFileName!: string;
+
+  @ApiProperty()
+  confirmedProductModel!: string;
+
+  @ApiPropertyOptional()
+  productId?: string;
+
+  @ApiPropertyOptional()
+  documentId?: string;
+
+  @ApiProperty({ enum: ['created_product', 'added_version', 'skipped_duplicate', 'needs_confirmation', 'skipped_by_user', 'error'] })
+  result!: 'created_product' | 'added_version' | 'skipped_duplicate' | 'needs_confirmation' | 'skipped_by_user' | 'error';
+
+  @ApiProperty()
+  message!: string;
+
+  @ApiPropertyOptional()
+  documentStatus?: string;
+
+  @ApiPropertyOptional()
+  setAsEffective?: boolean;
+
+  @ApiPropertyOptional()
+  errorMessage?: string;
+}
+
+export class PdfImportApplyResponseDto {
+  @ApiProperty()
+  importBatchId!: string;
+
+  @ApiProperty({ enum: ['completed', 'partially_applied', 'failed'] })
+  status!: 'completed' | 'partially_applied' | 'failed';
+
+  @ApiProperty({ type: PdfImportPreviewCustomerDto })
+  customer!: PdfImportPreviewCustomerDto;
+
+  @ApiProperty({ type: PdfImportApplySummaryDto })
+  summary!: PdfImportApplySummaryDto;
+
+  @ApiProperty({ type: [PdfImportApplyResultItemDto] })
+  items!: PdfImportApplyResultItemDto[];
+
+  @ApiPropertyOptional()
+  appliedAt?: string;
 }

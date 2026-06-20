@@ -28,7 +28,7 @@ export function mapProductDocumentToPrisma(document: ProductDocument) {
     fileSize: document.fileSize,
     previewUrl: nullable(document.previewUrl),
     downloadUrl: nullable(document.downloadUrl),
-    storageProvider: document.source === 'manual_upload' ? 'local' : 'mock',
+    storageProvider: document.source === 'manual_upload' || document.source === 'pdf_import' ? 'local' : 'mock',
     storageKey: nullable(document.storedFileName),
     mockPreviewText: document.mockPreviewText,
     keywords: document.keywords ?? [],

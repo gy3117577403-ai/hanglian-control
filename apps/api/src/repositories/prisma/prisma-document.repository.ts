@@ -155,7 +155,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
         title: payload.title,
         version: payload.version,
         status: apiDocumentStatusToPrisma(payload.status),
-        source: apiDocumentSourceToPrisma('manual_upload'),
+        source: apiDocumentSourceToPrisma(payload.source ?? 'manual_upload'),
         requiredForProcess: apiProcessToPrisma(payload.requiredForProcess),
         previewType: payload.previewType,
         originalFileName: payload.originalFileName,

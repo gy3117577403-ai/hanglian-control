@@ -77,7 +77,13 @@ export interface PdfImportBatchRecord {
   appliedAt?: string;
   expiresAt?: string;
   completedAt?: string | null;
-  status: 'previewed' | 'expired' | 'applied' | 'partial' | 'error';
+  status: 'previewed' | 'expired' | 'applying' | 'completed' | 'partially_applied' | 'failed' | 'applied' | 'partial' | 'error';
+  applyStatus?: 'idle' | 'applying' | 'completed' | 'partially_applied' | 'failed';
+  applySummary?: PdfImportApplySummaryRecord;
+  applyItems?: PdfImportApplyItemRecord[];
+  remark?: string;
+  operatorId?: string;
+  operatorName?: string;
   totalFiles: number;
   successCount?: number;
   skippedCount?: number;
@@ -87,6 +93,30 @@ export interface PdfImportBatchRecord {
   skippedFiles: number;
   importedFiles: number;
   items: PdfImportItemRecord[];
+}
+
+export interface PdfImportApplySummaryRecord {
+  total: number;
+  createdProduct: number;
+  addedVersion: number;
+  skippedDuplicate: number;
+  needsConfirmation: number;
+  skippedByUser: number;
+  error: number;
+}
+
+export interface PdfImportApplyItemRecord {
+  importItemId: string;
+  originalFileName: string;
+  confirmedProductModel: string;
+  productId?: string;
+  documentId?: string;
+  result: 'created_product' | 'added_version' | 'skipped_duplicate' | 'needs_confirmation' | 'skipped_by_user' | 'error';
+  message: string;
+  documentStatus?: 'effective' | 'pending_review' | 'expired' | 'missing' | 'inconsistent';
+  setAsEffective?: boolean;
+  errorMessage?: string;
+  appliedAt?: string;
 }
 
 const customersFile = 'drawing-customers.json';
@@ -169,7 +199,32 @@ const importActions: PdfImportItemRecord['action'][] = [
   'needs_confirmation',
   'error',
 ];
-const batchStatuses: PdfImportBatchRecord['status'][] = ['previewed', 'expired', 'applied', 'partial', 'error'];
+const batchStatuses: PdfImportBatchRecord['status'][] = [
+  'previewed',
+  'expired',
+  'applying',
+  'completed',
+  'partially_applied',
+  'failed',
+  'applied',
+  'partial',
+  'error',
+];
+const applyStatuses: NonNullable<PdfImportBatchRecord['applyStatus']>[] = [
+  'idle',
+  'applying',
+  'completed',
+  'partially_applied',
+  'failed',
+];
+const applyResults: PdfImportApplyItemRecord['result'][] = [
+  'created_product',
+  'added_version',
+  'skipped_duplicate',
+  'needs_confirmation',
+  'skipped_by_user',
+  'error',
+];
 
 function clone<T>(value: T): T {
   if (value === undefined || value === null) return value;
@@ -492,11 +547,48 @@ function normalizeImportItem(value: unknown): PdfImportItemRecord | undefined {
   };
 }
 
+function normalizeApplyItem(value: unknown): PdfImportApplyItemRecord | undefined {
+  if (!isRecord(value)) return undefined;
+  const importItemId = text(value.importItemId);
+  if (!importItemId) return undefined;
+  return {
+    importItemId,
+    originalFileName: text(value.originalFileName),
+    confirmedProductModel: text(value.confirmedProductModel),
+    productId: optionalText(value.productId),
+    documentId: optionalText(value.documentId),
+    result: isOneOf(value.result, applyResults, 'error'),
+    message: text(value.message),
+    documentStatus: isOneOf(
+      value.documentStatus,
+      ['effective', 'pending_review', 'expired', 'missing', 'inconsistent'] as const,
+      'pending_review',
+    ),
+    setAsEffective: value.setAsEffective === true || undefined,
+    errorMessage: optionalText(value.errorMessage),
+    appliedAt: optionalText(value.appliedAt),
+  };
+}
+
+function normalizeApplySummary(value: unknown, items: PdfImportApplyItemRecord[]): PdfImportApplySummaryRecord {
+  const record = isRecord(value) ? value : {};
+  return {
+    total: numberOr(record.total, items.length),
+    createdProduct: numberOr(record.createdProduct, items.filter((item) => item.result === 'created_product').length),
+    addedVersion: numberOr(record.addedVersion, items.filter((item) => item.result === 'added_version').length),
+    skippedDuplicate: numberOr(record.skippedDuplicate, items.filter((item) => item.result === 'skipped_duplicate').length),
+    needsConfirmation: numberOr(record.needsConfirmation, items.filter((item) => item.result === 'needs_confirmation').length),
+    skippedByUser: numberOr(record.skippedByUser, items.filter((item) => item.result === 'skipped_by_user').length),
+    error: numberOr(record.error, items.filter((item) => item.result === 'error').length),
+  };
+}
+
 function normalizeImportBatch(value: unknown): PdfImportBatchRecord | undefined {
   if (!isRecord(value)) return undefined;
   const importBatchId = text(value.importBatchId);
   const customerId = text(value.customerId);
   const items = asArray(value.items).map(normalizeImportItem).filter(Boolean) as PdfImportItemRecord[];
+  const applyItems = asArray(value.applyItems).map(normalizeApplyItem).filter(Boolean) as PdfImportApplyItemRecord[];
   const totalFiles = items.length;
   const parsedFiles = items.filter((item) => ['parsed', 'imported'].includes(item.status)).length;
   const skippedFiles = items.filter((item) => item.status === 'skipped' || item.action === 'skip_duplicate' || item.action === 'skip').length;
@@ -516,6 +608,12 @@ function normalizeImportBatch(value: unknown): PdfImportBatchRecord | undefined 
     expiresAt: optionalText(value.expiresAt),
     completedAt: value.completedAt === null ? null : optionalText(value.completedAt),
     status: isOneOf(value.status, batchStatuses, 'previewed'),
+    applyStatus: isOneOf(value.applyStatus, applyStatuses, applyItems.length ? 'completed' : 'idle'),
+    applySummary: applyItems.length ? normalizeApplySummary(value.applySummary, applyItems) : undefined,
+    applyItems,
+    remark: optionalText(value.remark),
+    operatorId: optionalText(value.operatorId),
+    operatorName: optionalText(value.operatorName),
     totalFiles,
     successCount,
     skippedCount,
@@ -658,6 +756,17 @@ export class DrawingMetadataStore {
 
   clone<T>(value: T): T {
     return clone(value);
+  }
+
+  rollbackNewProduct(productId: string) {
+    const details = this.readDetails();
+    const detail = details.find((item) => item.product.productId === productId);
+    if (detail?.modules.some((module) => module.items.some((item) => !item.deletedAt))) {
+      throw new Error('Refuse to roll back product that already has formal drawing items.');
+    }
+
+    this.writeProducts(this.readProducts().filter((product) => product.productId !== productId));
+    this.writeDetails(details.filter((item) => item.product.productId !== productId));
   }
 
   private readArray<T>(fileName: string, fallback: T[], normalize: (value: unknown) => T | undefined): T[] {

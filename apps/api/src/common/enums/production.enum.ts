@@ -19,7 +19,7 @@ export type DocumentStatus =
   | 'missing'
   | 'inconsistent';
 
-export type DocumentSource = 'mock' | 'wecom_disk' | 'manual_upload';
+export type DocumentSource = 'mock' | 'wecom_disk' | 'manual_upload' | 'pdf_import';
 export type RequiredProcess = 'front' | 'back' | 'common';
 export type PreviewType = 'pdf' | 'image' | 'card';
 export type ReadinessStatus = 'ready' | 'need_review' | 'blocked';
@@ -39,10 +39,12 @@ export type SearchResultType =
 
 export type SearchScope = 'current_plan' | 'global';
 
-export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import' | 'knowledge';
+export type AuditEntityType = 'document' | 'plan' | 'feedback' | 'file' | 'system' | 'import' | 'knowledge' | 'product';
 
 export type AuditAction =
   | 'document_uploaded'
+  | 'pdf_drawing_imported'
+  | 'pdf_import_product_created'
   | 'document_status_changed'
   | 'document_version_changed'
   | 'document_set_effective'

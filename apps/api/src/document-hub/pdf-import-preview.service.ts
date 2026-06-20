@@ -276,7 +276,8 @@ export class PdfImportPreviewService {
   }
 
   private toSafeResponse(batch: PdfImportBatchRecord, customer?: { customerId: string; customerName: string; customerShortName?: string }) {
-    const isExpired = Boolean(batch.expiresAt) && new Date(batch.expiresAt as string).getTime() <= Date.now();
+    const isApplied = ['completed', 'partially_applied', 'failed', 'applied', 'partial'].includes(batch.status);
+    const isExpired = !isApplied && Boolean(batch.expiresAt) && new Date(batch.expiresAt as string).getTime() <= Date.now();
     const status = isExpired ? 'expired' : batch.status;
 
     return {
@@ -319,6 +320,20 @@ export class PdfImportPreviewService {
         message: item.message,
         errorMessage: item.errorMessage,
       })),
+      applySummary: batch.applySummary,
+      applyItems: batch.applyItems?.map((item) => ({
+        importItemId: item.importItemId,
+        originalFileName: item.originalFileName,
+        confirmedProductModel: item.confirmedProductModel,
+        productId: item.productId,
+        documentId: item.documentId,
+        result: item.result,
+        message: item.message,
+        documentStatus: item.documentStatus,
+        setAsEffective: item.setAsEffective,
+        errorMessage: item.errorMessage,
+      })),
+      appliedAt: batch.appliedAt,
     } satisfies PdfImportPreviewResponseDto;
   }
 

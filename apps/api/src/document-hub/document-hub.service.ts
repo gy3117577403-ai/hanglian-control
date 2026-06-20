@@ -31,7 +31,7 @@ import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
 import { DrawingMetadataStore, createDefaultDrawingModules } from './drawing-metadata.store';
-import { PdfImportPreviewFormDto } from './dto/pdf-import.dto';
+import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
 import { normalizeProductModel } from './helpers/pdf-name-parser';
 import {
   ConnectorParameter,
@@ -47,6 +47,7 @@ import {
   hubOrders,
 } from './mock/document-hub.seed';
 import { PdfImportPreviewService } from './pdf-import-preview.service';
+import { PdfImportApplyService } from './pdf-import-apply.service';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -301,6 +302,7 @@ export class DocumentHubService implements OnModuleInit {
     private readonly deleteLockService: DeleteLockService,
     private readonly drawingMetadataStore: DrawingMetadataStore,
     @Optional() private readonly pdfImportPreviewService?: PdfImportPreviewService,
+    @Optional() private readonly pdfImportApplyService?: PdfImportApplyService,
   ) {}
 
   onModuleInit() {
@@ -552,6 +554,13 @@ export class DocumentHubService implements OnModuleInit {
       throw new InternalServerErrorException('PDF 导入预览服务未初始化。');
     }
     return this.pdfImportPreviewService.getPreview(importBatchId);
+  }
+
+  async applyPdfImport(dto: PdfImportApplyDto) {
+    if (!this.pdfImportApplyService) {
+      throw new InternalServerErrorException('PDF 导入应用服务未初始化。');
+    }
+    return this.pdfImportApplyService.apply(dto);
   }
 
   async uploadDrawingItem(productId: string, moduleKey: DrawingModuleKey, dto: UploadDrawingItemDto, file?: Express.Multer.File) {
@@ -1005,7 +1014,7 @@ export class DocumentHubService implements OnModuleInit {
     const next = clone(detail);
     const uploaded = await this.documentsService.findAll({ productId: next.product.productId }) as ProductDocument[];
     const uploadedItems = uploaded
-      .filter((document) => document.source === 'manual_upload' && !document.archived)
+      .filter((document) => (document.source === 'manual_upload' || document.source === 'pdf_import') && !document.archived)
       .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
 
     for (const document of uploadedItems) {
@@ -1038,7 +1047,7 @@ export class DocumentHubService implements OnModuleInit {
       version: document.version,
       remark: document.remark ?? document.description ?? document.mockPreviewText,
       uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
-      source: 'manual_upload',
+      source: document.source === 'pdf_import' ? 'pdf_import' : 'manual_upload',
       storageProvider: document.storageProvider,
       storageKey: document.storageKey,
       checksumSha256: document.checksumSha256,

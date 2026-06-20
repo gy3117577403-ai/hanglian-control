@@ -117,6 +117,28 @@ function operatorFromUser(user?: MockUser) {
     : {};
 }
 
+export interface CreateStoredDocumentMetadataInput {
+  documentId?: string;
+  productId: string;
+  planId?: string;
+  documentType: ProductDocument['documentType'];
+  title: string;
+  version: string;
+  status: DocumentStatus;
+  source?: ProductDocument['source'];
+  requiredForProcess: ProductDocument['requiredForProcess'];
+  keywords?: string[];
+  remark?: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSize: number;
+  buffer: Buffer;
+  metadata?: Record<string, string | number | boolean | undefined>;
+  auditAction?: 'document_uploaded' | 'pdf_drawing_imported';
+  auditMessage?: string;
+  skipAudit?: boolean;
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -329,6 +351,87 @@ export class DocumentsService {
       productId: document.productId,
     });
     return document;
+  }
+
+  async createStoredDocumentMetadata(input: CreateStoredDocumentMetadataInput, user?: MockUser) {
+    const existingDocuments = await this.documentRepository.findDocuments({
+      productId: input.productId,
+      documentType: input.documentType,
+    });
+    const groupKey = `${input.productId}::${input.documentType}::${input.requiredForProcess}`;
+    const duplicateVersionWarning = existingDocuments.some((document) => {
+      const sameGroup = (document.versionGroupKey ?? versionGroupKey(document)) === groupKey;
+      return sameGroup && document.version === input.version;
+    })
+      ? '当前产品已存在同类型同版本资料，建议改为新版本或进入版本历史查看。'
+      : undefined;
+
+    const documentId = input.documentId ?? `UPDOC-${Date.now()}-${randomUUID()}`;
+    const stored = await this.storageService.putObject({
+      originalFileName: input.originalFileName,
+      mimeType: input.mimeType,
+      buffer: input.buffer,
+      fileSize: input.fileSize,
+      prefix: 'documents',
+      metadata: {
+        productId: input.productId,
+        planId: input.planId,
+        documentType: input.documentType,
+        version: input.version,
+        ...input.metadata,
+      },
+    });
+
+    try {
+      const previewUrl = await this.storageService.createPreviewUrl(stored.storageKey, documentId);
+      const downloadUrl = await this.storageService.createDownloadUrl(stored.storageKey, documentId, input.originalFileName);
+      const document = await this.documentRepository.createDocument({
+        documentId,
+        productId: input.productId,
+        planId: input.planId,
+        documentType: input.documentType,
+        title: input.title,
+        version: input.version,
+        status: input.status,
+        source: input.source ?? 'manual_upload',
+        requiredForProcess: input.requiredForProcess,
+        keywords: input.keywords ?? [],
+        remark: input.remark,
+        originalFileName: input.originalFileName,
+        storedFileName: stored.storedFileName,
+        storageProvider: stored.provider,
+        storageKey: stored.storageKey,
+        checksumSha256: stored.checksumSha256,
+        previewMode: stored.previewMode,
+        mimeType: input.mimeType,
+        fileSize: input.fileSize,
+        previewType: previewTypeFor(input.mimeType),
+        previewUrl,
+        downloadUrl,
+      });
+      document.duplicateVersionWarning = duplicateVersionWarning;
+      document.recommendedAction = '如需用于生产，请确认版本状态为当前有效。';
+
+      if (!input.skipAudit) {
+        await this.auditService.tryCreate({
+          entityType: 'document',
+          entityId: docId(document),
+          action: input.auditAction ?? 'document_uploaded',
+          after: document,
+          ...operatorFromUser(user),
+          message: input.auditMessage ?? `上传资料 ${document.title} ${document.version}`,
+          planId: document.planId,
+          productId: document.productId,
+        });
+      }
+      return document;
+    } catch (error) {
+      const deleteResult = await this.storageService.deleteObject(stored.storageKey);
+      if (!deleteResult.deleted) {
+        throw new Error(`Document metadata creation failed and stored file cleanup failed: ${deleteResult.reason}`);
+      }
+      throw error;
+    }
   }
 
   async updateStatus(id: string, dto: UpdateDocumentStatusDto, user?: MockUser) {
