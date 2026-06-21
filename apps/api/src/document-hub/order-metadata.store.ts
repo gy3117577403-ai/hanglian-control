@@ -258,6 +258,21 @@ function normalizeCompletionStatus(value: unknown, fallback: OrderCompletionStat
   return oneOf(value, completionStatuses, fallback);
 }
 
+function normalizeOrderProductionStatus(input: {
+  productionStatus: OrderProductionStatus;
+  completionStatus: OrderCompletionStatus;
+  productResolutionStatus: ProductResolutionStatus;
+  linkedProductId?: string | null;
+}) {
+  if (
+    input.completionStatus === 'pending' &&
+    (input.productResolutionStatus !== 'found' || !input.linkedProductId)
+  ) {
+    return 'no_drawing';
+  }
+  return input.productionStatus;
+}
+
 function normalizeOrder(value: unknown): ProductionOrderRecord | undefined {
   if (!isRecord(value)) return undefined;
   const productModel = text(value.productModel);
@@ -274,6 +289,14 @@ function normalizeOrder(value: unknown): ProductionOrderRecord | undefined {
     : quantity !== null;
 
   if (!id || !productModel || !normalizedProductModel) return undefined;
+  const linkedProductId = optionalNullableText(value.linkedProductId ?? value.productId);
+  const productResolutionStatus = oneOf(value.productResolutionStatus, resolutionStatuses, 'unknown');
+  const productionStatus = normalizeOrderProductionStatus({
+    productionStatus: normalizeProductionStatus(value.productionStatus ?? value.status),
+    completionStatus,
+    productResolutionStatus,
+    linkedProductId,
+  });
 
   return {
     orderId: id,
@@ -282,11 +305,11 @@ function normalizeOrder(value: unknown): ProductionOrderRecord | undefined {
     normalizedProductModel,
     customerId: optionalNullableText(value.customerId),
     customerName: optionalNullableText(value.customerName),
-    linkedProductId: optionalNullableText(value.linkedProductId ?? value.productId),
-    productResolutionStatus: oneOf(value.productResolutionStatus, resolutionStatuses, 'unknown'),
+    linkedProductId,
+    productResolutionStatus,
     quantity,
     quantityProvided: explicitQuantityProvided,
-    productionStatus: normalizeProductionStatus(value.productionStatus ?? value.status),
+    productionStatus,
     completionStatus,
     source: oneOf(value.source, sources, 'manual_create'),
     importBatchId: optionalNullableText(value.importBatchId),

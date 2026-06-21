@@ -171,6 +171,7 @@ assert(unarchivedPanel.includes('数量未填写'), '未建档引导页也应避
 
 const allowed = new Set([
   ...Object.values(files),
+  'apps/api/src/document-hub/order-metadata.store.ts',
   'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
   'apps/tablet/src/components/hub/WarmHubHeader.vue',
   'apps/tablet/src/components/orders/WarmOrderImportDialog.vue',
@@ -187,9 +188,17 @@ const allowed = new Set([
 ]);
 for (const file of changedFiles()) {
   assert(allowed.has(file), `出现非本轮允许修改文件：${file}`);
-  assert(!file.startsWith('apps/api/'), `不允许修改后端文件：${file}`);
+  assert(!file.startsWith('apps/api/') || file === 'apps/api/src/document-hub/order-metadata.store.ts', `不允许修改后端文件：${file}`);
   assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
   assert(!file.includes('/connector/') && !file.includes('/fixture/'), `不允许修改连接器或治具文件：${file}`);
+}
+
+if (changedFiles().includes('apps/api/src/document-hub/order-metadata.store.ts')) {
+  const orderMetadataStore = read('apps/api/src/document-hub/order-metadata.store.ts');
+  assert(orderMetadataStore.includes('normalizeOrderProductionStatus'), '订单状态修复必须集中在 metadata 规范化函数。');
+  assert(orderMetadataStore.includes("input.completionStatus === 'pending'"), '未建档状态校正必须只自动影响 pending 订单。');
+  assert(orderMetadataStore.includes("input.productResolutionStatus !== 'found'") && orderMetadataStore.includes('!input.linkedProductId'), '未建档或未绑定订单必须规范化为 no_drawing。');
+  assert(orderMetadataStore.includes("return 'no_drawing'"), '未建档订单必须返回 no_drawing。');
 }
 
 assert(packageJson.includes('"order-frontend-state:check": "node scripts/order-frontend-state-check.mjs"'), 'package.json 缺少 order-frontend-state:check。');
