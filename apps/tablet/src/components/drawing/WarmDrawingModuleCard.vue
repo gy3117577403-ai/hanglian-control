@@ -155,7 +155,6 @@ const trashTitle = computed(() => {
 .module-card {
   position: relative;
   isolation: isolate;
-  transform-style: preserve-3d;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
@@ -174,16 +173,11 @@ const trashTitle = computed(() => {
     linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 238, 214, 0.018)),
     rgba(255, 255, 255, 0.04);
   box-shadow:
-    0 50px 94px rgba(77, 39, 13, 0.16),
+    0 18px 34px rgba(77, 39, 13, 0.13),
     0 0 0 1px rgba(124, 75, 34, 0.055),
-    0 0 88px rgba(255, 255, 255, 0.36),
-    0 8px 22px rgba(255, 255, 255, 0.24) inset,
     0 2px 0 rgba(255, 255, 255, 0.98) inset,
-    24px 0 52px rgba(255, 255, 255, 0.28) inset,
-    -26px -18px 58px rgba(105, 151, 145, 0.12) inset,
-    0 -26px 58px rgba(184, 94, 38, 0.018) inset;
-  backdrop-filter: blur(18px) saturate(1.16);
-  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+    16px 0 34px rgba(255, 255, 255, 0.22) inset,
+    -16px -12px 34px rgba(105, 151, 145, 0.08) inset;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
@@ -210,7 +204,6 @@ const trashTitle = computed(() => {
   border-radius: 999px;
   background: rgba(72, 39, 18, 0.17);
   content: '';
-  filter: blur(22px);
   transform: translateY(15px);
   pointer-events: none;
 }
@@ -222,14 +215,12 @@ const trashTitle = computed(() => {
 .module-card:hover {
   border-color: rgba(255, 255, 255, 0.98);
   box-shadow:
-    0 52px 96px rgba(77, 39, 13, 0.17),
+    0 20px 36px rgba(77, 39, 13, 0.15),
     0 0 0 1px rgba(124, 75, 34, 0.055),
-    0 0 70px rgba(255, 255, 255, 0.24),
     0 2px 0 rgba(255, 255, 255, 0.94) inset,
-    16px 0 36px rgba(255, 255, 255, 0.24) inset,
-    -12px -8px 38px rgba(105, 151, 145, 0.08) inset,
-    0 -18px 42px rgba(184, 94, 38, 0.022) inset;
-  transform: translateY(-2px) rotateX(0.35deg);
+    14px 0 30px rgba(255, 255, 255, 0.2) inset,
+    -10px -8px 28px rgba(105, 151, 145, 0.06) inset;
+  transform: translateY(-2px);
 }
 
 .module-head {
@@ -264,8 +255,6 @@ const trashTitle = computed(() => {
   color: #724722;
   font-size: 11px;
   font-weight: 950;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .module-head .uploaded {
@@ -292,15 +281,11 @@ const trashTitle = computed(() => {
   color: #3c2817;
   text-align: center;
   box-shadow:
-    0 34px 64px rgba(88, 47, 18, 0.12),
+    0 16px 30px rgba(88, 47, 18, 0.1),
     0 0 0 1px rgba(134, 78, 32, 0.04),
-    0 10px 22px rgba(255, 255, 255, 0.2) inset,
     0 2px 0 rgba(255, 255, 255, 0.98) inset,
-    24px 0 48px rgba(255, 255, 255, 0.28) inset,
-    -22px -14px 48px rgba(99, 142, 136, 0.12) inset,
-    inset 0 -34px 70px rgba(197, 104, 40, 0.012);
-  backdrop-filter: blur(16px) saturate(1.14);
-  -webkit-backdrop-filter: blur(16px) saturate(1.14);
+    18px 0 34px rgba(255, 255, 255, 0.22) inset,
+    -16px -12px 34px rgba(99, 142, 136, 0.08) inset;
 }
 
 .module-card :deep(.module-cover)::before {
@@ -316,15 +301,12 @@ const trashTitle = computed(() => {
     linear-gradient(128deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18) 52%, rgba(223, 238, 228, 0.12)),
     rgba(255, 255, 255, 0.18);
   box-shadow:
-    0 30px 56px rgba(93, 48, 18, 0.1),
+    0 14px 28px rgba(93, 48, 18, 0.08),
     0 0 0 9px rgba(255, 255, 255, 0.05),
     0 2px 0 rgba(255, 255, 255, 0.96) inset,
-    inset 18px 0 38px rgba(255, 255, 255, 0.2),
-    inset -16px -12px 34px rgba(105, 145, 138, 0.08),
-    inset 0 -20px 42px rgba(151, 89, 42, 0.012);
+    inset 14px 0 28px rgba(255, 255, 255, 0.16),
+    inset -12px -10px 24px rgba(105, 145, 138, 0.06);
   content: '';
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .module-card :deep(.module-cover)::after {
@@ -396,8 +378,6 @@ const trashTitle = computed(() => {
   color: #724722;
   font-size: 11px;
   font-weight: 950;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .actions {
@@ -416,8 +396,6 @@ const trashTitle = computed(() => {
   box-shadow:
     0 10px 18px rgba(80, 42, 16, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(14px) saturate(1.14);
-  -webkit-backdrop-filter: blur(14px) saturate(1.14);
 }
 
 .actions :deep(.p-button) {
@@ -432,8 +410,6 @@ const trashTitle = computed(() => {
     rgba(255, 255, 255, 0.34) !important;
   box-shadow: 0 8px 14px rgba(80, 42, 16, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.88);
   color: #8f4a22 !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
@@ -450,13 +426,6 @@ const trashTitle = computed(() => {
   .module-card {
     height: 360px;
     min-height: 360px;
-    backdrop-filter: blur(14px) saturate(1.12);
-    -webkit-backdrop-filter: blur(14px) saturate(1.12);
-  }
-
-  .module-card :deep(.module-cover) {
-    backdrop-filter: blur(10px) saturate(1.08);
-    -webkit-backdrop-filter: blur(10px) saturate(1.08);
   }
 
   .module-head h3 {

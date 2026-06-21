@@ -193,12 +193,14 @@ onBeforeUnmount(() => {
         :src="item.src"
         :alt="item.title"
         :class="item.key === currentItem?.key ? 'block' : 'hidden'"
+        loading="lazy"
+        decoding="async"
         @error="failed = true"
       >
     </div>
 
     <div v-if="currentItem" class="image-stage" @dblclick="openViewer">
-      <img :src="currentItem.src" :alt="currentItem.title" class="inspection-image" @error="failed = true">
+      <img :src="currentItem.src" :alt="currentItem.title" class="inspection-image" loading="lazy" decoding="async" @error="failed = true">
       <div class="inspection-caption">
         <span>{{ currentItem.isMock ? '当前为演示资料' : fileHealthLabel(effectiveHealthStatus) }}</span>
         <strong>{{ currentItem.document.localMockLabel || '本地资料预览' }}</strong>

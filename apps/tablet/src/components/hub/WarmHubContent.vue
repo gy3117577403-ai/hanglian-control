@@ -40,16 +40,11 @@ const WarmFixtureParameterView = createWarmAsyncComponent(() => import('@/compon
     linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 241, 220, 0.025)),
     rgba(255, 255, 255, 0.045);
   box-shadow:
-    0 54px 104px rgba(75, 38, 13, 0.18),
-    0 12px 32px rgba(255, 255, 255, 0.18) inset,
+    0 24px 48px rgba(75, 38, 13, 0.16),
     0 0 0 1px rgba(119, 77, 38, 0.045),
-    0 0 100px rgba(255, 255, 255, 0.32),
     0 2px 0 rgba(255, 255, 255, 0.96) inset,
-    30px 0 64px rgba(255, 255, 255, 0.28) inset,
-    -30px -20px 70px rgba(105, 151, 145, 0.12) inset,
-    inset 0 -34px 72px rgba(132, 70, 30, 0.025);
-  backdrop-filter: blur(18px) saturate(1.18);
-  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+    22px 0 44px rgba(255, 255, 255, 0.22) inset,
+    -20px -16px 46px rgba(105, 151, 145, 0.08) inset;
   transform: translateZ(0);
 }
 
@@ -77,7 +72,6 @@ const WarmFixtureParameterView = createWarmAsyncComponent(() => import('@/compon
   height: 28px;
   border-radius: 999px;
   background: rgba(72, 39, 18, 0.18);
-  filter: blur(22px);
   transform: translateY(14px);
 }
 
@@ -96,10 +90,8 @@ const WarmFixtureParameterView = createWarmAsyncComponent(() => import('@/compon
     linear-gradient(125deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.12)),
     rgba(255, 250, 241, 0.78);
   box-shadow:
-    0 12px 24px rgba(88, 47, 20, 0.16),
+    0 8px 16px rgba(88, 47, 20, 0.13),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
 }
 
 .hub-mode-fade-enter-active,
@@ -120,11 +112,6 @@ const WarmFixtureParameterView = createWarmAsyncComponent(() => import('@/compon
 }
 
 @media (max-width: 1320px), (prefers-reduced-motion: reduce) {
-  .hub-content {
-    backdrop-filter: blur(14px) saturate(1.12);
-    -webkit-backdrop-filter: blur(14px) saturate(1.12);
-  }
-
   .hub-mode-fade-enter-active,
   .hub-mode-fade-leave-active {
     transition: none;

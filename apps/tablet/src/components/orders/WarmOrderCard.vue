@@ -124,6 +124,8 @@ function statusNoteTitle(order: ProductionOrder) {
   height: auto;
   min-height: 168px;
   box-sizing: border-box;
+  content-visibility: auto;
+  contain-intrinsic-size: 168px;
   overflow: visible;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.92);
@@ -133,12 +135,11 @@ function statusNoteTitle(order: ProductionOrder) {
     linear-gradient(310deg, rgba(96, 145, 139, 0.16), rgba(96, 145, 139, 0.03) 56%, transparent),
     rgba(255, 255, 255, 0.06);
   box-shadow:
-    0 16px 30px rgba(81, 42, 16, 0.11),
+    0 12px 24px rgba(81, 42, 16, 0.11),
     0 0 0 1px rgba(120, 74, 33, 0.04),
     0 2px 0 rgba(255, 255, 255, 0.96) inset,
-    12px 0 24px rgba(255, 255, 255, 0.28) inset,
-    -12px -8px 24px rgba(92, 133, 127, 0.08) inset,
-    0 -8px 18px rgba(127, 70, 34, 0.018) inset;
+    10px 0 20px rgba(255, 255, 255, 0.22) inset,
+    -10px -8px 20px rgba(92, 133, 127, 0.06) inset;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   --customer-accent: #d88935;
   --customer-soft: rgba(216, 137, 53, 0.14);
@@ -173,7 +174,7 @@ function statusNoteTitle(order: ProductionOrder) {
 .order-card:hover {
   border-color: rgba(255, 255, 255, 0.96);
   box-shadow:
-    0 18px 34px rgba(81, 42, 16, 0.18),
+    0 14px 28px rgba(81, 42, 16, 0.16),
     0 0 0 1px rgba(120, 74, 33, 0.045),
     0 2px 0 rgba(255, 255, 255, 0.92) inset,
     0 -8px 18px rgba(127, 70, 34, 0.04) inset;
@@ -339,7 +340,7 @@ function statusNoteTitle(order: ProductionOrder) {
   white-space: nowrap;
   cursor: pointer;
   box-shadow:
-    0 8px 14px rgba(128, 62, 22, 0.2),
+    0 7px 12px rgba(128, 62, 22, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 

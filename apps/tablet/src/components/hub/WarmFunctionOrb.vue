@@ -160,12 +160,10 @@ onBeforeUnmount(() => {
     linear-gradient(310deg, rgba(96, 142, 136, 0.12), transparent 56%),
     rgba(255, 255, 255, 0.09);
   box-shadow:
-    0 18px 34px rgba(113, 55, 19, 0.13),
-    0 8px 20px rgba(255, 255, 255, 0.34) inset,
-    -8px -6px 20px rgba(91, 131, 125, 0.08) inset,
+    0 10px 20px rgba(113, 55, 19, 0.12),
+    0 6px 14px rgba(255, 255, 255, 0.24) inset,
+    -6px -5px 14px rgba(91, 131, 125, 0.06) inset,
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(30px) saturate(1.32);
-  -webkit-backdrop-filter: blur(30px) saturate(1.32);
   transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 
@@ -204,8 +202,8 @@ onBeforeUnmount(() => {
 .expanded .main-orb {
   transform: translateY(-1px);
   box-shadow:
-    0 20px 38px rgba(113, 55, 19, 0.24),
-    0 8px 20px rgba(255, 255, 255, 0.36) inset,
+    0 12px 24px rgba(113, 55, 19, 0.18),
+    0 6px 14px rgba(255, 255, 255, 0.28) inset,
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
@@ -262,11 +260,9 @@ onBeforeUnmount(() => {
   box-shadow:
     0 10px 20px rgba(113, 55, 19, 0.12),
     0 1px 0 rgba(255, 255, 255, 0.94) inset,
-    0 7px 14px rgba(255, 255, 255, 0.18) inset,
-    0 -10px 20px rgba(124, 65, 28, 0.045) inset;
+    0 6px 12px rgba(255, 255, 255, 0.14) inset,
+    0 -8px 16px rgba(124, 65, 28, 0.04) inset;
   white-space: nowrap;
-  backdrop-filter: blur(18px) saturate(1.16);
-  -webkit-backdrop-filter: blur(18px) saturate(1.16);
 }
 
 @media (max-width: 1320px) {

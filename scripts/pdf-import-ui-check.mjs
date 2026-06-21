@@ -167,6 +167,19 @@ assert(!/mock fallback|fake success|fake preview/i.test(uiSource), 'PDF import U
 assert(!/new\s+PrismaClient|DATABASE_URL|Sealos|db push|migrate/i.test(uiSource), 'PDF import UI must not connect database or Sealos.');
 
 const changed = changedFiles();
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+];
 const allowedChanges = new Set([
   paths.dashboard,
   paths.header,
@@ -200,6 +213,7 @@ const allowedChanges = new Set([
   'apps/tablet/src/components/trash/WarmDrawingTrashDialog.vue',
   ...uploadPhasePaths,
   paths.packageJson,
+  ...v315PerformanceFiles,
 ]);
 for (const file of changed) {
   const allowedByPrefix = uploadPhasePrefixes.some((prefix) => file.startsWith(prefix));

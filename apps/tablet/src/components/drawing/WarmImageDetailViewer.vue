@@ -68,6 +68,8 @@ function close() {
             class="real-preview image-preview"
             :src="previewSource"
             :alt="store.selectedDrawingItem.title"
+            loading="lazy"
+            decoding="async"
             :style="{ transform: `scale(${zoom})` }"
             @error="loadFailed = true"
           >

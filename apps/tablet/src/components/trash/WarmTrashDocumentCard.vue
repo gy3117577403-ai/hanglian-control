@@ -138,6 +138,8 @@ function sourceLabel(source?: string) {
   box-shadow:
     0 18px 34px rgba(80, 42, 16, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  content-visibility: auto;
+  contain-intrinsic-size: 138px;
 }
 
 .trash-thumb {

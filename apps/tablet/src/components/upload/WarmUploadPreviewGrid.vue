@@ -30,7 +30,7 @@ function statusLabel(item: DocumentHubUploadItem) {
   <section v-if="items.length" class="preview-grid">
     <article v-for="item in items" :key="item.id" class="upload-item" :class="item.status">
       <div class="thumb">
-        <img v-if="item.fileType === 'image' && item.previewUrl" :src="item.previewUrl" alt="图片预览">
+        <img v-if="item.fileType === 'image' && item.previewUrl" :src="item.previewUrl" alt="图片预览" loading="lazy" decoding="async">
         <iframe v-else-if="item.fileType === 'pdf' && item.previewUrl" :src="item.previewUrl" title="PDF 预览" />
         <FileText v-else-if="item.fileType === 'pdf'" :size="28" />
         <Image v-else :size="28" />

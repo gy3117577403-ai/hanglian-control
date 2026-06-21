@@ -98,6 +98,7 @@ watch(previewSource, () => {
         :src="previewSource"
         :alt="item.title"
         loading="lazy"
+        decoding="async"
         @load="imageLoaded = true"
         @error="imageFailed = true"
       >

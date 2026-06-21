@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-vue-next'
 import WarmOrderCard from './WarmOrderCard.vue'
+import { useProgressiveList } from '@/composables/use-progressive-list'
 import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { OrderProductionStatus, OrderScope, ProductionOrder } from '@/types/order-management'
@@ -20,6 +21,14 @@ const WarmOrderProductLinkDialog = createWarmAsyncComponent(() => import('./Warm
 })
 
 const activeOrders = computed(() => store.visibleActiveScopeOrders)
+const {
+  visibleItems: visibleOrders,
+  onScroll: handleOrderScroll,
+} = useProgressiveList(activeOrders, {
+  threshold: 40,
+  initialCount: 22,
+  step: 18,
+})
 const todayCount = computed(() => store.visibleTodayOrders.length)
 const weekCount = computed(() => store.visibleWeekOrders.length)
 const activeScrollKey = computed(() => `orders-${store.activeOrderScope}`)
@@ -174,12 +183,12 @@ function openImport() {
           <PrimeButton size="small" severity="secondary" label="重试" @click="store.loadOrders(store.activeOrderScope)" />
         </div>
 
-        <div class="order-list compact-scroll" :data-scroll-key="activeScrollKey">
+        <div class="order-list compact-scroll" :data-scroll-key="activeScrollKey" @scroll.passive="handleOrderScroll">
           <template v-if="store.ordersLoading && !activeOrders.length">
             <PrimeSkeleton v-for="index in 3" :key="index" height="132px" border-radius="15px" />
           </template>
           <WarmOrderCard
-            v-for="order in activeOrders"
+            v-for="order in visibleOrders"
             :key="order.orderId"
             :order="order"
             :loading="store.orderActionLoadingId === order.orderId"

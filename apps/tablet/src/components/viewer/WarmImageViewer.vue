@@ -139,6 +139,7 @@ onBeforeUnmount(() => {
       :src="source"
       :alt="item.title"
       loading="lazy"
+      decoding="async"
       :style="{ transform }"
       @load="finishLoading"
       @error="failLoading"

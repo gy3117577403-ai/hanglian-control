@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RotateCcw } from 'lucide-vue-next'
 import pdfjsUrl from 'pdfjs-dist/build/pdf.mjs?url'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+import { usePdfCoverQueue } from '@/composables/use-pdf-cover-queue'
 
 type PdfPageProxy = {
   getViewport(input: { scale: number }): { width: number; height: number }
@@ -55,8 +56,10 @@ let pdfjsPromise: Promise<PdfJsModule> | null = null
 let loadingTask: PdfLoadingTask | null = null
 let renderTask: { promise: Promise<void>; cancel: () => void } | null = null
 let loadedDocument: PdfDocumentProxy | null = null
+let queuedRender: { promise: Promise<void>; cancel: () => void } | null = null
 let renderToken = 0
 let lastRenderedKey = ''
+const pdfCoverQueue = usePdfCoverQueue()
 
 const safeSource = computed(() => props.source.trim())
 const renderKey = computed(() => `${safeSource.value}::${retryKey.value}`)
@@ -78,6 +81,8 @@ function loadPdfJs() {
 }
 
 function cancelRender() {
+  queuedRender?.cancel()
+  queuedRender = null
   renderTask?.cancel()
   renderTask = null
   void loadingTask?.destroy?.()
@@ -105,55 +110,64 @@ async function renderFirstPage() {
   failed.value = false
   rendered.value = false
 
+  const queued = pdfCoverQueue.enqueue(renderKey.value, () => renderQueuedFirstPage(token))
+  queuedRender = queued
+
   try {
-    const pdfjs = await loadPdfJs()
-    if (token !== renderToken) return
-    loadingTask = pdfjs.getDocument({ url: safeSource.value })
-    const document = await loadingTask.promise
-    if (token !== renderToken) {
-      void document.destroy?.()
-      return
-    }
-    loadedDocument = document
-    pageCount.value = Number(document.numPages) || 0
-    if (pageCount.value > 0) emit('pageCount', pageCount.value)
-
-    const page = await document.getPage(1)
-    if (token !== renderToken || !canvas.value || !root.value) {
-      page.cleanup?.()
-      return
-    }
-
-    const viewport = page.getViewport({ scale: 1 })
-    const bounds = root.value.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    const scale = Math.min(
-      Math.max((bounds.width - 20) * dpr, 1) / viewport.width,
-      Math.max((bounds.height - 20) * dpr, 1) / viewport.height,
-    )
-    const scaledViewport = page.getViewport({ scale })
-    const target = canvas.value
-    target.width = Math.max(Math.floor(scaledViewport.width), 1)
-    target.height = Math.max(Math.floor(scaledViewport.height), 1)
-    target.style.width = `${Math.round(target.width / dpr)}px`
-    target.style.height = `${Math.round(target.height / dpr)}px`
-
-    const context = target.getContext('2d')
-    if (!context) throw new Error('Canvas context is unavailable')
-    renderTask = page.render({ canvasContext: context, viewport: scaledViewport })
-    await renderTask.promise
-    page.cleanup?.()
-    if (token !== renderToken) return
-    rendered.value = true
-    loading.value = false
-    failed.value = false
-    lastRenderedKey = renderKey.value
+    await queued.promise
   } catch (error) {
     if (token !== renderToken) return
     loading.value = false
     failed.value = true
     rendered.value = false
+  } finally {
+    if (queuedRender === queued) queuedRender = null
   }
+}
+
+async function renderQueuedFirstPage(token: number) {
+  const pdfjs = await loadPdfJs()
+  if (token !== renderToken) return
+  loadingTask = pdfjs.getDocument({ url: safeSource.value })
+  const document = await loadingTask.promise
+  if (token !== renderToken) {
+    void document.destroy?.()
+    return
+  }
+  loadedDocument = document
+  pageCount.value = Number(document.numPages) || 0
+  if (pageCount.value > 0) emit('pageCount', pageCount.value)
+
+  const page = await document.getPage(1)
+  if (token !== renderToken || !canvas.value || !root.value) {
+    page.cleanup?.()
+    return
+  }
+
+  const viewport = page.getViewport({ scale: 1 })
+  const bounds = root.value.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+  const scale = Math.min(
+    Math.max((bounds.width - 20) * dpr, 1) / viewport.width,
+    Math.max((bounds.height - 20) * dpr, 1) / viewport.height,
+  )
+  const scaledViewport = page.getViewport({ scale })
+  const target = canvas.value
+  target.width = Math.max(Math.floor(scaledViewport.width), 1)
+  target.height = Math.max(Math.floor(scaledViewport.height), 1)
+  target.style.width = `${Math.round(target.width / dpr)}px`
+  target.style.height = `${Math.round(target.height / dpr)}px`
+
+  const context = target.getContext('2d')
+  if (!context) throw new Error('Canvas context is unavailable')
+  renderTask = page.render({ canvasContext: context, viewport: scaledViewport })
+  await renderTask.promise
+  page.cleanup?.()
+  if (token !== renderToken) return
+  rendered.value = true
+  loading.value = false
+  failed.value = false
+  lastRenderedKey = renderKey.value
 }
 
 function retry() {

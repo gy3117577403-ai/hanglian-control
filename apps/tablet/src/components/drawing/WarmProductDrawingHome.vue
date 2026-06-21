@@ -151,14 +151,10 @@ watch(moveToTrashOpen, (visible) => {
     linear-gradient(300deg, rgba(97, 145, 139, 0.22), rgba(97, 145, 139, 0.05) 52%, transparent 68%),
     rgba(255, 255, 255, 0.045);
   box-shadow:
-    0 30px 58px rgba(80, 42, 16, 0.14),
-    0 8px 20px rgba(255, 255, 255, 0.2) inset,
+    0 16px 32px rgba(80, 42, 16, 0.12),
     0 2px 0 rgba(255, 255, 255, 0.98) inset,
-    22px 0 44px rgba(255, 255, 255, 0.28) inset,
-    -18px -12px 42px rgba(94, 138, 132, 0.1) inset,
-    inset 0 -14px 30px rgba(132, 70, 30, 0.016);
-  backdrop-filter: blur(18px) saturate(1.16);
-  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+    16px 0 32px rgba(255, 255, 255, 0.22) inset,
+    -14px -10px 30px rgba(94, 138, 132, 0.08) inset;
 }
 
 .product-hero::before {
@@ -287,8 +283,6 @@ b.no_drawing {
   color: #745130;
   text-align: center;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 .empty-product b {

@@ -118,6 +118,24 @@ assert(types.includes('deletedAt?: string'), 'DrawingItem type should include op
 assert(packageJson.includes('"document-home-preview:check": "node scripts/document-home-preview-check.mjs"'), 'Root package.json should expose document-home-preview:check.');
 
 const changed = changedFiles();
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/hub/WarmHubContent.vue',
+  'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  'apps/tablet/src/components/trash/WarmDrawingTrashDialog.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+];
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/viewer/',
   'apps/tablet/src/composables/',
@@ -187,6 +205,7 @@ const allowedChanged = new Set([
   'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
   'apps/tablet/src/components/maintenance/WarmCustomerEditDialog.vue',
   'apps/tablet/src/components/maintenance/WarmProductEditDialog.vue',
+  ...v315PerformanceFiles,
 ]);
 for (const file of changed) {
   const allowed = allowedChanged.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));

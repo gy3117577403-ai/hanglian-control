@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { FileUp, FolderOpen, Pencil, Plus, RefreshCw, Search } from 'lucide-vue-next'
+import { useProgressiveList } from '@/composables/use-progressive-list'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { MaintenanceProductRow } from '@/types/customer-product-maintenance'
 
@@ -13,6 +14,15 @@ defineEmits<{
 
 const selectedCustomer = computed(() => store.maintenanceSelectedCustomer)
 const disabledCustomer = computed(() => selectedCustomer.value?.status === 'disabled')
+const productRows = computed(() => store.maintenanceProducts)
+const {
+  visibleItems: visibleProducts,
+  onScroll: handleProductScroll,
+} = useProgressiveList(productRows, {
+  threshold: 30,
+  initialCount: 16,
+  step: 14,
+})
 
 const statusText: Record<string, string> = {
   available: '已有图纸',
@@ -93,8 +103,8 @@ function completenessText(product: MaintenanceProductRow) {
       >
     </div>
 
-    <div class="product-list" data-scroll-key="maintenance-products">
-      <article v-for="product in store.maintenanceProducts" :key="product.productId" class="product-card">
+    <div class="product-list" data-scroll-key="maintenance-products" @scroll.passive="handleProductScroll">
+      <article v-for="product in visibleProducts" :key="product.productId" class="product-card">
         <header class="product-card__header">
           <div class="product-title">
             <strong :title="product.productModel">{{ product.productModel }}</strong>
@@ -274,6 +284,8 @@ function completenessText(product: MaintenanceProductRow) {
   padding-bottom: 18px;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .product-card {
@@ -288,6 +300,8 @@ function completenessText(product: MaintenanceProductRow) {
     linear-gradient(126deg, rgba(255, 255, 255, 0.84), rgba(236, 246, 241, 0.38) 62%),
     rgba(255, 255, 255, 0.26);
   box-shadow: 0 16px 34px rgba(87, 62, 29, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  content-visibility: auto;
+  contain-intrinsic-size: 178px;
 }
 
 .product-card__header {

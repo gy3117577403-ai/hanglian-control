@@ -169,6 +169,35 @@ assert(
 );
 assert(unarchivedPanel.includes('数量未填写'), '未建档引导页也应避免把空数量显示成假 0 或假 1。');
 
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/composables/use-pdf-cover-queue.ts',
+  'apps/tablet/src/composables/use-progressive-list.ts',
+  'apps/tablet/src/composables/use-tablet-performance.ts',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
+  'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/hub/WarmHubContent.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
+  'apps/tablet/src/components/trash/WarmDrawingTrashDialog.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'apps/tablet/src/components/viewer/WarmImageThumbnail.vue',
+  'apps/tablet/src/components/viewer/WarmImageViewer.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+];
+
 const allowed = new Set([
   ...Object.values(files),
   'apps/api/src/document-hub/document-hub.controller.ts',
@@ -207,6 +236,7 @@ const allowed = new Set([
   'scripts/drawing-search-ui-check.mjs',
   'scripts/drawing-navigation-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
+  ...v315PerformanceFiles,
 ]);
 const allowedPrefixes = [
   'apps/tablet/src/components/search/',

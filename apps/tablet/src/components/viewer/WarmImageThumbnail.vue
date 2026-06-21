@@ -41,6 +41,7 @@ function retry() {
         :src="source"
         :alt="item.title"
         loading="lazy"
+        decoding="async"
         @error="failed = true"
       >
       <span v-else class="image-error">

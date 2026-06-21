@@ -64,8 +64,6 @@ function resultKey(result: DrawingSearchResult) {
     linear-gradient(118deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.48)),
     rgba(247, 242, 229, 0.88);
   box-shadow: 0 22px 52px rgba(72, 39, 18, 0.18);
-  backdrop-filter: blur(18px) saturate(1.18);
-  -webkit-backdrop-filter: blur(18px) saturate(1.18);
 }
 
 .result-scroll {

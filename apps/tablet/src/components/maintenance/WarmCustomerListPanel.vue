@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Pencil, RefreshCw, Search, Users } from 'lucide-vue-next'
+import { useProgressiveList } from '@/composables/use-progressive-list'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { HubCustomer } from '@/types/production'
 
@@ -24,6 +25,14 @@ const filteredCustomers = computed(() => {
     customer.customerCode,
     ...(customer.aliases ?? []),
   ].some((value) => normalize(value).includes(keyword)))
+})
+const {
+  visibleItems: visibleCustomers,
+  onScroll: handleCustomerScroll,
+} = useProgressiveList(filteredCustomers, {
+  threshold: 30,
+  initialCount: 18,
+  step: 16,
 })
 
 function customerStatusText(status?: HubCustomer['status']) {
@@ -87,9 +96,9 @@ function selectCustomer(customer: HubCustomer) {
       <PrimeButton label="新建客户" class="create-button" @click="$emit('create')" />
     </div>
 
-    <div class="customer-list" data-scroll-key="maintenance-customers">
+    <div class="customer-list" data-scroll-key="maintenance-customers" @scroll.passive="handleCustomerScroll">
       <button
-        v-for="customer in filteredCustomers"
+        v-for="customer in visibleCustomers"
         :key="customer.customerId"
         type="button"
         class="customer-card"
@@ -222,6 +231,8 @@ function selectCustomer(customer: HubCustomer) {
   padding-right: 2px;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .customer-card {
@@ -239,6 +250,8 @@ function selectCustomer(customer: HubCustomer) {
     linear-gradient(128deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.24) 58%),
     rgba(255, 255, 255, 0.28);
   box-shadow: 0 16px 32px rgba(103, 62, 25, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  content-visibility: auto;
+  contain-intrinsic-size: 132px;
 }
 
 .customer-card.active {

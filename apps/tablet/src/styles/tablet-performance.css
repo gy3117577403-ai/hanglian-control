@@ -1,0 +1,63 @@
+:root {
+  --warm-panel-bg: rgba(255, 250, 242, 0.78);
+  --warm-panel-border: rgba(255, 255, 255, 0.82);
+  --warm-shadow-card: 0 12px 24px rgba(81, 42, 16, 0.11);
+  --warm-shadow-raised: 0 16px 30px rgba(81, 42, 16, 0.14);
+  --warm-motion-fast: 110ms;
+  --warm-motion-normal: 170ms;
+  --warm-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tablet-app-root {
+  min-height: 100vh;
+}
+
+.tablet-app-root[data-performance-tier='reduced'] {
+  --warm-shadow-card: 0 8px 16px rgba(81, 42, 16, 0.1);
+  --warm-shadow-raised: 0 10px 20px rgba(81, 42, 16, 0.12);
+  --warm-motion-fast: 80ms;
+  --warm-motion-normal: 120ms;
+}
+
+.tablet-app-root :is(.order-card, .customer-card, .product-card, .trash-card, .drawing-search-item) {
+  content-visibility: auto;
+  contain-intrinsic-size: 180px;
+  transition-property: transform, opacity, background-color, border-color, box-shadow;
+  transition-duration: var(--warm-motion-normal);
+  transition-timing-function: var(--warm-motion-ease);
+}
+
+.tablet-app-root :is(.order-card, .customer-card, .product-card, .trash-card) {
+  box-shadow: var(--warm-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.tablet-app-root :is(.order-list, .customer-list, .product-list, .trash-list) {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tablet-app-root button:active,
+.tablet-app-root .p-button:active {
+  transform: translateY(1px);
+}
+
+.tablet-app-root[data-performance-tier='reduced'] :is(.order-card, .customer-card, .product-card, .trash-card, .drawing-search-item) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation: none !important;
+}
+
+.tablet-app-root[data-performance-tier='reduced'] :is(.hub-mode-fade-enter-active, .hub-mode-fade-leave-active) {
+  transition-duration: var(--warm-motion-fast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tablet-app-root *,
+  .tablet-app-root *::before,
+  .tablet-app-root *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -94,15 +94,11 @@ defineEmits<{
     linear-gradient(292deg, rgba(92, 143, 137, 0.18), rgba(92, 143, 137, 0.04) 50%, transparent 68%),
     rgba(255, 255, 255, 0.055);
   box-shadow:
-    0 30px 62px rgba(75, 38, 13, 0.16),
-    0 8px 22px rgba(255, 255, 255, 0.22) inset,
+    0 16px 32px rgba(75, 38, 13, 0.13),
     0 0 0 1px rgba(127, 82, 38, 0.045),
     0 2px 0 rgba(255, 255, 255, 0.96) inset,
-    24px 0 48px rgba(255, 255, 255, 0.24) inset,
-    -18px -12px 42px rgba(90, 132, 126, 0.1) inset,
-    inset 0 -16px 34px rgba(156, 83, 34, 0.018);
-  backdrop-filter: blur(36px) saturate(1.4);
-  -webkit-backdrop-filter: blur(36px) saturate(1.4);
+    18px 0 34px rgba(255, 255, 255, 0.2) inset,
+    -14px -10px 30px rgba(90, 132, 126, 0.08) inset;
 }
 
 .header-toolbox::before,
@@ -161,12 +157,9 @@ defineEmits<{
     linear-gradient(300deg, rgba(102, 146, 140, 0.15), transparent 60%),
     rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 20px 38px rgba(75, 38, 13, 0.15),
-    0 8px 18px rgba(255, 255, 255, 0.22) inset,
+    0 10px 20px rgba(75, 38, 13, 0.12),
     0 2px 0 rgba(255, 255, 255, 0.9) inset,
     0 -10px 24px rgba(127, 70, 34, 0.065) inset;
-  backdrop-filter: blur(32px) saturate(1.34);
-  -webkit-backdrop-filter: blur(32px) saturate(1.34);
 }
 
 .upload-button {
@@ -316,9 +309,5 @@ defineEmits<{
     display: none;
   }
 
-  .header-toolbox {
-    backdrop-filter: blur(12px) saturate(1.08);
-    -webkit-backdrop-filter: blur(12px) saturate(1.08);
-  }
 }
 </style>

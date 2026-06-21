@@ -171,6 +171,22 @@ assert(!/mock fallback|fake success|fake upload/i.test(uploadUiSource + store + 
 assert(!/new\s+PrismaClient|DATABASE_URL|Sealos|db push|migrate|S3|企业微信微盘/i.test(uploadUiSource + store + api + uploadDto + hubController + hubService + documentsDto + documentsUploadSlice), 'Upload workflow must not connect database, Sealos, S3, or WeCom disk.');
 
 const changed = changedFiles();
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/hub/WarmHubHeader.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+];
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/upload/',
   'apps/tablet/src/components/viewer/',
@@ -264,6 +280,7 @@ const allowedChangedFiles = new Set([
   'docs/order-data-rules-v3.14.2.md',
   '.gitignore',
   paths.packageJson,
+  ...v315PerformanceFiles,
 ]);
 for (const file of changed) {
   const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));

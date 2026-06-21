@@ -191,6 +191,41 @@ assert(card.includes('width: 100%') && card.includes('min-width: 0'), '订单卡
 
 assert(!/new\s+PrismaClient|DATABASE_URL|Sealos|db push|migrate/i.test(inspected), '布局修复不得连接数据库或触碰 Sealos。');
 
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/composables/use-pdf-cover-queue.ts',
+  'apps/tablet/src/composables/use-progressive-list.ts',
+  'apps/tablet/src/composables/use-tablet-performance.ts',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
+  'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/hub/WarmHubContent.vue',
+  'apps/tablet/src/components/hub/WarmHubHeader.vue',
+  'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
+  'apps/tablet/src/components/search/WarmDrawingSearchResultItem.vue',
+  'apps/tablet/src/components/search/WarmDrawingSearchResults.vue',
+  'apps/tablet/src/components/trash/WarmDrawingTrashDialog.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'apps/tablet/src/components/viewer/WarmImageThumbnail.vue',
+  'apps/tablet/src/components/viewer/WarmImageViewer.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+  'package.json',
+];
+
 const allowedChangedFiles = new Set([
   'apps/tablet/src/components/orders/WarmOrderCard.vue',
   'apps/tablet/src/components/orders/WarmOrderStatusMenu.vue',
@@ -205,6 +240,7 @@ const allowedChangedFiles = new Set([
   'scripts/order-sidebar-layout-check.mjs',
   'scripts/pdf-import-frontend-state-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
+  ...v315PerformanceFiles,
 ]);
 
 for (const file of changedFiles()) {

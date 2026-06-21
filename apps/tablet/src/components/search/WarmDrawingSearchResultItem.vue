@@ -60,6 +60,8 @@ function subtitle() {
   color: #52301e;
   text-align: left;
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: 52px;
 }
 
 .drawing-search-item:hover,

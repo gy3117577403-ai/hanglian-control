@@ -138,7 +138,6 @@ function openDrawingTrash() {
   background:
     linear-gradient(108deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.08) 52%, transparent),
     linear-gradient(88deg, transparent, rgba(255, 255, 255, 0.16), transparent 72%);
-  filter: blur(1px);
   transform: rotate(9deg);
 }
 

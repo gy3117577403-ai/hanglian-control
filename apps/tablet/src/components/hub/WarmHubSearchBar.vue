@@ -104,14 +104,11 @@ onBeforeUnmount(() => {
     rgba(255, 255, 255, 0.06);
   box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.98),
-    inset 18px 0 36px rgba(255, 255, 255, 0.22),
-    inset -14px -10px 34px rgba(92, 134, 128, 0.12),
-    inset 0 -14px 28px rgba(193, 100, 38, 0.015),
-    0 18px 38px rgba(92, 51, 19, 0.13),
+    inset 14px 0 28px rgba(255, 255, 255, 0.18),
+    inset -10px -8px 24px rgba(92, 134, 128, 0.08),
+    0 10px 22px rgba(92, 51, 19, 0.11),
     0 0 0 1px rgba(117, 74, 35, 0.045);
   color: #8f4a22;
-  backdrop-filter: blur(24px) saturate(1.38);
-  -webkit-backdrop-filter: blur(24px) saturate(1.38);
 }
 
 .hub-search::before {
@@ -176,9 +173,5 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  .hub-search {
-    backdrop-filter: blur(10px) saturate(1.06);
-    -webkit-backdrop-filter: blur(10px) saturate(1.06);
-  }
 }
 </style>

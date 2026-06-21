@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { RefreshCw, Search, X } from 'lucide-vue-next'
 import WarmTrashDocumentCard from './WarmTrashDocumentCard.vue'
+import { useProgressiveList } from '@/composables/use-progressive-list'
 import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DocumentViewerItem } from '@/types/document-viewer'
@@ -74,6 +75,15 @@ const trashViewerItems = computed<DocumentViewerItem[]>(() => (
     .filter((item) => item.previewAvailable)
     .map(toViewerItem)
 ))
+const trashRows = computed(() => store.drawingTrashItems)
+const {
+  visibleItems: visibleTrashItems,
+  onScroll: handleTrashScroll,
+} = useProgressiveList(trashRows, {
+  threshold: 30,
+  initialCount: 20,
+  step: 20,
+})
 
 function cleanFilters(offset = 0) {
   return {
@@ -243,9 +253,9 @@ watch(() => store.lastLifecycleResult, (result) => {
       <div v-else-if="!store.drawingTrashItems.length" class="trash-empty">
         回收站暂无资料。
       </div>
-      <div v-else class="trash-list">
+      <div v-else class="trash-list" @scroll.passive="handleTrashScroll">
         <WarmTrashDocumentCard
-          v-for="item in store.drawingTrashItems"
+          v-for="item in visibleTrashItems"
           :key="item.documentId"
           :item="item"
           :action-document-id="store.lifecycleActionDocumentId"
@@ -325,6 +335,12 @@ watch(() => store.lastLifecycleResult, (result) => {
 .trash-list {
   display: grid;
   gap: 10px;
+  max-height: min(58vh, 620px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .trash-empty,

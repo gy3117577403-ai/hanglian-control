@@ -136,7 +136,7 @@ onBeforeUnmount(() => {
   <section class="camera-panel">
     <div class="camera-stage">
       <video v-show="store.cameraActive && !pendingUrl" ref="videoRef" autoplay playsinline muted />
-      <img v-if="pendingUrl" :src="pendingUrl" alt="待使用照片">
+      <img v-if="pendingUrl" :src="pendingUrl" alt="待使用照片" loading="lazy" decoding="async">
       <div v-if="!store.cameraActive && !pendingUrl" class="camera-empty">
         <Camera :size="34" />
         <strong>拍摄现场资料</strong>

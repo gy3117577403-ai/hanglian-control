@@ -94,13 +94,13 @@ requireIncludes(
 );
 requireIncludes(
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
-  'backdrop-filter',
-  'A4 module cards must retain the glass effect.',
+  'linear-gradient(122deg',
+  'A4 module cards must retain warm transparent gradient glass styling.',
 );
 requireIncludes(
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
-  'transform-style: preserve-3d',
-  'A4 module cards must keep the transparent 3D glass depth treatment.',
+  'box-shadow:',
+  'A4 module cards must keep warm depth through lightweight shadows.',
 );
 requireIncludes(
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
@@ -114,8 +114,8 @@ requireIncludes(
 );
 requireIncludes(
   'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
-  'backdrop-filter: blur(24px)',
-  'Search bar must keep the transparent glass capsule treatment.',
+  'linear-gradient(112deg',
+  'Search bar must keep the transparent warm capsule treatment without requiring backdrop blur.',
 );
 requireNotIncludes(
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',

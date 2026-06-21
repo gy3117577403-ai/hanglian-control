@@ -138,6 +138,26 @@ assert(urlHelper.includes('resolveDocumentPreviewUrl') && urlHelper.includes('re
 assert(packageJson.includes('"document-viewer-foundation:check": "node scripts/document-viewer-foundation-check.mjs"'), 'Root package.json should expose document-viewer-foundation:check.');
 
 const changed = changedFiles();
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
+  'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/hub/WarmHubHeader.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+];
 const allowedChangedFiles = new Set([
   'apps/tablet/src/app/routes.ts',
   paths.library,
@@ -198,6 +218,7 @@ const allowedChangedFiles = new Set([
   'scripts/drawing-search-backend-check.mjs',
   'scripts/drawing-search-ui-check.mjs',
   'scripts/drawing-navigation-check.mjs',
+  ...v315PerformanceFiles,
 ]);
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/viewer/',
