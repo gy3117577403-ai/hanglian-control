@@ -22,7 +22,7 @@ assert(routes.includes('/tablet/drawings/products/:productId/modules/:moduleKey/
 assert(routeLib.includes('encodeURIComponent'), 'route params must be encoded')
 assert(routeLib.includes('missing-') && routeLib.includes('mock-') && routeLib.includes('orderId'), 'unsafe route id protection is missing')
 assert(store.includes('restoreDrawingRouteFromCurrentUrl'), 'route restore action is missing')
-assert(store.includes('hydrateProductFromRoute') && store.includes('getHubProductDetail(productId)'), 'product URL refresh restore is missing')
+assert(store.includes('hydrateProductFromRoute') && (store.includes('getHubProductDetail(productId)') || store.includes('loadProductDetail(productId)')), 'product URL refresh restore is missing')
 assert(store.includes('openCustomer(customer, { skipRoute: true') && store.includes('openModule(module, { skipRoute: true') && store.includes('openModuleViewer(module, item, { skipRoute: true'), 'route restore must not loop through router pushes')
 assert(store.includes('drawingProductRoute') && store.includes('drawingModuleRoute') && store.includes('drawingItemRoute') && store.includes('drawingCustomerRoute'), 'store is not wired to drawing routes')
 assert(store.includes('navigateDrawingPath') && store.includes('router.push') && store.includes('router.replace'), 'browser navigation support is missing')

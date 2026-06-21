@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import WarmConnectorParameterView from '@/components/connector/WarmConnectorParameterView.vue'
 import WarmDrawingLibraryView from '@/components/drawing/WarmDrawingLibraryView.vue'
-import WarmFixtureParameterView from '@/components/fixture/WarmFixtureParameterView.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const WarmConnectorParameterView = createWarmAsyncComponent(() => import('@/components/connector/WarmConnectorParameterView.vue'), {
+  name: 'WarmConnectorParameterView',
+  label: '正在加载连接器参数...',
+})
+const WarmFixtureParameterView = createWarmAsyncComponent(() => import('@/components/fixture/WarmFixtureParameterView.vue'), {
+  name: 'WarmFixtureParameterView',
+  label: '正在加载治具参数...',
+})
 </script>
 
 <template>

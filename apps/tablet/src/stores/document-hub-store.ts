@@ -39,6 +39,7 @@ import {
   uploadHubDrawingItem,
 } from '@/services/api'
 import { router } from '@/app/routes'
+import { createProductDetailCache } from '@/composables/use-product-detail-cache'
 import {
   drawingCustomerRoute,
   drawingItemRoute,
@@ -579,6 +580,62 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
   let routeRestoreRequestId = 0
   let restoringDrawingRoute = false
+  const productDetailCache = createProductDetailCache(getHubProductDetail)
+  const productListRequests = new Map<string, Promise<HubProductModel[]>>()
+  const orderRequests = new Map<OrderScope, Promise<ProductionOrder[]>>()
+  const orderCache = new Map<OrderScope, { fetchedAt: number; data: ProductionOrder[] }>()
+  const ORDER_CACHE_TTL_MS = 5_000
+
+  function productListKey(customerId: string, keyword = '') {
+    return `${customerId}::${keyword.trim()}`
+  }
+
+  function rememberProductDetail(detail: ProductDrawingDetail) {
+    productDetailCache.setProductDetailCache(detail)
+  }
+
+  function invalidateProductDetail(productId?: string | null) {
+    productDetailCache.invalidateProductDetailCache(productId)
+  }
+
+  function invalidateOrderCache() {
+    orderCache.clear()
+    orderRequests.clear()
+  }
+
+  async function loadProductDetail(productId: string, options: { force?: boolean } = {}) {
+    return productDetailCache.loadProductDetail(productId, options)
+  }
+
+  async function loadProductsForCustomer(customerId: string, keyword = '') {
+    const key = productListKey(customerId, keyword)
+    const pending = productListRequests.get(key)
+    if (pending) return pending
+    const request = getHubProducts(customerId, keyword || undefined)
+      .finally(() => {
+        productListRequests.delete(key)
+      })
+    productListRequests.set(key, request)
+    return request
+  }
+
+  async function loadOrdersForScope(scope: OrderScope, options: { force?: boolean } = {}) {
+    const cached = orderCache.get(scope)
+    if (!options.force && cached && Date.now() - cached.fetchedAt < ORDER_CACHE_TTL_MS) return cached.data
+    const pending = orderRequests.get(scope)
+    if (!options.force && pending) return pending
+    const request = getDocumentHubOrders({ scope, completionStatus: 'pending' })
+      .then((orders) => {
+        const data = orders.map(toOrderState)
+        orderCache.set(scope, { fetchedAt: Date.now(), data })
+        return data
+      })
+      .finally(() => {
+        orderRequests.delete(scope)
+      })
+    orderRequests.set(scope, request)
+    return request
+  }
 
   const currentSearchPlaceholder = computed(() => {
     if (activeMode.value === 'connector') return '搜索连接器型号、入长、外剥长度、内剥长度、备注；外剥可为空'
@@ -767,7 +824,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function initialize() {
     loading.value = true
     try {
-      await Promise.all([loadOrders(), loadCustomers(), loadConnectors(), loadFixtures()])
+      await Promise.all([loadOrders(), loadCustomers()])
       const restored = await restoreDrawingRouteFromCurrentUrl('direct_url')
       if (restored) return
       if (!productDrawingDetail.value) {
@@ -792,12 +849,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     ordersError.value = ''
     try {
       if (!scope || scope === 'today') {
-        todayOrders.value = (await getDocumentHubOrders({ scope: 'today', completionStatus: 'pending' })).map(toOrderState)
+        todayOrders.value = await loadOrdersForScope('today')
       }
       if (!scope || scope === 'week') {
-        weekOrders.value = (await getDocumentHubOrders({ scope: 'week', completionStatus: 'pending' })).map(toOrderState)
+        weekOrders.value = await loadOrdersForScope('week')
       }
-      if (!scope) await loadOrderOverview()
+      if (!scope && orderOverviewOpen.value) await loadOrderOverview()
     } catch (error) {
       const message = orderErrorMessage(error)
       ordersError.value = message
@@ -834,7 +891,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   async function refreshOrdersAfterAction() {
-    await Promise.all([loadTodayOrders(), loadWeekOrders(), loadOrderOverview()])
+    invalidateOrderCache()
+    const refreshes: Promise<unknown>[] = [loadTodayOrders(), loadWeekOrders()]
+    if (orderOverviewOpen.value) refreshes.push(loadOrderOverview())
+    await Promise.all(refreshes)
   }
 
   function setMaintenanceError(error: unknown, fallback: string) {
@@ -846,7 +906,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
   async function loadMaintenanceCustomerSummaries(rows = maintenanceCustomers.value) {
     const results = await Promise.allSettled(rows.map(async (customer) => {
-      const products = await getHubProducts(customer.customerId)
+      const products = await loadProductsForCustomer(customer.customerId)
       const summary: MaintenanceCustomerSummary = {
         productCount: products.length,
         noDrawingCount: products.filter((product) => product.drawingStatus === 'no_drawing').length,
@@ -914,10 +974,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (!options.keepLoading) maintenanceLoading.value = true
     maintenanceError.value = ''
     try {
-      const products = await getHubProducts(targetCustomerId, maintenanceProductSearch.value.trim() || undefined)
+      const products = await loadProductsForCustomer(targetCustomerId, maintenanceProductSearch.value.trim())
       const rows = await Promise.all(products.map(async (product) => {
         try {
-          const detail = await getHubProductDetail(product.productId)
+          const detail = await loadProductDetail(product.productId)
           return toMaintenanceProductRow(detail.product, detail)
         } catch {
           return toMaintenanceProductRow(product, null)
@@ -1047,6 +1107,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         remark: cleanOptionalText(payload.remark),
         source: 'manual_create',
       })
+      invalidateProductDetail(product.productId)
       toast.success('产品资料页已创建。', { description: product.productModel })
       await refreshAfterMaintenanceWrite(product.customerId, product.productId)
       return product
@@ -1075,6 +1136,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         searchKeywords: payload.searchKeywords?.map(cleanText).filter(Boolean),
         remark: payload.remark !== undefined ? cleanOptionalText(payload.remark) : undefined,
       })
+      invalidateProductDetail(product.productId)
       toast.success('产品资料已更新。', { description: product.productModel })
       await refreshAfterMaintenanceWrite(product.customerId, product.productId)
       return product
@@ -1322,7 +1384,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     try {
       if (!customers.value.length) await loadCustomers()
       const rows = await Promise.all(customers.value.map(async (customer) => {
-        const products = await getHubProducts(customer.customerId, item.productModel)
+        const products = await loadProductsForCustomer(customer.customerId, item.productModel)
         return {
           customer,
           products: products.filter((product) => (
@@ -1366,7 +1428,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     try {
       if (!customers.value.length) await loadCustomers()
       const rows = await Promise.all(customers.value.map(async (customer) => {
-        const products = await getHubProducts(customer.customerId, order.productModel)
+        const products = await loadProductsForCustomer(customer.customerId, order.productModel)
         return {
           customer,
           products: products.filter((product) => productMatchesOrder(order, product)),
@@ -1471,7 +1533,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     drawingViewLevel.value = 'products'
     navigation.rememberBreadcrumb([{ level: 'customers' }, { level: 'products', customerId: customer.customerId }])
     try {
-      productModels.value = await getHubProducts(customer.customerId)
+      productModels.value = await loadProductsForCustomer(customer.customerId)
     } catch {
       productModels.value = mockHubProducts.filter((product) => product.customerId === customer.customerId)
     }
@@ -1482,7 +1544,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function openProduct(
     product: HubProductModel,
     source: DrawingNavigationSource = 'drawing',
-    options: { skipRoute?: boolean } = {},
+    options: { skipRoute?: boolean; detail?: ProductDrawingDetail; forceRefresh?: boolean } = {},
   ) {
     const requestId = ++productDetailRequestId
     saveCurrentScroll(drawingViewLevel.value)
@@ -1505,7 +1567,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const localDetail = localDetails.value.find((detail) => detail.product.productId === product.productId) ?? null
     productDrawingDetail.value = localDetail
     try {
-      const remoteDetail = await getHubProductDetail(product.productId)
+      const remoteDetail = options.detail ?? await loadProductDetail(product.productId, { force: options.forceRefresh })
       if (requestId === productDetailRequestId && selectedProduct.value?.productId === product.productId) {
         productDrawingDetail.value = remoteDetail
         selectedProduct.value = remoteDetail.product
@@ -1545,9 +1607,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (managedOrder.productResolutionStatus === 'found' && linkedProductId && !isUnsafeDrawingProductId(linkedProductId, order.orderId)) {
       productResolutionLoading.value = true
       try {
-        const detail = await getHubProductDetail(linkedProductId)
+        const detail = await loadProductDetail(linkedProductId)
         selectedCustomer.value = detail.customer ?? null
-        await openProduct(detail.product, source)
+        await openProduct(detail.product, source, { detail })
         return
       } catch (error) {
         const message = orderErrorMessage(error, '产品资料查询失败，请检查网络后重试。')
@@ -1725,7 +1787,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
 
     selectedCustomer.value = customerFromSearchResult(result)
-    const detail = await getHubProductDetail(result.productId)
+    const detail = await loadProductDetail(result.productId)
     productDrawingDetail.value = detail
     selectedProduct.value = detail.product
     selectedCustomer.value = detail.customer ?? selectedCustomer.value
@@ -1763,7 +1825,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       productResolutionError.value = '产品资料页不存在。'
       return null
     }
-    const detail = await getHubProductDetail(productId)
+    const detail = await loadProductDetail(productId)
     activeMode.value = 'drawing'
     navigation.rememberFunction('drawing')
     resetDocumentViewerState()
@@ -1771,7 +1833,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     productDrawingDetail.value = detail
     selectedProduct.value = detail.product
     selectedCustomer.value = detail.customer ?? selectedCustomer.value
-    productModels.value = selectedCustomer.value?.customerId ? await getHubProducts(selectedCustomer.value.customerId).catch(() => productModels.value) : productModels.value
+    productModels.value = selectedCustomer.value?.customerId ? await loadProductsForCustomer(selectedCustomer.value.customerId).catch(() => productModels.value) : productModels.value
     navigation.rememberBreadcrumb([
       { level: 'customers' },
       { level: 'products', customerId: selectedCustomer.value?.customerId ?? detail.product.customerId },
@@ -2119,7 +2181,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       return warnUnarchivedUpload()
     }
     try {
-      const detail = await getHubProductDetail(productId)
+      const detail = await loadProductDetail(productId, { force: true })
       if (!detail?.product?.productId || detail.product.productId !== productId) return warnUnarchivedUpload()
       productDrawingDetail.value = detail
       selectedProduct.value = detail.product
@@ -2232,6 +2294,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         remark: cleanText(input.remark) || undefined,
         source: 'manual_create',
       })
+      invalidateProductDetail(product.productId)
       toast.success('产品资料页已创建。')
       createProductArchiveDialogOpen.value = false
       await loadCustomers()
@@ -2241,7 +2304,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         if (resolution?.status === 'found') return resolution.product
       }
       selectedCustomer.value = customers.value.find((customer) => customer.customerId === customerId) ?? selectedCustomer.value
-      if (selectedCustomer.value) productModels.value = await getHubProducts(selectedCustomer.value.customerId)
+      if (selectedCustomer.value) productModels.value = await loadProductsForCustomer(selectedCustomer.value.customerId)
       await openProduct(product, 'drawing')
       refreshSearchAfterWrite()
       return product
@@ -2549,7 +2612,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     await loadCustomers()
     if (selectedCustomer.value?.customerId === customerId || pdfImportSelectedCustomerId.value === customerId) {
       try {
-        productModels.value = await getHubProducts(customerId)
+        productModels.value = await loadProductsForCustomer(customerId)
       } catch {
         // Keep the current view unchanged if the refresh fails after a successful apply.
       }
@@ -2559,13 +2622,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
 
     const affectedProductIds = new Set(result.items.map((item) => item.productId).filter(Boolean) as string[])
+    affectedProductIds.forEach((productId) => invalidateProductDetail(productId))
     const currentProductId = selectedProduct.value?.productId
     if (!currentProductId || !affectedProductIds.has(currentProductId)) {
       refreshSearchAfterWrite()
       return
     }
     try {
-      const detail = await getHubProductDetail(currentProductId)
+      const detail = await loadProductDetail(currentProductId, { force: true })
       productDrawingDetail.value = detail
       selectedProduct.value = detail.product
       if (selectedModule.value) {
@@ -2593,7 +2657,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const resolution = await resolveCurrentUnarchivedOrder()
     if (resolution?.status === 'found') return
     try {
-      const detail = await getHubProductDetail(matched.productId)
+      const detail = await loadProductDetail(matched.productId, { force: true })
       patchOrder(context.order.orderId, {
         resolvedProductId: detail.product.productId,
         productResolutionStatus: 'found',
@@ -2753,6 +2817,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
           if (response.detail) {
             latestDetail = response.detail
             productDrawingDetail.value = response.detail
+            rememberProductDetail(response.detail)
+          } else {
+            invalidateProductDetail(productId)
           }
           const persistedModule = response.detail?.modules.find((module) => module.moduleKey === moduleKey) ?? response.module
           if (persistedModule) selectedModule.value = persistedModule
@@ -2811,7 +2878,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
     try {
       const response = await uploadHubDrawingItem(targetDetail.product.productId, moduleKey, payload)
-      if (response.detail) productDrawingDetail.value = response.detail
+      if (response.detail) {
+        productDrawingDetail.value = response.detail
+        rememberProductDetail(response.detail)
+      } else {
+        invalidateProductDetail(targetDetail.product.productId)
+      }
       const persistedModule = response.detail?.modules.find((item) => item.moduleKey === moduleKey)
         ?? response.module
         ?? productDrawingDetail.value?.modules.find((item) => item.moduleKey === moduleKey)
@@ -2910,6 +2982,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (response.detail) {
       productDrawingDetail.value = response.detail
       selectedProduct.value = response.detail.product
+      rememberProductDetail(response.detail)
       if (selectedModule.value) {
         selectedModule.value = response.detail.modules.find((item) => item.moduleKey === selectedModule.value?.moduleKey) ?? null
       }
@@ -2923,6 +2996,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (response.detail) {
       productDrawingDetail.value = response.detail
       selectedProduct.value = response.detail.product
+      rememberProductDetail(response.detail)
       if (selectedModule.value) {
         selectedModule.value = response.detail.modules.find((item) => item.moduleKey === selectedModule.value?.moduleKey) ?? null
       }
@@ -3089,7 +3163,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function refreshCurrentProduct(productId?: string, moduleKey?: DrawingModuleKey) {
     const targetProductId = productId ?? productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId
     if (!targetProductId) return
-    const detail = await getHubProductDetail(targetProductId)
+    const detail = await loadProductDetail(targetProductId, { force: true })
     productDrawingDetail.value = detail
     selectedProduct.value = detail.product
     if (moduleKey || selectedModule.value) {
@@ -3107,7 +3181,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const targetCustomerId = customerId ?? selectedCustomer.value?.customerId ?? productDrawingDetail.value?.customer?.customerId
     if (!targetCustomerId) return
     if (selectedCustomer.value?.customerId === targetCustomerId || productDrawingDetail.value?.customer?.customerId === targetCustomerId) {
-      productModels.value = await getHubProducts(targetCustomerId)
+      productModels.value = await loadProductsForCustomer(targetCustomerId)
     }
   }
 

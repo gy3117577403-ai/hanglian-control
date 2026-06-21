@@ -2,9 +2,7 @@
 import { ref, watch } from 'vue'
 import { ChevronLeft, FileText, Image, Trash2, UploadCloud } from 'lucide-vue-next'
 import WarmDocumentActionMenu from './WarmDocumentActionMenu.vue'
-import WarmEditDocumentDialog from './WarmEditDocumentDialog.vue'
-import WarmSetEffectiveDialog from './WarmSetEffectiveDialog.vue'
-import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DrawingItem, DrawingModule } from '@/types/production'
 
@@ -15,6 +13,18 @@ const editDialogOpen = ref(false)
 const effectiveDialogOpen = ref(false)
 const actionItem = ref<DrawingItem | null>(null)
 const actionModule = ref<DrawingModule | null>(null)
+const WarmMoveToTrashDialog = createWarmAsyncComponent(() => import('@/components/trash/WarmMoveToTrashDialog.vue'), {
+  name: 'WarmMoveToTrashDialog',
+  label: '正在加载删除确认...',
+})
+const WarmEditDocumentDialog = createWarmAsyncComponent(() => import('./WarmEditDocumentDialog.vue'), {
+  name: 'WarmEditDocumentDialog',
+  label: '正在加载资料编辑...',
+})
+const WarmSetEffectiveDialog = createWarmAsyncComponent(() => import('./WarmSetEffectiveDialog.vue'), {
+  name: 'WarmSetEffectiveDialog',
+  label: '正在加载版本设置...',
+})
 
 function iconFor(item: DrawingItem) {
   return item.fileType === 'pdf' ? FileText : Image
@@ -133,16 +143,19 @@ watch(moveToTrashOpen, (visible) => {
       </div>
     </div>
     <WarmMoveToTrashDialog
+      v-if="moveToTrashOpen"
       v-model:visible="moveToTrashOpen"
       :item="moveToTrashItem"
       :module="store.selectedModule"
     />
     <WarmEditDocumentDialog
+      v-if="editDialogOpen"
       v-model:visible="editDialogOpen"
       :item="actionItem"
       :module="actionModule"
     />
     <WarmSetEffectiveDialog
+      v-if="effectiveDialogOpen"
       v-model:visible="effectiveDialogOpen"
       :item="actionItem"
       :module="actionModule"

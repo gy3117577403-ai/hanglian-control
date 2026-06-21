@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ChevronLeft, UploadCloud } from 'lucide-vue-next'
 import WarmDrawingModuleCard from './WarmDrawingModuleCard.vue'
-import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DrawingItem, DrawingModule } from '@/types/production'
 
@@ -10,6 +10,10 @@ const store = useDocumentHubStore()
 const moveToTrashOpen = ref(false)
 const moveToTrashItem = ref<DrawingItem | null>(null)
 const moveToTrashModule = ref<DrawingModule | null>(null)
+const WarmMoveToTrashDialog = createWarmAsyncComponent(() => import('@/components/trash/WarmMoveToTrashDialog.vue'), {
+  name: 'WarmMoveToTrashDialog',
+  label: '正在加载删除确认...',
+})
 
 const modules = computed(() => store.productDrawingDetail?.modules ?? [])
 const primaryModules = computed(() => (
@@ -95,6 +99,7 @@ watch(moveToTrashOpen, (visible) => {
     </section>
 
     <WarmMoveToTrashDialog
+      v-if="moveToTrashOpen"
       v-model:visible="moveToTrashOpen"
       :item="moveToTrashItem"
       :module="moveToTrashModule"

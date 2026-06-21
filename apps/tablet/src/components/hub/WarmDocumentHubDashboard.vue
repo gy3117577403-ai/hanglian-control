@@ -3,19 +3,41 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import WarmHubContent from './WarmHubContent.vue'
 import WarmHubHeader from './WarmHubHeader.vue'
-import WarmHubUploadDialog from './WarmHubUploadDialog.vue'
-import WarmCreateProductArchiveDialog from '@/components/drawing/WarmCreateProductArchiveDialog.vue'
-import WarmPdfImportDialog from '@/components/drawing/WarmPdfImportDialog.vue'
-import WarmCustomerProductMaintenanceDialog from '@/components/maintenance/WarmCustomerProductMaintenanceDialog.vue'
-import WarmOrderOverviewDialog from '@/components/orders/WarmOrderOverviewDialog.vue'
 import WarmOrderSidebar from '@/components/orders/WarmOrderSidebar.vue'
-import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
-import WarmDrawingTrashDialog from '@/components/trash/WarmDrawingTrashDialog.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
 const route = useRoute()
 const networkDiagnosticsOpen = ref(false)
+const WarmHubUploadDialog = createWarmAsyncComponent(() => import('./WarmHubUploadDialog.vue'), {
+  name: 'WarmHubUploadDialog',
+  label: '正在加载上传面板...',
+})
+const WarmPdfImportDialog = createWarmAsyncComponent(() => import('@/components/drawing/WarmPdfImportDialog.vue'), {
+  name: 'WarmPdfImportDialog',
+  label: '正在加载 PDF 导入...',
+})
+const WarmCustomerProductMaintenanceDialog = createWarmAsyncComponent(() => import('@/components/maintenance/WarmCustomerProductMaintenanceDialog.vue'), {
+  name: 'WarmCustomerProductMaintenanceDialog',
+  label: '正在加载客户产品维护...',
+})
+const WarmCreateProductArchiveDialog = createWarmAsyncComponent(() => import('@/components/drawing/WarmCreateProductArchiveDialog.vue'), {
+  name: 'WarmCreateProductArchiveDialog',
+  label: '正在加载产品建档...',
+})
+const WarmOrderOverviewDialog = createWarmAsyncComponent(() => import('@/components/orders/WarmOrderOverviewDialog.vue'), {
+  name: 'WarmOrderOverviewDialog',
+  label: '正在加载订单总览...',
+})
+const WarmDrawingTrashDialog = createWarmAsyncComponent(() => import('@/components/trash/WarmDrawingTrashDialog.vue'), {
+  name: 'WarmDrawingTrashDialog',
+  label: '正在加载回收站...',
+})
+const WarmNetworkDiagnosticsDialog = createWarmAsyncComponent(() => import('@/components/system/WarmNetworkDiagnosticsDialog.vue'), {
+  name: 'WarmNetworkDiagnosticsDialog',
+  label: '正在加载网络诊断...',
+})
 
 onMounted(() => {
   void store.initialize()
@@ -42,13 +64,13 @@ function openDrawingTrash() {
       <WarmOrderSidebar />
       <WarmHubContent />
     </main>
-    <WarmOrderOverviewDialog />
-    <WarmHubUploadDialog v-model:visible="store.uploadDialogOpen" />
-    <WarmPdfImportDialog v-model:visible="store.pdfImportDialogOpen" />
-    <WarmCustomerProductMaintenanceDialog v-model:visible="store.maintenanceOpen" />
-    <WarmCreateProductArchiveDialog v-model:visible="store.createProductArchiveDialogOpen" />
-    <WarmDrawingTrashDialog v-model:visible="store.drawingTrashDialogOpen" />
-    <WarmNetworkDiagnosticsDialog v-model:visible="networkDiagnosticsOpen" />
+    <WarmOrderOverviewDialog v-if="store.orderOverviewOpen" />
+    <WarmHubUploadDialog v-if="store.uploadDialogOpen" v-model:visible="store.uploadDialogOpen" />
+    <WarmPdfImportDialog v-if="store.pdfImportDialogOpen" v-model:visible="store.pdfImportDialogOpen" />
+    <WarmCustomerProductMaintenanceDialog v-if="store.maintenanceOpen" v-model:visible="store.maintenanceOpen" />
+    <WarmCreateProductArchiveDialog v-if="store.createProductArchiveDialogOpen" v-model:visible="store.createProductArchiveDialogOpen" />
+    <WarmDrawingTrashDialog v-if="store.drawingTrashDialogOpen" v-model:visible="store.drawingTrashDialogOpen" />
+    <WarmNetworkDiagnosticsDialog v-if="networkDiagnosticsOpen" v-model:visible="networkDiagnosticsOpen" />
   </div>
 </template>
 

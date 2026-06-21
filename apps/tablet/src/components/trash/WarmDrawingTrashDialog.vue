@@ -2,9 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { RefreshCw, Search, X } from 'lucide-vue-next'
-import WarmDocumentViewer from '@/components/viewer/WarmDocumentViewer.vue'
-import WarmPurgeDocumentDialog from './WarmPurgeDocumentDialog.vue'
 import WarmTrashDocumentCard from './WarmTrashDocumentCard.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DocumentViewerItem } from '@/types/document-viewer'
 import type { DrawingTrashItem } from '@/types/document-lifecycle'
@@ -28,6 +27,14 @@ const pageSize = ref(20)
 const purgeVisible = ref(false)
 const viewerOpen = ref(false)
 const viewerInitialItemId = ref('')
+const WarmPurgeDocumentDialog = createWarmAsyncComponent(() => import('./WarmPurgeDocumentDialog.vue'), {
+  name: 'WarmPurgeDocumentDialog',
+  label: '正在加载彻底删除确认...',
+})
+const WarmDocumentViewer = createWarmAsyncComponent(() => import('@/components/viewer/WarmDocumentViewer.vue'), {
+  name: 'WarmDocumentViewer',
+  label: '正在加载资料查看器...',
+})
 
 const moduleOptions: Array<{ label: string; value: DrawingModuleKey }> = [
   { label: '原图', value: 'original_drawing' },
@@ -260,8 +267,9 @@ watch(() => store.lastLifecycleResult, (result) => {
       </div>
     </template>
 
-    <WarmPurgeDocumentDialog v-model:visible="purgeVisible" :item="store.pendingPurgeItem" />
+    <WarmPurgeDocumentDialog v-if="purgeVisible" v-model:visible="purgeVisible" :item="store.pendingPurgeItem" />
     <WarmDocumentViewer
+      v-if="viewerOpen"
       v-model:visible="viewerOpen"
       :items="trashViewerItems"
       :initial-item-id="viewerInitialItemId"

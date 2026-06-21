@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
+import { computed } from 'vue'
 import WarmDrawingBreadcrumb from './WarmDrawingBreadcrumb.vue'
 import WarmProductDrawingHome from './WarmProductDrawingHome.vue'
-import WarmDocumentViewer from '@/components/viewer/WarmDocumentViewer.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DocumentViewerItem } from '@/types/document-viewer'
 
 const store = useDocumentHubStore()
-const WarmCustomerGrid = defineAsyncComponent(() => import('./WarmCustomerGrid.vue'))
-const WarmProductModelGrid = defineAsyncComponent(() => import('./WarmProductModelGrid.vue'))
-const WarmDrawingModuleGallery = defineAsyncComponent(() => import('./WarmDrawingModuleGallery.vue'))
-const WarmImageDetailViewer = defineAsyncComponent(() => import('./WarmImageDetailViewer.vue'))
-const WarmUnarchivedProductPanel = defineAsyncComponent(() => import('./WarmUnarchivedProductPanel.vue'))
+const WarmCustomerGrid = createWarmAsyncComponent(() => import('./WarmCustomerGrid.vue'), { name: 'WarmCustomerGrid' })
+const WarmProductModelGrid = createWarmAsyncComponent(() => import('./WarmProductModelGrid.vue'), { name: 'WarmProductModelGrid' })
+const WarmDrawingModuleGallery = createWarmAsyncComponent(() => import('./WarmDrawingModuleGallery.vue'), { name: 'WarmDrawingModuleGallery' })
+const WarmImageDetailViewer = createWarmAsyncComponent(() => import('./WarmImageDetailViewer.vue'), { name: 'WarmImageDetailViewer' })
+const WarmUnarchivedProductPanel = createWarmAsyncComponent(() => import('./WarmUnarchivedProductPanel.vue'), { name: 'WarmUnarchivedProductPanel' })
+const WarmDocumentViewer = createWarmAsyncComponent(() => import('@/components/viewer/WarmDocumentViewer.vue'), {
+  name: 'WarmDocumentViewer',
+  label: '正在加载资料查看器...',
+})
 const viewerItems = computed<DocumentViewerItem[]>(() => store.selectedModule?.items ?? [])
 </script>
 
@@ -25,6 +29,7 @@ const viewerItems = computed<DocumentViewerItem[]>(() => store.selectedModule?.i
     <WarmDrawingModuleGallery v-else-if="store.drawingViewLevel === 'module'" />
     <WarmImageDetailViewer v-else />
     <WarmDocumentViewer
+      v-if="store.documentViewerOpen"
       v-model:visible="store.documentViewerOpen"
       :items="viewerItems"
       :initial-item-id="store.documentViewerInitialItemId"

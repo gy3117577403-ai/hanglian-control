@@ -3,14 +3,21 @@ import { computed } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-vue-next'
 import WarmOrderCard from './WarmOrderCard.vue'
-import WarmOrderImportDialog from './WarmOrderImportDialog.vue'
-import WarmOrderProductLinkDialog from './WarmOrderProductLinkDialog.vue'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { OrderProductionStatus, OrderScope, ProductionOrder } from '@/types/order-management'
 
 const store = useDocumentHubStore()
 const confirm = useConfirm()
 const customerToneNames = ['tone-amber', 'tone-teal', 'tone-sage', 'tone-rose', 'tone-violet', 'tone-gold']
+const WarmOrderImportDialog = createWarmAsyncComponent(() => import('./WarmOrderImportDialog.vue'), {
+  name: 'WarmOrderImportDialog',
+  label: '正在加载订单导入...',
+})
+const WarmOrderProductLinkDialog = createWarmAsyncComponent(() => import('./WarmOrderProductLinkDialog.vue'), {
+  name: 'WarmOrderProductLinkDialog',
+  label: '正在加载产品匹配...',
+})
 
 const activeOrders = computed(() => store.visibleActiveScopeOrders)
 const todayCount = computed(() => store.visibleTodayOrders.length)
@@ -189,8 +196,8 @@ function openImport() {
       </section>
     </div>
 
-    <WarmOrderImportDialog />
-    <WarmOrderProductLinkDialog />
+    <WarmOrderImportDialog v-if="store.orderImportOpen" />
+    <WarmOrderProductLinkDialog v-if="store.pendingProductLinkOrder" />
   </aside>
 </template>
 

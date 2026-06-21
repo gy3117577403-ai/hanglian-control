@@ -2,15 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { AlertTriangle, FileText, Info, X } from 'lucide-vue-next'
 import WarmDocumentActionMenu from '@/components/drawing/WarmDocumentActionMenu.vue'
-import WarmEditDocumentDialog from '@/components/drawing/WarmEditDocumentDialog.vue'
-import WarmSetEffectiveDialog from '@/components/drawing/WarmSetEffectiveDialog.vue'
-import WarmImageViewer from './WarmImageViewer.vue'
-import WarmPdfViewer from './WarmPdfViewer.vue'
-import WarmThumbnailRail from './WarmThumbnailRail.vue'
 import WarmViewerToolbar from './WarmViewerToolbar.vue'
-import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
 import { useDocumentViewer } from '@/composables/use-document-viewer'
 import { resolveDocumentDownloadUrl } from '@/lib/document-preview-url'
+import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { DrawingItem, DrawingModule } from '@/types/production'
 import type { DocumentViewerItem, PdfDocumentProxy, PdfDocumentReadyPayload } from '@/types/document-viewer'
@@ -43,6 +38,30 @@ const moveToTrashOpen = ref(false)
 const actionItem = ref<DrawingItem | null>(null)
 const actionModule = ref<DrawingModule | null>(null)
 let bodyLocked = false
+const WarmThumbnailRail = createWarmAsyncComponent(() => import('./WarmThumbnailRail.vue'), {
+  name: 'WarmThumbnailRail',
+  label: '正在加载缩略图...',
+})
+const WarmPdfViewer = createWarmAsyncComponent(() => import('./WarmPdfViewer.vue'), {
+  name: 'WarmPdfViewer',
+  label: '正在加载 PDF 查看器...',
+})
+const WarmImageViewer = createWarmAsyncComponent(() => import('./WarmImageViewer.vue'), {
+  name: 'WarmImageViewer',
+  label: '正在加载图片查看器...',
+})
+const WarmEditDocumentDialog = createWarmAsyncComponent(() => import('@/components/drawing/WarmEditDocumentDialog.vue'), {
+  name: 'WarmEditDocumentDialog',
+  label: '正在加载资料编辑...',
+})
+const WarmSetEffectiveDialog = createWarmAsyncComponent(() => import('@/components/drawing/WarmSetEffectiveDialog.vue'), {
+  name: 'WarmSetEffectiveDialog',
+  label: '正在加载版本设置...',
+})
+const WarmMoveToTrashDialog = createWarmAsyncComponent(() => import('@/components/trash/WarmMoveToTrashDialog.vue'), {
+  name: 'WarmMoveToTrashDialog',
+  label: '正在加载删除确认...',
+})
 
 const activeItem = computed(() => viewer.activeItem.value)
 const activeDrawingItem = computed(() => activeItem.value as DrawingItem | null)
@@ -465,16 +484,19 @@ onBeforeUnmount(() => {
         {{ fullscreenError || downloadError || viewer.state.error }}
       </p>
       <WarmMoveToTrashDialog
+        v-if="moveToTrashOpen"
         v-model:visible="moveToTrashOpen"
         :item="actionItem"
         :module="actionModule"
       />
       <WarmEditDocumentDialog
+        v-if="editDialogOpen"
         v-model:visible="editDialogOpen"
         :item="actionItem"
         :module="actionModule"
       />
       <WarmSetEffectiveDialog
+        v-if="effectiveDialogOpen"
         v-model:visible="effectiveDialogOpen"
         :item="actionItem"
         :module="actionModule"
