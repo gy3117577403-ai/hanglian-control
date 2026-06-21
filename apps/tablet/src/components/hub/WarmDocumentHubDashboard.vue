@@ -51,7 +51,7 @@ function openDrawingTrash() {
   --glass-shadow: rgba(72, 39, 18, 0.2);
   --glass-green: rgba(92, 145, 139, 0.28);
   --glass-amber: rgba(213, 125, 52, 0.08);
-  --order-column-width: 238px;
+  --order-column-width: 282px;
   isolation: isolate;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -132,7 +132,7 @@ function openDrawingTrash() {
 
 @media (max-width: 1320px) {
   .document-hub-shell {
-    --order-column-width: 226px;
+    --order-column-width: 272px;
     padding: 9px;
   }
 

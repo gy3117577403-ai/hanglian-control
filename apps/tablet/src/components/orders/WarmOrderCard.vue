@@ -44,6 +44,19 @@ function bindingState(order: ProductionOrder) {
         <FileSearch :size="17" />
         <span>{{ order.productModel }}</span>
       </button>
+      <b class="quantity-chip">{{ quantityText(order) }}</b>
+    </div>
+
+    <div class="card-meta">
+      <span class="customer-name" :title="order.customerName || '客户待确认'">
+        <i aria-hidden="true"></i>
+        {{ order.customerName || '客户待确认' }}
+      </span>
+      <span class="binding" :class="bindingState(order).className">
+        <Link2 v-if="order.productResolutionStatus === 'found'" :size="13" />
+        <Link2Off v-else :size="13" />
+        资料：{{ bindingState(order).label }}
+      </span>
       <button
         v-if="order.productResolutionStatus === 'ambiguous'"
         class="link-button"
@@ -56,18 +69,13 @@ function bindingState(order: ProductionOrder) {
       </button>
     </div>
 
-    <p class="card-meta">
-      <i aria-hidden="true"></i>
-      <span :title="order.customerName || '客户待确认'">{{ order.customerName || '客户待确认' }}</span>
-      <b>{{ quantityText(order) }}</b>
-    </p>
-
-    <div class="card-state">
-      <span class="binding" :class="bindingState(order).className">
-        <Link2 v-if="order.productResolutionStatus === 'found'" :size="13" />
-        <Link2Off v-else :size="13" />
-        {{ bindingState(order).label }}
-      </span>
+    <div class="card-actions">
+      <WarmOrderStatusMenu
+        class="status-slot"
+        :order="order"
+        :loading="loading"
+        @change="(status) => emit('status-change', order, status)"
+      />
       <PrimeButton
         class="complete-button"
         severity="success"
@@ -80,12 +88,6 @@ function bindingState(order: ProductionOrder) {
         <span>完成</span>
       </PrimeButton>
     </div>
-
-    <WarmOrderStatusMenu
-      :order="order"
-      :loading="loading"
-      @change="(status) => emit('status-change', order, status)"
-    />
   </article>
 </template>
 
@@ -94,13 +96,14 @@ function bindingState(order: ProductionOrder) {
   position: relative;
   isolation: isolate;
   display: grid;
-  gap: 7px;
-  contain: layout paint style;
+  grid-template-rows: auto auto auto;
+  gap: 9px;
   width: 100%;
   min-width: 0;
-  min-height: 132px;
+  min-height: 146px;
   box-sizing: border-box;
-  padding: 9px 9px 9px 11px;
+  overflow: visible;
+  padding: 10px 10px 11px 12px;
   border: 1px solid rgba(255, 255, 255, 0.92);
   border-radius: 15px;
   background:
@@ -156,12 +159,24 @@ function bindingState(order: ProductionOrder) {
 }
 
 .card-top,
-.card-state {
+.card-meta,
+.card-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
   min-width: 0;
+}
+
+.card-meta {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+
+.card-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
 }
 
 .model-button,
@@ -183,7 +198,7 @@ function bindingState(order: ProductionOrder) {
 }
 
 .model-button span,
-.card-meta span {
+.customer-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -204,19 +219,17 @@ function bindingState(order: ProductionOrder) {
   cursor: not-allowed;
 }
 
-.card-meta {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
+.customer-name {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 5px;
   align-items: center;
-  min-width: 0;
-  margin: -2px 0 0 21px;
   color: #7d542b;
   font-size: 10px;
   font-weight: 850;
 }
 
-.card-meta i {
+.customer-name i {
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -224,11 +237,11 @@ function bindingState(order: ProductionOrder) {
   box-shadow: 0 0 10px color-mix(in srgb, var(--customer-accent) 42%, transparent);
 }
 
-.card-meta b,
+.quantity-chip,
 .binding {
   flex: none;
   justify-self: end;
-  padding: 3px 6px;
+  padding: 4px 7px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.56);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
@@ -244,6 +257,9 @@ function bindingState(order: ProductionOrder) {
   grid-auto-flow: column;
   gap: 4px;
   align-items: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .binding.bound {
@@ -264,10 +280,16 @@ function bindingState(order: ProductionOrder) {
 
 .complete-button {
   flex-shrink: 0;
-  min-width: 72px;
-  min-height: 36px;
+  width: 82px;
+  min-width: 82px;
+  min-height: 40px;
+  max-height: 42px;
   border-radius: 12px;
   font-weight: 950;
+}
+
+.status-slot {
+  min-width: 0;
 }
 
 .tone-amber {

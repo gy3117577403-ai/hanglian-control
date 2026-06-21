@@ -206,8 +206,13 @@ requireIncludes(
 );
 requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  'overflow: visible',
+  'Order cards must not clip status controls.',
+);
+requireNotIncludes(
+  'apps/tablet/src/components/orders/WarmOrderCard.vue',
   'contain: layout paint style',
-  'Order cards should keep paint containment for smoother tablet scrolling.',
+  'Order cards must not use paint containment that can clip status controls.',
 );
 requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderCard.vue',

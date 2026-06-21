@@ -37,28 +37,41 @@ function selectStatus(status: OrderProductionStatus) {
   if (status === props.order.productionStatus || optionDisabled(status)) return
   emit('change', status)
 }
+
+function handleSelect(event: Event) {
+  const target = event.target as HTMLSelectElement
+  selectStatus(target.value as OrderProductionStatus)
+  target.value = props.order.productionStatus
+}
 </script>
 
 <template>
   <div class="order-status-menu" :class="current.className">
-    <div class="status-current">
-      <ArrowUpToLine v-if="order.productionStatus === 'front'" :size="14" />
-      <ArrowDownToLine v-else-if="order.productionStatus === 'back'" :size="14" />
-      <Ban v-else :size="14" />
-      <span>{{ current.label }}</span>
-    </div>
-    <div class="status-actions" role="group" aria-label="订单状态切换">
-      <button
-        v-for="option in options"
-        :key="option.value"
-        type="button"
-        :class="[option.className, { active: option.value === order.productionStatus }]"
-        :disabled="optionDisabled(option.value)"
-        :title="optionDisabled(option.value) ? disabledReason : option.label"
-        @click="selectStatus(option.value)"
-      >
-        {{ option.label }}
-      </button>
+    <div class="status-line">
+      <div class="status-current" :title="disabledReason || `生产：${current.label}`">
+        <ArrowUpToLine v-if="order.productionStatus === 'front'" :size="14" />
+        <ArrowDownToLine v-else-if="order.productionStatus === 'back'" :size="14" />
+        <Ban v-else :size="14" />
+        <span>生产：{{ current.label }}</span>
+      </div>
+      <label class="status-switch" :title="disabledReason || '切换生产状态'">
+        <span>切换</span>
+        <select
+          :value="order.productionStatus"
+          :disabled="loading || Boolean(disabledReason)"
+          aria-label="切换生产状态"
+          @change="handleSelect"
+        >
+          <option
+            v-for="option in options"
+            :key="option.value"
+            :value="option.value"
+            :disabled="optionDisabled(option.value)"
+          >
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
     </div>
     <p v-if="disabledReason" class="status-hint">
       <AlertTriangle :size="13" />
@@ -70,12 +83,21 @@ function selectStatus(status: OrderProductionStatus) {
 <style scoped>
 .order-status-menu {
   display: grid;
-  gap: 5px;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.status-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
   min-width: 0;
 }
 
 .status-current,
-.status-actions button {
+.status-switch {
   display: inline-grid;
   grid-auto-flow: column;
   gap: 4px;
@@ -89,46 +111,58 @@ function selectStatus(status: OrderProductionStatus) {
 }
 
 .status-current {
-  padding: 0 8px;
+  min-width: 0;
+  justify-content: start;
+  padding: 0 9px;
+}
+
+.status-current span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .front .status-current,
-.status-actions .front.active {
+.front .status-switch {
   background: rgba(32, 145, 142, 0.15);
   color: #14746f;
 }
 
 .back .status-current,
-.status-actions .back.active {
+.back .status-switch {
   background: rgba(220, 115, 38, 0.16);
   color: #a34f1f;
 }
 
 .no-drawing .status-current,
-.status-actions .no-drawing.active {
+.no-drawing .status-switch {
   background: rgba(174, 71, 60, 0.15);
   color: #9b3d32;
 }
 
-.status-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.status-actions button {
-  min-width: 0;
-  min-height: 34px;
-  padding: 0 5px;
+.status-switch {
+  min-width: 64px;
+  min-height: 30px;
+  padding: 0 6px;
   border: 1px solid rgba(255, 255, 255, 0.68);
-  background: rgba(255, 255, 255, 0.34);
-  color: #6a4726;
-  cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
-.status-actions button:disabled {
-  opacity: 0.45;
+.status-switch select {
+  width: 18px;
+  min-width: 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.status-switch:has(select:disabled),
+.status-switch select:disabled {
+  opacity: 0.58;
+}
+
+.status-switch select:disabled {
   cursor: not-allowed;
 }
 
@@ -140,8 +174,14 @@ function selectStatus(status: OrderProductionStatus) {
   min-width: 0;
   margin: 0;
   color: #9b3d32;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 850;
-  line-height: 1.35;
+  line-height: 1.25;
+}
+
+.status-hint span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

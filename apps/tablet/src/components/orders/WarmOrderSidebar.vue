@@ -137,11 +137,13 @@ function openImport() {
             <ChevronLeft :size="18" />
           </PrimeButton>
         </div>
-        <p class="sidebar-subtitle">点型号直接打开图纸资料</p>
-        <PrimeButton class="import-button" title="导入订单" aria-label="导入订单" @click="openImport">
-          <FileSpreadsheet :size="17" />
-          <span>导入订单</span>
-        </PrimeButton>
+        <div class="subtitle-row">
+          <p class="sidebar-subtitle">点型号直接打开图纸资料</p>
+          <PrimeButton class="import-button" title="导入订单" aria-label="导入订单" @click="openImport">
+            <FileSpreadsheet :size="15" />
+            <span>导入订单</span>
+          </PrimeButton>
+        </div>
       </div>
 
       <div class="scope-tabs" role="tablist" aria-label="订单范围">
@@ -286,13 +288,13 @@ function openImport() {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto;
   gap: 8px;
   align-items: start;
   min-width: 0;
-  min-height: 118px;
-  max-height: 150px;
-  margin-bottom: 9px;
+  min-height: 84px;
+  max-height: 96px;
+  margin-bottom: 8px;
   color: #9b5125;
 }
 
@@ -347,6 +349,14 @@ function openImport() {
   -webkit-line-clamp: 2;
 }
 
+.subtitle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
 .collapse-button {
   flex-shrink: 0;
   align-self: start;
@@ -357,21 +367,24 @@ function openImport() {
 
 .import-button {
   justify-content: center;
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  gap: 6px;
-  border-radius: 14px;
-  color: #fff8ec;
+  width: 104px;
+  min-width: 96px;
+  max-width: 112px;
+  min-height: 38px;
+  max-height: 42px;
+  gap: 5px;
+  border-radius: 12px;
+  color: #8f4a22;
+  font-size: 12px;
   font-weight: 950;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.09) 46%),
-    linear-gradient(145deg, rgba(229, 127, 50, 0.72), rgba(176, 78, 30, 0.62)),
-    rgba(255, 255, 255, 0.16);
+    linear-gradient(125deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.16) 54%),
+    rgba(255, 248, 238, 0.62);
+  border: 1px solid rgba(216, 137, 53, 0.28);
   box-shadow:
-    0 16px 26px rgba(141, 68, 22, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.66),
-    inset 0 -12px 22px rgba(101, 43, 16, 0.14);
+    0 8px 14px rgba(141, 68, 22, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -7px 12px rgba(207, 117, 42, 0.08);
 }
 
 .import-button span {
@@ -383,11 +396,12 @@ function openImport() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
 
 .scope-tabs button {
-  min-height: 44px;
+  min-height: 40px;
+  max-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.34);
@@ -482,11 +496,12 @@ function openImport() {
 .order-list {
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 11px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 3px;
+  padding-bottom: 22px;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
 }
