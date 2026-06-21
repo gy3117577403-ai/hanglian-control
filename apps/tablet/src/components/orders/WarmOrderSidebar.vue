@@ -495,13 +495,15 @@ function openImport() {
 
 .order-list {
   display: grid;
+  flex: 1;
   align-content: start;
-  gap: 11px;
+  gap: 12px;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   padding-right: 3px;
-  padding-bottom: 22px;
+  padding-bottom: 24px;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
 }
