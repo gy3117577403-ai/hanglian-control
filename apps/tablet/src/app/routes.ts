@@ -15,6 +15,30 @@ export const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/tablet/drawings/customers/:customerId',
+      name: 'tablet-drawing-customer',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/products/:productId',
+      name: 'tablet-drawing-product',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/products/:productId/modules/:moduleKey',
+      name: 'tablet-drawing-module',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/products/:productId/modules/:moduleKey/items/:itemId',
+      name: 'tablet-drawing-item',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/login',
       name: 'warm-login',
       component: () => import('@/views/WarmLoginView.vue'),

@@ -129,7 +129,7 @@ async function openProduct(productId: string) {
     ?? (store.productDrawingDetail?.product.productId === productId ? store.productDrawingDetail.product : null)
   if (!product) return
   visible.value = false
-  await store.openProduct(product, 'drawing')
+  await store.openProduct(product, 'pdf_import_result')
 }
 </script>
 

@@ -107,6 +107,9 @@ const uploadPhasePrefixes = [
   'apps/tablet/src/components/viewer/',
   'apps/tablet/src/composables/',
 ];
+const drawingSearchPrefixes = [
+  'apps/tablet/src/components/search/',
+];
 
 assert(header.includes("'open-pdf-import'"), 'Header should emit open-pdf-import.');
 assert(header.includes("store.activeMode === 'drawing'"), 'PDF import entry should only show in drawing mode.');
@@ -173,15 +176,27 @@ const allowedChanges = new Set([
   paths.result,
   'scripts/pdf-import-ui-check.mjs',
   'scripts/pdf-import-frontend-state-check.mjs',
+  'apps/api/src/document-hub/dto/drawing-search.dto.ts',
+  'apps/tablet/src/app/routes.ts',
+  'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
+  'apps/tablet/src/lib/drawing-routes.ts',
+  'apps/tablet/src/stores/drawing-navigation-store.ts',
+  'apps/tablet/src/types/drawing-search.ts',
+  'scripts/document-lifecycle-ui-check.mjs',
+  'scripts/order-frontend-state-check.mjs',
+  'scripts/drawing-search-backend-check.mjs',
+  'scripts/drawing-search-ui-check.mjs',
+  'scripts/drawing-navigation-check.mjs',
   ...uploadPhasePaths,
   paths.packageJson,
 ]);
 for (const file of changed) {
   const allowedByPrefix = uploadPhasePrefixes.some((prefix) => file.startsWith(prefix));
-  assert(allowedChanges.has(file) || allowedByPrefix, `Unexpected changed file: ${file}`);
+  const allowedBySearchPrefix = drawingSearchPrefixes.some((prefix) => file.startsWith(prefix));
+  assert(allowedChanges.has(file) || allowedByPrefix || allowedBySearchPrefix, `Unexpected changed file: ${file}`);
 }
-assert(!changed.some((file) => file.startsWith('apps/api/') && !uploadPhasePaths.includes(file)), 'Unexpected backend files must remain unchanged.');
-assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file)), 'Unexpected Prisma files must remain unchanged.');
+assert(!changed.some((file) => file.startsWith('apps/api/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected backend files must remain unchanged.');
+assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected Prisma files must remain unchanged.');
 assert(!changed.some((file) => file.includes('/connector/')), 'Connector components must remain unchanged.');
 assert(!changed.some((file) => file.includes('/fixture/')), 'Fixture components must remain unchanged.');
 assert(packageJson.includes('"pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs"'), 'Root package.json should expose pdf-import-ui:check.');

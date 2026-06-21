@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Mic, Search, X } from 'lucide-vue-next'
+import WarmDrawingSearchResults from '@/components/search/WarmDrawingSearchResults.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const root = ref<HTMLElement | null>(null)
 
 function simulateVoiceQuery() {
   store.searchKeyword = store.activeMode === 'drawing'
@@ -10,40 +13,79 @@ function simulateVoiceQuery() {
     : store.activeMode === 'connector'
       ? 'CONN-16P'
       : 'JIG-HL'
+  store.setSearchQuery(store.searchKeyword, { debounce: false })
   void store.searchCurrentMode()
 }
 
 function clearSearch() {
-  store.searchKeyword = ''
+  store.clearSearch()
+}
+
+function submitSearch() {
   void store.searchCurrentMode()
 }
+
+function handleEscape() {
+  if (store.searchOpen) {
+    store.closeSearchResults()
+    return
+  }
+  clearSearch()
+}
+
+function onDocumentPointerDown(event: PointerEvent) {
+  const target = event.target as Node | null
+  if (target && root.value?.contains(target)) return
+  store.closeSearchResults()
+}
+
+watch(() => store.searchKeyword, (value) => {
+  store.setSearchQuery(value)
+})
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+})
 </script>
 
 <template>
-  <form class="hub-search" @submit.prevent="store.searchCurrentMode()" @keydown.esc.prevent="clearSearch">
-    <Search :size="21" />
-    <PrimeInputText v-model="store.searchKeyword" :placeholder="store.currentSearchPlaceholder" />
-    <PrimeButton
-      v-if="store.searchKeyword"
-      class="clear-button"
-      severity="secondary"
-      text
-      type="button"
-      title="清空搜索"
-      aria-label="清空搜索"
-      @click="clearSearch"
-    >
-      <X :size="16" />
-    </PrimeButton>
-    <PrimeButton class="voice-button" severity="secondary" outlined type="button" title="语音输入" @click="simulateVoiceQuery">
-      <Mic :size="17" />
-      <span>按住说话</span>
-    </PrimeButton>
-    <PrimeButton label="搜索" type="submit" />
-  </form>
+  <div ref="root" class="hub-search-shell">
+    <form class="hub-search" @submit.prevent="submitSearch" @keydown.esc.prevent="handleEscape" @focusin="store.openSearchPanel()">
+      <Search :size="21" />
+      <PrimeInputText v-model="store.searchKeyword" :placeholder="store.currentSearchPlaceholder" />
+      <PrimeButton
+        v-if="store.searchKeyword"
+        class="clear-button"
+        severity="secondary"
+        text
+        type="button"
+        title="清空搜索"
+        aria-label="清空搜索"
+        @click="clearSearch"
+      >
+        <X :size="16" />
+      </PrimeButton>
+      <PrimeButton class="voice-button" severity="secondary" outlined type="button" title="语音输入" @click="simulateVoiceQuery">
+        <Mic :size="17" />
+        <span>按住说话</span>
+      </PrimeButton>
+      <PrimeButton label="搜索" type="submit" />
+    </form>
+    <WarmDrawingSearchResults v-if="store.activeMode === 'drawing' && store.searchOpen" />
+  </div>
 </template>
 
 <style scoped>
+.hub-search-shell {
+  position: relative;
+  z-index: 45;
+  min-width: 0;
+}
+
 .hub-search {
   position: relative;
   isolation: isolate;

@@ -171,9 +171,20 @@ assert(unarchivedPanel.includes('数量未填写'), '未建档引导页也应避
 
 const allowed = new Set([
   ...Object.values(files),
+  'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/drawing-search.dto.ts',
   'apps/api/src/document-hub/order-metadata.store.ts',
+  'apps/tablet/src/app/routes.ts',
+  'apps/tablet/src/components/drawing/WarmPdfImportDialog.vue',
   'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
   'apps/tablet/src/components/hub/WarmHubHeader.vue',
+  'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
+  'apps/tablet/src/components/search/WarmDrawingSearchResults.vue',
+  'apps/tablet/src/components/search/WarmDrawingSearchResultItem.vue',
+  'apps/tablet/src/lib/drawing-routes.ts',
+  'apps/tablet/src/stores/drawing-navigation-store.ts',
+  'apps/tablet/src/types/drawing-search.ts',
   'apps/tablet/src/components/orders/WarmOrderImportDialog.vue',
   'apps/tablet/src/components/orders/WarmOrderImportFilePanel.vue',
   'apps/tablet/src/components/orders/WarmOrderImportPreview.vue',
@@ -184,11 +195,24 @@ const allowed = new Set([
   'scripts/order-import-ui-check.mjs',
   'scripts/order-overview-ui-check.mjs',
   'scripts/order-sidebar-layout-check.mjs',
+  'scripts/camera-upload-check.mjs',
+  'scripts/pdf-import-ui-check.mjs',
+  'scripts/document-home-preview-check.mjs',
+  'scripts/document-lifecycle-ui-check.mjs',
+  'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
+  'scripts/drawing-search-backend-check.mjs',
+  'scripts/drawing-search-ui-check.mjs',
+  'scripts/drawing-navigation-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
 ]);
+const allowedPrefixes = [
+  'apps/tablet/src/components/search/',
+];
 for (const file of changedFiles()) {
-  assert(allowed.has(file), `出现非本轮允许修改文件：${file}`);
-  assert(!file.startsWith('apps/api/') || file === 'apps/api/src/document-hub/order-metadata.store.ts', `不允许修改后端文件：${file}`);
+  const isAllowed = allowed.has(file) || allowedPrefixes.some((prefix) => file.startsWith(prefix));
+  assert(isAllowed, `出现非本轮允许修改文件：${file}`);
+  assert(!file.startsWith('apps/api/') || isAllowed, `不允许修改后端文件：${file}`);
   assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
   assert(!file.includes('/connector/') && !file.includes('/fixture/'), `不允许修改连接器或治具文件：${file}`);
 }

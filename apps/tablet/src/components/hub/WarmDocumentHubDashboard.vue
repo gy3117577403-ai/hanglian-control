@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import WarmHubContent from './WarmHubContent.vue'
 import WarmHubHeader from './WarmHubHeader.vue'
 import WarmHubUploadDialog from './WarmHubUploadDialog.vue'
@@ -13,10 +14,15 @@ import WarmDrawingTrashDialog from '@/components/trash/WarmDrawingTrashDialog.vu
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const route = useRoute()
 const networkDiagnosticsOpen = ref(false)
 
 onMounted(() => {
   void store.initialize()
+})
+
+watch(() => route.fullPath, () => {
+  void store.restoreDrawingRouteFromCurrentUrl('direct_url')
 })
 
 function openDrawingTrash() {

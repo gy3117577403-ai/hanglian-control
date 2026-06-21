@@ -27,7 +27,7 @@ import { FixtureQueryDto } from './dto/fixture-query.dto';
 import { OrderImportApplyDto, OrderImportPreviewFormDto } from './dto/order-import.dto';
 import { LinkOrderProductDto, RestoreOrderDto, UpdateOrderStatusDto } from './dto/order-maintenance.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
-import { HubSearchQueryDto } from './dto/search-query.dto';
+import { DrawingSearchQueryDto } from './dto/drawing-search.dto';
 import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
 import { ResolveDrawingProductDto } from './dto/resolve-drawing-product.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
@@ -457,7 +457,7 @@ export class DocumentHubController {
 
   @Get('search')
   @ApiOperation({ summary: '当前功能范围搜索：drawing / connector / fixture' })
-  search(@Query() query: HubSearchQueryDto) {
+  search(@Query() query: DrawingSearchQueryDto): Promise<unknown> {
     return this.documentHubService.search(query);
   }
 }

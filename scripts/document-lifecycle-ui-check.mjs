@@ -139,6 +139,7 @@ const allowedBackendChanges = new Set([
   'apps/api/src/document-hub/document-version.service.ts',
   'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
   'apps/api/src/document-hub/dto/document-metadata.dto.ts',
+  'apps/api/src/document-hub/dto/drawing-search.dto.ts',
   'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
 ])
 check('no backend source changes in working tree', !changed.some((file) => file.startsWith('apps/api/src/') && !allowedBackendChanges.has(file)))

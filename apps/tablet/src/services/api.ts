@@ -166,6 +166,7 @@ import type {
   DrawingDocumentOperatorPayload,
   DrawingDocumentVersionResponse,
 } from '@/types/document-version'
+import type { DrawingSearchResponse, ScopedHubSearchResponse } from '@/types/drawing-search'
 
 const API_BASE = getApiBaseUrl()
 
@@ -1303,7 +1304,7 @@ export function resolveHubDrawingProduct(query: ResolveDrawingProductQuery) {
 }
 
 export function getHubProductDetail(productId: string) {
-  return api<ProductDrawingDetail>(`/document-hub/drawings/products/${productId}`)
+  return api<ProductDrawingDetail>(`/document-hub/drawings/products/${encodeURIComponent(productId)}`)
 }
 
 export const getDrawingCustomers = getHubCustomers
@@ -1560,6 +1561,14 @@ export function getHubFixture(id: string) {
   return api<FixtureParameter>(`/document-hub/fixtures/${id}`)
 }
 
+export function searchDocumentHub(mode: HubMode, query: string, options: { limit?: number } = {}) {
+  const params = new URLSearchParams()
+  params.set('mode', mode)
+  if (query) params.set('q', query)
+  if (options.limit) params.set('limit', String(options.limit))
+  return api<DrawingSearchResponse | ScopedHubSearchResponse>(`/document-hub/search?${params.toString()}`)
+}
+
 export function searchHub(mode: HubMode, q: string) {
-  return api('/document-hub/search', { query: { mode, q } })
+  return searchDocumentHub(mode, q)
 }

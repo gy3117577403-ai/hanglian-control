@@ -31,7 +31,7 @@ import { OrderImportApplyDto, OrderImportPreviewFormDto } from './dto/order-impo
 import { LinkOrderProductDto, RestoreOrderDto, UpdateOrderStatusDto } from './dto/order-maintenance.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { ResolveDrawingProductDto } from './dto/resolve-drawing-product.dto';
-import { HubSearchQueryDto } from './dto/search-query.dto';
+import { DrawingSearchQueryDto } from './dto/drawing-search.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
 import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
@@ -71,6 +71,19 @@ function clone<T>(value: T): T {
 
 function includes(value: unknown, q: string) {
   return String(value ?? '').toLowerCase().includes(q);
+}
+
+function normalizeSearchQuery(value: unknown) {
+  return cleanText(String(value ?? '')).toLowerCase();
+}
+
+function normalizeSearchProductModel(value: unknown) {
+  return cleanText(String(value ?? '')).toUpperCase().replace(/\s+/g, '');
+}
+
+function isSoftDeletedEntity(value: unknown) {
+  const item = value as { deleted?: boolean; deletedAt?: string | null } | null | undefined;
+  return Boolean(item?.deleted || item?.deletedAt);
 }
 
 function parseBoolean(value?: string) {
@@ -140,6 +153,54 @@ function connectorImportValue(row: Map<string, string>, aliases: string[]) {
 
 type ConnectorImportStrategy = 'review' | 'skip' | 'overwrite';
 type ConnectorImportAction = 'created' | 'updated' | 'skipped' | 'conflict' | 'error';
+
+type DrawingSearchResultType = 'customer' | 'product' | 'document';
+
+interface DrawingSearchResultBase {
+  resultType: DrawingSearchResultType;
+  title: string;
+  subtitle: string;
+  matchedText: string;
+  score: number;
+}
+
+interface DrawingCustomerSearchResult extends DrawingSearchResultBase {
+  resultType: 'customer';
+  customerId: string;
+  customerName: string;
+  customerShortName: string;
+  productCount: number;
+}
+
+interface DrawingProductSearchResult extends DrawingSearchResultBase {
+  resultType: 'product';
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productModel: string;
+  productName: string;
+  drawingStatus: HubProductModel['drawingStatus'];
+  uploadedModuleCount: number;
+  moduleCount: number;
+}
+
+interface DrawingDocumentSearchResult extends DrawingSearchResultBase {
+  resultType: 'document';
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productModel: string;
+  moduleKey: DrawingModuleKey;
+  moduleName: string;
+  documentId: string;
+  itemId: string;
+  documentTitle: string;
+  version: string;
+  contentKind: DrawingItem['contentKind'] | DrawingItem['fileType'];
+  previewAvailable: boolean;
+}
+
+type DrawingSearchResult = DrawingCustomerSearchResult | DrawingProductSearchResult | DrawingDocumentSearchResult;
 
 interface ConnectorImportIssue {
   field: string;
@@ -1144,31 +1205,195 @@ export class DocumentHubService implements OnModuleInit {
     return fixture;
   }
 
-  async search(query: HubSearchQueryDto) {
-    const q = query.q?.trim().toLowerCase() ?? '';
-    if (query.mode === 'connector') return { mode: query.mode, items: this.getConnectors({ q }) };
-    if (query.mode === 'fixture') return { mode: query.mode, items: this.getFixtures({ q }) };
-    const details = await Promise.all(
-      this.drawingMetadataStore.readDetails().map((detail) => this.withUploadedDocuments(this.withCurrentDrawingMetadata(detail))),
-    );
-    const items = details.flatMap((detail) => {
-      const customer = detail.customer;
+  async search(query: DrawingSearchQueryDto): Promise<unknown> {
+    const mode = query.mode ?? 'drawing';
+    const q = normalizeSearchQuery(query.q);
+    if (mode === 'connector') return { mode, items: this.getConnectors({ q }) };
+    if (mode === 'fixture') return { mode, items: this.getFixtures({ q }) };
+    return this.searchDrawings(q, query.limit);
+  }
+
+  private async searchDrawings(q: string, rawLimit?: string) {
+    const limit = this.normalizeSearchLimit(rawLimit);
+    const emptyGroups = { customers: [], products: [], documents: [] } as {
+      customers: DrawingCustomerSearchResult[];
+      products: DrawingProductSearchResult[];
+      documents: DrawingDocumentSearchResult[];
+    };
+    if (!q) {
+      return { mode: 'drawing', query: '', total: 0, groups: emptyGroups, results: [] };
+    }
+
+    const activeCustomers = this.drawingMetadataStore
+      .readCustomers()
+      .filter((customer) => !isSoftDeletedEntity(customer));
+    const activeProducts = this.drawingMetadataStore
+      .readProducts()
+      .filter((product) => !isSoftDeletedEntity(product));
+    const customerById = new Map(activeCustomers.map((customer) => [customer.customerId, customer]));
+    const productsByCustomer = activeProducts.reduce<Map<string, HubProductModel[]>>((acc, product) => {
+      const rows = acc.get(product.customerId) ?? [];
+      rows.push(product);
+      acc.set(product.customerId, rows);
+      return acc;
+    }, new Map());
+    const details = await Promise.all(activeProducts.map(async (product) => {
+      const detail = this.findDrawingDetail(product.productId);
+      if (!detail) return undefined;
+      return this.withUploadedDocuments(this.withCurrentDrawingMetadata(detail));
+    }));
+
+    const results: DrawingSearchResult[] = [];
+    const seenCustomers = new Set<string>();
+    const seenProducts = new Set<string>();
+    const seenDocuments = new Set<string>();
+
+    for (const customer of activeCustomers) {
+      const score = this.scoreCustomerSearch(customer, q);
+      if (!score || seenCustomers.has(customer.customerId)) continue;
+      seenCustomers.add(customer.customerId);
+      results.push({
+        resultType: 'customer',
+        title: customer.customerName,
+        subtitle: customer.customerShortName,
+        matchedText: score.matchedText,
+        score: score.score,
+        customerId: customer.customerId,
+        customerName: customer.customerName,
+        customerShortName: customer.customerShortName,
+        productCount: productsByCustomer.get(customer.customerId)?.length ?? 0,
+      });
+    }
+
+    for (const detail of details.filter((item): item is ProductDrawingDetail => Boolean(item))) {
       const product = detail.product;
-      const matched = !q || [
-        customer?.customerName,
-        customer?.customerShortName,
-        product.productModel,
-        product.productName,
-        product.remark,
-        ...detail.modules.flatMap((module) => [
-          module.moduleName,
-          module.remark,
-          ...module.items.flatMap((item) => [item.title, item.fileName, item.remark, item.version]),
-        ]),
-      ].some((value) => includes(value, q));
-      return matched ? [{ type: 'drawing-product', customer, product, modules: detail.modules }] : [];
-    });
-    return { mode: query.mode, items };
+      const customer = detail.customer ?? customerById.get(product.customerId);
+      if (!customer || isSoftDeletedEntity(customer) || isSoftDeletedEntity(product)) continue;
+      const productScore = this.scoreProductSearch(product, q);
+      if (productScore && !seenProducts.has(product.productId)) {
+        seenProducts.add(product.productId);
+        const uploadedModuleCount = detail.modules.filter((module) => module.status === 'uploaded' && module.items.some((item) => !isSoftDeletedEntity(item))).length;
+        results.push({
+          resultType: 'product',
+          title: product.productModel,
+          subtitle: `${customer.customerName} / ${product.productName}`,
+          matchedText: productScore.matchedText,
+          score: productScore.score,
+          customerId: customer.customerId,
+          customerName: customer.customerName,
+          productId: product.productId,
+          productModel: product.productModel,
+          productName: product.productName,
+          drawingStatus: product.drawingStatus,
+          uploadedModuleCount,
+          moduleCount: detail.modules.length,
+        });
+      }
+
+      for (const module of detail.modules) {
+        for (const item of module.items) {
+          if (isSoftDeletedEntity(item)) continue;
+          const documentId = item.documentId ?? item.itemId;
+          if (!documentId || seenDocuments.has(documentId)) continue;
+          const documentScore = this.scoreDocumentSearch(item, module.moduleName, q);
+          if (!documentScore) continue;
+          seenDocuments.add(documentId);
+          results.push({
+            resultType: 'document',
+            title: item.title,
+            subtitle: `${product.productModel} / ${module.moduleName}`,
+            matchedText: documentScore.matchedText,
+            score: documentScore.score,
+            customerId: customer.customerId,
+            customerName: customer.customerName,
+            productId: product.productId,
+            productModel: product.productModel,
+            moduleKey: module.moduleKey,
+            moduleName: module.moduleName,
+            documentId,
+            itemId: item.itemId,
+            documentTitle: item.title,
+            version: item.version,
+            contentKind: item.contentKind ?? item.fileType,
+            previewAvailable: Boolean(item.previewUrl),
+          });
+        }
+      }
+    }
+
+    const sorted = results
+      .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title, 'zh-Hans-CN', { numeric: true }))
+      .slice(0, limit);
+    const groups = {
+      customers: sorted.filter((item): item is DrawingCustomerSearchResult => item.resultType === 'customer'),
+      products: sorted.filter((item): item is DrawingProductSearchResult => item.resultType === 'product'),
+      documents: sorted.filter((item): item is DrawingDocumentSearchResult => item.resultType === 'document'),
+    };
+    return { mode: 'drawing', query: q, total: sorted.length, groups, results: sorted };
+  }
+
+  private normalizeSearchLimit(rawLimit?: string) {
+    const parsed = Number(rawLimit ?? 30);
+    if (!Number.isFinite(parsed)) return 30;
+    return Math.min(100, Math.max(1, Math.floor(parsed)));
+  }
+
+  private scoreCustomerSearch(customer: HubCustomer, q: string) {
+    return this.bestFieldScore(q, [
+      { value: customer.customerName, exact: 800, prefix: 760, contains: 520 },
+      { value: customer.customerShortName, exact: 760, prefix: 700, contains: 500 },
+      { value: customer.customerCode, exact: 720, prefix: 660, contains: 460 },
+      ...(customer.aliases ?? []).map((value) => ({ value, exact: 700, prefix: 640, contains: 440 })),
+    ]);
+  }
+
+  private scoreProductSearch(product: HubProductModel, q: string) {
+    const qModel = normalizeSearchProductModel(q);
+    const productModel = normalizeSearchProductModel(product.normalizedProductModel ?? product.productModel);
+    if (qModel && productModel === qModel) {
+      return { score: 1000, matchedText: product.productModel };
+    }
+    if (qModel && productModel.startsWith(qModel)) {
+      return { score: 900, matchedText: product.productModel };
+    }
+    return this.bestFieldScore(q, [
+      { value: product.productModel, exact: 880, prefix: 820, contains: 620 },
+      { value: product.normalizedProductModel, exact: 860, prefix: 800, contains: 600 },
+      { value: product.productName, exact: 700, prefix: 620, contains: 560 },
+      ...(product.searchKeywords ?? []).map((value) => ({ value, exact: 600, prefix: 540, contains: 480 })),
+      { value: product.remark, exact: 420, prefix: 360, contains: 300 },
+    ]);
+  }
+
+  private scoreDocumentSearch(item: DrawingItem, moduleName: string, q: string) {
+    return this.bestFieldScore(q, [
+      { value: item.title, exact: 650, prefix: 600, contains: 540 },
+      { value: item.fileName, exact: 560, prefix: 520, contains: 480 },
+      { value: item.version, exact: 540, prefix: 500, contains: 460 },
+      ...(item.keywords ?? []).map((value) => ({ value, exact: 520, prefix: 480, contains: 440 })),
+      { value: item.remark, exact: 360, prefix: 320, contains: 260 },
+      { value: moduleName, exact: 340, prefix: 300, contains: 240 },
+    ]);
+  }
+
+  private bestFieldScore(
+    q: string,
+    fields: Array<{ value: unknown; exact: number; prefix: number; contains: number }>,
+  ) {
+    let best: { score: number; matchedText: string } | undefined;
+    for (const field of fields) {
+      const text = cleanText(String(field.value ?? ''));
+      if (!text) continue;
+      const normalized = normalizeSearchQuery(text);
+      let score = 0;
+      if (normalized === q) score = field.exact;
+      else if (normalized.startsWith(q)) score = field.prefix;
+      else if (normalized.includes(q)) score = field.contains;
+      if (score && (!best || score > best.score)) {
+        best = { score, matchedText: text };
+      }
+    }
+    return best;
   }
 
   private requireOrderStore() {

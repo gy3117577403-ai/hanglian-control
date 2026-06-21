@@ -27,6 +27,7 @@ import {
   resolveHubDrawingProduct,
   restoreDocumentHubOrder,
   restoreDrawingDocument,
+  searchDocumentHub,
   setDrawingDocumentCover,
   setDrawingDocumentEffective,
   trashDrawingDocument,
@@ -37,6 +38,14 @@ import {
   updateOrderProductionStatus,
   uploadHubDrawingItem,
 } from '@/services/api'
+import { router } from '@/app/routes'
+import {
+  drawingCustomerRoute,
+  drawingItemRoute,
+  drawingModuleRoute,
+  drawingProductRoute,
+  isUnsafeDrawingRouteId,
+} from '@/lib/drawing-routes'
 import {
   mockConnectorParameters,
   mockDrawingDetails,
@@ -45,6 +54,7 @@ import {
   mockHubProducts,
 } from '@/mock/order-hub-data'
 import { useNavigationMemoryStore } from './navigation-memory-store'
+import { useDrawingNavigationStore, type DrawingNavigationSource } from './drawing-navigation-store'
 import type {
   ConnectorParameter,
   ConnectorImportResult,
@@ -110,6 +120,14 @@ import type {
   OrderScope,
   ProductionOrder,
 } from '@/types/order-management'
+import type {
+  DrawingCustomerSearchResult,
+  DrawingDocumentSearchResult,
+  DrawingProductSearchResult,
+  DrawingSearchGroupedResults,
+  DrawingSearchResponse,
+  DrawingSearchResult,
+} from '@/types/drawing-search'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -343,6 +361,14 @@ function sortOrders(orders: ProductionOrder[]) {
   })
 }
 
+function emptyDrawingSearchGroups(): DrawingSearchGroupedResults {
+  return { customers: [], products: [], documents: [] }
+}
+
+function isDrawingSearchResponse(value: unknown): value is DrawingSearchResponse {
+  return Boolean(value && typeof value === 'object' && (value as DrawingSearchResponse).mode === 'drawing' && Array.isArray((value as DrawingSearchResponse).results))
+}
+
 function toOrderState(order: ProductionOrder): ProductionOrder {
   return {
     ...order,
@@ -432,8 +458,17 @@ function toMaintenanceProductRow(product: HubProductModel, detail?: ProductDrawi
 
 export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const navigation = useNavigationMemoryStore()
+  const drawingNavigation = useDrawingNavigationStore()
   const activeMode = ref<HubMode>('drawing')
   const searchKeyword = ref('')
+  const searchQuery = ref('')
+  const searchMode = ref<HubMode>('drawing')
+  const searchResults = ref<DrawingSearchResult[]>([])
+  const searchGroupedResults = ref<DrawingSearchGroupedResults>(emptyDrawingSearchGroups())
+  const searchLoading = ref(false)
+  const searchError = ref('')
+  const searchOpen = ref(false)
+  const searchRequestSequence = ref(0)
   const activeOrderScope = ref<OrderScope>('week')
   const todayOrders = ref<ProductionOrder[]>([])
   const weekOrders = ref<ProductionOrder[]>([])
@@ -541,6 +576,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const localConnectors = ref<ConnectorParameter[]>(clone(mockConnectorParameters))
   const localFixtures = ref<FixtureParameter[]>(clone(mockFixtureParameters))
   let productDetailRequestId = 0
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  let routeRestoreRequestId = 0
+  let restoringDrawingRoute = false
 
   const currentSearchPlaceholder = computed(() => {
     if (activeMode.value === 'connector') return '搜索连接器型号、入长、外剥长度、内剥长度、备注；外剥可为空'
@@ -565,10 +603,173 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       .find((order) => order.orderId === orderId) ?? null
   }
 
+  function clearSearchDebounce() {
+    if (!searchDebounceTimer) return
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
+
+  function resetDrawingSearchResults() {
+    searchResults.value = []
+    searchGroupedResults.value = emptyDrawingSearchGroups()
+    searchError.value = ''
+  }
+
+  function searchErrorMessage(error: unknown) {
+    return lifecycleErrorMessage(error, '资料查询失败，请检查网络后重试。')
+  }
+
+  function searchResultScrollTop() {
+    const el = document.querySelector('[data-drawing-search-scroll]')
+    return el instanceof HTMLElement ? el.scrollTop : 0
+  }
+
+  function rememberDrawingSource(source: DrawingNavigationSource, patch: Partial<Parameters<typeof drawingNavigation.rememberSource>[0]> = {}) {
+    drawingNavigation.rememberSource({
+      source,
+      sourceRoute: router.currentRoute.value.fullPath,
+      sourceScrollTop: window.scrollY,
+      selectedCustomerId: selectedCustomer.value?.customerId,
+      selectedProductId: selectedProduct.value?.productId,
+      selectedModuleKey: selectedModule.value?.moduleKey,
+      selectedDocumentId: lifecycleDocumentId(selectedDrawingItem.value),
+      searchQuery: searchQuery.value,
+      searchMode: searchMode.value,
+      searchResultScrollTop: searchResultScrollTop(),
+      orderScope: activeOrderScope.value,
+      orderListScrollTop: navigation.restoreScrollPosition(`orders-${activeOrderScope.value}`),
+      maintenanceProductScrollTop: navigation.restoreScrollPosition('maintenance-products'),
+      ...patch,
+    })
+  }
+
+  async function navigateDrawingPath(path: string, replace = false) {
+    if (restoringDrawingRoute || router.currentRoute.value.fullPath === path) return
+    try {
+      if (replace) await router.replace(path)
+      else await router.push(path)
+    } catch {
+      // Ignore duplicated navigation and keep the current app state.
+    }
+  }
+
+  function setSearchQuery(value: string, options: { debounce?: boolean } = {}) {
+    searchKeyword.value = value
+    searchQuery.value = value
+    searchMode.value = activeMode.value
+    navigation.lastSearchState = { keyword: value, mode: activeMode.value }
+    clearSearchDebounce()
+    if (activeMode.value !== 'drawing') {
+      resetDrawingSearchResults()
+      searchOpen.value = false
+      return
+    }
+    if (!value.trim()) {
+      searchRequestSequence.value += 1
+      resetDrawingSearchResults()
+      searchOpen.value = false
+      return
+    }
+    searchOpen.value = true
+    if (options.debounce === false) {
+      void executeScopedSearch({ open: true })
+      return
+    }
+    searchDebounceTimer = setTimeout(() => {
+      void executeScopedSearch({ open: true })
+    }, 320)
+  }
+
+  function openSearchPanel() {
+    if (activeMode.value === 'drawing' && searchQuery.value.trim()) searchOpen.value = true
+  }
+
+  function closeSearchResults() {
+    searchOpen.value = false
+  }
+
+  function clearSearch() {
+    clearSearchDebounce()
+    searchRequestSequence.value += 1
+    searchKeyword.value = ''
+    searchQuery.value = ''
+    searchMode.value = activeMode.value
+    searchOpen.value = false
+    resetDrawingSearchResults()
+  }
+
+  function uniqueExactProductResult() {
+    const queryModel = normalizeOrderProductModel(searchQuery.value)
+    if (!queryModel) return null
+    const exact = searchGroupedResults.value.products.filter((item) => (
+      normalizeOrderProductModel(item.productModel) === queryModel
+    ))
+    return exact.length === 1 ? exact[0] : null
+  }
+
+  async function executeScopedSearch(options: { open?: boolean; openExactProduct?: boolean; silent?: boolean } = {}) {
+    clearSearchDebounce()
+    const keyword = searchKeyword.value.trim()
+    searchQuery.value = searchKeyword.value
+    searchMode.value = activeMode.value
+    navigation.lastSearchState = { keyword: searchKeyword.value, mode: activeMode.value }
+    if (activeMode.value === 'connector') {
+      await loadConnectors(searchKeyword.value)
+      return null
+    }
+    if (activeMode.value === 'fixture') {
+      await loadFixtures(searchKeyword.value)
+      return null
+    }
+    if (!keyword) {
+      searchRequestSequence.value += 1
+      resetDrawingSearchResults()
+      searchOpen.value = false
+      await loadCustomers()
+      drawingViewLevel.value = 'customers'
+      return null
+    }
+
+    const requestId = searchRequestSequence.value + 1
+    searchRequestSequence.value = requestId
+    searchLoading.value = true
+    searchError.value = ''
+    if (options.open !== false) searchOpen.value = true
+    try {
+      const response = await searchDocumentHub('drawing', keyword, { limit: 30 })
+      if (requestId !== searchRequestSequence.value) return null
+      if (!isDrawingSearchResponse(response)) {
+        throw new Error('Unexpected drawing search response.')
+      }
+      searchGroupedResults.value = response.groups
+      searchResults.value = response.results
+      if (options.openExactProduct) {
+        const exactProduct = uniqueExactProductResult()
+        if (exactProduct) await openSearchResult(exactProduct)
+      }
+      return response
+    } catch (error) {
+      if (requestId !== searchRequestSequence.value) return null
+      searchError.value = searchErrorMessage(error)
+      if (!options.silent) toast.error(searchError.value)
+      else toast.warning(searchError.value)
+      return null
+    } finally {
+      if (requestId === searchRequestSequence.value) searchLoading.value = false
+    }
+  }
+
+  function refreshSearchAfterWrite() {
+    if (activeMode.value !== 'drawing' || !searchQuery.value.trim()) return
+    void executeScopedSearch({ open: searchOpen.value, silent: true })
+  }
+
   async function initialize() {
     loading.value = true
     try {
       await Promise.all([loadOrders(), loadCustomers(), loadConnectors(), loadFixtures()])
+      const restored = await restoreDrawingRouteFromCurrentUrl('direct_url')
+      if (restored) return
       if (!productDrawingDetail.value) {
         const firstOrder = visibleWeekOrders.value[0] ?? visibleTodayOrders.value[0]
         if (firstOrder) await openOrderProduct(firstOrder, 'orders')
@@ -763,6 +964,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (results.some((result) => result.status === 'rejected')) {
       toast.warning('资料已保存，局部刷新失败，请稍后手动刷新。')
     }
+    refreshSearchAfterWrite()
   }
 
   async function createMaintenanceCustomer(payload: CreateDrawingCustomerPayload) {
@@ -1258,7 +1460,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     return preferred ?? latestDrawingItems(candidateItems)[0] ?? candidateItems[0] ?? null
   }
 
-  async function openCustomer(customer: HubCustomer) {
+  async function openCustomer(customer: HubCustomer, options: { skipRoute?: boolean; source?: DrawingNavigationSource } = {}) {
+    if (options.source) rememberDrawingSource(options.source, { selectedCustomerId: customer.customerId })
     saveCurrentScroll('customers')
     resetDocumentViewerState()
     clearUnarchivedProductContext()
@@ -1272,10 +1475,15 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     } catch {
       productModels.value = mockHubProducts.filter((product) => product.customerId === customer.customerId)
     }
+    if (!options.skipRoute) await navigateDrawingPath(drawingCustomerRoute(customer.customerId))
     await restoreScroll('products')
   }
 
-  async function openProduct(product: HubProductModel, source: 'drawing' | 'orders' | 'overview' | 'search' | 'maintenance' = 'drawing') {
+  async function openProduct(
+    product: HubProductModel,
+    source: DrawingNavigationSource = 'drawing',
+    options: { skipRoute?: boolean } = {},
+  ) {
     const requestId = ++productDetailRequestId
     saveCurrentScroll(drawingViewLevel.value)
     resetDocumentViewerState()
@@ -1284,13 +1492,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedModule.value = null
     selectedDrawingItem.value = null
     drawingViewLevel.value = 'product'
-    if (source !== 'drawing') {
-      const returnSource = source === 'maintenance' ? 'search' : source
+    if (source !== 'drawing' && source !== 'direct_url') {
+      rememberDrawingSource(source, { selectedProductId: product.productId })
+      const returnSource = source === 'maintenance' || source === 'customer_maintenance' ? 'search' : source === 'order' ? 'orders' : source
       navigation.pushReturnPoint({
-        source: returnSource,
+        source: returnSource === 'orders' ? 'orders' : returnSource === 'overview' ? 'overview' : returnSource === 'search' ? 'search' : 'drawing',
         label: source === 'maintenance' ? '返回客户与产品维护' : source === 'orders' ? '返回订单列表' : source === 'overview' ? '返回订单总览' : '返回搜索结果',
         state: { level: 'product', productId: product.productId },
-        scrollKey: source === 'overview' ? 'order-overview' : source === 'maintenance' ? 'maintenance-products' : source,
+        scrollKey: source === 'overview' ? 'order-overview' : source === 'maintenance' || source === 'customer_maintenance' ? 'maintenance-products' : source === 'order' ? 'orders' : source,
       })
     }
     const localDetail = localDetails.value.find((detail) => detail.product.productId === product.productId) ?? null
@@ -1299,6 +1508,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       const remoteDetail = await getHubProductDetail(product.productId)
       if (requestId === productDetailRequestId && selectedProduct.value?.productId === product.productId) {
         productDrawingDetail.value = remoteDetail
+        selectedProduct.value = remoteDetail.product
+        if (remoteDetail.customer) selectedCustomer.value = remoteDetail.customer
       }
     } catch {
       if (requestId === productDetailRequestId && selectedProduct.value?.productId === product.productId) {
@@ -1310,6 +1521,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       { level: 'products', customerId: selectedCustomer.value?.customerId ?? product.customerId },
       { level: 'product', productId: product.productId },
     ])
+    if (!options.skipRoute && !isUnsafeDrawingRouteId(product.productId)) {
+      await navigateDrawingPath(drawingProductRoute(product.productId))
+    }
     await restoreScroll('product')
   }
 
@@ -1418,7 +1632,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
-  function openModule(module: DrawingModule) {
+  function openModule(module: DrawingModule, options: { skipRoute?: boolean; source?: DrawingNavigationSource } = {}) {
+    if (options.source) rememberDrawingSource(options.source, { selectedModuleKey: module.moduleKey })
     saveCurrentScroll('product')
     resetDocumentViewerState()
     selectedModule.value = module
@@ -1428,10 +1643,15 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       ...navigation.drawingBreadcrumb,
       { level: 'module', productId: selectedProduct.value?.productId, moduleKey: module.moduleKey },
     ])
+    const productId = selectedProduct.value?.productId ?? productDrawingDetail.value?.product.productId
+    if (!options.skipRoute && productId && !isUnsafeDrawingRouteId(productId)) {
+      void navigateDrawingPath(drawingModuleRoute(productId, module.moduleKey))
+    }
     void restoreScroll('module')
   }
 
-  function openModuleViewer(module: DrawingModule, item?: DrawingItem | null) {
+  function openModuleViewer(module: DrawingModule, item?: DrawingItem | null, options: { skipRoute?: boolean; source?: DrawingNavigationSource } = {}) {
+    if (options.source) rememberDrawingSource(options.source, { selectedModuleKey: module.moduleKey, selectedDocumentId: lifecycleDocumentId(item) })
     saveCurrentScroll(drawingViewLevel.value)
     selectedModule.value = module
     const initialItem = selectViewerInitialItem(module, item)
@@ -1443,6 +1663,11 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       ...navigation.drawingBreadcrumb,
       { level: 'image', productId: selectedProduct.value?.productId, moduleKey: module.moduleKey, itemId: initialItem?.itemId },
     ])
+    const productId = selectedProduct.value?.productId ?? productDrawingDetail.value?.product.productId
+    const documentId = lifecycleDocumentId(initialItem)
+    if (!options.skipRoute && productId && documentId && !isUnsafeDrawingRouteId(productId) && !isUnsafeDrawingRouteId(documentId)) {
+      void navigateDrawingPath(drawingItemRoute(productId, module.moduleKey, documentId))
+    }
   }
 
   function openImageDetail(item: DrawingItem) {
@@ -1456,11 +1681,213 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     documentViewerOpen.value = true
   }
 
+  function customerFromSearchResult(result: DrawingCustomerSearchResult | DrawingProductSearchResult | DrawingDocumentSearchResult): HubCustomer {
+    const existing = customers.value.find((customer) => customer.customerId === result.customerId)
+    if (existing) return existing
+    return {
+      customerId: result.customerId,
+      customerName: result.customerName,
+      customerShortName: 'customerShortName' in result ? result.customerShortName : result.customerName,
+    }
+  }
+
+  function productFromSearchResult(result: DrawingProductSearchResult | DrawingDocumentSearchResult): HubProductModel {
+    const existing = productModels.value.find((product) => product.productId === result.productId)
+      ?? (productDrawingDetail.value?.product.productId === result.productId ? productDrawingDetail.value.product : null)
+    if (existing) return existing
+    return {
+      customerId: result.customerId,
+      productId: result.productId,
+      productModel: result.productModel,
+      productName: 'productName' in result ? result.productName : result.productModel,
+      drawingStatus: 'drawingStatus' in result ? result.drawingStatus : 'partial',
+    }
+  }
+
+  async function openSearchResult(result: DrawingSearchResult) {
+    rememberDrawingSource('search', {
+      selectedCustomerId: result.customerId,
+      selectedProductId: 'productId' in result ? result.productId : undefined,
+      selectedModuleKey: result.resultType === 'document' ? result.moduleKey : undefined,
+      selectedDocumentId: result.resultType === 'document' ? result.documentId : undefined,
+    })
+    searchOpen.value = false
+    activeMode.value = 'drawing'
+    navigation.rememberFunction('drawing')
+    if (result.resultType === 'customer') {
+      await openCustomer(customerFromSearchResult(result), { source: 'search' })
+      return
+    }
+    if (result.resultType === 'product') {
+      selectedCustomer.value = customerFromSearchResult(result)
+      await openProduct(productFromSearchResult(result), 'search')
+      return
+    }
+
+    selectedCustomer.value = customerFromSearchResult(result)
+    const detail = await getHubProductDetail(result.productId)
+    productDrawingDetail.value = detail
+    selectedProduct.value = detail.product
+    selectedCustomer.value = detail.customer ?? selectedCustomer.value
+    drawingViewLevel.value = 'module'
+    const module = detail.modules.find((item) => item.moduleKey === result.moduleKey)
+    if (!module) {
+      searchError.value = '资料模块不存在。'
+      toast.warning(searchError.value)
+      await navigateDrawingPath(drawingProductRoute(detail.product.productId))
+      return
+    }
+    const item = module.items.find((entry) => lifecycleDocumentId(entry) === result.documentId || entry.itemId === result.itemId)
+    if (!item) {
+      searchError.value = '资料不存在或已移入回收站。'
+      toast.warning(searchError.value)
+      openModule(module, { source: 'search' })
+      return
+    }
+    selectedModule.value = module
+    navigation.rememberBreadcrumb([
+      { level: 'customers' },
+      { level: 'products', customerId: selectedCustomer.value?.customerId ?? result.customerId },
+      { level: 'product', productId: result.productId },
+      { level: 'module', productId: result.productId, moduleKey: result.moduleKey },
+    ])
+    openModuleViewer(module, item, { source: 'search' })
+  }
+
+  function routeParam(value: unknown) {
+    return Array.isArray(value) ? cleanText(value[0]) : cleanText(value)
+  }
+
+  async function hydrateProductFromRoute(productId: string) {
+    if (isUnsafeDrawingRouteId(productId)) {
+      productResolutionError.value = '产品资料页不存在。'
+      return null
+    }
+    const detail = await getHubProductDetail(productId)
+    activeMode.value = 'drawing'
+    navigation.rememberFunction('drawing')
+    resetDocumentViewerState()
+    clearUnarchivedProductContext()
+    productDrawingDetail.value = detail
+    selectedProduct.value = detail.product
+    selectedCustomer.value = detail.customer ?? selectedCustomer.value
+    productModels.value = selectedCustomer.value?.customerId ? await getHubProducts(selectedCustomer.value.customerId).catch(() => productModels.value) : productModels.value
+    navigation.rememberBreadcrumb([
+      { level: 'customers' },
+      { level: 'products', customerId: selectedCustomer.value?.customerId ?? detail.product.customerId },
+      { level: 'product', productId: detail.product.productId },
+    ])
+    return detail
+  }
+
+  async function restoreDashboardRouteFromNavigation() {
+    if (router.currentRoute.value.path !== '/tablet') return false
+    const source = drawingNavigation.peekSource()
+    resetDocumentViewerState()
+    selectedModule.value = null
+    selectedDrawingItem.value = null
+    selectedProduct.value = null
+    productDrawingDetail.value = null
+    clearUnarchivedProductContext()
+    if (source?.source === 'search') {
+      activeMode.value = 'drawing'
+      searchKeyword.value = source.searchQuery ?? searchKeyword.value
+      searchQuery.value = source.searchQuery ?? searchQuery.value
+      searchMode.value = source.searchMode ?? 'drawing'
+      searchOpen.value = Boolean(searchQuery.value.trim())
+      drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
+      await nextTick()
+      const el = document.querySelector('[data-drawing-search-scroll]')
+      if (el instanceof HTMLElement) el.scrollTop = source.searchResultScrollTop ?? 0
+      return true
+    }
+    if (source?.source === 'customer_maintenance' || source?.source === 'maintenance') {
+      maintenanceOpen.value = true
+      drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
+      await restoreScroll('maintenance-products')
+      return true
+    }
+    if (source?.source === 'order' || source?.source === 'orders') {
+      drawingViewLevel.value = 'customers'
+      await restoreScroll(`orders-${activeOrderScope.value}`)
+      return true
+    }
+    drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
+    await restoreScroll(drawingViewLevel.value)
+    return true
+  }
+
+  async function restoreDrawingRouteFromCurrentUrl(source: DrawingNavigationSource = 'direct_url') {
+    const route = router.currentRoute.value
+    if (route.path === '/tablet') return restoreDashboardRouteFromNavigation()
+    if (!String(route.name ?? '').startsWith('tablet-drawing-')) return false
+    const requestId = ++routeRestoreRequestId
+    restoringDrawingRoute = true
+    try {
+      if (route.name === 'tablet-drawing-customer') {
+        const customerId = routeParam(route.params.customerId)
+        if (!customers.value.length) await loadCustomers()
+        const customer = customers.value.find((item) => item.customerId === customerId)
+        if (!customer) {
+          productResolutionError.value = '客户资料不存在。'
+          drawingViewLevel.value = 'customers'
+          return true
+        }
+        await openCustomer(customer, { skipRoute: true, source })
+        return true
+      }
+
+      const productId = routeParam(route.params.productId)
+      const detail = await hydrateProductFromRoute(productId)
+      if (!detail || requestId !== routeRestoreRequestId) return true
+
+      if (route.name === 'tablet-drawing-product') {
+        drawingViewLevel.value = 'product'
+        selectedModule.value = null
+        await restoreScroll('product')
+        return true
+      }
+
+      const moduleKey = routeParam(route.params.moduleKey) as DrawingModuleKey
+      const module = detail.modules.find((item) => item.moduleKey === moduleKey)
+      if (!module) {
+        productResolutionError.value = '资料模块不存在。'
+        drawingViewLevel.value = 'product'
+        return true
+      }
+      openModule(module, { skipRoute: true, source })
+
+      if (route.name !== 'tablet-drawing-item') return true
+
+      const itemId = routeParam(route.params.itemId)
+      const item = module.items.find((entry) => lifecycleDocumentId(entry) === itemId || entry.itemId === itemId)
+      if (!item) {
+        productResolutionError.value = '资料不存在或已移入回收站。'
+        documentViewerOpen.value = false
+        return true
+      }
+      openModuleViewer(module, item, { skipRoute: true, source })
+      return true
+    } catch (error) {
+      productResolutionError.value = lifecycleErrorMessage(error, '图纸页面加载失败，请稍后重试。')
+      toast.error(productResolutionError.value)
+      return true
+    } finally {
+      restoringDrawingRoute = false
+    }
+  }
+
   async function closeDocumentViewer() {
     documentViewerOpen.value = false
     documentViewerInitialItemId.value = ''
     selectedDrawingItem.value = null
     if (documentViewerReturnLevel.value === 'product') selectedModule.value = null
+    const productId = selectedProduct.value?.productId ?? productDrawingDetail.value?.product.productId
+    if (productId && selectedModule.value && documentViewerReturnLevel.value === 'module') {
+      void navigateDrawingPath(drawingModuleRoute(productId, selectedModule.value.moduleKey), true)
+    } else if (productId && documentViewerReturnLevel.value === 'product') {
+      void navigateDrawingPath(drawingProductRoute(productId), true)
+    }
     await restoreScroll(documentViewerReturnLevel.value)
   }
 
@@ -1477,7 +1904,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
     if (drawingViewLevel.value === 'module') {
       drawingViewLevel.value = 'product'
+      const productId = selectedProduct.value?.productId ?? productDrawingDetail.value?.product.productId
       selectedModule.value = null
+      if (productId) void navigateDrawingPath(drawingProductRoute(productId), true)
       await restoreScroll('product')
       return
     }
@@ -1488,6 +1917,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         selectedProduct.value = null
         productDrawingDetail.value = null
         clearUnarchivedProductContext()
+        void navigateDrawingPath('/tablet', true)
         await restoreScroll('orders')
         return
       }
@@ -1497,7 +1927,18 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         productDrawingDetail.value = null
         clearUnarchivedProductContext()
         orderOverviewOpen.value = true
+        void navigateDrawingPath('/tablet', true)
         await restoreScroll('order-overview')
+        return
+      }
+      if (returnPoint?.source === 'search') {
+        drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
+        selectedProduct.value = null
+        productDrawingDetail.value = null
+        clearUnarchivedProductContext()
+        searchOpen.value = Boolean(searchQuery.value.trim())
+        void navigateDrawingPath('/tablet', true)
+        await restoreScroll('search')
         return
       }
       if (maintenanceReturnPending.value) {
@@ -1507,6 +1948,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         clearUnarchivedProductContext()
         maintenanceReturnPending.value = false
         maintenanceOpen.value = true
+        void navigateDrawingPath('/tablet', true)
         await nextTick()
         await restoreScroll('maintenance-products')
         return
@@ -1515,6 +1957,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       selectedProduct.value = null
       productDrawingDetail.value = null
       clearUnarchivedProductContext()
+      void navigateDrawingPath('/tablet', true)
       await restoreScroll(drawingViewLevel.value)
       return
     }
@@ -1527,32 +1970,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   async function searchCurrentMode() {
-    const q = searchKeyword.value.trim().toLowerCase()
-    navigation.lastSearchState = { keyword: searchKeyword.value, mode: activeMode.value }
-    if (activeMode.value === 'connector') {
-      await loadConnectors(searchKeyword.value)
-      return
-    }
-    if (activeMode.value === 'fixture') {
-      await loadFixtures(searchKeyword.value)
-      return
-    }
-    if (!q) {
-      await loadCustomers()
-      drawingViewLevel.value = 'customers'
-      return
-    }
-    const details = localDetails.value.filter((detail) => [
-      detail.customer?.customerName,
-      detail.customer?.customerShortName,
-      detail.product.productModel,
-      detail.product.productName,
-      detail.product.remark,
-      ...detail.modules.flatMap((module) => [module.moduleName, module.remark, ...module.items.flatMap((item) => [item.title, item.fileName, item.remark])]),
-    ].some((value) => match(value, q)))
-    productModels.value = details.map((detail) => detail.product)
-    selectedCustomer.value = null
-    drawingViewLevel.value = 'products'
+    await executeScopedSearch({ open: true, openExactProduct: true })
   }
 
   async function loadConnectors(q = '') {
@@ -1583,7 +2001,8 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   function setActiveMode(mode: HubMode) {
     activeMode.value = mode
     navigation.rememberFunction(mode)
-    searchKeyword.value = ''
+    clearSearch()
+    if (mode !== 'drawing') drawingNavigation.clearDrawingNavigation()
     resetDocumentViewerState()
     selectedConnector.value = null
     selectedFixture.value = null
@@ -1824,6 +2243,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       selectedCustomer.value = customers.value.find((customer) => customer.customerId === customerId) ?? selectedCustomer.value
       if (selectedCustomer.value) productModels.value = await getHubProducts(selectedCustomer.value.customerId)
       await openProduct(product, 'drawing')
+      refreshSearchAfterWrite()
       return product
     } catch {
       const resolution = await resolveCurrentUnarchivedOrder()
@@ -2140,7 +2560,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
     const affectedProductIds = new Set(result.items.map((item) => item.productId).filter(Boolean) as string[])
     const currentProductId = selectedProduct.value?.productId
-    if (!currentProductId || !affectedProductIds.has(currentProductId)) return
+    if (!currentProductId || !affectedProductIds.has(currentProductId)) {
+      refreshSearchAfterWrite()
+      return
+    }
     try {
       const detail = await getHubProductDetail(currentProductId)
       productDrawingDetail.value = detail
@@ -2151,6 +2574,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     } catch {
       // The apply result remains authoritative; a failed refresh should not create local fake data.
     }
+    refreshSearchAfterWrite()
   }
 
   async function bindCurrentOrderAfterPdfApply(result: PdfImportApplyResponse) {
@@ -2231,6 +2655,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       }
       await refreshDrawingDataAfterPdfApply(response)
       await bindCurrentOrderAfterPdfApply(response)
+      refreshSearchAfterWrite()
       return response
     } catch (error) {
       pdfImportError.value = pdfImportErrorMessage(error)
@@ -2355,6 +2780,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         uploadError.value = uploadResult.value.message
         toast.error(uploadResult.value.message)
       }
+      refreshSearchAfterWrite()
       return latestDetail ?? productDrawingDetail.value
     } finally {
       uploadLoading.value = false
@@ -2393,6 +2819,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       selectedDrawingItem.value = response.item
       uploadDialogOpen.value = false
       toast.success('资料上传成功。', { description: `${persistedModule?.moduleName ?? moduleKey} / ${response.item.title}` })
+      refreshSearchAfterWrite()
       return
     } catch (error) {
       toast.error(pdfImportErrorMessage(error, '资料上传失败，请检查文件或网络。'))
@@ -2541,6 +2968,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (failed) {
       toast.warning('资料已更新，局部刷新失败，请手动刷新页面。')
     }
+    refreshSearchAfterWrite()
   }
 
   async function updateDocumentMetadata(
@@ -2698,6 +3126,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     if (failed) {
       toast.warning('资料状态已更新，局部刷新失败，请手动刷新页面。')
     }
+    refreshSearchAfterWrite()
   }
 
   async function trashDocument(item: DrawingItem, payload: TrashDocumentPayload) {
@@ -2823,6 +3252,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   return {
     activeMode,
     searchKeyword,
+    searchQuery,
+    searchMode,
+    searchResults,
+    searchGroupedResults,
+    searchLoading,
+    searchError,
+    searchOpen,
+    searchRequestSequence,
     activeOrderScope,
     todayOrders,
     weekOrders,
@@ -2963,6 +3400,14 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     openImageDetail,
     closeDocumentViewer,
     goBack,
+    setSearchQuery,
+    executeScopedSearch,
+    clearSearch,
+    closeSearchResults,
+    openSearchPanel,
+    openSearchResult,
+    refreshSearchAfterWrite,
+    restoreDrawingRouteFromCurrentUrl,
     searchCurrentMode,
     loadConnectors,
     loadFixtures,

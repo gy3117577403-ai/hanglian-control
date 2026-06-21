@@ -132,6 +132,7 @@ assert(packageJson.includes('"document-viewer-thumbnail:check": "node scripts/do
 
 const changed = changedFiles();
 const allowedChangedFiles = new Set([
+  'apps/tablet/src/app/routes.ts',
   paths.documentViewer,
   paths.toolbar,
   paths.pdfViewer,
@@ -144,13 +145,19 @@ const allowedChangedFiles = new Set([
   paths.types,
   'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
   'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
+  'apps/tablet/src/components/drawing/WarmPdfImportDialog.vue',
   'apps/tablet/src/components/drawing/WarmDocumentActionMenu.vue',
   'apps/tablet/src/components/drawing/WarmEditDocumentDialog.vue',
   'apps/tablet/src/components/drawing/WarmSetEffectiveDialog.vue',
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
+  'apps/tablet/src/lib/drawing-routes.ts',
   'apps/tablet/src/services/api.ts',
+  'apps/tablet/src/stores/drawing-navigation-store.ts',
   'apps/tablet/src/stores/document-hub-store.ts',
   'apps/tablet/src/types/production.ts',
   'apps/tablet/src/types/document-version.ts',
+  'apps/tablet/src/types/drawing-search.ts',
   'apps/api/src/document-hub/document-hub.controller.ts',
   'apps/api/src/document-hub/document-hub.module.ts',
   'apps/api/src/document-hub/document-hub.service.ts',
@@ -159,18 +166,25 @@ const allowedChangedFiles = new Set([
   'apps/api/src/document-hub/mock/document-hub.seed.ts',
   'apps/api/src/document-hub/document-version.service.ts',
   'apps/api/src/document-hub/dto/document-metadata.dto.ts',
+  'apps/api/src/document-hub/dto/drawing-search.dto.ts',
   paths.packageJson,
   'scripts/document-viewer-thumbnail-check.mjs',
   'scripts/document-viewer-foundation-check.mjs',
   'scripts/document-home-preview-check.mjs',
   'scripts/camera-upload-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
+  'scripts/order-frontend-state-check.mjs',
   'scripts/document-version-backend-check.mjs',
   'scripts/document-version-ui-check.mjs',
+  'scripts/document-lifecycle-ui-check.mjs',
+  'scripts/drawing-search-backend-check.mjs',
+  'scripts/drawing-search-ui-check.mjs',
+  'scripts/drawing-navigation-check.mjs',
 ]);
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/viewer/',
   'apps/tablet/src/composables/',
+  'apps/tablet/src/components/search/',
 ];
 for (const file of changed) {
   const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
