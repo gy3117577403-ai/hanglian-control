@@ -47,8 +47,9 @@ defineEmits<{
       <PrimeButton class="upload-button" title="上传资料" aria-label="上传资料" @click="store.openTopUpload()">
         <UploadCloud :size="18" />
       </PrimeButton>
-      <PrimeButton severity="secondary" outlined title="订单总览" aria-label="订单总览" @click="store.orderOverviewOpen = true">
+      <PrimeButton class="order-overview-button" severity="secondary" outlined title="订单总览" aria-label="订单总览" @click="store.openOrderOverview()">
         <ClipboardList :size="18" />
+        <span>订单总览</span>
       </PrimeButton>
     </div>
   </header>
@@ -220,6 +221,26 @@ defineEmits<{
   white-space: nowrap;
 }
 
+.header-actions :deep(.order-overview-button) {
+  width: auto;
+  min-width: 112px;
+  min-height: 48px;
+  padding: 0 12px;
+  gap: 7px;
+  color: #4d321a;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.1) 46%),
+    linear-gradient(145deg, rgba(240, 176, 90, 0.56), rgba(208, 127, 56, 0.38)),
+    rgba(255, 255, 255, 0.18);
+}
+
+.header-actions :deep(.order-overview-button span) {
+  flex: none;
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 @media (max-width: 1320px) {
   .hub-header {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -244,10 +265,17 @@ defineEmits<{
     padding: 0 13px;
   }
 
+  .header-actions :deep(.order-overview-button) {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0 13px;
+  }
+
   .header-actions :deep(.pdf-import-button .p-button-label),
   .header-actions :deep(.pdf-import-button span),
   .header-actions :deep(.trash-entry-button .p-button-label),
-  .header-actions :deep(.trash-entry-button span:not(.p-badge)) {
+  .header-actions :deep(.trash-entry-button span:not(.p-badge)),
+  .header-actions :deep(.order-overview-button span) {
     display: none;
   }
 

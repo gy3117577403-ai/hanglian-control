@@ -1,39 +1,91 @@
 <script setup lang="ts">
-import { FileSearch } from 'lucide-vue-next'
-import { orderQuantity } from '@/lib/format'
-import type { HubOrder } from '@/types/production'
+import { CheckCircle2, FileSearch, Link2, Link2Off } from 'lucide-vue-next'
+import WarmOrderStatusMenu from './WarmOrderStatusMenu.vue'
+import type { OrderProductionStatus, ProductionOrder } from '@/types/order-management'
 
 defineProps<{
-  order: HubOrder
+  order: ProductionOrder
   customerTone?: string
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
-  open: [order: HubOrder]
+  open: [order: ProductionOrder]
+  complete: [order: ProductionOrder]
+  link: [order: ProductionOrder]
+  'status-change': [order: ProductionOrder, status: OrderProductionStatus]
 }>()
 
-const statusMap = {
-  front: { label: '在前段', className: 'front' },
-  back: { label: '在后段', className: 'back' },
-  no_drawing: { label: '未发图', className: 'no-drawing' },
-  exception: { label: '异常', className: 'exception' },
+const resolutionMap = {
+  found: { label: '已绑定资料页', className: 'bound' },
+  product_not_found: { label: '产品未建档', className: 'missing' },
+  customer_not_found: { label: '客户未建档', className: 'missing' },
+  ambiguous: { label: '需确认客户', className: 'confirm' },
+  unknown: { label: '待识别资料页', className: 'pending' },
+  resolving: { label: '正在识别', className: 'pending' },
+  error: { label: '识别失败', className: 'missing' },
+}
+
+function quantityText(order: ProductionOrder) {
+  if (!order.quantityProvided) return '数量未填写'
+  const value = Number(order.quantity)
+  return Number.isFinite(value) && value > 0 ? `数量 ${value}` : '数量未填写'
+}
+
+function bindingState(order: ProductionOrder) {
+  return resolutionMap[order.productResolutionStatus] ?? resolutionMap.unknown
 }
 </script>
 
 <template>
   <article class="order-card" :class="customerTone">
     <div class="card-top">
-      <button type="button" class="model-button" @click="emit('open', order)">
+      <button type="button" class="model-button" :title="order.productModel" @click="emit('open', order)">
         <FileSearch :size="17" />
         <span>{{ order.productModel }}</span>
       </button>
-      <span class="status" :class="statusMap[order.status].className">{{ statusMap[order.status].label }}</span>
+      <button
+        v-if="order.productResolutionStatus === 'ambiguous'"
+        class="link-button"
+        type="button"
+        :disabled="loading"
+        title="确认客户和产品资料页"
+        @click="emit('link', order)"
+      >
+        <Link2 :size="15" />
+      </button>
     </div>
+
     <p class="card-meta">
       <i aria-hidden="true"></i>
-      <span>{{ order.customerName }}</span>
-      <b>数量 {{ orderQuantity(order) }}</b>
+      <span :title="order.customerName || '客户待确认'">{{ order.customerName || '客户待确认' }}</span>
+      <b>{{ quantityText(order) }}</b>
     </p>
+
+    <div class="card-state">
+      <span class="binding" :class="bindingState(order).className">
+        <Link2 v-if="order.productResolutionStatus === 'found'" :size="13" />
+        <Link2Off v-else :size="13" />
+        {{ bindingState(order).label }}
+      </span>
+      <PrimeButton
+        class="complete-button"
+        severity="success"
+        size="small"
+        :disabled="loading || order.completionStatus === 'completed'"
+        title="确认完成订单"
+        @click="emit('complete', order)"
+      >
+        <CheckCircle2 :size="15" />
+        <span>完成</span>
+      </PrimeButton>
+    </div>
+
+    <WarmOrderStatusMenu
+      :order="order"
+      :loading="loading"
+      @change="(status) => emit('status-change', order, status)"
+    />
   </article>
 </template>
 
@@ -42,10 +94,10 @@ const statusMap = {
   position: relative;
   isolation: isolate;
   display: grid;
-  gap: 5px;
+  gap: 7px;
   contain: layout paint style;
-  min-height: 58px;
-  padding: 7px 8px 7px 10px;
+  min-height: 132px;
+  padding: 9px 9px 9px 11px;
   border: 1px solid rgba(255, 255, 255, 0.92);
   border-radius: 15px;
   background:
@@ -100,26 +152,27 @@ const statusMap = {
   transform: translateY(-1px);
 }
 
-.card-top {
+.card-top,
+.card-state {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 50px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
   min-width: 0;
 }
 
-.model-button {
+.model-button,
+.link-button {
   display: inline-grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 5px;
   align-items: center;
-  min-height: 28px;
+  min-height: 34px;
   max-width: 100%;
-  padding: 0;
   border: 0;
   background: transparent;
   color: #392312;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 950;
   text-align: left;
   cursor: pointer;
@@ -130,6 +183,21 @@ const statusMap = {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.link-button {
+  grid-template-columns: auto;
+  justify-content: center;
+  min-width: 34px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.44);
+  color: #96501f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.link-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .card-meta {
@@ -152,47 +220,49 @@ const statusMap = {
   box-shadow: 0 0 10px color-mix(in srgb, var(--customer-accent) 42%, transparent);
 }
 
-.card-meta b {
+.card-meta b,
+.binding {
   flex: none;
   justify-self: end;
-  padding: 2px 5px;
+  padding: 3px 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.56);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   color: #8f4a22;
   font-size: 10px;
-  white-space: nowrap;
-}
-
-.status {
-  justify-self: end;
-  min-width: 46px;
-  padding: 3px 5px;
-  border-radius: 999px;
-  font-size: 10px;
   font-weight: 950;
-  text-align: center;
   white-space: nowrap;
 }
 
-.front {
-  background: rgba(39, 142, 171, 0.14);
-  color: #1f7184;
+.binding {
+  justify-self: start;
+  display: inline-grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  align-items: center;
 }
 
-.back {
-  background: rgba(220, 115, 38, 0.15);
-  color: #a34f1f;
+.binding.bound {
+  color: #14746f;
 }
 
-.no-drawing {
-  background: rgba(160, 75, 64, 0.14);
+.binding.confirm {
+  color: #9b5125;
+}
+
+.binding.missing {
   color: #9b3d32;
 }
 
-.exception {
-  background: rgba(184, 57, 42, 0.16);
-  color: #a83126;
+.binding.pending {
+  color: #6b5c3b;
+}
+
+.complete-button {
+  min-width: 72px;
+  min-height: 36px;
+  border-radius: 12px;
+  font-weight: 950;
 }
 
 .tone-amber {

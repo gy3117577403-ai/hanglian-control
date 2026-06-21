@@ -117,9 +117,6 @@ import type {
   FixtureParameter,
   HubCustomer,
   HubMode,
-  HubOrder,
-  HubOrderOverview,
-  HubOrderScope,
   HubProductModel,
   ProductDrawingDetail,
   PurgePayload,
@@ -148,6 +145,18 @@ import type {
   TrashDocumentPayload,
   TrashQuery,
 } from '@/types/document-lifecycle'
+import type {
+  OrderImportApplyRequest,
+  OrderImportApplyResponse,
+  OrderImportPreviewResponse,
+  OrderListQuery,
+  OrderOperatorPayload,
+  OrderOverviewResponse,
+  OrderProductLinkPayload,
+  OrderProductionStatus,
+  OrderQueryScope,
+  ProductionOrder,
+} from '@/types/order-management'
 
 const API_BASE = getApiBaseUrl()
 
@@ -209,6 +218,14 @@ function toPdfImportRequestError(error: unknown) {
 }
 
 function toLifecycleRequestError(error: unknown) {
+  const message = readApiErrorMessage(error)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
+    return new Error('网络连接失败，请检查网络。')
+  }
+  return new Error(message)
+}
+
+function toOrderRequestError(error: unknown) {
   const message = readApiErrorMessage(error)
   if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
     return new Error('网络连接失败，请检查网络。')
@@ -1091,21 +1108,145 @@ export function getSystemQaAcceptanceReportText() {
   return api<string>('/system-qa/acceptance-report/text')
 }
 
-export function getHubOrders(scope: HubOrderScope = 'today', includeCompleted = false) {
-  return api<HubOrder[]>('/document-hub/orders', {
-    query: { scope, includeCompleted: String(includeCompleted) },
+function orderQueryParams(query: OrderListQuery = {}) {
+  return {
+    scope: query.scope,
+    completionStatus: query.completionStatus,
+    productionStatus: query.productionStatus,
+    keyword: query.keyword,
+    customerId: query.customerId,
+    linkedProductId: query.linkedProductId,
+  }
+}
+
+export async function getDocumentHubOrders(query: OrderListQuery = {}) {
+  try {
+    return await api<ProductionOrder[]>('/document-hub/orders', {
+      query: orderQueryParams(query),
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export function getHubOrders(scope: OrderQueryScope = 'today', includeCompleted = false) {
+  return getDocumentHubOrders({
+    scope,
+    completionStatus: includeCompleted ? 'all' : 'pending',
   })
+}
+
+export async function previewOrderImport(scope: OrderQueryScope, file: File) {
+  if (scope !== 'today' && scope !== 'week') {
+    throw new Error('请选择今日订单或本周订单。')
+  }
+  if (!file) throw new Error('请选择 XLSX 订单文件。')
+  if (!/\.xlsx$/i.test(file.name)) throw new Error('仅支持 XLSX 订单文件。')
+
+  const formData = new FormData()
+  formData.append('scope', scope)
+  formData.append('file', file)
+
+  try {
+    return await api<OrderImportPreviewResponse>('/document-hub/orders/import/preview', {
+      method: 'POST',
+      body: formData,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function applyOrderImport(payload: OrderImportApplyRequest) {
+  try {
+    return await api<OrderImportApplyResponse>('/document-hub/orders/import/apply', {
+      method: 'POST',
+      body: payload,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function updateOrderProductionStatus(
+  orderId: string,
+  productionStatus: OrderProductionStatus,
+  operator: OrderOperatorPayload = {},
+) {
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/status`, {
+      method: 'PATCH',
+      body: {
+        productionStatus,
+        ...operator,
+      },
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function completeDocumentHubOrder(orderId: string, operator: OrderOperatorPayload = {}) {
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/complete`, {
+      method: 'POST',
+      body: { completedBy: operator.operatorName ?? 'local-tablet' },
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
 }
 
 export function completeHubOrder(orderId: string) {
-  return api<HubOrder>(`/document-hub/orders/${orderId}/complete`, {
-    method: 'POST',
-    body: { completedBy: 'local-tablet' },
-  })
+  return completeDocumentHubOrder(orderId)
+}
+
+export async function restoreDocumentHubOrder(orderId: string, operator: OrderOperatorPayload = {}) {
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/restore`, {
+      method: 'POST',
+      body: operator,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function getOrderOverview(query?: OrderListQuery) {
+  try {
+    return await api<OrderOverviewResponse>('/document-hub/orders/overview', {
+      query: query ? orderQueryParams(query) : undefined,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
 }
 
 export function getHubOrderOverview() {
-  return api<HubOrderOverview>('/document-hub/orders/overview')
+  return getOrderOverview()
+}
+
+export async function linkOrderProduct(
+  orderId: string,
+  customerId: string,
+  productId: string,
+  operator: OrderOperatorPayload = {},
+) {
+  const payload: OrderProductLinkPayload = {
+    customerId,
+    productId,
+    ...operator,
+  }
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/product-link`, {
+      method: 'PATCH',
+      body: payload,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
 }
 
 export function getHubCustomers(q?: string) {

@@ -1,4 +1,5 @@
 import type { DrawingModule, HubCustomer, HubOrder, HubProductModel } from './production'
+import type { ProductionOrder } from './order-management'
 
 export type ProductResolutionStatus =
   | 'unknown'
@@ -6,6 +7,7 @@ export type ProductResolutionStatus =
   | 'found'
   | 'product_not_found'
   | 'customer_not_found'
+  | 'ambiguous'
   | 'error'
 
 export interface ResolveDrawingProductQuery {
@@ -45,7 +47,7 @@ export type DrawingProductResolution =
   | ProductResolutionCustomerNotFound
 
 export interface UnarchivedOrderProductContext {
-  order: HubOrder
+  order: HubOrder | ProductionOrder
   source: 'orders' | 'overview'
   resolution: DrawingProductResolution | null
   status: Exclude<ProductResolutionStatus, 'unknown' | 'found'>

@@ -3,7 +3,8 @@ import { computed, nextTick, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import {
   applyDrawingPdfImport,
-  completeHubOrder,
+  applyOrderImport as applyOrderImportRequest,
+  completeDocumentHubOrder,
   createHubConnector,
   createHubDrawingCustomer,
   createHubDrawingProduct,
@@ -11,20 +12,24 @@ import {
   getDrawingPdfImportBatch,
   getDeleteLockStatus,
   getDrawingTrash,
+  getDocumentHubOrders,
   getHubCustomers,
-  getHubOrderOverview,
-  getHubOrders,
   getHubProductDetail,
   getHubProducts,
   getHubConnectors,
   getHubFixtures,
+  getOrderOverview,
   importHubConnectors,
+  linkOrderProduct,
+  previewOrderImport as previewOrderImportRequest,
   previewDrawingPdfImport,
   purgeDrawingDocument,
   resolveHubDrawingProduct,
+  restoreDocumentHubOrder,
   restoreDrawingDocument,
   trashDrawingDocument,
   updateHubConnector,
+  updateOrderProductionStatus,
   uploadHubDrawingItem,
 } from '@/services/api'
 import {
@@ -32,7 +37,6 @@ import {
   mockDrawingDetails,
   mockFixtureParameters,
   mockHubCustomers,
-  mockHubOrders,
   mockHubProducts,
 } from '@/mock/order-hub-data'
 import { useNavigationMemoryStore } from './navigation-memory-store'
@@ -54,7 +58,6 @@ import type {
   HubCustomer,
   HubMode,
   HubOrder,
-  HubOrderStatus,
   HubProductModel,
   ProductDrawingDetail,
 } from '@/types/production'
@@ -79,6 +82,16 @@ import type {
   TrashDocumentPayload,
   TrashQuery,
 } from '@/types/document-lifecycle'
+import type {
+  OrderImportApplyResponse,
+  OrderImportPreviewItemState,
+  OrderImportPreviewResponse,
+  OrderOverviewResponse,
+  OrderProductLinkCandidate,
+  OrderProductionStatus,
+  OrderScope,
+  ProductionOrder,
+} from '@/types/order-management'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -291,16 +304,15 @@ function pickPdfImportItemPatch(patch: PdfImportEditableItemPatch | Record<strin
   return next
 }
 
-const orderStatusRank: Record<HubOrderStatus, number> = {
+const orderStatusRank: Record<OrderProductionStatus, number> = {
   back: 0,
   front: 1,
   no_drawing: 2,
-  exception: 3,
 }
 
-function sortOrders(orders: HubOrder[]) {
+function sortOrders(orders: ProductionOrder[]) {
   return [...orders].sort((a, b) => {
-    const statusDiff = orderStatusRank[a.status] - orderStatusRank[b.status]
+    const statusDiff = orderStatusRank[a.productionStatus] - orderStatusRank[b.productionStatus]
     if (statusDiff) return statusDiff
     const customerDiff = a.customerName.localeCompare(b.customerName, 'zh-Hans-CN')
     if (customerDiff) return customerDiff
@@ -308,13 +320,67 @@ function sortOrders(orders: HubOrder[]) {
   })
 }
 
+function toOrderState(order: ProductionOrder): ProductionOrder {
+  return {
+    ...order,
+    customerName: order.customerName ?? '',
+    quantity: order.quantity ?? null,
+    linkedProductId: order.linkedProductId ?? order.productId ?? null,
+    status: order.status ?? order.productionStatus,
+    completed: order.completed ?? order.completionStatus === 'completed',
+  }
+}
+
+function orderErrorMessage(error: unknown, fallback = '网络连接失败，请检查网络。') {
+  const value = error as {
+    data?: { message?: string | string[]; error?: string }
+    response?: { _data?: { message?: string | string[]; error?: string } }
+    message?: string
+  }
+  const raw = value?.data?.message
+    ?? value?.response?._data?.message
+    ?? value?.data?.error
+    ?? value?.response?._data?.error
+    ?? value?.message
+  const message = Array.isArray(raw) ? raw.join('；') : cleanText(raw)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) return fallback
+  return message
+}
+
+function orderQuantityText(order: Pick<ProductionOrder, 'quantity' | 'quantityProvided'>) {
+  if (!order.quantityProvided) return '数量未填写'
+  const value = Number(order.quantity)
+  return Number.isFinite(value) && value > 0 ? `数量 ${value}` : '数量未填写'
+}
+
 export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const navigation = useNavigationMemoryStore()
   const activeMode = ref<HubMode>('drawing')
   const searchKeyword = ref('')
-  const todayOrders = ref<HubOrder[]>([])
-  const weekOrders = ref<HubOrder[]>([])
-  const completedOrders = ref<HubOrder[]>([])
+  const activeOrderScope = ref<OrderScope>('week')
+  const todayOrders = ref<ProductionOrder[]>([])
+  const weekOrders = ref<ProductionOrder[]>([])
+  const completedOrders = ref<ProductionOrder[]>([])
+  const ordersLoading = ref(false)
+  const ordersError = ref('')
+  const orderImportOpen = ref(false)
+  const orderImportScope = ref<OrderScope>('week')
+  const orderImportFile = ref<File | null>(null)
+  const orderImportPreview = ref<OrderImportPreviewResponse | null>(null)
+  const orderImportItems = ref<OrderImportPreviewItemState[]>([])
+  const orderImportCandidateMap = ref<Record<string, OrderProductLinkCandidate[]>>({})
+  const orderImportCandidateLoadingId = ref('')
+  const orderImportLoading = ref(false)
+  const orderImportError = ref('')
+  const orderImportResult = ref<OrderImportApplyResponse | null>(null)
+  const orderOverview = ref<OrderOverviewResponse | null>(null)
+  const orderOverviewLoading = ref(false)
+  const orderOverviewError = ref('')
+  const orderActionLoadingId = ref('')
+  const pendingProductLinkOrder = ref<ProductionOrder | null>(null)
+  const orderProductLinkCandidates = ref<OrderProductLinkCandidate[]>([])
+  const orderProductLinkLoading = ref(false)
+  const orderProductLinkError = ref('')
   const customers = ref<HubCustomer[]>([])
   const productModels = ref<HubProductModel[]>([])
   const selectedCustomer = ref<HubCustomer | null>(null)
@@ -382,7 +448,6 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const connectorDetailOpen = ref(false)
   const fixtureDetailOpen = ref(false)
   const loading = ref(false)
-  const localOrders = ref<HubOrder[]>(clone(mockHubOrders))
   const localDetails = ref<ProductDrawingDetail[]>(clone(mockDrawingDetails))
   const localConnectors = ref<ConnectorParameter[]>(clone(mockConnectorParameters))
   const localFixtures = ref<FixtureParameter[]>(clone(mockFixtureParameters))
@@ -394,14 +459,20 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     return '搜索客户、产品型号、图纸、SOP、成品图'
   })
 
-  const visibleTodayOrders = computed(() => sortOrders(todayOrders.value.filter((order) => !order.completed)))
-  const visibleWeekOrders = computed(() => sortOrders(weekOrders.value.filter((order) => !order.completed)))
+  const visibleTodayOrders = computed(() => sortOrders(todayOrders.value.filter((order) => order.completionStatus === 'pending' && !order.completed)))
+  const visibleWeekOrders = computed(() => sortOrders(weekOrders.value.filter((order) => order.completionStatus === 'pending' && !order.completed)))
+  const visibleActiveScopeOrders = computed(() => activeOrderScope.value === 'today' ? visibleTodayOrders.value : visibleWeekOrders.value)
 
-  function patchOrder(orderId: string, patch: Partial<HubOrder>) {
-    for (const list of [localOrders.value, todayOrders.value, weekOrders.value, completedOrders.value]) {
+  function patchOrder(orderId: string, patch: Partial<ProductionOrder>) {
+    for (const list of [todayOrders.value, weekOrders.value, completedOrders.value]) {
       const item = list.find((entry) => entry.orderId === orderId)
       if (item) Object.assign(item, patch)
     }
+  }
+
+  function findOrder(orderId: string) {
+    return [...todayOrders.value, ...weekOrders.value, ...completedOrders.value]
+      .find((order) => order.orderId === orderId) ?? null
   }
 
   async function initialize() {
@@ -417,62 +488,355 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
-  async function loadOrders() {
+  function setActiveOrderScope(scope: OrderScope) {
+    if (activeOrderScope.value === scope) return
+    saveCurrentScroll(`orders-${activeOrderScope.value}`)
+    activeOrderScope.value = scope
+    void restoreScroll(`orders-${scope}`)
+    void loadOrders(scope)
+  }
+
+  async function loadOrders(scope?: OrderScope) {
+    ordersLoading.value = true
+    ordersError.value = ''
     try {
-      const [today, week, overview] = await Promise.all([
-        getHubOrders('today', false),
-        getHubOrders('week', false),
-        getHubOrderOverview(),
-      ])
-      const fallbackToday = localOrders.value.filter((order) => order.scope === 'today' && !order.completed)
-      const fallbackWeek = localOrders.value.filter((order) => order.scope === 'week' && !order.completed)
-      const fallbackCompleted = localOrders.value.filter((order) => order.completed)
-      todayOrders.value = withFallback(today, fallbackToday)
-      weekOrders.value = withFallback(week, fallbackWeek)
-      completedOrders.value = withFallback(overview.completedOrders, fallbackCompleted)
-    } catch {
-      todayOrders.value = localOrders.value.filter((order) => order.scope === 'today' && !order.completed)
-      weekOrders.value = localOrders.value.filter((order) => order.scope === 'week' && !order.completed)
-      completedOrders.value = localOrders.value.filter((order) => order.completed)
+      if (!scope || scope === 'today') {
+        todayOrders.value = (await getDocumentHubOrders({ scope: 'today', completionStatus: 'pending' })).map(toOrderState)
+      }
+      if (!scope || scope === 'week') {
+        weekOrders.value = (await getDocumentHubOrders({ scope: 'week', completionStatus: 'pending' })).map(toOrderState)
+      }
+      if (!scope) await loadOrderOverview()
+    } catch (error) {
+      const message = orderErrorMessage(error)
+      ordersError.value = message
+      toast.error(message)
+    } finally {
+      ordersLoading.value = false
     }
   }
 
-  async function completeOrder(order: HubOrder) {
+  function loadTodayOrders() {
+    return loadOrders('today')
+  }
+
+  function loadWeekOrders() {
+    return loadOrders('week')
+  }
+
+  async function loadOrderOverview() {
+    orderOverviewLoading.value = true
+    orderOverviewError.value = ''
+    try {
+      const overview = await getOrderOverview()
+      orderOverview.value = overview
+      completedOrders.value = overview.completedOrders.map(toOrderState)
+      return overview
+    } catch (error) {
+      const message = orderErrorMessage(error)
+      orderOverviewError.value = message
+      toast.error(message)
+      return null
+    } finally {
+      orderOverviewLoading.value = false
+    }
+  }
+
+  async function refreshOrdersAfterAction() {
+    await Promise.all([loadTodayOrders(), loadWeekOrders(), loadOrderOverview()])
+  }
+
+  async function completeOrder(orderOrId: ProductionOrder | string) {
+    const order = typeof orderOrId === 'string' ? findOrder(orderOrId) : orderOrId
+    if (!order || orderActionLoadingId.value === order.orderId) return
     saveCurrentScroll('orders')
-    saveCurrentScroll('week-orders')
+    saveCurrentScroll(`orders-${activeOrderScope.value}`)
     saveCurrentScroll('order-overview')
+    orderActionLoadingId.value = order.orderId
     try {
-      await completeHubOrder(order.orderId)
-    } catch {
-      patchOrder(order.orderId, { completed: true, completedAt: new Date().toISOString() })
+      await completeDocumentHubOrder(order.orderId, { operatorName: 'local-tablet' })
+      await refreshOrdersAfterAction()
+      await restoreScroll('orders')
+      await restoreScroll(`orders-${activeOrderScope.value}`)
+      await restoreScroll('order-overview')
+      toast.success('订单已完成。', { description: order.productModel })
+    } catch (error) {
+      toast.error(orderErrorMessage(error, '订单完成失败，请稍后重试。'))
+      throw error
+    } finally {
+      orderActionLoadingId.value = ''
     }
-    await loadOrders()
-    await restoreScroll('orders')
-    await restoreScroll('week-orders')
-    await restoreScroll('order-overview')
-    toast.success(`已完成：${order.productModel}`)
   }
 
-  function updateOrderStatus(order: HubOrder, status: HubOrderStatus) {
-    patchOrder(order.orderId, { status })
-    toast.success('订单状态已更新', { description: order.productModel })
+  async function updateOrderStatus(orderOrId: ProductionOrder | string, status: OrderProductionStatus) {
+    const order = typeof orderOrId === 'string' ? findOrder(orderOrId) : orderOrId
+    if (!order || orderActionLoadingId.value === order.orderId) return
+    if (order.completionStatus === 'completed') {
+      toast.warning('请先恢复订单。')
+      return
+    }
+    orderActionLoadingId.value = order.orderId
+    try {
+      await updateOrderProductionStatus(order.orderId, status, { operatorName: 'local-tablet' })
+      await refreshOrdersAfterAction()
+      toast.success('订单状态已更新。', { description: order.productModel })
+    } catch (error) {
+      toast.error(orderErrorMessage(error, '订单状态更新失败，请稍后重试。'))
+      throw error
+    } finally {
+      orderActionLoadingId.value = ''
+    }
   }
 
-  async function reopenOrder(order: HubOrder) {
-    const restored = { ...order, completed: false, completedAt: undefined }
-    const local = localOrders.value.find((item) => item.orderId === order.orderId)
-    if (local) {
-      local.completed = false
-      local.completedAt = undefined
+  async function restoreOrder(orderOrId: ProductionOrder | string) {
+    const order = typeof orderOrId === 'string' ? findOrder(orderOrId) : orderOrId
+    if (!order || orderActionLoadingId.value === order.orderId) return
+    orderActionLoadingId.value = order.orderId
+    try {
+      await restoreDocumentHubOrder(order.orderId, { operatorName: 'local-tablet' })
+      await refreshOrdersAfterAction()
+      toast.success('订单已恢复。', { description: order.productModel })
+    } catch (error) {
+      toast.error(orderErrorMessage(error, '订单恢复失败，请稍后重试。'))
+      throw error
+    } finally {
+      orderActionLoadingId.value = ''
     }
-    completedOrders.value = completedOrders.value.filter((item) => item.orderId !== order.orderId)
-    if (restored.scope === 'today' && !todayOrders.value.some((item) => item.orderId === restored.orderId)) {
-      todayOrders.value.unshift(restored)
+  }
+
+  function reopenOrder(orderOrId: ProductionOrder | string) {
+    return restoreOrder(orderOrId)
+  }
+
+  function openOrderImport(scope: OrderScope = activeOrderScope.value) {
+    orderImportScope.value = scope
+    orderImportError.value = ''
+    orderImportOpen.value = true
+  }
+
+  function resetOrderImport() {
+    orderImportScope.value = activeOrderScope.value
+    orderImportFile.value = null
+    orderImportPreview.value = null
+    orderImportItems.value = []
+    orderImportCandidateMap.value = {}
+    orderImportCandidateLoadingId.value = ''
+    orderImportError.value = ''
+    orderImportResult.value = null
+  }
+
+  function setOrderImportFile(file: File | null) {
+    orderImportError.value = ''
+    orderImportPreview.value = null
+    orderImportItems.value = []
+    orderImportCandidateMap.value = {}
+    orderImportResult.value = null
+    if (!file) {
+      orderImportFile.value = null
+      return
     }
-    if (restored.scope === 'week' && !weekOrders.value.some((item) => item.orderId === restored.orderId)) {
-      weekOrders.value.unshift(restored)
+    if (!/\.xlsx$/i.test(file.name)) {
+      orderImportFile.value = null
+      orderImportError.value = '仅支持 XLSX 订单文件。'
+      return
     }
-    toast.success('已重新加入待完成', { description: order.productModel })
+    if (file.size <= 0) {
+      orderImportFile.value = null
+      orderImportError.value = '请选择 XLSX 订单文件。'
+      return
+    }
+    orderImportFile.value = file
+  }
+
+  function toOrderImportItemState(item: OrderImportPreviewResponse['items'][number]): OrderImportPreviewItemState {
+    return {
+      ...item,
+      selected: item.action === 'create_order' || item.action === 'product_not_found',
+      confirmedCustomerId: item.matchedCustomerId ?? undefined,
+      confirmedProductId: item.matchedProductId ?? undefined,
+      remark: '',
+    }
+  }
+
+  async function previewOrderImport() {
+    orderImportError.value = ''
+    orderImportResult.value = null
+    if (!orderImportFile.value) {
+      orderImportError.value = '请选择 XLSX 订单文件。'
+      return null
+    }
+    orderImportLoading.value = true
+    try {
+      const response = await previewOrderImportRequest(orderImportScope.value, orderImportFile.value)
+      orderImportPreview.value = response
+      orderImportItems.value = response.items.map(toOrderImportItemState)
+      orderImportCandidateMap.value = {}
+      return response
+    } catch (error) {
+      const message = orderErrorMessage(error, '订单导入预览失败，请稍后重试。')
+      orderImportError.value = message
+      toast.error(message)
+      return null
+    } finally {
+      orderImportLoading.value = false
+    }
+  }
+
+  function updateOrderImportItem(
+    importItemId: string,
+    patch: Partial<Pick<OrderImportPreviewItemState, 'selected' | 'confirmedCustomerId' | 'confirmedProductId' | 'remark'>>,
+  ) {
+    const item = orderImportItems.value.find((entry) => entry.importItemId === importItemId)
+    if (!item) return
+    if (item.action === 'error') {
+      item.selected = false
+      return
+    }
+    if (patch.selected !== undefined) item.selected = Boolean(patch.selected)
+    if (patch.confirmedCustomerId !== undefined) {
+      item.confirmedCustomerId = cleanText(patch.confirmedCustomerId) || undefined
+      item.confirmedProductId = undefined
+    }
+    if (patch.confirmedProductId !== undefined) item.confirmedProductId = cleanText(patch.confirmedProductId) || undefined
+    if (patch.remark !== undefined) item.remark = cleanText(patch.remark)
+  }
+
+  async function applyOrderImport() {
+    orderImportError.value = ''
+    if (!orderImportPreview.value) {
+      orderImportError.value = '订单导入预览已过期，请重新选择文件。'
+      return null
+    }
+    const unresolved = orderImportItems.value.find((item) => (
+      item.selected &&
+      item.action === 'needs_customer_confirmation' &&
+      (!item.confirmedCustomerId || !item.confirmedProductId)
+    ))
+    if (unresolved) {
+      orderImportError.value = '该型号存在多个客户，请确认客户和产品资料页。'
+      return null
+    }
+    orderImportLoading.value = true
+    try {
+      const result = await applyOrderImportRequest({
+        importBatchId: orderImportPreview.value.importBatchId,
+        operatorName: 'local-tablet',
+        items: orderImportItems.value.map((item) => ({
+          importItemId: item.importItemId,
+          selected: item.selected,
+          confirmedCustomerId: item.confirmedCustomerId,
+          confirmedProductId: item.confirmedProductId,
+          remark: item.remark,
+        })),
+      })
+      orderImportResult.value = result
+      await refreshOrdersAfterAction()
+      toast.success('订单导入完成。')
+      return result
+    } catch (error) {
+      const message = orderErrorMessage(error, '订单导入失败，请稍后重试。')
+      orderImportError.value = message
+      toast.error(message)
+      return null
+    } finally {
+      orderImportLoading.value = false
+    }
+  }
+
+  async function loadOrderImportItemCandidates(importItemId: string) {
+    const item = orderImportItems.value.find((entry) => entry.importItemId === importItemId)
+    if (!item) return []
+    if (orderImportCandidateMap.value[importItemId]) return orderImportCandidateMap.value[importItemId]
+    orderImportCandidateLoadingId.value = importItemId
+    try {
+      if (!customers.value.length) await loadCustomers()
+      const rows = await Promise.all(customers.value.map(async (customer) => {
+        const products = await getHubProducts(customer.customerId, item.productModel)
+        return {
+          customer,
+          products: products.filter((product) => (
+            normalizeOrderProductModel(product.normalizedProductModel || product.productModel) === item.normalizedProductModel
+          )),
+        }
+      }))
+      const candidates = rows.filter((row) => row.products.length)
+      orderImportCandidateMap.value = {
+        ...orderImportCandidateMap.value,
+        [importItemId]: candidates,
+      }
+      return candidates
+    } catch (error) {
+      const message = orderErrorMessage(error, '产品候选加载失败，请稍后重试。')
+      orderImportError.value = message
+      toast.error(message)
+      return []
+    } finally {
+      orderImportCandidateLoadingId.value = ''
+    }
+  }
+
+  async function openOrderOverview() {
+    orderOverviewOpen.value = true
+    await loadOrderOverview()
+  }
+
+  function closeOrderOverview() {
+    orderOverviewOpen.value = false
+  }
+
+  function productMatchesOrder(order: ProductionOrder, product: HubProductModel) {
+    const productNormalized = normalizeOrderProductModel(product.normalizedProductModel || product.productModel)
+    return productNormalized === order.normalizedProductModel
+  }
+
+  async function loadOrderProductLinkCandidates(order: ProductionOrder) {
+    orderProductLinkLoading.value = true
+    orderProductLinkError.value = ''
+    try {
+      if (!customers.value.length) await loadCustomers()
+      const rows = await Promise.all(customers.value.map(async (customer) => {
+        const products = await getHubProducts(customer.customerId, order.productModel)
+        return {
+          customer,
+          products: products.filter((product) => productMatchesOrder(order, product)),
+        }
+      }))
+      orderProductLinkCandidates.value = rows.filter((row) => row.products.length)
+    } catch (error) {
+      const message = orderErrorMessage(error, '产品候选加载失败，请稍后重试。')
+      orderProductLinkError.value = message
+      toast.error(message)
+    } finally {
+      orderProductLinkLoading.value = false
+    }
+  }
+
+  async function openOrderProductLinkDialog(order: ProductionOrder) {
+    pendingProductLinkOrder.value = order
+    await loadOrderProductLinkCandidates(order)
+  }
+
+  function closeOrderProductLinkDialog() {
+    pendingProductLinkOrder.value = null
+    orderProductLinkCandidates.value = []
+    orderProductLinkError.value = ''
+  }
+
+  async function linkOrderToProduct(order: ProductionOrder, customerId: string, productId: string) {
+    if (!order || orderActionLoadingId.value === order.orderId) return null
+    orderActionLoadingId.value = order.orderId
+    try {
+      const linked = await linkOrderProduct(order.orderId, customerId, productId, { operatorName: 'local-tablet' })
+      await refreshOrdersAfterAction()
+      closeOrderProductLinkDialog()
+      toast.success('订单已绑定正式产品资料页。', { description: linked.productModel })
+      return linked
+    } catch (error) {
+      toast.error(orderErrorMessage(error, '订单产品绑定失败，请稍后重试。'))
+      throw error
+    } finally {
+      orderActionLoadingId.value = ''
+    }
   }
 
   async function loadCustomers() {
@@ -579,7 +943,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     await restoreScroll('product')
   }
 
-  async function openOrderProduct(order: HubOrder, source: 'orders' | 'overview' = 'orders') {
+  async function openOrderProduct(order: HubOrder | ProductionOrder, source: 'orders' | 'overview' = 'orders') {
     activeMode.value = 'drawing'
     navigation.rememberFunction('drawing')
     resetDocumentViewerState()
@@ -588,6 +952,27 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedProduct.value = null
     selectedModule.value = null
     selectedDrawingItem.value = null
+    const managedOrder = order as ProductionOrder
+    const linkedProductId = managedOrder.linkedProductId ?? order.productId ?? order.resolvedProductId
+    if (managedOrder.productResolutionStatus === 'ambiguous') {
+      await openOrderProductLinkDialog(managedOrder)
+      return
+    }
+    if (managedOrder.productResolutionStatus === 'found' && linkedProductId && !isUnsafeDrawingProductId(linkedProductId, order.orderId)) {
+      productResolutionLoading.value = true
+      try {
+        const detail = await getHubProductDetail(linkedProductId)
+        selectedCustomer.value = detail.customer ?? null
+        await openProduct(detail.product, source)
+        return
+      } catch (error) {
+        const message = orderErrorMessage(error, '产品资料查询失败，请检查网络后重试。')
+        productResolutionError.value = message
+        toast.error(message)
+      } finally {
+        productResolutionLoading.value = false
+      }
+    }
     productResolutionLoading.value = true
     patchOrder(order.orderId, {
       productResolutionStatus: 'resolving',
@@ -1902,9 +2287,30 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   return {
     activeMode,
     searchKeyword,
+    activeOrderScope,
     todayOrders,
     weekOrders,
     completedOrders,
+    ordersLoading,
+    ordersError,
+    orderImportOpen,
+    orderImportScope,
+    orderImportFile,
+    orderImportPreview,
+    orderImportItems,
+    orderImportCandidateMap,
+    orderImportCandidateLoadingId,
+    orderImportLoading,
+    orderImportError,
+    orderImportResult,
+    orderOverview,
+    orderOverviewLoading,
+    orderOverviewError,
+    orderActionLoadingId,
+    pendingProductLinkOrder,
+    orderProductLinkCandidates,
+    orderProductLinkLoading,
+    orderProductLinkError,
     customers,
     productModels,
     selectedCustomer,
@@ -1974,11 +2380,32 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     currentSearchPlaceholder,
     visibleTodayOrders,
     visibleWeekOrders,
+    visibleActiveScopeOrders,
     initialize,
+    setActiveOrderScope,
     loadOrders,
+    loadTodayOrders,
+    loadWeekOrders,
+    loadOrderOverview,
+    refreshOrdersAfterAction,
     completeOrder,
     updateOrderStatus,
+    restoreOrder,
     reopenOrder,
+    openOrderImport,
+    setOrderImportFile,
+    previewOrderImport,
+    updateOrderImportItem,
+    loadOrderImportItemCandidates,
+    applyOrderImport,
+    resetOrderImport,
+    openOrderOverview,
+    closeOrderOverview,
+    loadOrderProductLinkCandidates,
+    openOrderProductLinkDialog,
+    closeOrderProductLinkDialog,
+    linkOrderToProduct,
+    orderQuantityText,
     loadCustomers,
     openCustomer,
     openProduct,

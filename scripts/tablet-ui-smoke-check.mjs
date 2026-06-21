@@ -174,20 +174,20 @@ requireNotIncludes(
   'transition: grid-template-columns',
   'Order sidebar width changes must not animate grid-template-columns because it janks on tablet.',
 );
-requireNotIncludes(
+requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
-  'class="order-section today"',
-  'Main order sidebar must not render the today-order section.',
+  'store.setActiveOrderScope',
+  'Main order sidebar must support today/week order switching.',
 );
-requireNotIncludes(
+requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
-  'visibleTodayOrders',
-  'Main order sidebar must not bind the today-order list.',
+  'visibleActiveScopeOrders',
+  'Main order sidebar must bind the active order scope list.',
 );
-requireNotIncludes(
+requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderCard.vue',
-  '完成订单',
-  'Homepage order cards must not keep the complete action.',
+  '确认完成订单',
+  'Homepage order cards should expose the order completion action.',
 );
 requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderOverviewDialog.vue',
@@ -222,7 +222,7 @@ requireIncludes(
 requireIncludes(
   'apps/tablet/src/stores/document-hub-store.ts',
   'orderStatusRank',
-  'Visible order lists must keep the default back/front/no-drawing/exception ordering.',
+  'Visible order lists must keep the default back/front/no-drawing ordering.',
 );
 requireNotIncludes(
   'apps/tablet/src/components/orders/WarmOrderCard.vue',

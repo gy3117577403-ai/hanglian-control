@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { useConfirm } from 'primevue/useconfirm'
+import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-vue-next'
 import WarmOrderCard from './WarmOrderCard.vue'
-import { orderQuantityTotal } from '@/lib/format'
+import WarmOrderImportDialog from './WarmOrderImportDialog.vue'
+import WarmOrderProductLinkDialog from './WarmOrderProductLinkDialog.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
-import type { HubOrder } from '@/types/production'
+import type { OrderProductionStatus, OrderScope, ProductionOrder } from '@/types/order-management'
 
 const store = useDocumentHubStore()
+const confirm = useConfirm()
 const customerToneNames = ['tone-amber', 'tone-teal', 'tone-sage', 'tone-rose', 'tone-violet', 'tone-gold']
 
-const weekOrders = computed(() => store.visibleWeekOrders)
+const activeOrders = computed(() => store.visibleActiveScopeOrders)
+const todayCount = computed(() => store.visibleTodayOrders.length)
+const weekCount = computed(() => store.visibleWeekOrders.length)
+const activeScrollKey = computed(() => `orders-${store.activeOrderScope}`)
 let lastTogglePointerAt = -1000
 
 function recentlyHandledPointer() {
@@ -36,28 +42,60 @@ function handleToggleClick() {
 
 const customerToneMap = computed(() => {
   const map = new Map<string, string>()
-  for (const order of weekOrders.value) {
-    if (!map.has(order.customerName)) {
-      map.set(order.customerName, customerToneNames[map.size % customerToneNames.length])
+  for (const order of activeOrders.value) {
+    const key = order.customerName || '客户待确认'
+    if (!map.has(key)) {
+      map.set(key, customerToneNames[map.size % customerToneNames.length])
     }
   }
   return map
 })
 
-function open(order: HubOrder) {
+function setScope(scope: OrderScope) {
+  store.setActiveOrderScope(scope)
+}
+
+function open(order: ProductionOrder) {
   void store.openOrderProduct(order, 'orders')
 }
 
+function openLink(order: ProductionOrder) {
+  void store.openOrderProductLinkDialog(order)
+}
+
 function customerTone(customerName: string) {
-  return customerToneMap.value.get(customerName) ?? 'tone-neutral'
+  return customerToneMap.value.get(customerName || '客户待确认') ?? 'tone-neutral'
 }
 
-function customerCount(orders: HubOrder[]) {
-  return new Set(orders.map((order) => order.customerName)).size
+function customerCount(orders: ProductionOrder[]) {
+  return new Set(orders.map((order) => order.customerName || '客户待确认')).size
 }
 
-function quantitySum(orders: HubOrder[]) {
-  return orderQuantityTotal(orders)
+function quantitySummary(orders: ProductionOrder[]) {
+  const provided = orders.filter((order) => order.quantityProvided)
+  const sum = provided.reduce((total, order) => total + (Number(order.quantity) > 0 ? Number(order.quantity) : 0), 0)
+  return provided.length === orders.length ? `数量 ${sum}` : `数量 ${sum} / 未填 ${orders.length - provided.length}`
+}
+
+function confirmComplete(order: ProductionOrder) {
+  confirm.require({
+    header: '确认完成订单',
+    message: '完成后该型号将从当前待完成列表移除，并进入订单总览的已完成列表。',
+    acceptLabel: '确认完成',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-success',
+    accept: () => {
+      void store.completeOrder(order)
+    },
+  })
+}
+
+function changeStatus(order: ProductionOrder, status: OrderProductionStatus) {
+  void store.updateOrderStatus(order, status)
+}
+
+function openImport() {
+  store.openOrderImport(store.activeOrderScope)
 }
 </script>
 
@@ -74,20 +112,21 @@ function quantitySum(orders: HubOrder[]) {
     >
       <ChevronRight :size="19" />
       <span>订单</span>
-      <b>{{ weekOrders.length }}</b>
-      <small>本周</small>
+      <b>{{ activeOrders.length }}</b>
+      <small>{{ store.activeOrderScope === 'today' ? '今日' : '本周' }}</small>
     </button>
 
-    <div
-      class="expanded-panel"
-      :aria-hidden="store.orderSidebarCollapsed"
-    >
+    <div class="expanded-panel" :aria-hidden="store.orderSidebarCollapsed">
       <div class="sidebar-head">
         <CalendarDays :size="19" />
         <div>
           <h2>订单资料调用</h2>
-          <p>点型号直接打开图纸资料</p>
+          <p>点型号打开正式图纸资料</p>
         </div>
+        <PrimeButton class="import-button" title="导入订单" aria-label="导入订单" @click="openImport">
+          <FileSpreadsheet :size="17" />
+          <span>导入订单</span>
+        </PrimeButton>
         <PrimeButton
           severity="secondary"
           text
@@ -100,26 +139,51 @@ function quantitySum(orders: HubOrder[]) {
         </PrimeButton>
       </div>
 
-      <section class="order-section week">
+      <div class="scope-tabs" role="tablist" aria-label="订单范围">
+        <button type="button" :class="{ active: store.activeOrderScope === 'today' }" @click="setScope('today')">
+          今日订单 <b>{{ todayCount }}</b>
+        </button>
+        <button type="button" :class="{ active: store.activeOrderScope === 'week' }" @click="setScope('week')">
+          本周订单 <b>{{ weekCount }}</b>
+        </button>
+      </div>
+
+      <section class="order-section" :class="store.activeOrderScope">
         <div class="section-title">
-          <b>本周订单</b>
-          <span>客户 {{ customerCount(weekOrders) }}</span>
-          <em>数量 {{ quantitySum(weekOrders) }}</em>
+          <b>{{ store.activeOrderScope === 'today' ? '今日订单' : '本周订单' }}</b>
+          <span>客户 {{ customerCount(activeOrders) }}</span>
+          <em>{{ quantitySummary(activeOrders) }}</em>
         </div>
-        <div class="order-list compact-scroll" data-scroll-key="week-orders">
+
+        <div v-if="store.ordersError" class="order-error">
+          <span>{{ store.ordersError }}</span>
+          <PrimeButton size="small" severity="secondary" label="重试" @click="store.loadOrders(store.activeOrderScope)" />
+        </div>
+
+        <div class="order-list compact-scroll" :data-scroll-key="activeScrollKey">
+          <template v-if="store.ordersLoading && !activeOrders.length">
+            <PrimeSkeleton v-for="index in 3" :key="index" height="132px" border-radius="15px" />
+          </template>
           <WarmOrderCard
-            v-for="order in weekOrders"
+            v-for="order in activeOrders"
             :key="order.orderId"
             :order="order"
+            :loading="store.orderActionLoadingId === order.orderId"
             :customer-tone="customerTone(order.customerName)"
             @open="open"
+            @complete="confirmComplete"
+            @link="openLink"
+            @status-change="changeStatus"
           />
-          <div v-if="!weekOrders.length" class="empty-orders">
-            本周暂无待办订单。
+          <div v-if="!store.ordersLoading && !activeOrders.length" class="empty-orders">
+            {{ store.activeOrderScope === 'today' ? '今日暂无待完成订单。' : '本周暂无待完成订单。' }}
           </div>
         </div>
       </section>
     </div>
+
+    <WarmOrderImportDialog />
+    <WarmOrderProductLinkDialog />
   </aside>
 </template>
 
@@ -145,30 +209,15 @@ function quantitySum(orders: HubOrder[]) {
     0 18px 34px rgba(75, 38, 13, 0.12),
     0 8px 18px rgba(255, 255, 255, 0.22) inset,
     0 0 0 1px rgba(126, 78, 36, 0.05),
-    0 0 38px rgba(255, 255, 255, 0.18),
     0 2px 0 rgba(255, 255, 255, 0.96) inset,
     16px 0 28px rgba(255, 255, 255, 0.24) inset,
     -14px -12px 32px rgba(86, 130, 124, 0.1) inset;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition:
-    opacity 130ms ease,
-    border-color 130ms ease,
-    box-shadow 130ms ease,
-    background-color 130ms ease;
-  will-change: opacity;
-}
-
-.order-sidebar::before,
-.order-sidebar::after {
-  position: absolute;
-  content: '';
-  pointer-events: none;
 }
 
 .order-sidebar::before {
+  position: absolute;
   inset: 1px;
   z-index: -1;
   border-radius: 23px;
@@ -176,10 +225,8 @@ function quantitySum(orders: HubOrder[]) {
     linear-gradient(130deg, rgba(255, 255, 255, 0.99), rgba(255, 255, 255, 0.92) 32%, rgba(255, 255, 255, 0.82) 56%),
     linear-gradient(300deg, rgba(86, 132, 126, 0.18), transparent 50%),
     linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent 18%, transparent 82%, rgba(100, 61, 29, 0.07));
-}
-
-.order-sidebar::after {
-  display: none;
+  content: '';
+  pointer-events: none;
 }
 
 .collapsed-rail,
@@ -197,7 +244,7 @@ function quantitySum(orders: HubOrder[]) {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   opacity: 1;
   transform: translateX(0) scale(1);
   visibility: visible;
@@ -227,7 +274,7 @@ function quantitySum(orders: HubOrder[]) {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 7px;
   align-items: center;
   margin-bottom: 8px;
@@ -252,14 +299,63 @@ p {
   font-weight: 850;
 }
 
+.import-button {
+  min-width: 108px;
+  min-height: 44px;
+  gap: 6px;
+  border-radius: 14px;
+  color: #fff8ec;
+  font-weight: 950;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.09) 46%),
+    linear-gradient(145deg, rgba(229, 127, 50, 0.72), rgba(176, 78, 30, 0.62)),
+    rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 16px 26px rgba(141, 68, 22, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66),
+    inset 0 -12px 22px rgba(101, 43, 16, 0.14);
+}
+
+.scope-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.scope-tabs button {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.34);
+  color: #68401f;
+  font-weight: 950;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.scope-tabs button.active {
+  color: #fff8ec;
+  background:
+    linear-gradient(145deg, rgba(205, 105, 40, 0.84), rgba(151, 75, 35, 0.72)),
+    rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 12px 20px rgba(128, 62, 22, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+}
+
+.scope-tabs b {
+  margin-left: 4px;
+}
+
 .order-section {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   padding: 7px 3px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.42);
+  border-top: 1px solid rgba(88, 122, 118, 0.18);
   border-radius: 17px;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.025)),
@@ -267,10 +363,6 @@ p {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
     inset 0 -12px 22px rgba(120, 67, 32, 0.028);
-}
-
-.order-section.week {
-  border-top-color: rgba(88, 122, 118, 0.18);
 }
 
 .section-title {
@@ -305,10 +397,24 @@ p {
   justify-self: start;
 }
 
+.order-error {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 8px;
+  border-radius: 13px;
+  background: rgba(174, 71, 60, 0.1);
+  color: #9b3d32;
+  font-size: 11px;
+  font-weight: 850;
+}
+
 .order-list {
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 7px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -376,8 +482,6 @@ p {
     0 18px 34px rgba(75, 38, 13, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     inset 0 -18px 34px rgba(116, 62, 30, 0.06);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   pointer-events: none;
 }
 
@@ -422,18 +526,18 @@ p {
 }
 
 @media (max-width: 1320px), (prefers-reduced-motion: reduce) {
-  .order-sidebar {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .order-sidebar.collapsed .collapsed-rail {
-    width: 100%;
-  }
-
   .collapsed-rail,
   .expanded-panel {
     transition: none;
+  }
+
+  .import-button span {
+    display: none;
+  }
+
+  .import-button {
+    min-width: 44px;
+    padding: 0;
   }
 }
 </style>

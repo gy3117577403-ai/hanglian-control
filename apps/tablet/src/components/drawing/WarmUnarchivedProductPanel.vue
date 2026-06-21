@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { ArrowLeft, FileText, Lock, PackagePlus, UploadCloud } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
-import { orderQuantity } from '@/lib/format'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
@@ -22,6 +21,12 @@ const title = computed(() => (
       : '当前型号尚未建立产品资料页'
 ))
 const message = computed(() => context.value?.message || '当前型号尚未建立产品资料页。')
+const quantityText = computed(() => {
+  if (!order.value) return '-'
+  if ('quantityProvided' in order.value && !order.value.quantityProvided) return '数量未填写'
+  const value = Number(order.value.quantity)
+  return Number.isFinite(value) && value > 0 ? String(value) : '数量未填写'
+})
 
 function promptArchiveFirst() {
   toast.warning('请先建立产品资料页。')
@@ -49,7 +54,7 @@ function promptArchiveFirst() {
         <span>产品型号</span>
         <strong>{{ order?.productModel || '-' }}</strong>
         <span>订单数量</span>
-        <strong>{{ order ? orderQuantity(order) : '-' }}</strong>
+        <strong>{{ quantityText }}</strong>
         <span>当前状态</span>
         <strong>{{ title }}</strong>
       </div>
