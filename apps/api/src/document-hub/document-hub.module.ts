@@ -7,6 +7,9 @@ import { DocumentHubController } from './document-hub.controller';
 import { DocumentHubService } from './document-hub.service';
 import { DocumentLifecycleService } from './document-lifecycle.service';
 import { DrawingMetadataStore } from './drawing-metadata.store';
+import { OrderImportService } from './order-import.service';
+import { OrderMetadataStore } from './order-metadata.store';
+import { OrderStatusSyncService } from './order-status-sync.service';
 import { PdfImportApplyService } from './pdf-import-apply.service';
 import { PdfImportPreviewService } from './pdf-import-preview.service';
 import { PdfImportTempStorageService } from './pdf-import-temp-storage.service';
@@ -19,6 +22,9 @@ import { PdfImportTempStorageService } from './pdf-import-temp-storage.service';
     DocumentLifecycleService,
     DeleteLockService,
     DrawingMetadataStore,
+    OrderMetadataStore,
+    OrderStatusSyncService,
+    OrderImportService,
     PdfImportPreviewService,
     PdfImportApplyService,
     PdfImportTempStorageService,

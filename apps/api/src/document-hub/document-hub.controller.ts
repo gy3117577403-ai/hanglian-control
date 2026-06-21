@@ -24,6 +24,8 @@ import { CreateDrawingCustomerDto } from './dto/create-drawing-customer.dto';
 import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
+import { OrderImportApplyDto, OrderImportPreviewFormDto } from './dto/order-import.dto';
+import { LinkOrderProductDto, RestoreOrderDto, UpdateOrderStatusDto } from './dto/order-maintenance.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
 import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
@@ -42,6 +44,10 @@ const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/w
 const allowedConnectorImportMimeTypes = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-excel',
+  'application/octet-stream',
+];
+const allowedOrderImportMimeTypes = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/octet-stream',
 ];
 
@@ -74,7 +80,7 @@ export class DocumentHubController {
   @Get('orders')
   @ApiOperation({ summary: '查询今日 / 本周订单 Mock 数据' })
   getOrders(@Query() query: OrderQueryDto) {
-    return this.documentHubService.getOrders(query.scope ?? 'today', query.includeCompleted);
+    return this.documentHubService.getOrders(query);
   }
 
   @Post('orders/:orderId/complete')
@@ -87,6 +93,64 @@ export class DocumentHubController {
   @ApiOperation({ summary: '订单总览：本周 / 待完成 / 已完成' })
   getOrderOverview() {
     return this.documentHubService.getOrderOverview();
+  }
+
+  @Post('orders/import/preview')
+  @ApiOperation({ summary: '订单 XLSX 导入 Preview' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['scope', 'file'],
+      properties: {
+        scope: { type: 'string', enum: ['today', 'week'] },
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => {
+      if (!allowedOrderImportMimeTypes.includes(file.mimetype) && !file.originalname.toLowerCase().endsWith('.xlsx')) {
+        callback(new BadRequestException('仅支持 XLSX 订单文件。'), false);
+        return;
+      }
+      callback(null, true);
+    },
+  }))
+  previewOrderImport(@Body() dto: OrderImportPreviewFormDto, @UploadedFile() file?: Express.Multer.File) {
+    return this.documentHubService.previewOrderImport(dto, file);
+  }
+
+  @Post('orders/import/apply')
+  @ApiOperation({ summary: '订单 XLSX 导入 Apply' })
+  applyOrderImport(@Body() dto: OrderImportApplyDto) {
+    return this.documentHubService.applyOrderImport(dto);
+  }
+
+  @Post('orders/sync-product/:productId')
+  @ApiOperation({ summary: '同步指定产品的订单图纸状态' })
+  syncOrdersForProduct(@Param('productId') productId: string) {
+    return this.documentHubService.syncOrdersForProduct(productId);
+  }
+
+  @Patch('orders/:orderId/status')
+  @ApiOperation({ summary: '修改订单生产图纸状态' })
+  updateOrderStatus(@Param('orderId') orderId: string, @Body() dto: UpdateOrderStatusDto) {
+    return this.documentHubService.updateOrderStatus(orderId, dto);
+  }
+
+  @Post('orders/:orderId/restore')
+  @ApiOperation({ summary: '恢复已完成订单' })
+  restoreOrder(@Param('orderId') orderId: string, @Body() dto: RestoreOrderDto) {
+    return this.documentHubService.restoreOrder(orderId, dto);
+  }
+
+  @Patch('orders/:orderId/product-link')
+  @ApiOperation({ summary: '手工绑定订单产品资料页' })
+  linkOrderProduct(@Param('orderId') orderId: string, @Body() dto: LinkOrderProductDto) {
+    return this.documentHubService.linkOrderProduct(orderId, dto);
   }
 
   @Get('trash')

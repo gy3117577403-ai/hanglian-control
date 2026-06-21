@@ -50,6 +50,8 @@ apps/api/storage/metadata/drawing-customers.json
 apps/api/storage/metadata/drawing-products.json
 apps/api/storage/metadata/drawing-module-settings.json
 apps/api/storage/metadata/drawing-import-records.json
+apps/api/storage/metadata/production-orders.json
+apps/api/storage/metadata/order-import-records.json
 apps/api/storage/metadata/maintenance-records.json
 apps/api/storage/metadata/knowledge-fixtures.json
 apps/api/storage/metadata/knowledge-abnormal-cases.json

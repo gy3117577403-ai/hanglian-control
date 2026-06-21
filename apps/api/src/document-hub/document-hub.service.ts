@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { Workbook } from 'exceljs';
 import type { DocumentTypeV03, RequiredProcess } from '../common/enums/production.enum';
 import type { ProductDocument } from '../common/types/production.types';
+import { AuditService } from '../audit/audit.service';
 import { DocumentsService } from '../documents/documents.service';
 import { LocalStorageService } from '../storage/local-storage.service';
 import { StorageService } from '../storage/storage.service';
@@ -26,6 +27,9 @@ import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
 import { ConnectorQueryDto } from './dto/connector-query.dto';
 import { DrawingQueryDto } from './dto/drawing-query.dto';
 import { FixtureQueryDto } from './dto/fixture-query.dto';
+import { OrderImportApplyDto, OrderImportPreviewFormDto } from './dto/order-import.dto';
+import { LinkOrderProductDto, RestoreOrderDto, UpdateOrderStatusDto } from './dto/order-maintenance.dto';
+import { OrderQueryDto } from './dto/order-query.dto';
 import { ResolveDrawingProductDto } from './dto/resolve-drawing-product.dto';
 import { HubSearchQueryDto } from './dto/search-query.dto';
 import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
@@ -51,6 +55,13 @@ import {
 import { PdfImportPreviewService } from './pdf-import-preview.service';
 import { PdfImportApplyService } from './pdf-import-apply.service';
 import { isDocumentDeleted } from './helpers/document-lifecycle-validator';
+import { OrderImportService } from './order-import.service';
+import {
+  normalizeOrderProductModel,
+  OrderMetadataStore,
+  ProductionOrderRecord,
+} from './order-metadata.store';
+import { OrderStatusSyncService } from './order-status-sync.service';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -311,11 +322,16 @@ export class DocumentHubService implements OnModuleInit {
     @Optional() private readonly pdfImportPreviewService?: PdfImportPreviewService,
     @Optional() private readonly pdfImportApplyService?: PdfImportApplyService,
     @Optional() private readonly documentLifecycleService?: DocumentLifecycleService,
+    @Optional() private readonly orderMetadataStore?: OrderMetadataStore,
+    @Optional() private readonly orderImportService?: OrderImportService,
+    @Optional() private readonly orderStatusSyncService?: OrderStatusSyncService,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   onModuleInit() {
     this.assertDrawingMetadataReadable();
     this.initializeDrawingMetadataStore();
+    this.initializeOrderMetadataStore();
   }
 
   private initializeDrawingMetadataStore() {
@@ -330,6 +346,16 @@ export class DocumentHubService implements OnModuleInit {
     }
 
     this.drawingMetadataStore.ensureInitialized();
+  }
+
+  private initializeOrderMetadataStore() {
+    if (!this.orderMetadataStore) return;
+    const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
+    if (mode === 'demo') {
+      this.orderMetadataStore.initializeFromSeedIfEmpty();
+      return;
+    }
+    this.orderMetadataStore.ensureInitialized();
   }
 
   private assertDrawingMetadataReadable() {
@@ -348,16 +374,49 @@ export class DocumentHubService implements OnModuleInit {
     }
   }
 
-  getOrders(scope: 'today' | 'week' | 'all' = 'today', includeCompleted?: string) {
-    const shouldIncludeCompleted = parseBoolean(includeCompleted);
-    return this.orders.filter((order) => {
-      const scopeMatched = scope === 'all' || order.scope === scope;
-      const completedMatched = shouldIncludeCompleted || !order.completed;
-      return scopeMatched && completedMatched;
-    });
+  getOrders(queryOrScope: OrderQueryDto | 'today' | 'week' | 'all' = 'week', includeCompleted?: string) {
+    if (!this.orderMetadataStore) {
+      const scope = typeof queryOrScope === 'string' ? queryOrScope : queryOrScope.scope ?? 'week';
+      const shouldIncludeCompleted = parseBoolean(typeof queryOrScope === 'string' ? includeCompleted : queryOrScope.includeCompleted);
+      return this.orders.filter((order) => {
+        const scopeMatched = scope === 'all' || order.scope === scope;
+        const completedMatched = shouldIncludeCompleted || !order.completed;
+        return scopeMatched && completedMatched;
+      });
+    }
+
+    const query = typeof queryOrScope === 'string'
+      ? { scope: queryOrScope, includeCompleted }
+      : queryOrScope;
+    const includeAllCompleted = parseBoolean(query.includeCompleted);
+    const completionStatus = query.completionStatus ?? (includeAllCompleted ? 'all' : 'pending');
+    const scope = query.scope ?? 'week';
+    return this.orderMetadataStore.listOrders({
+      scope,
+      completionStatus,
+      productionStatus: query.productionStatus,
+      keyword: query.keyword,
+      customerId: query.customerId,
+      linkedProductId: query.linkedProductId,
+    }).map((order) => this.toOrderResponse(order));
   }
 
   completeOrder(orderId: string, completedBy = 'local-operator') {
+    if (this.orderMetadataStore) {
+      const current = this.orderMetadataStore.getOrderById(orderId);
+      if (!current) throw new NotFoundException('订单不存在。');
+      const completed = current.completionStatus === 'completed'
+        ? current
+        : this.orderMetadataStore.completeOrder(orderId, completedBy);
+      if (!completed) throw new NotFoundException('订单不存在。');
+      void this.writeOrderAudit('order_completed', completed, {
+        previousStatus: current.productionStatus,
+        nextStatus: completed.productionStatus,
+        operatorName: completedBy,
+      });
+      return this.toOrderResponse(completed);
+    }
+
     const order = this.orders.find((item) => item.orderId === orderId);
     if (!order) throw new NotFoundException('订单不存在。');
     order.completed = true;
@@ -367,6 +426,33 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   getOrderOverview() {
+    if (this.orderMetadataStore) {
+      const today = this.orderMetadataStore.listOrders({ scope: 'today', completionStatus: 'all' });
+      const week = this.orderMetadataStore.listOrders({ scope: 'week', completionStatus: 'all' });
+      const pending = this.orderMetadataStore.listOrders({ scope: 'all', completionStatus: 'pending' });
+      const completed = this.orderMetadataStore.listOrders({ scope: 'all', completionStatus: 'completed' });
+      return {
+        today: this.makeOrderScopeOverview(today),
+        week: this.makeOrderScopeOverview(week),
+        completed: {
+          todayCompleted: today.filter((order) => order.completionStatus === 'completed').length,
+          weekCompleted: week.filter((order) => order.completionStatus === 'completed').length,
+          recentItems: completed
+            .sort((left, right) => String(right.completedAt ?? '').localeCompare(String(left.completedAt ?? '')))
+            .slice(0, 20)
+            .map((order) => this.toOrderResponse(order)),
+        },
+        weekOrders: week.map((order) => this.toOrderResponse(order)),
+        pendingOrders: pending.map((order) => this.toOrderResponse(order)),
+        completedOrders: completed.map((order) => this.toOrderResponse(order)),
+        summary: {
+          weekTotal: week.length,
+          pendingTotal: pending.length,
+          completedTotal: completed.length,
+        },
+      };
+    }
+
     const weekOrders = this.orders.filter((order) => order.scope === 'week');
     return {
       weekOrders,
@@ -378,6 +464,101 @@ export class DocumentHubService implements OnModuleInit {
         completedTotal: this.orders.filter((order) => order.completed).length,
       },
     };
+  }
+
+  async previewOrderImport(dto: OrderImportPreviewFormDto, file?: Express.Multer.File) {
+    if (!this.orderImportService) throw new InternalServerErrorException('Order import service is not available.');
+    return this.orderImportService.preview(dto, file);
+  }
+
+  async applyOrderImport(dto: OrderImportApplyDto) {
+    if (!this.orderImportService) throw new InternalServerErrorException('Order import service is not available.');
+    return this.orderImportService.apply(dto);
+  }
+
+  async updateOrderStatus(orderId: string, dto: UpdateOrderStatusDto) {
+    const store = this.requireOrderStore();
+    const order = store.getOrderById(orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    if (order.completionStatus === 'completed') {
+      throw new BadRequestException('已完成订单不能直接修改状态，请先恢复订单。');
+    }
+    await this.orderStatusSyncService?.assertCanSetProductionStatus(order, dto.productionStatus);
+    const updated = store.updateOrder(orderId, { productionStatus: dto.productionStatus });
+    if (!updated) throw new NotFoundException('订单不存在。');
+    await this.writeOrderAudit('order_status_changed', updated, {
+      previousStatus: order.productionStatus,
+      nextStatus: updated.productionStatus,
+      operatorId: dto.operatorId,
+      operatorName: dto.operatorName,
+    });
+    return this.toOrderResponse(updated);
+  }
+
+  async restoreOrder(orderId: string, dto: RestoreOrderDto = {}) {
+    const store = this.requireOrderStore();
+    const order = store.getOrderById(orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    const productionStatus = await this.orderStatusSyncService?.deriveProductionStatus({
+      linkedProductId: order.linkedProductId,
+      previousStatus: order.productionStatus,
+      preserveBack: true,
+    }) ?? 'no_drawing';
+    const operatorName = cleanText(dto.operatorName) || 'local-operator';
+    const restored = order.completionStatus === 'pending'
+      ? order
+      : store.restoreOrder(orderId, operatorName, productionStatus);
+    if (!restored) throw new NotFoundException('订单不存在。');
+    await this.writeOrderAudit('order_restored', restored, {
+      previousStatus: order.productionStatus,
+      nextStatus: restored.productionStatus,
+      operatorId: dto.operatorId,
+      operatorName: dto.operatorName,
+    });
+    return this.toOrderResponse(restored);
+  }
+
+  async linkOrderProduct(orderId: string, dto: LinkOrderProductDto) {
+    const store = this.requireOrderStore();
+    const order = store.getOrderById(orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === cleanText(dto.customerId));
+    if (!customer) throw new NotFoundException('客户不存在。');
+    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === cleanText(dto.productId));
+    if (!product || product.customerId !== customer.customerId) throw new NotFoundException('产品不存在。');
+    const normalizedProductModel = product.normalizedProductModel ?? normalizeOrderProductModel(product.productModel);
+    if (normalizedProductModel !== order.normalizedProductModel) {
+      throw new BadRequestException('所选产品型号与订单型号不一致。');
+    }
+    const productionStatus = await this.orderStatusSyncService?.deriveProductionStatus({
+      linkedProductId: product.productId,
+      previousStatus: order.productionStatus,
+      preserveBack: true,
+    }) ?? 'no_drawing';
+    const updated = store.updateOrder(orderId, {
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      linkedProductId: product.productId,
+      productResolutionStatus: 'found',
+      productionStatus,
+    });
+    if (!updated) throw new NotFoundException('订单不存在。');
+    await this.writeOrderAudit('order_product_linked', updated, {
+      previousStatus: order.productionStatus,
+      nextStatus: updated.productionStatus,
+      operatorId: dto.operatorId,
+      operatorName: dto.operatorName,
+    });
+    return this.toOrderResponse(updated);
+  }
+
+  async syncOrdersForProduct(productId: string) {
+    if (!this.orderStatusSyncService) throw new InternalServerErrorException('Order status sync service is not available.');
+    return this.orderStatusSyncService.syncOrdersForProduct(productId, {
+      operatorId: 'local-user',
+      operatorName: '本地操作员',
+      reason: '手动同步产品图纸状态。',
+    });
   }
 
   getCustomers(query?: DrawingQueryDto) {
@@ -614,7 +795,10 @@ export class DocumentHubService implements OnModuleInit {
     if (!this.pdfImportApplyService) {
       throw new InternalServerErrorException('PDF 导入应用服务未初始化。');
     }
-    return this.pdfImportApplyService.apply(dto);
+    const response = await this.pdfImportApplyService.apply(dto);
+    const productIds = [...new Set((response.items ?? []).map((item) => item.productId).filter(Boolean) as string[])];
+    const warnings = await this.syncOrdersForOriginalDrawingProducts(productIds, 'PDF 导入原图后同步订单状态。');
+    return warnings.length ? { ...response, warning: warnings.join('；') } : response;
   }
 
   async uploadDrawingItem(productId: string, moduleKey: DrawingModuleKey, dto: UploadDrawingItemDto, file?: Express.Multer.File) {
@@ -638,12 +822,14 @@ export class DocumentHubService implements OnModuleInit {
     const nextItem = this.documentToDrawingItem(document);
     const mergedDetail = await this.getProduct(productId);
     const mergedModule = mergedDetail.modules.find((item) => item.moduleKey === moduleKey) ?? module;
+    const syncWarning = await this.syncOrdersAfterOriginalDrawingChange(productId, moduleKey, '上传原图后同步订单状态。');
     return {
       success: true,
       item: nextItem,
       module: mergedModule,
       product: mergedDetail.product,
       detail: mergedDetail,
+      warning: syncWarning,
     };
   }
 
@@ -945,6 +1131,97 @@ export class DocumentHubService implements OnModuleInit {
       return matched ? [{ type: 'drawing-product', customer, product, modules: detail.modules }] : [];
     });
     return { mode: query.mode, items };
+  }
+
+  private requireOrderStore() {
+    if (!this.orderMetadataStore) {
+      throw new InternalServerErrorException('Order metadata store is not available.');
+    }
+    return this.orderMetadataStore;
+  }
+
+  private toOrderResponse(order: ProductionOrderRecord) {
+    return {
+      ...order,
+      productId: order.linkedProductId ?? undefined,
+      status: order.productionStatus,
+      completed: order.completionStatus === 'completed',
+      completedAt: order.completedAt ?? undefined,
+      customerName: order.customerName ?? '',
+      quantity: order.quantity ?? null,
+      linkedProductId: order.linkedProductId ?? null,
+      productResolutionStatus: order.productResolutionStatus,
+      quantityProvided: order.quantityProvided,
+      completionStatus: order.completionStatus,
+    };
+  }
+
+  private makeOrderScopeOverview(orders: ProductionOrderRecord[]) {
+    const pending = orders.filter((order) => order.completionStatus === 'pending');
+    return {
+      total: orders.length,
+      pending: pending.length,
+      completed: orders.filter((order) => order.completionStatus === 'completed').length,
+      front: pending.filter((order) => order.productionStatus === 'front').length,
+      back: pending.filter((order) => order.productionStatus === 'back').length,
+      noDrawing: pending.filter((order) => order.productionStatus === 'no_drawing').length,
+      items: pending.map((order) => this.toOrderResponse(order)),
+    };
+  }
+
+  private async writeOrderAudit(action: string, order: ProductionOrderRecord, input: {
+    previousStatus?: string;
+    nextStatus?: string;
+    operatorId?: string;
+    operatorName?: string;
+  }) {
+    await this.auditService?.tryCreate({
+      entityType: 'plan' as any,
+      entityId: order.orderId,
+      action: action as any,
+      after: {
+        orderId: order.orderId,
+        productModel: order.productModel,
+        linkedProductId: order.linkedProductId,
+        customerId: order.customerId,
+        previousStatus: input.previousStatus,
+        nextStatus: input.nextStatus ?? order.productionStatus,
+        importBatchId: order.importBatchId,
+        operatorId: input.operatorId,
+        operatorName: input.operatorName,
+        createdAt: new Date().toISOString(),
+      },
+      operatorId: input.operatorId,
+      operatorName: input.operatorName,
+      operatorRole: 'local',
+      productId: order.linkedProductId ?? undefined,
+      message: action,
+    });
+  }
+
+  private async syncOrdersAfterOriginalDrawingChange(productId: string, moduleKey: DrawingModuleKey, reason: string) {
+    if (moduleKey !== 'original_drawing') return undefined;
+    const warnings = await this.syncOrdersForOriginalDrawingProducts([productId], reason);
+    return warnings[0];
+  }
+
+  private async syncOrdersForOriginalDrawingProducts(productIds: string[], reason: string) {
+    if (!this.orderStatusSyncService) return [];
+    const warnings: string[] = [];
+    for (const productId of productIds) {
+      try {
+        await this.orderStatusSyncService.syncOrdersForProduct(productId, {
+          operatorId: 'system',
+          operatorName: '系统同步',
+          reason,
+        });
+      } catch (error) {
+        const message = `订单状态同步失败：${productId}`;
+        this.logger.warn(error instanceof Error ? `${message} ${error.message}` : message);
+        warnings.push(message);
+      }
+    }
+    return warnings;
   }
 
   private assertUniqueCustomerName(customers: HubCustomer[], customerName: string, currentCustomerId?: string) {

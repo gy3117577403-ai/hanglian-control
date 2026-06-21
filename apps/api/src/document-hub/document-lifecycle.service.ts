@@ -3,7 +3,9 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { ProductDocument } from '../common/types/production.types';
 import { AuditService } from '../audit/audit.service';
@@ -42,6 +44,7 @@ import {
   type LifecycleDocument,
 } from './helpers/document-lifecycle-validator';
 import { PurgeDocumentDto, RestoreDocumentDto, TrashDocumentDto, TrashQueryDto } from './dto/document-lifecycle.dto';
+import { OrderStatusSyncService } from './order-status-sync.service';
 
 const purgeConfirmText = '\u786e\u8ba4\u5f7b\u5e95\u5220\u9664';
 const documentLocks = new Set<string>();
@@ -75,6 +78,8 @@ function sameDocument(left?: string, right?: string) {
 
 @Injectable()
 export class DocumentLifecycleService {
+  private readonly logger = new Logger(DocumentLifecycleService.name);
+
   constructor(
     private readonly drawingMetadataStore: DrawingMetadataStore,
     private readonly documentsService: DocumentsService,
@@ -82,6 +87,7 @@ export class DocumentLifecycleService {
     private readonly storageService: StorageService,
     private readonly deleteLockService: DeleteLockService,
     private readonly auditService: AuditService,
+    @Optional() private readonly orderStatusSyncService?: OrderStatusSyncService,
   ) {}
 
   async listTrash(query: TrashQueryDto = {}) {
@@ -207,12 +213,13 @@ export class DocumentLifecycleService {
         message: reason ?? '\u8d44\u6599\u5df2\u79fb\u5165\u56de\u6536\u7ad9\u3002',
       });
 
-      return this.toTrashResponse(this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
+      const response = this.toTrashResponse(this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
         deletedAt: timestamp,
         movedToTrash: true,
         message: '\u8d44\u6599\u5df2\u79fb\u5165\u56de\u6536\u7ad9\u3002',
         warning,
       });
+      return this.withOrderSyncWarning(response, productId, moduleKey, '原图删除后同步订单状态。');
     });
   }
 
@@ -287,11 +294,12 @@ export class DocumentLifecycleService {
         message: remark ?? '\u8d44\u6599\u5df2\u6062\u590d\u3002',
       });
 
-      return this.toRestoreResponse(this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
+      const response = this.toRestoreResponse(this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
         restoredAt: timestamp,
         message: '\u8d44\u6599\u5df2\u6062\u590d\u3002',
         warning: downgrade.warning,
       });
+      return this.withOrderSyncWarning(response, productId, moduleKey, '原图恢复后同步订单状态。');
     });
   }
 
@@ -374,7 +382,7 @@ export class DocumentLifecycleService {
           : '\u8d44\u6599\u5df2\u5f7b\u5e95\u5220\u9664\u3002',
       });
 
-      return {
+      const response = {
         documentId: latest.documentId,
         productId,
         moduleKey,
@@ -387,7 +395,32 @@ export class DocumentLifecycleService {
           ? '\u6587\u4ef6\u672c\u4f53\u5df2\u4e0d\u5b58\u5728\uff0c\u8d44\u6599\u8bb0\u5f55\u5df2\u6e05\u7406\u3002'
           : '\u8d44\u6599\u5df2\u5f7b\u5e95\u5220\u9664\u3002',
       };
+      return this.withOrderSyncWarning(response, productId, moduleKey, '原图彻底删除后同步订单状态。');
     });
+  }
+
+  private async withOrderSyncWarning<T extends object>(
+    response: T,
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    reason: string,
+  ): Promise<T> {
+    if (moduleKey !== 'original_drawing' || !this.orderStatusSyncService) return response;
+    try {
+      await this.orderStatusSyncService.syncOrdersForProduct(productId, {
+        operatorId: 'system',
+        operatorName: '系统同步',
+        reason,
+      });
+      return response;
+    } catch (error) {
+      const message = `订单状态同步失败：${productId}`;
+      this.logger.warn(error instanceof Error ? `${message} ${error.message}` : message);
+      return {
+        ...response,
+        warning: [(response as { warning?: string }).warning, message].filter(Boolean).join('；'),
+      } as T;
+    }
   }
 
   private resolveContext(
