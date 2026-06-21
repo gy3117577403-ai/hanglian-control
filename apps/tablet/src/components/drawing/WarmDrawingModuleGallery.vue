@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ChevronLeft, FileText, Image, Trash2, UploadCloud } from 'lucide-vue-next'
+import WarmDocumentActionMenu from './WarmDocumentActionMenu.vue'
+import WarmEditDocumentDialog from './WarmEditDocumentDialog.vue'
+import WarmSetEffectiveDialog from './WarmSetEffectiveDialog.vue'
 import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
-import type { DrawingItem } from '@/types/production'
+import type { DrawingItem, DrawingModule } from '@/types/production'
 
 const store = useDocumentHubStore()
 const moveToTrashOpen = ref(false)
 const moveToTrashItem = ref<DrawingItem | null>(null)
+const editDialogOpen = ref(false)
+const effectiveDialogOpen = ref(false)
+const actionItem = ref<DrawingItem | null>(null)
+const actionModule = ref<DrawingModule | null>(null)
 
 function iconFor(item: DrawingItem) {
   return item.fileType === 'pdf' ? FileText : Image
@@ -17,9 +24,38 @@ function isLifecycleMutableSource(item: DrawingItem) {
   return item.source === 'manual_upload' || item.source === 'camera_capture' || item.source === 'pdf_import'
 }
 
-async function openMoveToTrash(item: DrawingItem) {
-  if (!store.selectedModule) return
-  const ready = await store.prepareTrashDocument(item, store.selectedModule)
+function documentStatusText(item: DrawingItem) {
+  const status = item.documentStatus ?? item.status
+  if (status === 'effective') return '当前有效'
+  if (status === 'expired') return '历史版本'
+  if (status === 'pending_review' || status === 'pending') return '待确认'
+  return '待确认'
+}
+
+function isCover(item: DrawingItem) {
+  const coverId = store.selectedModule?.coverDocumentId
+  return Boolean(item.isCover || (coverId && (coverId === item.itemId || coverId === item.documentId)))
+}
+
+function openEditDialog(item: DrawingItem, module: DrawingModule) {
+  actionItem.value = item
+  actionModule.value = module
+  editDialogOpen.value = true
+}
+
+function openEffectiveDialog(item: DrawingItem, module: DrawingModule) {
+  actionItem.value = item
+  actionModule.value = module
+  effectiveDialogOpen.value = true
+}
+
+async function setCover(item: DrawingItem, module: DrawingModule) {
+  await store.setDocumentCover(item, module)
+}
+
+async function openMoveToTrash(item: DrawingItem, module = store.selectedModule) {
+  if (!module) return
+  const ready = await store.prepareTrashDocument(item, module)
   if (!ready) return
   moveToTrashItem.value = item
   moveToTrashOpen.value = true
@@ -59,6 +95,10 @@ watch(moveToTrashOpen, (visible) => {
         </button>
         <h3>{{ item.title }}</h3>
         <span>{{ item.version }} / {{ item.uploadedAt.slice(0, 10) }}</span>
+        <div class="document-badges">
+          <b :class="item.documentStatus ?? item.status">{{ documentStatusText(item) }}</b>
+          <b v-if="isCover(item)" class="cover">首页封面</b>
+        </div>
         <p>{{ item.remark }}</p>
         <div class="item-actions">
           <PrimeButton rounded title="查看大图" @click="store.openImageDetail(item)">
@@ -74,6 +114,15 @@ watch(moveToTrashOpen, (visible) => {
           >
             <Trash2 :size="16" />
           </PrimeButton>
+          <WarmDocumentActionMenu
+            :item="item"
+            :module="store.selectedModule"
+            :loading="store.lifecycleActionLoading"
+            @edit="openEditDialog"
+            @set-effective="openEffectiveDialog"
+            @set-cover="setCover"
+            @trash="openMoveToTrash"
+          />
         </div>
       </article>
       <div v-if="!store.selectedModule?.items.length" class="empty-gallery">
@@ -87,6 +136,16 @@ watch(moveToTrashOpen, (visible) => {
       v-model:visible="moveToTrashOpen"
       :item="moveToTrashItem"
       :module="store.selectedModule"
+    />
+    <WarmEditDocumentDialog
+      v-model:visible="editDialogOpen"
+      :item="actionItem"
+      :module="actionModule"
+    />
+    <WarmSetEffectiveDialog
+      v-model:visible="effectiveDialogOpen"
+      :item="actionItem"
+      :module="actionModule"
     />
   </div>
 </template>
@@ -236,6 +295,41 @@ h3 {
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.document-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.document-badges b {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #7a421f;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.document-badges .effective {
+  color: #25736c;
+}
+
+.document-badges .pending,
+.document-badges .pending_review {
+  color: #a35a1f;
+}
+
+.document-badges .expired {
+  color: #8f4a3b;
+}
+
+.document-badges .cover {
+  color: #3f7a36;
 }
 
 .item-actions {

@@ -169,6 +169,14 @@ const drawingModuleDefaults: Record<DrawingModuleKey, Pick<DrawingModule, 'modul
 const drawingStatuses: DrawingStatus[] = ['available', 'no_drawing', 'partial'];
 const moduleStatuses: DrawingModule['status'][] = ['uploaded', 'pending', 'no_drawing'];
 const itemFileTypes: DrawingItem['fileType'][] = ['pdf', 'image', 'text', 'card'];
+const itemDocumentStatuses: NonNullable<DrawingItem['documentStatus']>[] = [
+  'effective',
+  'pending',
+  'pending_review',
+  'expired',
+  'missing',
+  'inconsistent',
+];
 const itemSources: DrawingItem['source'][] = [
   'mock',
   'manual_upload',
@@ -368,12 +376,16 @@ function normalizeItem(value: unknown): DrawingItem | undefined {
 
   return {
     itemId,
+    documentId: optionalText(value.documentId),
     title,
     fileType: isOneOf(value.fileType, itemFileTypes, 'pdf'),
+    contentKind: isOneOf(value.contentKind, itemFileTypes, isOneOf(value.fileType, itemFileTypes, 'pdf')),
     previewUrl: optionalText(value.previewUrl),
+    downloadUrl: optionalText(value.downloadUrl),
     fileName: optionalText(value.fileName),
     version: text(value.version) || 'A',
     remark: optionalText(value.remark),
+    description: optionalText(value.description),
     uploadedAt,
     source: isOneOf(value.source, itemSources, 'manual_upload'),
     storageProvider: optionalText(value.storageProvider),
@@ -381,11 +393,14 @@ function normalizeItem(value: unknown): DrawingItem | undefined {
     checksumSha256: optionalText(value.checksumSha256),
     fileSize: numberOr(value.fileSize, 0) || undefined,
     mimeType: optionalText(value.mimeType),
+    keywords: uniqueTexts(Array.isArray(value.keywords) ? value.keywords : []),
+    effectiveDate: optionalText(value.effectiveDate),
+    versionGroupKey: optionalText(value.versionGroupKey),
     pageCount: numberOr(value.pageCount, 0) || undefined,
     imageWidth: numberOr(value.imageWidth, 0) || undefined,
     imageHeight: numberOr(value.imageHeight, 0) || undefined,
     isCover: value.isCover === true || undefined,
-    documentStatus: isOneOf(value.documentStatus, ['effective', 'pending', 'expired'] as const, 'effective'),
+    documentStatus: isOneOf(value.documentStatus, itemDocumentStatuses, 'effective'),
     deletedAt: optionalText(value.deletedAt),
     deletedBy: optionalText(value.deletedBy),
     restoredAt: optionalText(value.restoredAt),

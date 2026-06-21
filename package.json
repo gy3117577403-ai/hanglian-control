@@ -61,6 +61,8 @@
     "document-viewer-thumbnail:check": "node scripts/document-viewer-thumbnail-check.mjs",
     "document-lifecycle-backend:check": "node scripts/document-lifecycle-backend-check.mjs",
     "document-lifecycle-ui:check": "node scripts/document-lifecycle-ui-check.mjs",
+    "document-version-backend:check": "node scripts/document-version-backend-check.mjs",
+    "document-version-ui:check": "node scripts/document-version-ui-check.mjs",
     "prisma-drawing-schema:check": "node scripts/prisma-drawing-schema-check.mjs",
     "document-hub-polish:check": "node scripts/document-hub-polish-check.mjs",
     "tablet-ui-smoke:check": "node scripts/tablet-ui-smoke-check.mjs",

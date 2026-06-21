@@ -6,6 +6,7 @@ import { DeleteLockService } from '../unified-documents/helpers/delete-lock.serv
 import { DocumentHubController } from './document-hub.controller';
 import { DocumentHubService } from './document-hub.service';
 import { DocumentLifecycleService } from './document-lifecycle.service';
+import { DocumentVersionService } from './document-version.service';
 import { DrawingMetadataStore } from './drawing-metadata.store';
 import { OrderImportService } from './order-import.service';
 import { OrderMetadataStore } from './order-metadata.store';
@@ -20,6 +21,7 @@ import { PdfImportTempStorageService } from './pdf-import-temp-storage.service';
   providers: [
     DocumentHubService,
     DocumentLifecycleService,
+    DocumentVersionService,
     DeleteLockService,
     DrawingMetadataStore,
     OrderMetadataStore,

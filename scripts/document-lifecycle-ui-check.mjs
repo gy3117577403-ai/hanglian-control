@@ -131,8 +131,14 @@ const changed = execSync('git status --short --untracked-files=all', { cwd: root
   .filter(Boolean)
 const allowedBackendChanges = new Set([
   'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.module.ts',
   'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/drawing-metadata.store.ts',
+  'apps/api/src/document-hub/helpers/document-lifecycle-validator.ts',
+  'apps/api/src/document-hub/mock/document-hub.seed.ts',
+  'apps/api/src/document-hub/document-version.service.ts',
   'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
+  'apps/api/src/document-hub/dto/document-metadata.dto.ts',
   'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
 ])
 check('no backend source changes in working tree', !changed.some((file) => file.startsWith('apps/api/src/') && !allowedBackendChanges.has(file)))

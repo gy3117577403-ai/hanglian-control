@@ -157,6 +157,11 @@ import type {
   OrderQueryScope,
   ProductionOrder,
 } from '@/types/order-management'
+import type {
+  DrawingDocumentMetadataPayload,
+  DrawingDocumentOperatorPayload,
+  DrawingDocumentVersionResponse,
+} from '@/types/document-version'
 
 const API_BASE = getApiBaseUrl()
 
@@ -1318,6 +1323,57 @@ export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModule
     body: formData,
     timeout: 15000,
   })
+}
+
+export async function updateDrawingDocumentMetadata(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: DrawingDocumentMetadataPayload,
+) {
+  try {
+    return await api<DrawingDocumentVersionResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}`, {
+      method: 'PATCH',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function setDrawingDocumentEffective(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: DrawingDocumentOperatorPayload = {},
+) {
+  try {
+    return await api<DrawingDocumentVersionResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/set-effective`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function setDrawingDocumentCover(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: DrawingDocumentOperatorPayload = {},
+) {
+  try {
+    return await api<DrawingDocumentVersionResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/set-cover`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
 }
 
 export async function getDrawingTrash(query?: TrashQuery) {

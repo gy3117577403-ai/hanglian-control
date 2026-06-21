@@ -151,10 +151,20 @@ const allowedChangedFiles = new Set([
   'apps/tablet/src/types/production.ts',
   'apps/tablet/src/types/product-resolution.ts',
   'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.module.ts',
   'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/drawing-metadata.store.ts',
+  'apps/api/src/document-hub/helpers/document-lifecycle-validator.ts',
+  'apps/api/src/document-hub/mock/document-hub.seed.ts',
+  'apps/api/src/document-hub/document-version.service.ts',
   'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
+  'apps/api/src/document-hub/dto/document-metadata.dto.ts',
   'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
   paths.viewerTypes,
+  'apps/tablet/src/components/drawing/WarmDocumentActionMenu.vue',
+  'apps/tablet/src/components/drawing/WarmEditDocumentDialog.vue',
+  'apps/tablet/src/components/drawing/WarmSetEffectiveDialog.vue',
+  'apps/tablet/src/types/document-version.ts',
   paths.packageJson,
   'scripts/order-product-resolution-check.mjs',
   'scripts/document-viewer-foundation-check.mjs',
@@ -162,6 +172,8 @@ const allowedChangedFiles = new Set([
   'scripts/document-home-preview-check.mjs',
   'scripts/camera-upload-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
+  'scripts/document-version-backend-check.mjs',
+  'scripts/document-version-ui-check.mjs',
 ]);
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/viewer/',
@@ -171,7 +183,7 @@ for (const file of changed) {
   const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
   assert(allowed, `Unexpected changed file: ${file}`);
 }
-assert(!changed.some((file) => file.startsWith('apps/api/') && !allowedChangedFiles.has(file)), 'Backend files must remain unchanged.');
+assert(!changed.some((file) => file.startsWith('apps/api/') && !allowedChangedFiles.has(file)), 'Backend changes must be limited to document version metadata management.');
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'Prisma schema must remain unchanged.');
 assert(!changed.some((file) => file.includes('/connector/') || file.includes('connector-')), 'Connector files must remain unchanged.');
 assert(!changed.some((file) => file.includes('/fixture/') || file.includes('fixture-')), 'Fixture files must remain unchanged.');

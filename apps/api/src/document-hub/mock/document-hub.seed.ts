@@ -47,12 +47,16 @@ export interface HubProductModel {
 
 export interface DrawingItem {
   itemId: string;
+  documentId?: string;
   title: string;
   fileType: 'pdf' | 'image' | 'text' | 'card';
+  contentKind?: 'pdf' | 'image' | 'text' | 'card';
   previewUrl?: string;
+  downloadUrl?: string;
   fileName?: string;
   version: string;
   remark?: string;
+  description?: string;
   uploadedAt: string;
   source: 'mock' | 'manual_upload' | 'wecom_disk_future' | 'pdf_import' | 'camera_capture' | 'future_wecom' | 'seed';
   storageProvider?: string;
@@ -60,11 +64,14 @@ export interface DrawingItem {
   checksumSha256?: string;
   fileSize?: number;
   mimeType?: string;
+  keywords?: string[];
+  effectiveDate?: string;
+  versionGroupKey?: string;
   pageCount?: number;
   imageWidth?: number;
   imageHeight?: number;
   isCover?: boolean;
-  documentStatus?: 'effective' | 'pending' | 'expired';
+  documentStatus?: 'effective' | 'pending' | 'pending_review' | 'expired' | 'missing' | 'inconsistent';
   deletedAt?: string;
   deletedBy?: string;
   restoredAt?: string;

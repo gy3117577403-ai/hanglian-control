@@ -47,6 +47,12 @@ export interface DocumentViewerItem {
   version: string
   remark?: string
   description?: string
+  keywords?: string[]
+  documentStatus?: string
+  status?: string
+  effectiveDate?: string
+  versionGroupKey?: string
+  isCover?: boolean
   source: DrawingItem['source'] | string
   uploadedAt: string
   deleted?: boolean

@@ -80,6 +80,17 @@ const coverHeight = computed(() => props.featured ? 236 : 206)
 const coverTitle = computed(() => coverItem.value?.title ?? props.module.moduleName)
 const coverVersion = computed(() => coverItem.value?.version ? `版本：${coverItem.value.version}` : '版本：-')
 const updatedDate = computed(() => (coverItem.value?.uploadedAt ?? props.module.updatedAt).slice(0, 10))
+const coverStatus = computed(() => coverItem.value?.documentStatus ?? coverItem.value?.status)
+const coverStatusText = computed(() => {
+  if (coverStatus.value === 'effective') return '当前有效'
+  if (coverStatus.value === 'expired') return '历史版本'
+  return coverItem.value ? '待确认' : ''
+})
+const isCoverPinned = computed(() => Boolean(coverItem.value && (
+  coverItem.value.isCover ||
+  props.module.coverDocumentId === coverItem.value.itemId ||
+  props.module.coverDocumentId === coverItem.value.documentId
+)))
 const trashTitle = computed(() => {
   if (!activeItems.value.length) return '暂无可删除资料'
   if (!isLifecycleMutableSource(coverItem.value)) return '该资料为系统占位资料，暂不支持删除。'
@@ -115,6 +126,8 @@ const trashTitle = computed(() => {
       <div class="meta-row">
         <span>{{ countLabel }}</span>
         <span>{{ updatedDate }}</span>
+        <span v-if="coverStatusText" :class="['version-tag', coverStatus]">{{ coverStatusText }}</span>
+        <span v-if="isCoverPinned" class="version-tag cover">首页封面</span>
       </div>
       <div class="actions">
         <PrimeButton severity="secondary" outlined rounded :title="`上传${module.moduleName}`" @click="emit('upload', module)">

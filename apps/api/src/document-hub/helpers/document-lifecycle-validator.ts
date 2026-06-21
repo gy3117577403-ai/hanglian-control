@@ -134,19 +134,23 @@ function fileTypeForDocument(document: ProductDocument): DrawingItem['fileType']
 function drawingItemStatus(document: ProductDocument): DrawingItem['documentStatus'] {
   if (document.documentStatus === 'effective') return 'effective';
   if (document.documentStatus === 'expired') return 'expired';
-  return 'pending';
+  return document.documentStatus ?? 'pending_review';
 }
 
 export function documentToLifecycleItem(document: ProductDocument, overrides: Partial<DrawingItem> = {}): DrawingItem {
   const id = documentId(document);
   return {
     itemId: id,
+    documentId: id,
     title: document.title,
     fileType: fileTypeForDocument(document),
+    contentKind: fileTypeForDocument(document),
     previewUrl: document.previewUrl,
+    downloadUrl: document.downloadUrl,
     fileName: document.originalFileName ?? document.title,
     version: document.version,
     remark: document.remark ?? document.description ?? document.mockPreviewText,
+    description: document.description,
     uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
     source: document.source === 'pdf_import'
       ? 'pdf_import'
@@ -158,6 +162,9 @@ export function documentToLifecycleItem(document: ProductDocument, overrides: Pa
     checksumSha256: document.checksumSha256,
     fileSize: document.fileSize,
     mimeType: document.mimeType,
+    keywords: document.keywords,
+    effectiveDate: document.effectiveDate,
+    versionGroupKey: versionGroupKey(document),
     documentStatus: drawingItemStatus(document),
     ...overrides,
   };

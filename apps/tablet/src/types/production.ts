@@ -1846,6 +1846,10 @@ export interface DrawingItem {
   source: 'mock' | 'manual_upload' | 'wecom_disk_future' | 'pdf_import' | 'camera_capture' | 'future_wecom' | 'seed'
   status?: DocumentStatus | string
   documentStatus?: DocumentStatus | string
+  keywords?: string[]
+  effectiveDate?: string
+  versionGroupKey?: string
+  isCover?: boolean
   deleted?: boolean
   deletedAt?: string
   pageCount?: number

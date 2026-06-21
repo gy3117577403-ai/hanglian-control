@@ -55,6 +55,8 @@ import {
 import { PdfImportPreviewService } from './pdf-import-preview.service';
 import { PdfImportApplyService } from './pdf-import-apply.service';
 import { isDocumentDeleted } from './helpers/document-lifecycle-validator';
+import { DocumentVersionService } from './document-version.service';
+import { DrawingDocumentOperatorDto, UpdateDrawingDocumentMetadataDto } from './dto/document-metadata.dto';
 import { OrderImportService } from './order-import.service';
 import {
   normalizeOrderProductModel,
@@ -326,6 +328,7 @@ export class DocumentHubService implements OnModuleInit {
     @Optional() private readonly orderImportService?: OrderImportService,
     @Optional() private readonly orderStatusSyncService?: OrderStatusSyncService,
     @Optional() private readonly auditService?: AuditService,
+    @Optional() private readonly documentVersionService?: DocumentVersionService,
   ) {}
 
   onModuleInit() {
@@ -767,7 +770,7 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   async getModule(productId: string, moduleKey: DrawingModuleKey) {
-    const detail = await this.getProduct(productId);
+    const detail = this.safeDocumentVersionDetail(await this.getProduct(productId));
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
     if (!module) throw new NotFoundException('图纸模块不存在。');
     return {
@@ -838,6 +841,36 @@ export class DocumentHubService implements OnModuleInit {
       throw new InternalServerErrorException('Document lifecycle service is not available.');
     }
     return this.documentLifecycleService.trash(productId, moduleKey, itemId, dto);
+  }
+
+  async updateDrawingDocumentMetadata(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    itemId: string,
+    dto: UpdateDrawingDocumentMetadataDto,
+  ) {
+    const mutation = await this.requireDocumentVersionService().updateMetadata(productId, moduleKey, itemId, dto);
+    return this.toDocumentVersionResponse(productId, moduleKey, mutation.documentId, mutation);
+  }
+
+  async setDrawingDocumentEffective(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    itemId: string,
+    dto: DrawingDocumentOperatorDto = {},
+  ) {
+    const mutation = await this.requireDocumentVersionService().setEffective(productId, moduleKey, itemId, dto);
+    return this.toDocumentVersionResponse(productId, moduleKey, mutation.documentId, mutation);
+  }
+
+  async setDrawingDocumentCover(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    itemId: string,
+    dto: DrawingDocumentOperatorDto = {},
+  ) {
+    const mutation = await this.requireDocumentVersionService().setCover(productId, moduleKey, itemId, dto);
+    return this.toDocumentVersionResponse(productId, moduleKey, mutation.documentId, mutation);
   }
 
   getConnectors(query?: ConnectorQueryDto) {
@@ -1140,6 +1173,68 @@ export class DocumentHubService implements OnModuleInit {
     return this.orderMetadataStore;
   }
 
+  private requireDocumentVersionService() {
+    if (!this.documentVersionService) {
+      throw new InternalServerErrorException('Document version service is not available.');
+    }
+    return this.documentVersionService;
+  }
+
+  private async toDocumentVersionResponse(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    documentId: string,
+    mutation: {
+      changedDocumentIds?: string[];
+      downgradedDocumentIds?: string[];
+      auditWritten?: boolean;
+      idempotent?: boolean;
+    },
+  ) {
+    const detail = await this.getProduct(productId);
+    const module = detail.modules.find((item) => item.moduleKey === moduleKey);
+    if (!module) throw new NotFoundException('Drawing module not found.');
+    const item = module.items.find((entry) => entry.itemId === documentId || entry.documentId === documentId);
+    if (!item) throw new NotFoundException('Drawing document not found.');
+    return {
+      success: true,
+      documentId,
+      item,
+      module,
+      product: detail.product,
+      detail,
+      changedDocumentIds: mutation.changedDocumentIds ?? [documentId],
+      downgradedDocumentIds: mutation.downgradedDocumentIds ?? [],
+      auditWritten: mutation.auditWritten === true,
+      idempotent: mutation.idempotent === true || undefined,
+    };
+  }
+
+  private safeDocumentVersionDetail(detail: ProductDrawingDetail): ProductDrawingDetail {
+    const next = clone(detail);
+    next.modules = next.modules.map((module) => ({
+      ...module,
+      items: module.items.map((item) => {
+        const {
+          storageKey: _storageKey,
+          checksumSha256: _checksumSha256,
+          mimeType: _mimeType,
+          fileSize: _fileSize,
+          storageProvider: _storageProvider,
+          ...safeItem
+        } = item as DrawingItem & {
+          storageKey?: string;
+          checksumSha256?: string;
+          mimeType?: string;
+          fileSize?: number;
+          storageProvider?: string;
+        };
+        return safeItem as DrawingItem;
+      }),
+    }));
+    return next;
+  }
+
   private toOrderResponse(order: ProductionOrderRecord) {
     return {
       ...order,
@@ -1339,17 +1434,25 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: module.updatedAt,
       items: module.items.map((item) => ({
         itemId: item.itemId,
+        documentId: item.documentId,
         title: item.title,
         fileType: item.fileType,
+        contentKind: item.contentKind,
         previewUrl: item.previewUrl,
+        downloadUrl: item.downloadUrl,
         fileName: item.fileName,
         version: item.version,
         remark: item.remark,
+        description: item.description,
         uploadedAt: item.uploadedAt,
         source: item.source,
         fileSize: item.fileSize,
         mimeType: item.mimeType,
+        keywords: item.keywords,
+        effectiveDate: item.effectiveDate,
+        versionGroupKey: item.versionGroupKey,
         pageCount: item.pageCount,
+        isCover: item.isCover,
         documentStatus: item.documentStatus,
       })),
     }));
@@ -1396,9 +1499,6 @@ export class DocumentHubService implements OnModuleInit {
     for (const module of next.modules) {
       module.items = module.items.filter((item) => !item.deletedAt);
       module.itemCount = module.items.length;
-      if (module.coverDocumentId && !module.items.some((item) => item.itemId === module.coverDocumentId)) {
-        module.coverDocumentId = module.items.find((item) => item.documentStatus === 'effective')?.itemId ?? module.items[0]?.itemId;
-      }
       if (!module.items.length && module.status === 'uploaded') {
         module.status = module.moduleKey === 'original_drawing' ? 'no_drawing' : 'pending';
       }
@@ -1417,13 +1517,32 @@ export class DocumentHubService implements OnModuleInit {
       const module = next.modules.find((item) => item.moduleKey === moduleKey);
       if (!module) continue;
       const item = this.documentToDrawingItem(document);
-      if (!module.items.some((entry) => entry.itemId === item.itemId)) {
+      const existingIndex = module.items.findIndex((entry) => entry.itemId === item.itemId || entry.documentId === item.itemId);
+      if (existingIndex >= 0) {
+        module.items[existingIndex] = {
+          ...module.items[existingIndex],
+          ...item,
+          isCover: module.items[existingIndex].isCover,
+        };
+      } else {
         module.items.unshift(item);
       }
       module.status = 'uploaded';
       module.itemCount = module.items.length;
       if (!module.coverDocumentId) module.coverDocumentId = item.itemId;
       module.updatedAt = document.updatedAt ?? module.updatedAt;
+    }
+
+    for (const module of next.modules) {
+      const activeIds = new Set(module.items.filter((item) => !item.deletedAt).map((item) => item.itemId));
+      if (module.coverDocumentId && !activeIds.has(module.coverDocumentId)) {
+        module.coverDocumentId = module.items.find((item) => item.documentStatus === 'effective')?.itemId ?? module.items[0]?.itemId;
+      }
+      module.items = module.items.map((item) => ({
+        ...item,
+        isCover: module.coverDocumentId ? item.itemId === module.coverDocumentId : undefined,
+      }));
+      module.itemCount = module.items.length;
     }
 
     const original = next.modules.find((module) => module.moduleKey === 'original_drawing');
@@ -1439,14 +1558,19 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   private documentToDrawingItem(document: ProductDocument): DrawingItem {
+    const itemId = document.documentId ?? document.id;
     return {
-      itemId: document.documentId ?? document.id,
+      itemId,
+      documentId: itemId,
       title: document.title,
       fileType: document.previewType ?? this.resolveFileType(document.mimeType),
+      contentKind: document.previewType ?? this.resolveFileType(document.mimeType),
       previewUrl: document.previewUrl,
+      downloadUrl: document.downloadUrl,
       fileName: document.originalFileName ?? document.title,
       version: document.version,
       remark: document.remark ?? document.description ?? document.mockPreviewText,
+      description: document.description,
       uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
       source: document.source === 'pdf_import'
         ? 'pdf_import'
@@ -1458,6 +1582,10 @@ export class DocumentHubService implements OnModuleInit {
       checksumSha256: document.checksumSha256,
       fileSize: document.fileSize,
       mimeType: document.mimeType,
+      keywords: document.keywords,
+      effectiveDate: document.effectiveDate,
+      versionGroupKey: document.versionGroupKey,
+      documentStatus: document.documentStatus,
     };
   }
 

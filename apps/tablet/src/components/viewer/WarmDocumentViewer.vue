@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { AlertTriangle, FileText, Info, X } from 'lucide-vue-next'
+import WarmDocumentActionMenu from '@/components/drawing/WarmDocumentActionMenu.vue'
+import WarmEditDocumentDialog from '@/components/drawing/WarmEditDocumentDialog.vue'
+import WarmSetEffectiveDialog from '@/components/drawing/WarmSetEffectiveDialog.vue'
 import WarmImageViewer from './WarmImageViewer.vue'
 import WarmPdfViewer from './WarmPdfViewer.vue'
 import WarmThumbnailRail from './WarmThumbnailRail.vue'
 import WarmViewerToolbar from './WarmViewerToolbar.vue'
+import WarmMoveToTrashDialog from '@/components/trash/WarmMoveToTrashDialog.vue'
 import { useDocumentViewer } from '@/composables/use-document-viewer'
 import { resolveDocumentDownloadUrl } from '@/lib/document-preview-url'
+import { useDocumentHubStore } from '@/stores/document-hub-store'
+import type { DrawingItem, DrawingModule } from '@/types/production'
 import type { DocumentViewerItem, PdfDocumentProxy, PdfDocumentReadyPayload } from '@/types/document-viewer'
 
 const props = defineProps<{
@@ -23,6 +29,7 @@ const emit = defineEmits<{
 }>()
 
 const viewer = useDocumentViewer()
+const hubStore = useDocumentHubStore()
 const viewerRoot = ref<HTMLElement | null>(null)
 const infoOpen = ref(false)
 const thumbnailRailCollapsed = ref(false)
@@ -30,9 +37,16 @@ const fullscreenError = ref('')
 const downloadError = ref('')
 const previousBodyOverflow = ref('')
 const pdfDocument = shallowRef<PdfDocumentProxy | null>(null)
+const editDialogOpen = ref(false)
+const effectiveDialogOpen = ref(false)
+const moveToTrashOpen = ref(false)
+const actionItem = ref<DrawingItem | null>(null)
+const actionModule = ref<DrawingModule | null>(null)
 let bodyLocked = false
 
 const activeItem = computed(() => viewer.activeItem.value)
+const activeDrawingItem = computed(() => activeItem.value as DrawingItem | null)
+const activeDrawingModule = computed(() => hubStore.selectedModule)
 const activeItemInTrash = computed(() => Boolean(activeItem.value?.inTrash))
 const hasDownload = computed(() => Boolean(resolveDocumentDownloadUrl(activeItem.value?.downloadUrl)))
 const title = computed(() => activeItem.value?.title || props.moduleName || '资料查看')
@@ -47,6 +61,17 @@ const fileLabel = computed(() => {
   return '不支持的资料'
 })
 const uploadedDate = computed(() => activeItem.value?.uploadedAt?.slice(0, 10) || '-')
+const statusLabel = computed(() => {
+  const status = activeItem.value?.documentStatus ?? activeItem.value?.status
+  if (status === 'effective') return '当前有效'
+  if (status === 'expired') return '历史版本'
+  return '待确认'
+})
+const activeIsCover = computed(() => Boolean(activeItem.value?.isCover || (
+  activeDrawingModule.value?.coverDocumentId &&
+  activeItem.value &&
+  (activeDrawingModule.value.coverDocumentId === activeItem.value.itemId || activeDrawingModule.value.coverDocumentId === activeItem.value.documentId)
+)))
 const sourceLabel = computed(() => {
   const source = activeItem.value?.source
   if (source === 'manual_upload') return '手动上传'
@@ -55,6 +80,30 @@ const sourceLabel = computed(() => {
   if (source === 'mock' || source === 'seed') return '演示资料'
   return source || '-'
 })
+
+function openEditDialog(item: DrawingItem, module: DrawingModule) {
+  actionItem.value = item
+  actionModule.value = module
+  editDialogOpen.value = true
+}
+
+function openEffectiveDialog(item: DrawingItem, module: DrawingModule) {
+  actionItem.value = item
+  actionModule.value = module
+  effectiveDialogOpen.value = true
+}
+
+async function setCover(item: DrawingItem, module: DrawingModule) {
+  await hubStore.setDocumentCover(item, module)
+}
+
+async function openMoveToTrash(item: DrawingItem, module: DrawingModule) {
+  const ready = await hubStore.prepareTrashDocument(item, module)
+  if (!ready) return
+  actionItem.value = item
+  actionModule.value = module
+  moveToTrashOpen.value = true
+}
 
 function lockBodyScroll() {
   if (bodyLocked) return
@@ -210,6 +259,13 @@ watch(() => props.visible, (visible) => {
   }
 }, { immediate: true })
 
+watch(moveToTrashOpen, (visible) => {
+  if (visible) return
+  actionItem.value = null
+  actionModule.value = null
+  hubStore.closeMoveToTrashDialog()
+})
+
 watch(() => [props.items, props.initialItemId] as const, () => {
   if (props.visible) resetViewerFromProps()
 })
@@ -340,6 +396,22 @@ onBeforeUnmount(() => {
 
         <aside v-if="infoOpen" class="info-panel">
           <h3>资料信息</h3>
+          <div class="info-panel-actions">
+            <WarmDocumentActionMenu
+              v-if="activeDrawingItem && activeDrawingModule"
+              :item="activeDrawingItem"
+              :module="activeDrawingModule"
+              :loading="hubStore.lifecycleActionLoading"
+              @edit="openEditDialog"
+              @set-effective="openEffectiveDialog"
+              @set-cover="setCover"
+              @trash="openMoveToTrash"
+            />
+          </div>
+          <div class="viewer-document-tags">
+            <b :class="activeItem?.documentStatus ?? activeItem?.status">{{ statusLabel }}</b>
+            <b v-if="activeIsCover" class="cover">首页封面</b>
+          </div>
           <dl>
             <div>
               <dt>标题</dt>
@@ -356,6 +428,18 @@ onBeforeUnmount(() => {
             <div>
               <dt>版本</dt>
               <dd>{{ activeItem?.version || '-' }}</dd>
+            </div>
+            <div>
+              <dt>状态</dt>
+              <dd>{{ statusLabel }}</dd>
+            </div>
+            <div>
+              <dt>生效日期</dt>
+              <dd>{{ activeItem?.effectiveDate?.slice(0, 10) || '-' }}</dd>
+            </div>
+            <div>
+              <dt>关键词</dt>
+              <dd>{{ activeItem?.keywords?.length ? activeItem.keywords.join('、') : '-' }}</dd>
             </div>
             <div>
               <dt>来源</dt>
@@ -380,6 +464,21 @@ onBeforeUnmount(() => {
       <p v-if="fullscreenError || downloadError || viewer.state.error" class="viewer-message">
         {{ fullscreenError || downloadError || viewer.state.error }}
       </p>
+      <WarmMoveToTrashDialog
+        v-model:visible="moveToTrashOpen"
+        :item="actionItem"
+        :module="actionModule"
+      />
+      <WarmEditDocumentDialog
+        v-model:visible="editDialogOpen"
+        :item="actionItem"
+        :module="actionModule"
+      />
+      <WarmSetEffectiveDialog
+        v-model:visible="effectiveDialogOpen"
+        :item="actionItem"
+        :module="actionModule"
+      />
     </section>
   </Teleport>
 </template>
@@ -515,6 +614,47 @@ onBeforeUnmount(() => {
   margin: 0 0 12px;
   font-size: 17px;
   font-weight: 950;
+}
+
+.info-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 10px;
+}
+
+.viewer-document-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.viewer-document-tags b {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffe4bd;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.viewer-document-tags .effective {
+  color: #79e1d0;
+}
+
+.viewer-document-tags .pending,
+.viewer-document-tags .pending_review {
+  color: #ffd28f;
+}
+
+.viewer-document-tags .expired {
+  color: #ffb0a0;
+}
+
+.viewer-document-tags .cover {
+  color: #afe48d;
 }
 
 .info-panel dl {

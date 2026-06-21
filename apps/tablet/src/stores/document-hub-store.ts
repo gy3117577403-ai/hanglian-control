@@ -27,7 +27,10 @@ import {
   resolveHubDrawingProduct,
   restoreDocumentHubOrder,
   restoreDrawingDocument,
+  setDrawingDocumentCover,
+  setDrawingDocumentEffective,
   trashDrawingDocument,
+  updateDrawingDocumentMetadata,
   updateHubConnector,
   updateOrderProductionStatus,
   uploadHubDrawingItem,
@@ -82,6 +85,11 @@ import type {
   TrashDocumentPayload,
   TrashQuery,
 } from '@/types/document-lifecycle'
+import type {
+  DrawingDocumentMetadataPayload,
+  DrawingDocumentOperatorPayload,
+  DrawingDocumentVersionResponse,
+} from '@/types/document-version'
 import type {
   OrderImportApplyResponse,
   OrderImportPreviewItemState,
@@ -2108,6 +2116,158 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
+  function applyDocumentVersionResponse(response: DrawingDocumentVersionResponse) {
+    if (response.detail) {
+      productDrawingDetail.value = response.detail
+      selectedProduct.value = response.detail.product
+      if (selectedModule.value) {
+        selectedModule.value = response.detail.modules.find((item) => item.moduleKey === selectedModule.value?.moduleKey) ?? null
+      }
+    } else {
+      selectedProduct.value = response.product
+      if (selectedModule.value?.moduleKey === response.module.moduleKey) selectedModule.value = response.module
+    }
+    const currentId = lifecycleDocumentId(selectedDrawingItem.value)
+    if (currentId && response.changedDocumentIds?.includes(currentId)) {
+      const updatedItem = response.detail.modules
+        .flatMap((module) => module.items)
+        .find((item) => lifecycleDocumentId(item) === currentId)
+      if (updatedItem) selectedDrawingItem.value = updatedItem
+    }
+  }
+
+  function resolveVersionContext(item: DrawingItem, module?: DrawingModule | null) {
+    const productId = productDrawingDetail.value?.product.productId ?? selectedProduct.value?.productId
+    const targetModule = module ?? selectedModule.value
+    const documentId = lifecycleDocumentId(item)
+    if (!isFormalLifecycleDrawingItem(item)) {
+      lifecycleError.value = '该资料为系统占位资料，暂不支持维护。'
+      toast.warning(lifecycleError.value)
+      return null
+    }
+    if (!productId || !targetModule || !documentId) {
+      lifecycleError.value = '资料状态已变化，请刷新后重试。'
+      toast.error(lifecycleError.value)
+      return null
+    }
+    return { productId, module: targetModule, documentId }
+  }
+
+  async function refreshAfterDocumentVersion(response: DrawingDocumentVersionResponse, moduleKey: DrawingModuleKey) {
+    applyDocumentVersionResponse(response)
+    const customerId = response.detail.customer?.customerId ?? productDrawingDetail.value?.customer?.customerId
+    const refreshes: Promise<unknown>[] = [
+      refreshCurrentProduct(response.product.productId, moduleKey),
+      refreshProductList(customerId),
+    ]
+    const results = await Promise.allSettled(refreshes)
+    const failed = results.find((result) => result.status === 'rejected')
+    if (failed) {
+      toast.warning('资料已更新，局部刷新失败，请手动刷新页面。')
+    }
+  }
+
+  async function updateDocumentMetadata(
+    item: DrawingItem,
+    module: DrawingModule | null,
+    payload: DrawingDocumentMetadataPayload,
+  ) {
+    clearLifecycleError()
+    const context = resolveVersionContext(item, module)
+    if (!context) throw new Error(lifecycleError.value)
+    if (lifecycleActionLoading.value && lifecycleActionDocumentId.value === context.documentId) {
+      throw new Error('该资料正在处理中，请稍后再试。')
+    }
+    lifecycleActionLoading.value = true
+    lifecycleActionDocumentId.value = context.documentId
+    try {
+      const response = await updateDrawingDocumentMetadata(context.productId, context.module.moduleKey, context.documentId, {
+        ...payload,
+        operatorName: payload.operatorName ?? 'local-tablet',
+      })
+      await refreshAfterDocumentVersion(response, context.module.moduleKey)
+      toast.success('资料信息已更新。')
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error, '资料信息更新失败，请稍后重试。')
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      lifecycleActionLoading.value = false
+      lifecycleActionDocumentId.value = ''
+    }
+  }
+
+  async function setDocumentEffective(
+    item: DrawingItem,
+    module: DrawingModule | null,
+    payload: DrawingDocumentOperatorPayload = {},
+  ) {
+    clearLifecycleError()
+    const context = resolveVersionContext(item, module)
+    if (!context) throw new Error(lifecycleError.value)
+    if (context.module.moduleKey === 'finished_images') {
+      lifecycleError.value = '成品图不使用单一当前有效版本，请设置首页封面。'
+      toast.warning(lifecycleError.value)
+      throw new Error(lifecycleError.value)
+    }
+    if (lifecycleActionLoading.value && lifecycleActionDocumentId.value === context.documentId) {
+      throw new Error('该资料正在处理中，请稍后再试。')
+    }
+    lifecycleActionLoading.value = true
+    lifecycleActionDocumentId.value = context.documentId
+    try {
+      const response = await setDrawingDocumentEffective(context.productId, context.module.moduleKey, context.documentId, {
+        ...payload,
+        operatorName: payload.operatorName ?? 'local-tablet',
+      })
+      await refreshAfterDocumentVersion(response, context.module.moduleKey)
+      toast.success(response.idempotent ? '该资料已是当前有效版本。' : '已设为当前有效版本。')
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error, '设置当前有效版本失败，请稍后重试。')
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      lifecycleActionLoading.value = false
+      lifecycleActionDocumentId.value = ''
+    }
+  }
+
+  async function setDocumentCover(
+    item: DrawingItem,
+    module: DrawingModule | null,
+    payload: DrawingDocumentOperatorPayload = {},
+  ) {
+    clearLifecycleError()
+    const context = resolveVersionContext(item, module)
+    if (!context) throw new Error(lifecycleError.value)
+    if (lifecycleActionLoading.value && lifecycleActionDocumentId.value === context.documentId) {
+      throw new Error('该资料正在处理中，请稍后再试。')
+    }
+    lifecycleActionLoading.value = true
+    lifecycleActionDocumentId.value = context.documentId
+    try {
+      const response = await setDrawingDocumentCover(context.productId, context.module.moduleKey, context.documentId, {
+        ...payload,
+        operatorName: payload.operatorName ?? 'local-tablet',
+      })
+      await refreshAfterDocumentVersion(response, context.module.moduleKey)
+      toast.success(response.idempotent ? '该资料已是首页封面。' : '已设为首页封面。')
+      return response
+    } catch (error) {
+      const message = lifecycleErrorMessage(error, '设置首页封面失败，请稍后重试。')
+      lifecycleError.value = message
+      toast.error(message)
+      throw error
+    } finally {
+      lifecycleActionLoading.value = false
+      lifecycleActionDocumentId.value = ''
+    }
+  }
+
   function isCurrentViewerTarget(item: DrawingItem | DrawingTrashItem) {
     const targetId = lifecycleDocumentId(item)
     const selectedId = lifecycleDocumentId(selectedDrawingItem.value)
@@ -2457,6 +2617,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     trashDocument,
     restoreDocument,
     purgeDocument,
+    updateDocumentMetadata,
+    setDocumentEffective,
+    setDocumentCover,
     refreshAfterDocumentLifecycle,
     clearLifecycleError,
     saveCurrentScroll,

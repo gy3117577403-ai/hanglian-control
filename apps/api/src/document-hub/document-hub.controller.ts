@@ -39,6 +39,7 @@ import type { DrawingModuleKey } from './mock/document-hub.seed';
 import { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
 import { DocumentLifecycleService } from './document-lifecycle.service';
 import { PurgeDocumentDto, RestoreDocumentDto, TrashDocumentDto, TrashQueryDto } from './dto/document-lifecycle.dto';
+import { DrawingDocumentOperatorDto, UpdateDrawingDocumentMetadataDto } from './dto/document-metadata.dto';
 
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 const allowedConnectorImportMimeTypes = [
@@ -303,6 +304,39 @@ export class DocumentHubController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.documentHubService.uploadDrawingItem(productId, moduleKey, dto, file);
+  }
+
+  @Patch('drawings/products/:productId/modules/:moduleKey/items/:itemId')
+  @ApiOperation({ summary: '编辑图纸资料标题、版本、关键词和备注' })
+  updateDrawingDocumentMetadata(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateDrawingDocumentMetadataDto,
+  ) {
+    return this.documentHubService.updateDrawingDocumentMetadata(productId, moduleKey, itemId, dto);
+  }
+
+  @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/set-effective')
+  @ApiOperation({ summary: '设置图纸资料为当前有效版本' })
+  setDrawingDocumentEffective(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: DrawingDocumentOperatorDto,
+  ) {
+    return this.documentHubService.setDrawingDocumentEffective(productId, moduleKey, itemId, dto);
+  }
+
+  @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/set-cover')
+  @ApiOperation({ summary: '设置图纸资料为模块首页封面' })
+  setDrawingDocumentCover(
+    @Param('productId') productId: string,
+    @Param('moduleKey') moduleKey: DrawingModuleKey,
+    @Param('itemId') itemId: string,
+    @Body() dto: DrawingDocumentOperatorDto,
+  ) {
+    return this.documentHubService.setDrawingDocumentCover(productId, moduleKey, itemId, dto);
   }
 
   @Post('drawings/products/:productId/modules/:moduleKey/items/:itemId/trash')
