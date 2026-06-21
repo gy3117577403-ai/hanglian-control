@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArchiveRestore, ClipboardList, FileText, ServerCog, UploadCloud } from 'lucide-vue-next'
+import { ArchiveRestore, ClipboardList, FileText, Folders, ServerCog, UploadCloud } from 'lucide-vue-next'
 import WarmFunctionOrb from './WarmFunctionOrb.vue'
 import WarmHubSearchBar from './WarmHubSearchBar.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
@@ -9,6 +9,7 @@ const store = useDocumentHubStore()
 defineEmits<{
   'open-network': []
   'open-pdf-import': []
+  'open-maintenance': []
   'open-trash': []
 }>()
 </script>
@@ -29,6 +30,16 @@ defineEmits<{
       >
         <FileText :size="18" />
         <span>导入 PDF 图纸</span>
+      </PrimeButton>
+      <PrimeButton
+        v-if="store.activeMode === 'drawing'"
+        class="maintenance-entry-button"
+        title="客户与产品"
+        aria-label="客户与产品"
+        @click="$emit('open-maintenance')"
+      >
+        <Folders :size="18" />
+        <span>客户与产品</span>
       </PrimeButton>
       <PrimeButton
         v-if="store.activeMode === 'drawing'"
@@ -213,8 +224,27 @@ defineEmits<{
     inset 0 -12px 22px rgba(116, 61, 22, 0.1);
 }
 
+.header-actions :deep(.maintenance-entry-button) {
+  width: auto;
+  min-width: 116px;
+  min-height: 48px;
+  padding: 0 12px;
+  gap: 7px;
+  color: #4d321a;
+  border-color: rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.1) 46%),
+    linear-gradient(145deg, rgba(123, 157, 143, 0.6), rgba(211, 132, 59, 0.34)),
+    rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 18px 30px rgba(96, 86, 50, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -12px 22px rgba(92, 68, 29, 0.1);
+}
+
 .header-actions :deep(.trash-entry-button .p-button-label),
-.header-actions :deep(.trash-entry-button span:not(.p-badge)) {
+.header-actions :deep(.trash-entry-button span:not(.p-badge)),
+.header-actions :deep(.maintenance-entry-button span) {
   flex: none;
   font-size: 13px;
   font-weight: 950;
@@ -265,6 +295,12 @@ defineEmits<{
     padding: 0 13px;
   }
 
+  .header-actions :deep(.maintenance-entry-button) {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0 13px;
+  }
+
   .header-actions :deep(.order-overview-button) {
     min-width: 48px;
     min-height: 48px;
@@ -275,6 +311,7 @@ defineEmits<{
   .header-actions :deep(.pdf-import-button span),
   .header-actions :deep(.trash-entry-button .p-button-label),
   .header-actions :deep(.trash-entry-button span:not(.p-badge)),
+  .header-actions :deep(.maintenance-entry-button span),
   .header-actions :deep(.order-overview-button span) {
     display: none;
   }

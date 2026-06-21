@@ -5,6 +5,7 @@ import WarmHubHeader from './WarmHubHeader.vue'
 import WarmHubUploadDialog from './WarmHubUploadDialog.vue'
 import WarmCreateProductArchiveDialog from '@/components/drawing/WarmCreateProductArchiveDialog.vue'
 import WarmPdfImportDialog from '@/components/drawing/WarmPdfImportDialog.vue'
+import WarmCustomerProductMaintenanceDialog from '@/components/maintenance/WarmCustomerProductMaintenanceDialog.vue'
 import WarmOrderOverviewDialog from '@/components/orders/WarmOrderOverviewDialog.vue'
 import WarmOrderSidebar from '@/components/orders/WarmOrderSidebar.vue'
 import WarmNetworkDiagnosticsDialog from '@/components/system/WarmNetworkDiagnosticsDialog.vue'
@@ -28,6 +29,7 @@ function openDrawingTrash() {
     <WarmHubHeader
       @open-network="networkDiagnosticsOpen = true"
       @open-pdf-import="store.pdfImportDialogOpen = true"
+      @open-maintenance="void store.openCustomerProductMaintenance()"
       @open-trash="openDrawingTrash"
     />
     <main class="hub-body">
@@ -37,6 +39,7 @@ function openDrawingTrash() {
     <WarmOrderOverviewDialog />
     <WarmHubUploadDialog v-model:visible="store.uploadDialogOpen" />
     <WarmPdfImportDialog v-model:visible="store.pdfImportDialogOpen" />
+    <WarmCustomerProductMaintenanceDialog v-model:visible="store.maintenanceOpen" />
     <WarmCreateProductArchiveDialog v-model:visible="store.createProductArchiveDialogOpen" />
     <WarmDrawingTrashDialog v-model:visible="store.drawingTrashDialogOpen" />
     <WarmNetworkDiagnosticsDialog v-model:visible="networkDiagnosticsOpen" />

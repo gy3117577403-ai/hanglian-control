@@ -648,6 +648,7 @@ export class DocumentHubService implements OnModuleInit {
   createDrawingProduct(dto: CreateDrawingProductDto) {
     const customerId = cleanText(dto.customerId);
     const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === customerId);
+    if (customer?.status === 'disabled') throw new ConflictException('当前客户已停用，不能新增产品。');
     if (!customer) throw new NotFoundException('客户不存在。');
 
     const productModel = cleanText(dto.productModel);
@@ -666,6 +667,7 @@ export class DocumentHubService implements OnModuleInit {
       productName: cleanText(dto.productName) || productModel,
       drawingStatus: 'no_drawing',
       source: 'manual_create',
+      searchKeywords: uniqueAliases([...(dto.searchKeywords ?? []), productModel, dto.productName]),
       remark: cleanOptionalText(dto.remark),
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -693,6 +695,9 @@ export class DocumentHubService implements OnModuleInit {
       productModel,
       normalizedProductModel,
       productName: dto.productName !== undefined ? (cleanText(dto.productName) || productModel) : current.productName,
+      searchKeywords: dto.searchKeywords !== undefined
+        ? uniqueAliases([...dto.searchKeywords, productModel, dto.productName ?? current.productName])
+        : current.searchKeywords,
       remark: dto.remark !== undefined ? cleanOptionalText(dto.remark) : current.remark,
       updatedAt: new Date().toISOString(),
     };

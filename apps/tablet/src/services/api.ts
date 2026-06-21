@@ -137,6 +137,10 @@ import type {
   ResolveDrawingProductQuery,
 } from '@/types/product-resolution'
 import type {
+  UpdateDrawingCustomerPayload,
+  UpdateDrawingProductPayload,
+} from '@/types/customer-product-maintenance'
+import type {
   DeleteLockStatus,
   DrawingLifecycleResponse,
   DrawingTrashListResponse,
@@ -1271,9 +1275,23 @@ export function createHubDrawingCustomer(payload: CreateDrawingCustomerPayload) 
   })
 }
 
+export function updateHubDrawingCustomer(customerId: string, payload: UpdateDrawingCustomerPayload) {
+  return api<HubCustomer>(`/document-hub/drawings/customers/${encodeURIComponent(customerId)}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
 export function createHubDrawingProduct(payload: CreateDrawingProductArchivePayload) {
   return api<HubProductModel>('/document-hub/drawings/products', {
     method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateHubDrawingProduct(productId: string, payload: UpdateDrawingProductPayload) {
+  return api<HubProductModel>(`/document-hub/drawings/products/${encodeURIComponent(productId)}`, {
+    method: 'PATCH',
     body: payload,
   })
 }
@@ -1287,6 +1305,14 @@ export function resolveHubDrawingProduct(query: ResolveDrawingProductQuery) {
 export function getHubProductDetail(productId: string) {
   return api<ProductDrawingDetail>(`/document-hub/drawings/products/${productId}`)
 }
+
+export const getDrawingCustomers = getHubCustomers
+export const createDrawingCustomer = createHubDrawingCustomer
+export const updateDrawingCustomer = updateHubDrawingCustomer
+export const getDrawingProducts = getHubProducts
+export const createDrawingProduct = createHubDrawingProduct
+export const updateDrawingProduct = updateHubDrawingProduct
+export const getDrawingProductDetail = getHubProductDetail
 
 export function getHubProductByModel(productModel: string) {
   return api<ProductDrawingDetail | null>(`/document-hub/drawings/products/by-model/${encodeURIComponent(productModel)}`)

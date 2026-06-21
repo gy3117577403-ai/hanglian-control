@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 
 export class UpdateDrawingProductDto {
   @ApiPropertyOptional({ description: 'Product model' })
@@ -16,4 +16,10 @@ export class UpdateDrawingProductDto {
   @IsOptional()
   @IsString()
   remark?: string;
+
+  @ApiPropertyOptional({ description: 'Search keywords', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  searchKeywords?: string[];
 }

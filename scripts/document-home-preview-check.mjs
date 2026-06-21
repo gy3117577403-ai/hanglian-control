@@ -137,8 +137,10 @@ const allowedChanged = new Set([
   'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
   'apps/tablet/src/components/drawing/WarmDrawingModuleGallery.vue',
   'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'apps/tablet/src/components/hub/WarmHubHeader.vue',
   'apps/tablet/src/services/api.ts',
   'apps/tablet/src/stores/document-hub-store.ts',
+  'apps/tablet/src/types/customer-product-maintenance.ts',
   'apps/tablet/src/types/document-viewer.ts',
   'apps/api/src/document-hub/document-hub.controller.ts',
   'apps/api/src/document-hub/document-hub.module.ts',
@@ -148,6 +150,7 @@ const allowedChanged = new Set([
   'apps/api/src/document-hub/mock/document-hub.seed.ts',
   'apps/api/src/document-hub/document-version.service.ts',
   'apps/api/src/document-hub/dto/create-drawing-product.dto.ts',
+  'apps/api/src/document-hub/dto/update-drawing-product.dto.ts',
   'apps/api/src/document-hub/dto/document-metadata.dto.ts',
   'apps/api/src/document-hub/dto/resolve-drawing-product.dto.ts',
   'apps/tablet/src/components/drawing/WarmDocumentActionMenu.vue',
@@ -159,8 +162,14 @@ const allowedChanged = new Set([
   'scripts/document-viewer-thumbnail-check.mjs',
   'scripts/camera-upload-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
+  'scripts/customer-product-maintenance-check.mjs',
   'scripts/document-version-backend-check.mjs',
   'scripts/document-version-ui-check.mjs',
+  'apps/tablet/src/components/maintenance/WarmCustomerProductMaintenanceDialog.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerEditDialog.vue',
+  'apps/tablet/src/components/maintenance/WarmProductEditDialog.vue',
 ]);
 for (const file of changed) {
   const allowed = allowedChanged.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));

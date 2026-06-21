@@ -31,7 +31,9 @@ import {
   setDrawingDocumentEffective,
   trashDrawingDocument,
   updateDrawingDocumentMetadata,
+  updateHubDrawingCustomer,
   updateHubConnector,
+  updateHubDrawingProduct,
   updateOrderProductionStatus,
   uploadHubDrawingItem,
 } from '@/services/api'
@@ -76,6 +78,14 @@ import type {
   CreateDrawingProductArchivePayload,
   UnarchivedOrderProductContext,
 } from '@/types/product-resolution'
+import type {
+  CreateMaintenanceProductPayload,
+  MaintenanceCustomerSummary,
+  MaintenanceProductRow,
+  MaintenanceProductSummary,
+  UpdateDrawingCustomerPayload,
+  UpdateDrawingProductPayload,
+} from '@/types/customer-product-maintenance'
 import type {
   DeleteLockStatus,
   DrawingLifecycleResponse,
@@ -174,6 +184,11 @@ const DEFAULT_TRASH_FILTERS: TrashQuery = { limit: 20, offset: 0 }
 
 function cleanText(value: unknown) {
   return String(value ?? '').trim()
+}
+
+function cleanOptionalText(value: unknown) {
+  const text = cleanText(value)
+  return text || undefined
 }
 
 function normalizeOrderProductModel(value: unknown) {
@@ -361,6 +376,60 @@ function orderQuantityText(order: Pick<ProductionOrder, 'quantity' | 'quantityPr
   return Number.isFinite(value) && value > 0 ? `数量 ${value}` : '数量未填写'
 }
 
+function isActiveDrawingItem(item: DrawingItem) {
+  return !item.deleted && !item.deletedAt
+}
+
+function latestTimestamp(values: Array<string | undefined>) {
+  return values
+    .map((value) => {
+      const time = value ? new Date(value).getTime() : Number.NaN
+      return Number.isFinite(time) ? { value, time } : null
+    })
+    .filter((item): item is { value: string; time: number } => Boolean(item))
+    .sort((a, b) => b.time - a.time)[0]?.value
+}
+
+function summarizeMaintenanceProduct(product: HubProductModel, detail?: ProductDrawingDetail | null): MaintenanceProductSummary {
+  const modules = detail?.modules ?? []
+  const moduleSummaries = modules.map((module) => {
+    const itemCount = module.items.filter(isActiveDrawingItem).length
+    return {
+      moduleKey: module.moduleKey,
+      moduleName: module.moduleName,
+      status: module.status,
+      itemCount: module.itemCount ?? itemCount,
+    }
+  })
+  const uploadedModuleCount = moduleSummaries.filter((module) => module.status === 'uploaded').length
+  const originalModule = modules.find((module) => module.moduleKey === 'original_drawing')
+  const originalDrawingCount = originalModule?.items.filter(isActiveDrawingItem).length ?? 0
+  const documentCount = modules.reduce((sum, module) => sum + module.items.filter(isActiveDrawingItem).length, 0)
+  const lastDocumentUpdatedAt = latestTimestamp([
+    product.updatedAt,
+    ...modules.map((module) => module.updatedAt),
+    ...modules.flatMap((module) => module.items.map((item) => item.uploadedAt)),
+  ])
+  return {
+    moduleCount: moduleSummaries.length,
+    uploadedModuleCount,
+    emptyModuleCount: moduleSummaries.filter((module) => module.status !== 'uploaded' && module.itemCount === 0).length,
+    documentCount,
+    originalDrawingCount,
+    lastDocumentUpdatedAt,
+    modules: moduleSummaries,
+  }
+}
+
+function toMaintenanceProductRow(product: HubProductModel, detail?: ProductDrawingDetail | null): MaintenanceProductRow {
+  const maintenanceSummary = summarizeMaintenanceProduct(product, detail)
+  return {
+    ...product,
+    drawingStatus: maintenanceSummary.originalDrawingCount === 0 ? 'no_drawing' : product.drawingStatus,
+    maintenanceSummary,
+  }
+}
+
 export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const navigation = useNavigationMemoryStore()
   const activeMode = ref<HubMode>('drawing')
@@ -422,6 +491,18 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const pdfImportApplyResult = ref<PdfImportApplyResponse | null>(null)
   const pdfImportLastUpdatedAt = ref<string | null>(null)
   const pdfImportDialogOpen = ref(false)
+  const maintenanceOpen = ref(false)
+  const maintenanceCustomers = ref<HubCustomer[]>([])
+  const maintenanceSelectedCustomerId = ref('')
+  const maintenanceProducts = ref<MaintenanceProductRow[]>([])
+  const maintenanceCustomerSummaries = ref<Record<string, MaintenanceCustomerSummary>>({})
+  const maintenanceCustomerSearch = ref('')
+  const maintenanceProductSearch = ref('')
+  const maintenanceLoading = ref(false)
+  const maintenanceSaving = ref(false)
+  const maintenanceError = ref('')
+  const maintenanceProductScrollPosition = ref(0)
+  const maintenanceReturnPending = ref(false)
   const createProductArchiveDialogOpen = ref(false)
   const orderOverviewOpen = ref(false)
   const uploadDialogOpen = ref(false)
@@ -470,6 +551,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const visibleTodayOrders = computed(() => sortOrders(todayOrders.value.filter((order) => order.completionStatus === 'pending' && !order.completed)))
   const visibleWeekOrders = computed(() => sortOrders(weekOrders.value.filter((order) => order.completionStatus === 'pending' && !order.completed)))
   const visibleActiveScopeOrders = computed(() => activeOrderScope.value === 'today' ? visibleTodayOrders.value : visibleWeekOrders.value)
+  const maintenanceSelectedCustomer = computed(() => maintenanceCustomers.value.find((customer) => customer.customerId === maintenanceSelectedCustomerId.value) ?? null)
 
   function patchOrder(orderId: string, patch: Partial<ProductionOrder>) {
     for (const list of [todayOrders.value, weekOrders.value, completedOrders.value]) {
@@ -552,6 +634,285 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
   async function refreshOrdersAfterAction() {
     await Promise.all([loadTodayOrders(), loadWeekOrders(), loadOrderOverview()])
+  }
+
+  function setMaintenanceError(error: unknown, fallback: string) {
+    const message = lifecycleErrorMessage(error, fallback)
+    maintenanceError.value = message
+    toast.error(message)
+    return message
+  }
+
+  async function loadMaintenanceCustomerSummaries(rows = maintenanceCustomers.value) {
+    const results = await Promise.allSettled(rows.map(async (customer) => {
+      const products = await getHubProducts(customer.customerId)
+      const summary: MaintenanceCustomerSummary = {
+        productCount: products.length,
+        noDrawingCount: products.filter((product) => product.drawingStatus === 'no_drawing').length,
+        lastUpdatedAt: latestTimestamp(products.map((product) => product.updatedAt)),
+      }
+      return [customer.customerId, summary] as const
+    }))
+    maintenanceCustomerSummaries.value = results.reduce<Record<string, MaintenanceCustomerSummary>>((acc, result) => {
+      if (result.status === 'fulfilled') acc[result.value[0]] = result.value[1]
+      return acc
+    }, {})
+  }
+
+  async function openCustomerProductMaintenance() {
+    maintenanceOpen.value = true
+    maintenanceError.value = ''
+    if (!maintenanceCustomers.value.length) await loadMaintenanceCustomers()
+  }
+
+  function closeCustomerProductMaintenance() {
+    maintenanceOpen.value = false
+  }
+
+  async function loadMaintenanceCustomers() {
+    maintenanceLoading.value = true
+    maintenanceError.value = ''
+    try {
+      const rows = await getHubCustomers(maintenanceCustomerSearch.value.trim() || undefined)
+      maintenanceCustomers.value = rows
+      await loadMaintenanceCustomerSummaries(rows)
+      const preservedCustomer = rows.find((customer) => customer.customerId === maintenanceSelectedCustomerId.value)
+      const nextCustomerId = preservedCustomer?.customerId ?? rows[0]?.customerId ?? ''
+      maintenanceSelectedCustomerId.value = nextCustomerId
+      if (nextCustomerId) {
+        await loadMaintenanceProducts(nextCustomerId, { keepLoading: true })
+      } else {
+        maintenanceProducts.value = []
+      }
+      return rows
+    } catch (error) {
+      setMaintenanceError(error, '客户资料加载失败，请稍后重试。')
+      maintenanceCustomers.value = []
+      maintenanceProducts.value = []
+      return []
+    } finally {
+      maintenanceLoading.value = false
+    }
+  }
+
+  async function selectMaintenanceCustomer(customerId: string) {
+    saveCurrentScroll('maintenance-products')
+    const nextCustomerId = cleanText(customerId)
+    if (!nextCustomerId || maintenanceSelectedCustomerId.value === nextCustomerId) return
+    maintenanceSelectedCustomerId.value = nextCustomerId
+    await loadMaintenanceProducts(nextCustomerId)
+    await restoreScroll('maintenance-products')
+  }
+
+  async function loadMaintenanceProducts(customerId = maintenanceSelectedCustomerId.value, options: { keepLoading?: boolean } = {}) {
+    const targetCustomerId = cleanText(customerId)
+    if (!targetCustomerId) {
+      maintenanceProducts.value = []
+      return []
+    }
+    if (!options.keepLoading) maintenanceLoading.value = true
+    maintenanceError.value = ''
+    try {
+      const products = await getHubProducts(targetCustomerId, maintenanceProductSearch.value.trim() || undefined)
+      const rows = await Promise.all(products.map(async (product) => {
+        try {
+          const detail = await getHubProductDetail(product.productId)
+          return toMaintenanceProductRow(detail.product, detail)
+        } catch {
+          return toMaintenanceProductRow(product, null)
+        }
+      }))
+      maintenanceProducts.value = rows
+      maintenanceCustomerSummaries.value = {
+        ...maintenanceCustomerSummaries.value,
+        [targetCustomerId]: {
+          productCount: rows.length,
+          noDrawingCount: rows.filter((product) => product.drawingStatus === 'no_drawing').length,
+          lastUpdatedAt: latestTimestamp(rows.map((product) => product.updatedAt ?? product.maintenanceSummary.lastDocumentUpdatedAt)),
+        },
+      }
+      return rows
+    } catch (error) {
+      setMaintenanceError(error, '产品资料加载失败，请稍后重试。')
+      maintenanceProducts.value = []
+      return []
+    } finally {
+      if (!options.keepLoading) maintenanceLoading.value = false
+    }
+  }
+
+  async function refreshAfterMaintenanceWrite(customerId = maintenanceSelectedCustomerId.value, productId?: string) {
+    const targetCustomerId = cleanText(customerId)
+    const refreshes: Promise<unknown>[] = [
+      loadCustomers(),
+      loadMaintenanceCustomers(),
+      refreshOrdersAfterAction(),
+    ]
+    const results = await Promise.allSettled(refreshes)
+    if (targetCustomerId) {
+      maintenanceSelectedCustomerId.value = targetCustomerId
+      await loadMaintenanceProducts(targetCustomerId)
+    }
+    if (productId && selectedProduct.value?.productId === productId) {
+      try {
+        await refreshCurrentProduct(productId)
+      } catch {
+        toast.warning('产品已保存，当前资料页刷新失败，请稍后手动刷新。')
+      }
+    }
+    if (results.some((result) => result.status === 'rejected')) {
+      toast.warning('资料已保存，局部刷新失败，请稍后手动刷新。')
+    }
+  }
+
+  async function createMaintenanceCustomer(payload: CreateDrawingCustomerPayload) {
+    const customerName = cleanText(payload.customerName)
+    if (!customerName) {
+      maintenanceError.value = '客户名称不能为空。'
+      toast.error(maintenanceError.value)
+      return null
+    }
+    maintenanceSaving.value = true
+    maintenanceError.value = ''
+    try {
+      const customer = await createHubDrawingCustomer({
+        ...payload,
+        customerName,
+        customerShortName: cleanText(payload.customerShortName) || customerName,
+        customerCode: cleanOptionalText(payload.customerCode),
+        aliases: payload.aliases?.map(cleanText).filter(Boolean),
+        status: payload.status ?? 'active',
+      })
+      maintenanceSelectedCustomerId.value = customer.customerId
+      toast.success('客户资料已保存。', { description: customer.customerName })
+      await refreshAfterMaintenanceWrite(customer.customerId)
+      return customer
+    } catch (error) {
+      setMaintenanceError(error, '客户资料保存失败，请稍后重试。')
+      return null
+    } finally {
+      maintenanceSaving.value = false
+    }
+  }
+
+  async function updateMaintenanceCustomer(customerId: string, payload: UpdateDrawingCustomerPayload) {
+    const targetCustomerId = cleanText(customerId)
+    if (!targetCustomerId) return null
+    maintenanceSaving.value = true
+    maintenanceError.value = ''
+    try {
+      const customer = await updateHubDrawingCustomer(targetCustomerId, {
+        ...payload,
+        customerName: payload.customerName !== undefined ? cleanText(payload.customerName) : undefined,
+        customerShortName: payload.customerShortName !== undefined ? cleanText(payload.customerShortName) : undefined,
+        customerCode: payload.customerCode !== undefined ? cleanOptionalText(payload.customerCode) : undefined,
+        aliases: payload.aliases?.map(cleanText).filter(Boolean),
+      })
+      maintenanceSelectedCustomerId.value = customer.customerId
+      toast.success('客户资料已更新。', { description: customer.customerName })
+      await refreshAfterMaintenanceWrite(customer.customerId)
+      return customer
+    } catch (error) {
+      setMaintenanceError(error, '客户资料保存失败，请稍后重试。')
+      return null
+    } finally {
+      maintenanceSaving.value = false
+    }
+  }
+
+  async function createMaintenanceProduct(payload: CreateMaintenanceProductPayload) {
+    const customer = maintenanceCustomers.value.find((item) => item.customerId === payload.customerId)
+    if (customer?.status === 'disabled') {
+      maintenanceError.value = '当前客户已停用，不能新增产品。'
+      toast.warning(maintenanceError.value)
+      return null
+    }
+    const productModel = cleanText(payload.productModel)
+    if (!productModel) {
+      maintenanceError.value = '产品型号不能为空。'
+      toast.error(maintenanceError.value)
+      return null
+    }
+    maintenanceSaving.value = true
+    maintenanceError.value = ''
+    try {
+      const product = await createHubDrawingProduct({
+        ...payload,
+        customerId: cleanText(payload.customerId),
+        productModel,
+        productName: cleanText(payload.productName) || productModel,
+        searchKeywords: payload.searchKeywords?.map(cleanText).filter(Boolean),
+        remark: cleanOptionalText(payload.remark),
+        source: 'manual_create',
+      })
+      toast.success('产品资料页已创建。', { description: product.productModel })
+      await refreshAfterMaintenanceWrite(product.customerId, product.productId)
+      return product
+    } catch (error) {
+      setMaintenanceError(error, '产品资料保存失败，请稍后重试。')
+      return null
+    } finally {
+      maintenanceSaving.value = false
+    }
+  }
+
+  async function updateMaintenanceProduct(productId: string, payload: UpdateDrawingProductPayload) {
+    const targetProductId = cleanText(productId)
+    const current = maintenanceProducts.value.find((product) => product.productId === targetProductId)
+    if (!targetProductId || !current) return null
+    if (payload.productModel !== undefined && cleanText(payload.productModel) !== current.productModel) {
+      maintenanceError.value = '当前产品已有资料或订单绑定，不能直接修改产品型号。'
+      toast.warning(maintenanceError.value)
+      return null
+    }
+    maintenanceSaving.value = true
+    maintenanceError.value = ''
+    try {
+      const product = await updateHubDrawingProduct(targetProductId, {
+        productName: payload.productName !== undefined ? cleanText(payload.productName) : undefined,
+        searchKeywords: payload.searchKeywords?.map(cleanText).filter(Boolean),
+        remark: payload.remark !== undefined ? cleanOptionalText(payload.remark) : undefined,
+      })
+      toast.success('产品资料已更新。', { description: product.productModel })
+      await refreshAfterMaintenanceWrite(product.customerId, product.productId)
+      return product
+    } catch (error) {
+      setMaintenanceError(error, '产品资料保存失败，请稍后重试。')
+      return null
+    } finally {
+      maintenanceSaving.value = false
+    }
+  }
+
+  async function openProductFromMaintenance(product: HubProductModel) {
+    saveCurrentScroll('maintenance-products')
+    maintenanceProductScrollPosition.value = navigation.restoreScrollPosition('maintenance-products')
+    const customer = maintenanceCustomers.value.find((item) => item.customerId === product.customerId)
+    if (customer) selectedCustomer.value = customer
+    closeCustomerProductMaintenance()
+    activeMode.value = 'drawing'
+    navigation.rememberFunction('drawing')
+    maintenanceReturnPending.value = true
+    await openProduct(product, 'maintenance')
+  }
+
+  function openPdfImportFromMaintenance(customerId = maintenanceSelectedCustomerId.value) {
+    const targetCustomerId = cleanText(customerId)
+    const customer = maintenanceCustomers.value.find((item) => item.customerId === targetCustomerId)
+    if (!targetCustomerId || !customer) {
+      maintenanceError.value = '客户资料不存在。'
+      toast.error(maintenanceError.value)
+      return false
+    }
+    if (customer.status === 'disabled') {
+      maintenanceError.value = '当前客户已停用，启用后才能新增产品或导入图纸。'
+      toast.warning(maintenanceError.value)
+      return false
+    }
+    selectedCustomer.value = customer
+    setPdfImportCustomer(targetCustomerId)
+    pdfImportDialogOpen.value = true
+    return true
   }
 
   async function completeOrder(orderOrId: ProductionOrder | string) {
@@ -914,7 +1275,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     await restoreScroll('products')
   }
 
-  async function openProduct(product: HubProductModel, source: 'drawing' | 'orders' | 'overview' | 'search' = 'drawing') {
+  async function openProduct(product: HubProductModel, source: 'drawing' | 'orders' | 'overview' | 'search' | 'maintenance' = 'drawing') {
     const requestId = ++productDetailRequestId
     saveCurrentScroll(drawingViewLevel.value)
     resetDocumentViewerState()
@@ -924,11 +1285,12 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedDrawingItem.value = null
     drawingViewLevel.value = 'product'
     if (source !== 'drawing') {
+      const returnSource = source === 'maintenance' ? 'search' : source
       navigation.pushReturnPoint({
-        source,
-        label: source === 'orders' ? '返回订单列表' : source === 'overview' ? '返回订单总览' : '返回搜索结果',
+        source: returnSource,
+        label: source === 'maintenance' ? '返回客户与产品维护' : source === 'orders' ? '返回订单列表' : source === 'overview' ? '返回订单总览' : '返回搜索结果',
         state: { level: 'product', productId: product.productId },
-        scrollKey: source === 'overview' ? 'order-overview' : source,
+        scrollKey: source === 'overview' ? 'order-overview' : source === 'maintenance' ? 'maintenance-products' : source,
       })
     }
     const localDetail = localDetails.value.find((detail) => detail.product.productId === product.productId) ?? null
@@ -1136,6 +1498,17 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         clearUnarchivedProductContext()
         orderOverviewOpen.value = true
         await restoreScroll('order-overview')
+        return
+      }
+      if (maintenanceReturnPending.value) {
+        drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
+        selectedProduct.value = null
+        productDrawingDetail.value = null
+        clearUnarchivedProductContext()
+        maintenanceReturnPending.value = false
+        maintenanceOpen.value = true
+        await nextTick()
+        await restoreScroll('maintenance-products')
         return
       }
       drawingViewLevel.value = selectedCustomer.value ? 'products' : 'customers'
@@ -1760,6 +2133,9 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
       } catch {
         // Keep the current view unchanged if the refresh fails after a successful apply.
       }
+    }
+    if (maintenanceSelectedCustomerId.value === customerId) {
+      await loadMaintenanceProducts(customerId)
     }
 
     const affectedProductIds = new Set(result.items.map((item) => item.productId).filter(Boolean) as string[])
@@ -2503,6 +2879,18 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     pdfImportApplyResult,
     pdfImportLastUpdatedAt,
     pdfImportDialogOpen,
+    maintenanceOpen,
+    maintenanceCustomers,
+    maintenanceSelectedCustomerId,
+    maintenanceProducts,
+    maintenanceCustomerSummaries,
+    maintenanceCustomerSearch,
+    maintenanceProductSearch,
+    maintenanceLoading,
+    maintenanceSaving,
+    maintenanceError,
+    maintenanceProductScrollPosition,
+    maintenanceSelectedCustomer,
     createProductArchiveDialogOpen,
     orderOverviewOpen,
     uploadDialogOpen,
@@ -2582,6 +2970,18 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     openTopUpload,
     openModuleUpload,
     openPdfImportDialogForUnarchivedProduct,
+    openCustomerProductMaintenance,
+    closeCustomerProductMaintenance,
+    loadMaintenanceCustomers,
+    selectMaintenanceCustomer,
+    loadMaintenanceProducts,
+    createMaintenanceCustomer,
+    updateMaintenanceCustomer,
+    createMaintenanceProduct,
+    updateMaintenanceProduct,
+    openProductFromMaintenance,
+    openPdfImportFromMaintenance,
+    refreshAfterMaintenanceWrite,
     openCreateProductArchiveDialog,
     createProductArchive,
     setUploadSource,

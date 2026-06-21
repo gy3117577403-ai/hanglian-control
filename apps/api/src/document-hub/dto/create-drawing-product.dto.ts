@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class CreateDrawingProductDto {
   @ApiProperty({ description: 'Customer id' })
@@ -19,6 +19,12 @@ export class CreateDrawingProductDto {
   @IsOptional()
   @IsString()
   remark?: string;
+
+  @ApiPropertyOptional({ description: 'Search keywords', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  searchKeywords?: string[];
 
   @ApiPropertyOptional({ description: 'Creation source', enum: ['manual_create'] })
   @IsOptional()

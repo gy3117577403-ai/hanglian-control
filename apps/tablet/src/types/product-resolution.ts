@@ -66,6 +66,7 @@ export interface CreateDrawingProductArchivePayload {
   customerId: string
   productModel: string
   productName?: string
+  searchKeywords?: string[]
   remark?: string
   source?: 'manual_create'
 }
