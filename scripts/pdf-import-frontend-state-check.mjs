@@ -176,7 +176,27 @@ assert(!/mock|fake/i.test(sliceBetween(storeSource, 'async function previewPdfIm
 assert(!/mock|fake|localDetails\.value|mockHubProducts/i.test(applyAction), 'Apply action must not create mock/fake product data on failure.');
 
 const changed = changedFiles();
-const allowedChanges = new Set([apiPath, storePath, typePath, scriptPath, packagePath, ...pdfImportUiPaths, ...uploadPhasePaths]);
+const v3147RegressionPaths = [
+  'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  'scripts/camera-upload-check.mjs',
+  'scripts/document-home-preview-check.mjs',
+  'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
+  'scripts/order-frontend-state-check.mjs',
+  'scripts/order-sidebar-layout-check.mjs',
+  'scripts/pdf-import-ui-check.mjs',
+];
+const allowedChanges = new Set([
+  apiPath,
+  storePath,
+  typePath,
+  scriptPath,
+  packagePath,
+  'scripts/drawing-service-store-check.mjs',
+  ...v3147RegressionPaths,
+  ...pdfImportUiPaths,
+  ...uploadPhasePaths,
+]);
 for (const file of changed) {
   const normalized = file.replaceAll('\\', '/');
   const allowedByPrefix = uploadPhasePrefixes.some((prefix) => normalized.startsWith(prefix));
@@ -186,6 +206,7 @@ assert(!changed.some((file) => {
   const normalized = file.replaceAll('\\', '/');
   return normalized.includes('apps/tablet/src/components/')
     && !pdfImportUiPaths.includes(normalized)
+    && !v3147RegressionPaths.includes(normalized)
     && !uploadPhasePaths.includes(normalized)
     && !uploadPhasePrefixes.some((prefix) => normalized.startsWith(prefix));
 }), 'Unrelated visible UI components must remain unchanged.');

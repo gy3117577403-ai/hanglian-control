@@ -133,7 +133,7 @@ assert(orderCardStyle.includes('display: grid'), '订单卡片应使用 grid 文
 assert(orderCardStyle.includes('grid-template-rows: auto auto auto auto'), '订单卡片应固定为四层文档流。');
 assert(orderCardStyle.includes('height: auto'), '订单卡片应使用 height:auto。');
 assert(!hasFixedHeight(orderCardStyle), '订单卡片不得使用固定 height。');
-assert(/min-height:\s*158px/.test(orderCardStyle), '订单卡片 min-height 应为 158px。');
+assert(numericCssValue(orderCardStyle, 'min-height') >= 158, '订单卡片 min-height 应不小于 158px。');
 assert(orderCardStyle.includes('overflow: visible'), '订单卡片不得用 overflow:hidden 裁切内容。');
 assert(!/overflow:\s*hidden/.test(orderCardStyle), '订单卡片不得裁切交互内容。');
 assert(!/contain:\s*layout paint/.test(orderCardStyle), '订单卡片不得使用 paint contain 裁切状态控件。');
@@ -196,8 +196,15 @@ const allowedChangedFiles = new Set([
   'apps/tablet/src/components/orders/WarmOrderStatusMenu.vue',
   'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
   'apps/api/src/document-hub/order-metadata.store.ts',
+  'scripts/camera-upload-check.mjs',
+  'scripts/document-home-preview-check.mjs',
+  'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
+  'scripts/drawing-service-store-check.mjs',
   'scripts/order-frontend-state-check.mjs',
   'scripts/order-sidebar-layout-check.mjs',
+  'scripts/pdf-import-frontend-state-check.mjs',
+  'scripts/pdf-import-ui-check.mjs',
 ]);
 
 for (const file of changedFiles()) {

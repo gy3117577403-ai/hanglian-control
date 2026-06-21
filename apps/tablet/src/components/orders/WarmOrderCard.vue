@@ -122,7 +122,7 @@ function statusNoteTitle(order: ProductionOrder) {
   width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 158px;
+  min-height: 168px;
   box-sizing: border-box;
   overflow: visible;
   padding: 12px;

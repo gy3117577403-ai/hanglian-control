@@ -268,7 +268,8 @@ async function checkEmptyModeStoreReadChain() {
     assert(moduleResult.module.items.some((item) => item.itemId === 'manual-doc-1'), 'Service getModule should include merged manual upload item.');
 
     const searchResult = await service.search({ mode: 'drawing', q: 'Manual SOP' });
-    assert(searchResult.items.length === 1, 'Service drawing search should read store details and merged uploads.');
+    const drawingSearchItems = searchResult.results ?? searchResult.items ?? [];
+    assert(drawingSearchItems.length === 1, 'Service drawing search should read store details and merged uploads.');
   } finally {
     if (previousDemoMode === undefined) delete process.env.DEMO_DATA_MODE;
     else process.env.DEMO_DATA_MODE = previousDemoMode;
