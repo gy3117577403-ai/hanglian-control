@@ -171,6 +171,7 @@ assert(unarchivedPanel.includes('数量未填写'), '未建档引导页也应避
 
 const allowed = new Set([
   ...Object.values(files),
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
   'apps/tablet/src/components/hub/WarmHubHeader.vue',
   'apps/tablet/src/components/orders/WarmOrderImportDialog.vue',
   'apps/tablet/src/components/orders/WarmOrderImportFilePanel.vue',
@@ -181,6 +182,7 @@ const allowed = new Set([
   'scripts/order-frontend-state-check.mjs',
   'scripts/order-import-ui-check.mjs',
   'scripts/order-overview-ui-check.mjs',
+  'scripts/order-sidebar-layout-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
 ]);
 for (const file of changedFiles()) {

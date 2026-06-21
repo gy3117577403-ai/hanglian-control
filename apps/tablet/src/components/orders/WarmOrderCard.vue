@@ -96,7 +96,10 @@ function bindingState(order: ProductionOrder) {
   display: grid;
   gap: 7px;
   contain: layout paint style;
+  width: 100%;
+  min-width: 0;
   min-height: 132px;
+  box-sizing: border-box;
   padding: 9px 9px 9px 11px;
   border: 1px solid rgba(255, 255, 255, 0.92);
   border-radius: 15px;
@@ -167,6 +170,7 @@ function bindingState(order: ProductionOrder) {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 5px;
   align-items: center;
+  min-width: 0;
   min-height: 34px;
   max-width: 100%;
   border: 0;
@@ -259,6 +263,7 @@ function bindingState(order: ProductionOrder) {
 }
 
 .complete-button {
+  flex-shrink: 0;
   min-width: 72px;
   min-height: 36px;
   border-radius: 12px;

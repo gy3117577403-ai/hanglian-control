@@ -118,24 +118,29 @@ function openImport() {
 
     <div class="expanded-panel" :aria-hidden="store.orderSidebarCollapsed">
       <div class="sidebar-head">
-        <CalendarDays :size="19" />
-        <div>
-          <h2>订单资料调用</h2>
-          <p>点型号打开正式图纸资料</p>
+        <div class="head-row">
+          <div class="head-title">
+            <CalendarDays :size="19" />
+            <div class="title-copy">
+              <h2>订单资料调用</h2>
+            </div>
+          </div>
+          <PrimeButton
+            class="collapse-button"
+            severity="secondary"
+            text
+            rounded
+            title="收起订单栏"
+            @pointerdown.prevent.stop="handleTogglePointerdown"
+            @click="handleToggleClick"
+          >
+            <ChevronLeft :size="18" />
+          </PrimeButton>
         </div>
+        <p class="sidebar-subtitle">点型号直接打开图纸资料</p>
         <PrimeButton class="import-button" title="导入订单" aria-label="导入订单" @click="openImport">
           <FileSpreadsheet :size="17" />
           <span>导入订单</span>
-        </PrimeButton>
-        <PrimeButton
-          severity="secondary"
-          text
-          rounded
-          title="收起订单栏"
-          @pointerdown.prevent.stop="handleTogglePointerdown"
-          @click="handleToggleClick"
-        >
-          <ChevronLeft :size="18" />
         </PrimeButton>
       </div>
 
@@ -193,6 +198,10 @@ function openImport() {
   isolation: isolate;
   display: grid;
   box-sizing: border-box;
+  flex-shrink: 0;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 0;
   overflow: hidden;
   contain: layout paint style;
@@ -214,6 +223,8 @@ function openImport() {
     -14px -12px 32px rgba(86, 130, 124, 0.1) inset;
   transform: translateZ(0);
   backface-visibility: hidden;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .order-sidebar::before {
@@ -245,6 +256,7 @@ function openImport() {
   z-index: 1;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
   opacity: 1;
   transform: translateX(0) scale(1);
   visibility: visible;
@@ -274,33 +286,79 @@ function openImport() {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 7px;
-  align-items: center;
-  margin-bottom: 8px;
+  grid-template-rows: auto auto auto;
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+  min-height: 118px;
+  max-height: 150px;
+  margin-bottom: 9px;
   color: #9b5125;
 }
 
-h2,
-p {
+.head-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.head-title {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.title-copy {
+  min-width: 0;
+}
+
+.sidebar-head h2,
+.sidebar-head p {
   margin: 0;
 }
 
-h2 {
+.sidebar-head h2 {
+  overflow: hidden;
   color: #332111;
   font-size: 16px;
   font-weight: 950;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
-p {
-  margin-top: 2px;
+.sidebar-subtitle {
+  display: -webkit-box;
+  overflow: hidden;
   color: #7d542b;
   font-size: 11px;
   font-weight: 850;
+  line-height: 1.35;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.collapse-button {
+  flex-shrink: 0;
+  align-self: start;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
 }
 
 .import-button {
-  min-width: 108px;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   gap: 6px;
   border-radius: 14px;
@@ -314,6 +372,11 @@ p {
     0 16px 26px rgba(141, 68, 22, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.66),
     inset 0 -12px 22px rgba(101, 43, 16, 0.14);
+}
+
+.import-button span {
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .scope-tabs {
@@ -330,6 +393,7 @@ p {
   background: rgba(255, 255, 255, 0.34);
   color: #68401f;
   font-weight: 950;
+  white-space: nowrap;
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
@@ -367,16 +431,20 @@ p {
 
 .section-title {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 5px;
   align-items: center;
   margin-bottom: 6px;
   color: #4a2d16;
+  min-width: 0;
 }
 
 .section-title b {
+  overflow: hidden;
   font-size: 14px;
   font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .section-title span,
@@ -390,11 +458,11 @@ p {
   font-weight: 950;
   font-style: normal;
   text-align: center;
+  white-space: nowrap;
 }
 
 .section-title em {
-  grid-column: 1 / -1;
-  justify-self: start;
+  justify-self: end;
 }
 
 .order-error {
@@ -497,7 +565,7 @@ p {
 }
 
 .collapsed-rail span {
-  writing-mode: vertical-rl;
+  display: none;
   color: #4a2d16;
   font-size: 13px;
   font-weight: 950;
@@ -517,27 +585,18 @@ p {
 }
 
 .collapsed-rail small {
+  display: none;
   min-width: 0;
   min-height: 0;
   padding: 5px 4px;
   color: #6f4a28;
   font-size: 10px;
-  writing-mode: vertical-rl;
 }
 
 @media (max-width: 1320px), (prefers-reduced-motion: reduce) {
   .collapsed-rail,
   .expanded-panel {
     transition: none;
-  }
-
-  .import-button span {
-    display: none;
-  }
-
-  .import-button {
-    min-width: 44px;
-    padding: 0;
   }
 }
 </style>

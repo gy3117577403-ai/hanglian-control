@@ -51,7 +51,7 @@ function openDrawingTrash() {
   --glass-shadow: rgba(72, 39, 18, 0.2);
   --glass-green: rgba(92, 145, 139, 0.28);
   --glass-amber: rgba(213, 125, 52, 0.08);
-  --order-column-width: 222px;
+  --order-column-width: 238px;
   isolation: isolate;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -114,25 +114,30 @@ function openDrawingTrash() {
 .hub-body {
   display: grid;
   grid-template-columns: var(--order-column-width) minmax(0, 1fr);
+  width: 100%;
   min-height: 0;
   gap: 11px;
   contain: layout paint style;
   transform: translateZ(0);
-  overflow: visible;
+  overflow: hidden;
+}
+
+.hub-body > * {
+  min-width: 0;
 }
 
 .document-hub-shell.orders-collapsed {
-  --order-column-width: 58px;
+  --order-column-width: 64px;
 }
 
 @media (max-width: 1320px) {
   .document-hub-shell {
-    --order-column-width: 202px;
+    --order-column-width: 226px;
     padding: 9px;
   }
 
   .document-hub-shell.orders-collapsed {
-    --order-column-width: 54px;
+    --order-column-width: 60px;
   }
 
   .hub-body {
