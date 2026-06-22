@@ -10,7 +10,7 @@ on:
       image_tag:
         description: Extra safe image tag. Do not use latest, production, or stable.
         required: false
-        default: v3.12-candidate
+        default: v3.17-cloud-candidate
       build_api:
         description: Build API image.
         required: true
@@ -24,6 +24,7 @@ on:
   push:
     branches:
       - feature/v3-12-image-build-validation
+      - feature/v3-17-cloud-staging-prep
     paths:
       - "apps/api/**"
       - "apps/tablet/**"
@@ -55,8 +56,8 @@ jobs:
           short_sha="$(git rev-parse --short=12 HEAD)"
           owner_lower="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           repo_name="$(basename '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
-          extra_tag="${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || 'v3.12-candidate' }}"
-          extra_tag="$(echo "${extra_tag:-v3.12-candidate}" | tr '[:upper:]' '[:lower:]')"
+          extra_tag="${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || 'v3.17-cloud-candidate' }}"
+          extra_tag="$(echo "${extra_tag:-v3.17-cloud-candidate}" | tr '[:upper:]' '[:lower:]')"
           case "$extra_tag" in
             latest|production|stable)
               echo "Unsafe image tag is not allowed: $extra_tag" >&2
@@ -67,7 +68,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/${repo_name}-api" >> "$GITHUB_OUTPUT"
           echo "tablet_image=ghcr.io/${owner_lower}/${repo_name}-tablet" >> "$GITHUB_OUTPUT"
-          echo "version_tag=v3.12-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "version_tag=v3.17-cloud-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "extra_tag=${extra_tag}" >> "$GITHUB_OUTPUT"
 
@@ -77,10 +78,9 @@ jobs:
       - name: Preflight checks
         run: |
           npm run security:check
-          npm run storage-flow:check
-          npm run cloud-alignment:check
-          npm run cloud:runtime-preflight
-          npm run runtime-config:check
+          npm run cloud-staging-api:check
+          npm run cloud-staging:preflight
+          npm run android-cloud-staging:check
           npm run build
           npm run check
 
@@ -95,6 +95,7 @@ jobs:
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build and push API image
+        id: build-api
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_api }}
         uses: docker/build-push-action@v6
         with:
@@ -114,7 +115,67 @@ jobs:
             ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.sha_tag }}
             ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.extra_tag }}
 
+      - name: Smoke test API image
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_api }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_root="${RUNNER_TEMP}/hanglian-api-smoke"
+          mkdir -p "${smoke_root}/uploads" "${smoke_root}/metadata" "${smoke_root}/tmp"
+          chmod -R 777 "${smoke_root}"
+          docker run -d --rm \
+            --name hanglian-api-smoke \
+            -p 18080:3000 \
+            -v "${smoke_root}:/data/hanglian" \
+            -e NODE_ENV=production \
+            -e HOST=0.0.0.0 \
+            -e PORT=3000 \
+            -e API_PREFIX=api \
+            -e DATA_SOURCE=mock \
+            -e DEMO_DATA_MODE=demo \
+            -e DEPLOYMENT_STAGE=v3.17-cloud-staging-smoke \
+            -e DB_TARGET=local \
+            -e FILE_STORAGE_PROVIDER=local \
+            -e STORAGE_ROOT=/data/hanglian \
+            -e METADATA_ROOT=/data/hanglian/metadata \
+            -e STORAGE_TEMP_ROOT=/data/hanglian/tmp \
+            -e STORAGE_MAX_FILE_SIZE_MB=30 \
+            -e STORAGE_URL_MODE=proxy \
+            -e CORS_ORIGINS=https://localhost,https://fqbkxzzolqqq.sealoshzh.site \
+            -e CORS_ALLOW_CREDENTIALS=false \
+            -e RUN_PRISMA_MIGRATE_DEPLOY=false \
+            -e ALLOW_TEST_DB_CONNECT=false \
+            -e ALLOW_PRISMA_WRITE=false \
+            -e ALLOW_DESTRUCTIVE_DB_ACTIONS=false \
+            -e SEED_MODE=dry-run \
+            "${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.version_tag }}"
+          trap 'docker rm -f hanglian-api-smoke >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..45}; do
+            if curl -fsS http://127.0.0.1:18080/api/health >/tmp/health.json; then
+              break
+            fi
+            sleep 2
+          done
+          if [ ! -s /tmp/health.json ]; then
+            docker logs hanglian-api-smoke || true
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:18080/api/storage/status >/tmp/storage.json
+          curl -fsS http://127.0.0.1:18080/api/runtime/info >/tmp/runtime.json
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const health = JSON.parse(fs.readFileSync('/tmp/health.json', 'utf8'))
+          const storage = JSON.parse(fs.readFileSync('/tmp/storage.json', 'utf8'))
+          const runtime = JSON.parse(fs.readFileSync('/tmp/runtime.json', 'utf8'))
+          if (health.dataSource !== 'mock' || health.databaseConnected !== false) throw new Error('health smoke check failed')
+          if (storage.provider !== 'local' || storage.databaseConnected !== false) throw new Error('storage smoke check failed')
+          if (runtime.dataSource !== 'mock' || runtime.databaseConnected !== false) throw new Error('runtime smoke check failed')
+          const text = JSON.stringify({ health, storage, runtime })
+          if (/DATABASE_URL|S3_SECRET|TOKEN|SECRET|postgres:\/\//i.test(text)) throw new Error('runtime smoke leaked sensitive data')
+          NODE
+
       - name: Build and push Tablet image
+        id: build-tablet
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_tablet }}
         uses: docker/build-push-action@v6
         with:
@@ -138,18 +199,21 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## Hanglian V3.12 image build"
+            echo "## Hanglian V3.17 cloud staging image build"
             echo ""
             echo "- Git ref: \`${{ github.ref }}\`"
             echo "- Commit SHA: \`${{ steps.meta.outputs.full_sha }}\`"
             echo "- API image: \`${{ steps.meta.outputs.api_image }}\`"
             echo "- API tags: \`${{ steps.meta.outputs.version_tag }}\`, \`${{ steps.meta.outputs.sha_tag }}\`, \`${{ steps.meta.outputs.extra_tag }}\`"
+            echo "- API digest: \`${{ steps.build-api.outputs.digest }}\`"
             echo "- Tablet image: \`${{ steps.meta.outputs.tablet_image }}\`"
             echo "- Tablet tags: \`${{ steps.meta.outputs.version_tag }}\`, \`${{ steps.meta.outputs.sha_tag }}\`, \`${{ steps.meta.outputs.extra_tag }}\`"
+            echo "- Tablet digest: \`${{ steps.build-tablet.outputs.digest }}\`"
             echo "- API Dockerfile: \`Dockerfile.api\`"
             echo "- Tablet Dockerfile: \`Dockerfile.tablet\`"
             echo "- Database connection: not executed"
             echo "- Database migration: not executed"
             echo "- Sealos deployment: not executed"
             echo "- S3 connection: not executed"
+            echo "- API smoke test: health, storage status, runtime info"
           } >> "$GITHUB_STEP_SUMMARY"

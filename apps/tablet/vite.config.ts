@@ -1,10 +1,34 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'node:fs'
 import path from 'node:path'
 
 const androidViewportContent = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+const androidBuildModes = new Set(['android', 'android-staging'])
+
+function readSimpleEnvFile(filePath: string) {
+  if (!fs.existsSync(filePath)) return {}
+  return Object.fromEntries(
+    fs.readFileSync(filePath, 'utf8')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#') && line.includes('='))
+      .map((line) => {
+        const index = line.indexOf('=')
+        return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^['"]|['"]$/g, '')]
+      }),
+  )
+}
+
+function loadAndroidStagingEnv(mode: string) {
+  if (mode !== 'android-staging') return {}
+  const viteEnv = loadEnv(mode, __dirname, 'VITE_')
+  const exampleEnv = readSimpleEnvFile(path.resolve(__dirname, '.env.android.staging.example'))
+  const localEnv = readSimpleEnvFile(path.resolve(__dirname, '.env.android.staging.local'))
+  return { ...exampleEnv, ...viteEnv, ...localEnv }
+}
 
 function androidViewportPlugin(enabled: boolean) {
   return {
@@ -23,7 +47,15 @@ function androidViewportPlugin(enabled: boolean) {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const nativeAndroidBuild = mode === 'android'
+  const nativeAndroidBuild = androidBuildModes.has(mode)
+  const androidStagingBuild = mode === 'android-staging'
+  const androidStagingEnv = loadAndroidStagingEnv(mode)
+
+  if (androidStagingBuild) {
+    for (const [key, value] of Object.entries(androidStagingEnv)) {
+      if (key.startsWith('VITE_')) process.env[key] = value
+    }
+  }
 
   return {
   plugins: [
@@ -115,5 +147,10 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
+  define: androidStagingBuild ? {
+    'import.meta.env.VITE_NATIVE_API_BASE_URL': JSON.stringify(process.env.VITE_NATIVE_API_BASE_URL ?? ''),
+    'import.meta.env.VITE_NATIVE_API_ENV': JSON.stringify(process.env.VITE_NATIVE_API_ENV ?? ''),
+    __HANGLIAN_ANDROID_STAGING_API_BASE_URL__: JSON.stringify(process.env.VITE_NATIVE_API_BASE_URL ?? ''),
+  } : undefined,
   }
 })

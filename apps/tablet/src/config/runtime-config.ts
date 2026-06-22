@@ -4,7 +4,13 @@ export interface PublicRuntimeConfig {
   STORAGE_MODE: string
 }
 
-export const LOCAL_API_BASE_URL = 'http://localhost:3000/api'
+declare const __HANGLIAN_ANDROID_STAGING_API_BASE_URL__: string | undefined
+
+const ANDROID_STAGING_API_BASE_URL = typeof __HANGLIAN_ANDROID_STAGING_API_BASE_URL__ === 'string'
+  ? __HANGLIAN_ANDROID_STAGING_API_BASE_URL__
+  : ''
+
+export const LOCAL_API_BASE_URL = ANDROID_STAGING_API_BASE_URL || 'http://localhost:3000/api'
 
 function trimTrailingSlashes(value: string) {
   return value.replace(/\/+$/, '')
@@ -54,6 +60,7 @@ export function readPublicRuntimeConfig(): PublicRuntimeConfig {
 }
 
 export function resolveAutomaticApiBaseUrl() {
+  if (ANDROID_STAGING_API_BASE_URL) return ANDROID_STAGING_API_BASE_URL
   if (typeof window === 'undefined') return LOCAL_API_BASE_URL
   const hostname = window.location.hostname
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {

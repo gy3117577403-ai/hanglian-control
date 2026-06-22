@@ -9,9 +9,12 @@
     "lint": "echo \"tablet lint pending: V0.1 build-first\"",
     "preview": "vite preview",
     "build:android": "vue-tsc -b && vite build --mode android",
+    "build:android:staging": "vue-tsc -b && vite build --mode android-staging",
     "cap:sync:android": "cap sync android",
+    "cap:sync:android:staging": "cap sync android",
     "cap:open:android": "cap open android",
-    "android:assemble:debug": "node ../../scripts/android-gradle.mjs assembleDebug"
+    "android:assemble:debug": "node ../../scripts/android-gradle.mjs assembleDebug",
+    "android:assemble:staging-debug": "node ../../scripts/android-gradle.mjs assembleStagingDebug"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",

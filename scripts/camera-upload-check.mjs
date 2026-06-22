@@ -347,6 +347,22 @@ const v316NativeConnectorFiles = [
   'scripts/customer-product-maintenance-check.mjs',
 ];
 for (const file of v316NativeConnectorFiles) allowedChangedFiles.add(file);
+const v317CloudStagingFiles = [
+  '.github/workflows/build-images-manual.yml',
+  'apps/api/.env.cloud-staging.example',
+  'apps/tablet/.env.android.staging.example',
+  'apps/tablet/android/app/build.gradle',
+  'apps/tablet/android/app/src/stagingDebug/AndroidManifest.xml',
+  'apps/tablet/package.json',
+  'apps/tablet/src/config/runtime-config.ts',
+  'apps/tablet/vite.config.ts',
+  'deploy/sealos/api-v3.17-cloud-staging.yaml',
+  'docs/sealos-v3.17-cloud-staging-update-guide.md',
+  'scripts/android-cloud-staging-check.mjs',
+  'scripts/cloud-staging-api-check.mjs',
+  'scripts/cloud-staging-deploy-preflight.mjs',
+];
+for (const file of v317CloudStagingFiles) allowedChangedFiles.add(file);
 for (const file of changed) {
   const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
   assert(allowed, `Unexpected changed file: ${file}`);

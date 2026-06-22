@@ -16,6 +16,17 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    flavorDimensions "environment"
+    productFlavors {
+        local {
+            dimension "environment"
+        }
+        staging {
+            dimension "environment"
+            versionCode 1700
+            versionName "0.17.0-staging-debug"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
