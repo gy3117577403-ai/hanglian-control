@@ -7,9 +7,21 @@
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "lint": "echo \"tablet lint pending: V0.1 build-first\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:android": "vue-tsc -b && vite build --mode android",
+    "cap:sync:android": "cap sync android",
+    "cap:open:android": "cap open android",
+    "android:assemble:debug": "node ../../scripts/android-gradle.mjs assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/camera": "^8.2.0",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/screen-orientation": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@formkit/auto-animate": "^0.9.0",
     "@lucide/vue": "^1.17.0",
     "@primeuix/themes": "^2.0.3",
@@ -47,6 +59,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.4.1",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^22.19.21",

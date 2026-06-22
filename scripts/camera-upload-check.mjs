@@ -187,11 +187,43 @@ const v315PerformanceFiles = [
   'scripts/tablet-scroll-performance-check.mjs',
   'scripts/tablet-visual-performance-check.mjs',
 ];
+const v316AndroidFoundationFiles = [
+  '.gitignore',
+  'README.md',
+  'package.json',
+  'package-lock.json',
+  'apps/tablet/.env.android.example',
+  'apps/tablet/capacitor.config.ts',
+  'apps/tablet/package.json',
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/components/native/WarmNativeNetworkBanner.vue',
+  'apps/tablet/src/components/warm/WarmStatusBar.vue',
+  'apps/tablet/src/config/api-base.ts',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/native/android-back-handler.ts',
+  'apps/tablet/src/native/native-network.ts',
+  'apps/tablet/src/native/native-platform.ts',
+  'apps/tablet/src/native/native-shell.ts',
+  'apps/tablet/src/services/api.ts',
+  'apps/tablet/src/style.css',
+  'apps/tablet/vite.config.ts',
+  'docs/android-debug-install-guide.md',
+  'docs/project-status.md',
+  'docs/v3.16-android-app-foundation.md',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/android-back-navigation-check.mjs',
+  'scripts/android-gradle.mjs',
+  'scripts/native-api-config-check.mjs',
+  'scripts/native-network-check.mjs',
+];
 const allowedChangedPrefixes = [
   'apps/tablet/src/components/upload/',
   'apps/tablet/src/components/viewer/',
   'apps/tablet/src/composables/',
   'apps/tablet/src/components/search/',
+  'apps/tablet/src/components/native/',
+  'apps/tablet/src/native/',
+  'apps/tablet/android/',
 ];
 const allowedChangedFiles = new Set([
   paths.hubUpload,
@@ -239,6 +271,7 @@ const allowedChangedFiles = new Set([
   'scripts/pdf-import-ui-check.mjs',
   'scripts/order-frontend-state-check.mjs',
   'scripts/order-sidebar-layout-check.mjs',
+  'scripts/security-check.mjs',
   'scripts/drawing-search-backend-check.mjs',
   'scripts/drawing-search-ui-check.mjs',
   'scripts/drawing-navigation-check.mjs',
@@ -281,6 +314,7 @@ const allowedChangedFiles = new Set([
   '.gitignore',
   paths.packageJson,
   ...v315PerformanceFiles,
+  ...v316AndroidFoundationFiles,
 ]);
 for (const file of changed) {
   const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));

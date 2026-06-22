@@ -5,11 +5,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const nativeAndroidBuild = mode === 'android'
+
+  return {
   plugins: [
     vue(),
     tailwindcss(),
-    VitePWA({
+    !nativeAndroidBuild && VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       manifest: {
@@ -57,7 +60,7 @@ export default defineConfig({
         enabled: false,
       },
     }),
-  ],
+  ].filter(Boolean),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -94,4 +97,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

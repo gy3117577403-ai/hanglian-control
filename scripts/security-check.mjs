@@ -64,7 +64,12 @@ function isIgnored(path) {
 }
 
 function shouldSkipDirectory(relativePath) {
-  const parts = toPosix(relativePath).split('/');
+  const normalized = toPosix(relativePath);
+  if (normalized.startsWith('apps/tablet/android/app/src/main/assets/public')) {
+    return true;
+  }
+
+  const parts = normalized.split('/');
   if (parts.some((part) => ignoredDirectories.has(part))) {
     return true;
   }

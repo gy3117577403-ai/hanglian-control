@@ -180,6 +180,35 @@ const v315PerformanceFiles = [
   'scripts/tablet-scroll-performance-check.mjs',
   'scripts/tablet-visual-performance-check.mjs',
 ];
+const v316AndroidFoundationFiles = [
+  '.gitignore',
+  'README.md',
+  'package.json',
+  'package-lock.json',
+  'apps/tablet/.env.android.example',
+  'apps/tablet/capacitor.config.ts',
+  'apps/tablet/package.json',
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/components/native/WarmNativeNetworkBanner.vue',
+  'apps/tablet/src/components/warm/WarmStatusBar.vue',
+  'apps/tablet/src/config/api-base.ts',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/native/android-back-handler.ts',
+  'apps/tablet/src/native/native-network.ts',
+  'apps/tablet/src/native/native-platform.ts',
+  'apps/tablet/src/native/native-shell.ts',
+  'apps/tablet/src/services/api.ts',
+  'apps/tablet/src/style.css',
+  'apps/tablet/vite.config.ts',
+  'docs/android-debug-install-guide.md',
+  'docs/project-status.md',
+  'docs/v3.16-android-app-foundation.md',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/android-back-navigation-check.mjs',
+  'scripts/android-gradle.mjs',
+  'scripts/native-api-config-check.mjs',
+  'scripts/native-network-check.mjs',
+];
 const allowedChanges = new Set([
   paths.dashboard,
   paths.header,
@@ -203,6 +232,7 @@ const allowedChanges = new Set([
   'scripts/document-lifecycle-ui-check.mjs',
   'scripts/order-frontend-state-check.mjs',
   'scripts/order-sidebar-layout-check.mjs',
+  'scripts/security-check.mjs',
   'scripts/drawing-search-backend-check.mjs',
   'scripts/drawing-search-ui-check.mjs',
   'scripts/drawing-navigation-check.mjs',
@@ -214,11 +244,14 @@ const allowedChanges = new Set([
   ...uploadPhasePaths,
   paths.packageJson,
   ...v315PerformanceFiles,
+  ...v316AndroidFoundationFiles,
 ]);
 for (const file of changed) {
   const allowedByPrefix = uploadPhasePrefixes.some((prefix) => file.startsWith(prefix));
   const allowedBySearchPrefix = drawingSearchPrefixes.some((prefix) => file.startsWith(prefix));
-  assert(allowedChanges.has(file) || allowedByPrefix || allowedBySearchPrefix, `Unexpected changed file: ${file}`);
+  const allowedByAndroidPrefix = file.startsWith('apps/tablet/android/');
+  const allowedByNativePrefix = file.startsWith('apps/tablet/src/components/native/') || file.startsWith('apps/tablet/src/native/');
+  assert(allowedChanges.has(file) || allowedByPrefix || allowedBySearchPrefix || allowedByAndroidPrefix || allowedByNativePrefix, `Unexpected changed file: ${file}`);
 }
 assert(!changed.some((file) => file.startsWith('apps/api/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected backend files must remain unchanged.');
 assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected Prisma files must remain unchanged.');

@@ -1,5 +1,6 @@
 import { ofetch } from 'ofetch'
-import { getApiBaseUrl } from '@/config/api-base'
+import { getApiBaseUrl, getApiRuntimeConfig } from '@/config/api-base'
+import { NATIVE_API_MISSING_MESSAGE } from '@/native/native-platform'
 import type {
   ConfirmProductionPlanPayload,
   AuditLog,
@@ -168,6 +169,7 @@ import type {
 } from '@/types/document-version'
 import type { DrawingSearchResponse, ScopedHubSearchResponse } from '@/types/drawing-search'
 
+const API_RUNTIME_CONFIG = getApiRuntimeConfig()
 const API_BASE = getApiBaseUrl()
 
 const AUTH_STORAGE_KEYS = {
@@ -195,6 +197,9 @@ export const api = ofetch.create({
   baseURL: API_BASE,
   timeout: 5000,
   onRequest({ options }) {
+    if (API_RUNTIME_CONFIG.source === 'native-missing') {
+      throw new Error(NATIVE_API_MISSING_MESSAGE)
+    }
     const headers = new Headers(options.headers as HeadersInit | undefined)
     for (const [key, value] of Object.entries(readAuthHeaders())) {
       headers.set(key, value)

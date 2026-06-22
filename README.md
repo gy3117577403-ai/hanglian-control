@@ -1,5 +1,34 @@
 # 线束车间生产计划资料管控系统
 
+## V3.16A Android APP 基础工程
+
+当前新增 Capacitor Android 原生壳：`com.hanglian.control` / `线束资料工作台`，加载 Tablet 生产构建的本地资源，默认横屏，支持 Android 返回键、原生网络状态提示、状态栏/Splash 处理和 Debug LAN API 配置。
+
+本阶段仍不连接 PostgreSQL、不修改 Sealos、不接企业微信微盘、不接真实语音、不创建正式签名证书。Debug APK 构建命令：
+
+```bash
+npm run android:sync
+npm run android:build:debug
+```
+
+Android 专项文档：
+
+- `docs/v3.16-android-app-foundation.md`
+- `docs/android-debug-install-guide.md`
+
+常用检查：
+
+```bash
+npm run android:check
+npm run native-api-config:check
+npm run android-back:check
+npm run native-network:check
+npm run build -w tablet
+npm run security:check
+npm run build
+npm run check
+```
+
 ## V3.4 主页面细节打磨
 
 V3.4 继续围绕“线束车间资料查询上传中心”优化 `/tablet` 主页面：顶部只保留圆形资料库入口、当前功能搜索、上传资料和订单总览；左侧今日订单/本周订单同时显示；图纸库继续按客户 -> 产品型号 -> 图纸详情 -> 模块详情 -> 大图查看递进。

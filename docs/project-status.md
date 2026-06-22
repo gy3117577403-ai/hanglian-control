@@ -1,5 +1,19 @@
 # 项目状态
 
+## V3.16A Android APP 基础工程
+
+- 当前分支：`feature/v3-16-android-app-foundation`。
+- 新增 Capacitor 8 Android 工程，APP ID 为 `com.hanglian.control`，APP 名称为 `线束资料工作台`。
+- Android App 加载本地打包资源，不依赖远程 Web 页面，正式配置不包含 `server.url`。
+- 默认横屏为 `sensorLandscape`，Debug 版本为 `0.16.0-debug` / `1600`。
+- 原生 API 地址从 `VITE_NATIVE_API_BASE_URL` 读取；缺失时显示 `APP 尚未配置服务器地址。` 并阻止请求。
+- Debug LAN API 通过本机忽略文件 `apps/tablet/.env.android.local` 配置，不提交 Git。
+- Debug 明文 HTTP 仅在 `app/src/debug/AndroidManifest.xml` 开启；Release 方向保持 HTTPS 和 mixed content 默认关闭。
+- 新增 Android 返回键、原生网络检测、离线/恢复提示、状态栏/Splash 处理和 Native safe-area 适配。
+- 已预备摄像头权限，尚未申请录音权限，未接入真实语音。
+- 当前仍未连接 PostgreSQL，未执行 migrate/db push/seed，未修改 Sealos，未创建正式签名。
+- 新增检查：`android:check`、`native-api-config:check`、`android-back:check`、`native-network:check`。
+
 ## V3.4 主界面细节打磨 + 图纸详情体验优化
 
 - 当前分支：`feature/v3-4-document-hub-polish`。

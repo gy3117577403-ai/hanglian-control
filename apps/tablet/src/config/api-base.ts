@@ -4,6 +4,7 @@ import {
   readPublicRuntimeConfig,
   resolveAutomaticApiBaseUrl,
 } from './runtime-config'
+import { NATIVE_API_MISSING_MESSAGE, getNativeApiBaseUrl, isNativeApp } from '@/native/native-platform'
 
 export interface ApiHostInfo {
   frontendOrigin: string
@@ -16,8 +17,8 @@ export interface ApiHostInfo {
   mixedContentRisk: boolean
 }
 
-export type ApiBaseSource = 'stored-local' | 'stored-cloud' | 'stored-custom' | 'runtime' | 'env' | 'auto-local' | 'auto-lan'
-export type ApiRuntimeMode = 'local' | 'cloud' | 'custom'
+export type ApiBaseSource = 'stored-local' | 'stored-cloud' | 'stored-custom' | 'runtime' | 'env' | 'native-env' | 'native-missing' | 'auto-local' | 'auto-lan'
+export type ApiRuntimeMode = 'local' | 'cloud' | 'custom' | 'native'
 
 export interface ApiRuntimeConfig {
   apiBaseUrl: string
@@ -80,6 +81,17 @@ export function isLanAccess(hostname = typeof window !== 'undefined' ? window.lo
 }
 
 export function getApiRuntimeConfig(): ApiRuntimeConfig {
+  if (isNativeApp()) {
+    const nativeApiBaseUrl = getNativeApiBaseUrl()
+    return {
+      apiBaseUrl: nativeApiBaseUrl,
+      source: nativeApiBaseUrl ? 'native-env' : 'native-missing',
+      mode: 'native',
+      label: nativeApiBaseUrl ? 'Android APP API' : NATIVE_API_MISSING_MESSAGE,
+      canEdit: false,
+    }
+  }
+
   const runtimeConfigured = readPublicRuntimeConfig().API_BASE_URL
   if (runtimeConfigured) {
     return {

@@ -8,6 +8,7 @@ import { useToast } from 'primevue/usetoast'
 import { APP_STAGE, APP_VERSION } from '@/config/app-version'
 import { DEMO_DATA_MODE } from '@/config/demo-data-mode'
 import { PERMISSIONS, permissionLabels } from '@/lib/permissions'
+import { isNativeApp } from '@/native/native-platform'
 import { useAuthStore } from '@/stores/auth-store'
 import { useProductionStore } from '@/stores/production-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -60,6 +61,7 @@ const userMenu = ref<{ toggle: (event: Event) => void } | null>(null)
 const roleDialogVisible = ref(false)
 const permissionDialogVisible = ref(false)
 let timer: number | undefined
+const nativeApp = isNativeApp()
 
 const apiLabel = computed(() => {
   if (store.offlineDemoMode) return '离线演示模式'
@@ -107,6 +109,7 @@ const demoToolItems = computed(() => {
       if (visible.length && !visible.at(-1)?.separator) visible.push(item)
       continue
     }
+    if (nativeApp && (item.label === '安装到平板桌面' || item.label === 'PWA / 平板诊断')) continue
     const allowed = item.permission
       ? auth.hasPermission(item.permission)
       : item.permissions

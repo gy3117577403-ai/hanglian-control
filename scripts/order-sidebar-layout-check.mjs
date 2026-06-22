@@ -225,6 +225,35 @@ const v315PerformanceFiles = [
   'scripts/tablet-visual-performance-check.mjs',
   'package.json',
 ];
+const v316AndroidFoundationFiles = [
+  '.gitignore',
+  'README.md',
+  'package.json',
+  'package-lock.json',
+  'apps/tablet/.env.android.example',
+  'apps/tablet/capacitor.config.ts',
+  'apps/tablet/package.json',
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/components/native/WarmNativeNetworkBanner.vue',
+  'apps/tablet/src/components/warm/WarmStatusBar.vue',
+  'apps/tablet/src/config/api-base.ts',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/native/android-back-handler.ts',
+  'apps/tablet/src/native/native-network.ts',
+  'apps/tablet/src/native/native-platform.ts',
+  'apps/tablet/src/native/native-shell.ts',
+  'apps/tablet/src/services/api.ts',
+  'apps/tablet/src/style.css',
+  'apps/tablet/vite.config.ts',
+  'docs/android-debug-install-guide.md',
+  'docs/project-status.md',
+  'docs/v3.16-android-app-foundation.md',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/android-back-navigation-check.mjs',
+  'scripts/android-gradle.mjs',
+  'scripts/native-api-config-check.mjs',
+  'scripts/native-network-check.mjs',
+];
 
 const allowedChangedFiles = new Set([
   'apps/tablet/src/components/orders/WarmOrderCard.vue',
@@ -240,11 +269,15 @@ const allowedChangedFiles = new Set([
   'scripts/order-sidebar-layout-check.mjs',
   'scripts/pdf-import-frontend-state-check.mjs',
   'scripts/pdf-import-ui-check.mjs',
+  'scripts/security-check.mjs',
   ...v315PerformanceFiles,
+  ...v316AndroidFoundationFiles,
 ]);
 
 for (const file of changedFiles()) {
-  assert(allowedChangedFiles.has(file), `本轮不允许修改该文件：${file}`);
+  const allowedByAndroidPrefix = file.startsWith('apps/tablet/android/');
+  const allowedByNativePrefix = file.startsWith('apps/tablet/src/components/native/') || file.startsWith('apps/tablet/src/native/');
+  assert(allowedChangedFiles.has(file) || allowedByAndroidPrefix || allowedByNativePrefix, `本轮不允许修改该文件：${file}`);
   assert(!file.startsWith('apps/api/') || file === 'apps/api/src/document-hub/order-metadata.store.ts', `不允许修改后端文件：${file}`);
   assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
   assert(!file.includes('/connector/'), `不允许修改连接器文件：${file}`);
