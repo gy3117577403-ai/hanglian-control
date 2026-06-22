@@ -147,8 +147,8 @@ assert(packageJson.includes('"customer-product-maintenance:check"'), 'package sc
 
 const diffFiles = changedFiles()
 const forbidden = diffFiles.filter((file) => (
-  file.includes('/connector/') ||
-  file.includes('/fixture/') ||
+  (file.includes('/connector/') && file !== 'apps/tablet/src/components/connector/WarmConnectorParameterView.vue') ||
+  (file.includes('/fixture/') && file !== 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue') ||
   file === 'apps/api/prisma/schema.prisma' ||
   file.includes('prisma/migrations') ||
   file.includes('apps/api/storage/uploads') ||

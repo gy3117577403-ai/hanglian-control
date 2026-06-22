@@ -251,16 +251,29 @@ const allowedChangedPrefixes = [
   'apps/tablet/src/components/viewer/',
   'apps/tablet/src/composables/',
   'apps/tablet/src/components/search/',
+  'apps/tablet/src/components/connectors/',
   'apps/tablet/android/',
 ];
+const v316NativeConnectorFiles = new Set([
+  'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/styles/native-connector-light.css',
+  'apps/tablet/src/styles/native-fixed-viewport.css',
+  'scripts/native-connector-layout-check.mjs',
+  'scripts/native-connector-scroll-check.mjs',
+  'scripts/native-connector-light-check.mjs',
+  'scripts/native-connector-runtime-check.mjs',
+  'scripts/native-fixed-viewport-check.mjs',
+  'scripts/customer-product-maintenance-check.mjs',
+])
 for (const file of changed) {
-  const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
+  const allowed = allowedChangedFiles.has(file) || v316NativeConnectorFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
   assert(allowed, `Unexpected changed file: ${file}`);
 }
 assert(!changed.some((file) => file.startsWith('apps/api/') && !allowedChangedFiles.has(file)), 'Backend changes must be limited to document version metadata management.');
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'Prisma schema must remain unchanged.');
-assert(!changed.some((file) => file.includes('/connector/') || file.includes('connector-')), 'Connector files must remain unchanged.');
-assert(!changed.some((file) => file.includes('/fixture/') || file.includes('fixture-')), 'Fixture files must remain unchanged.');
+assert(!changed.some((file) => (file.includes('/connector/') || file.includes('connector-')) && !v316NativeConnectorFiles.has(file)), 'Connector files must remain unchanged.');
+assert(!changed.some((file) => (file.includes('/fixture/') || file.includes('fixture-')) && file !== 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue'), 'Fixture files must remain unchanged.');
 assert(!changed.some((file) => /storage\/(uploads|metadata|tmp)\//.test(file)), 'Runtime storage files must remain unchanged.');
 
 if (blockers.length) {

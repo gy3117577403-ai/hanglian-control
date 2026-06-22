@@ -28,7 +28,10 @@ const store = useDocumentHubStore()
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   padding: 14px;
+  overflow: hidden;
 }
 
 .view-head {
@@ -74,6 +77,9 @@ b {
 
 .scroll-area {
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 </style>

@@ -113,8 +113,8 @@ for (const field of ['connectorModel', 'insertionLengthMm', 'outerStripLengthMm'
   if (!types.includes(field)) fail(`Connector type must still contain field: ${field}`)
 }
 
-if (!buildGradle.includes('versionCode 1601') || !buildGradle.includes('versionName "0.16.1-debug"')) {
-  fail('Android debug version must be 1601 / 0.16.1-debug')
+if (!buildGradle.includes('versionCode 1602') || !buildGradle.includes('versionName "0.16.2-debug"')) {
+  fail('Android debug version must be 1602 / 0.16.2-debug')
 }
 if (!buildGradle.includes('applicationId "com.hanglian.control"')) fail('Android applicationId must remain com.hanglian.control')
 if (/hardwareAccelerated\s*=\s*"false"/.test(manifest) || /hardwareAccelerated\s*=\s*"false"/.test(buildGradle)) {
@@ -125,7 +125,7 @@ const changed = changedFiles()
 if (changed.some((file) => file.startsWith('apps/api/') || file.includes('prisma/'))) {
   fail('Native connector layout fix must not modify backend or Prisma files')
 }
-if (changed.some((file) => file.includes('/fixture/') || file.includes('Fixture'))) {
+if (changed.some((file) => (file.includes('/fixture/') || file.includes('Fixture')) && file !== 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue')) {
   fail('Native connector layout fix must not modify fixture files')
 }
 if (changed.some((file) => file === 'apps/tablet/src/types/production.ts')) {

@@ -1,17 +1,13 @@
 import { computed, onBeforeUnmount, onMounted, type ComputedRef } from 'vue'
 import { isNativeApp } from '@/native/native-platform'
-import type { TabletPerformanceTier } from './use-tablet-performance'
-
 type NativeViewportSnapshot = {
+  width: number
+  height: number
   innerWidth: number
   innerHeight: number
   visualViewportWidth: number
   visualViewportHeight: number
   devicePixelRatio: number
-  screenWidth: number
-  screenHeight: number
-  performanceTier: TabletPerformanceTier
-  nativeApp: boolean
 }
 
 declare global {
@@ -25,27 +21,27 @@ function canExposeNativeViewport() {
   return import.meta.env.DEV || apiEnv === 'android-lan-debug'
 }
 
-function readSnapshot(performanceTier: TabletPerformanceTier): NativeViewportSnapshot {
+function readSnapshot(): NativeViewportSnapshot {
+  const visualViewportWidth = window.visualViewport?.width ?? window.innerWidth
+  const visualViewportHeight = window.visualViewport?.height ?? window.innerHeight
   return {
+    width: Math.round(visualViewportWidth),
+    height: Math.round(visualViewportHeight),
     innerWidth: window.innerWidth,
     innerHeight: window.innerHeight,
-    visualViewportWidth: window.visualViewport?.width ?? window.innerWidth,
-    visualViewportHeight: window.visualViewport?.height ?? window.innerHeight,
+    visualViewportWidth,
+    visualViewportHeight,
     devicePixelRatio: window.devicePixelRatio || 1,
-    screenWidth: window.screen?.width ?? 0,
-    screenHeight: window.screen?.height ?? 0,
-    performanceTier,
-    nativeApp: isNativeApp(),
   }
 }
 
-export function useNativeViewport(performanceTier: ComputedRef<TabletPerformanceTier>) {
+export function useNativeViewport(_performanceTier: ComputedRef<unknown>) {
   const enabled = computed(() => typeof window !== 'undefined' && isNativeApp() && canExposeNativeViewport())
   let frame = 0
 
   function publish() {
     if (!enabled.value) return
-    window.__HANGLIAN_NATIVE_VIEWPORT__ = readSnapshot(performanceTier.value)
+    window.__HANGLIAN_NATIVE_VIEWPORT__ = readSnapshot()
   }
 
   function schedulePublish() {

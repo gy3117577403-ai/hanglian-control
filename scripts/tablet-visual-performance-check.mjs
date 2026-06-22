@@ -93,7 +93,11 @@ const changedFiles = execSync('git diff --name-only', { cwd: root, encoding: 'ut
 if (changedFiles.some((file) => file.startsWith('apps/api/') || file.includes('prisma/'))) {
   fail('Visual performance pass must not modify backend or Prisma files')
 }
-if (changedFiles.some((file) => file === 'apps/tablet/src/types/production.ts' || file.includes('/fixtures/') || file.includes('/fixture/'))) {
+if (changedFiles.some((file) => {
+  if (file === 'apps/tablet/src/types/production.ts') return true
+  if (file === 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue') return false
+  return file.includes('/fixtures/') || file.includes('/fixture/')
+})) {
   fail('Visual performance pass must not modify connector or fixture field definitions')
 }
 

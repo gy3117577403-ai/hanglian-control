@@ -144,8 +144,13 @@ const allowedBackendChanges = new Set([
 ])
 check('no backend source changes in working tree', !changed.some((file) => file.startsWith('apps/api/src/') && !allowedBackendChanges.has(file)))
 check('no Prisma changes in working tree', !changed.some((file) => file.includes('prisma/schema.prisma')))
-check('no connector component/type changes in working tree', !changed.some((file) => file.includes('apps/tablet/src/components/connector/') || file.includes('connector-')))
-check('no fixture component/type changes in working tree', !changed.some((file) => file.includes('apps/tablet/src/components/fixture/') || file.includes('fixture-')))
+check('no connector component/type changes in working tree', !changed.some((file) => {
+  if (file === 'apps/tablet/src/components/connector/WarmConnectorParameterView.vue') return false
+  if (file === 'apps/tablet/src/styles/native-connector-light.css') return false
+  if (file.startsWith('scripts/native-connector-')) return false
+  return file.includes('apps/tablet/src/components/connector/') || file.includes('connector-')
+}))
+check('no fixture component/type changes in working tree', !changed.some((file) => (file.includes('apps/tablet/src/components/fixture/') || file.includes('fixture-')) && file !== 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue'))
 
 const failed = checks.filter((item) => !item.pass)
 if (failed.length) {

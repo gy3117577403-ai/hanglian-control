@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import WarmHubContent from './WarmHubContent.vue'
 import WarmHubHeader from './WarmHubHeader.vue'
 import WarmOrderSidebar from '@/components/orders/WarmOrderSidebar.vue'
+import { useNativeLayoutDiagnostics } from '@/composables/use-native-app-viewport'
 import { createWarmAsyncComponent } from '@/lib/async-components'
+import { isNativeApp } from '@/native/native-platform'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
 const route = useRoute()
 const networkDiagnosticsOpen = ref(false)
+const nativeAuxiliaryMode = computed(() => isNativeApp() && store.activeMode !== 'drawing')
+const mountOrderSidebar = computed(() => !nativeAuxiliaryMode.value)
 const WarmHubUploadDialog = createWarmAsyncComponent(() => import('./WarmHubUploadDialog.vue'), {
   name: 'WarmHubUploadDialog',
   label: '正在加载上传面板...',
@@ -39,12 +43,19 @@ const WarmNetworkDiagnosticsDialog = createWarmAsyncComponent(() => import('@/co
   label: '正在加载网络诊断...',
 })
 
+const { refreshNativeLayoutDiagnostics } = useNativeLayoutDiagnostics({
+  activeMode: computed(() => store.activeMode),
+  orderSidebarMounted: mountOrderSidebar,
+  connectorItemCount: computed(() => store.connectorRows.length),
+})
+
 onMounted(() => {
   void store.initialize()
 })
 
 watch(() => route.fullPath, () => {
   void store.restoreDrawingRouteFromCurrentUrl('direct_url')
+  refreshNativeLayoutDiagnostics()
 })
 
 function openDrawingTrash() {
@@ -53,7 +64,13 @@ function openDrawingTrash() {
 </script>
 
 <template>
-  <div class="document-hub-shell" :class="{ 'orders-collapsed': store.effectiveOrderSidebarCollapsed }">
+  <div
+    class="document-hub-shell"
+    :class="{
+      'orders-collapsed': store.effectiveOrderSidebarCollapsed,
+      'native-auxiliary-mode': nativeAuxiliaryMode,
+    }"
+  >
     <WarmHubHeader
       @open-network="networkDiagnosticsOpen = true"
       @open-pdf-import="store.pdfImportDialogOpen = true"
@@ -61,7 +78,7 @@ function openDrawingTrash() {
       @open-trash="openDrawingTrash"
     />
     <main class="hub-body">
-      <WarmOrderSidebar />
+      <WarmOrderSidebar v-if="mountOrderSidebar" />
       <WarmHubContent />
     </main>
     <WarmOrderOverviewDialog v-if="store.orderOverviewOpen" />
@@ -158,6 +175,14 @@ function openDrawingTrash() {
 
 .document-hub-shell.orders-collapsed {
   --order-column-width: 64px;
+}
+
+.document-hub-shell.native-auxiliary-mode {
+  --order-column-width: 0px;
+}
+
+.document-hub-shell.native-auxiliary-mode .hub-body {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (max-width: 1320px) {

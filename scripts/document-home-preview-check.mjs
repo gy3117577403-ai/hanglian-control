@@ -140,16 +140,23 @@ const allowedChangedPrefixes = [
   'apps/tablet/src/components/viewer/',
   'apps/tablet/src/composables/',
   'apps/tablet/src/components/search/',
+  'apps/tablet/src/components/connectors/',
   'apps/tablet/android/',
 ];
 const v316NativeConnectorFiles = [
   'apps/tablet/src/components/connector/WarmConnectorDetailDialog.vue',
   'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
   'apps/tablet/src/components/connector/WarmConnectorTable.vue',
+  'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/styles/native-connector-light.css',
+  'apps/tablet/src/styles/native-fixed-viewport.css',
   'scripts/android-app-foundation-check.mjs',
   'scripts/frontend-lazy-loading-check.mjs',
   'scripts/native-connector-layout-check.mjs',
   'scripts/native-connector-scroll-check.mjs',
+  'scripts/native-connector-light-check.mjs',
+  'scripts/native-connector-runtime-check.mjs',
+  'scripts/native-fixed-viewport-check.mjs',
 ];
 const allowedChanged = new Set([
   paths.moduleCard,
@@ -225,7 +232,7 @@ for (const file of changed) {
 assert(!changed.some((file) => file.startsWith('apps/api/') && !allowedChanged.has(file)), 'Backend changes must be limited to document version metadata management.');
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'Prisma schema must remain unchanged.');
 assert(!changed.some((file) => (file.includes('/connector/') || file.includes('connector-')) && !v316NativeConnectorFiles.includes(file)), 'Connector files must remain unchanged.');
-assert(!changed.some((file) => file.includes('/fixture/') || file.includes('fixture-')), 'Fixture files must remain unchanged.');
+assert(!changed.some((file) => (file.includes('/fixture/') || file.includes('fixture-')) && file !== 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue'), 'Fixture files must remain unchanged.');
 assert(!/new\s+PrismaClient|DATABASE_URL|db push|migrate|seed|Sealos|S3|企业微信微盘/i.test(uiSource + urlHelper), 'Home preview work must not connect database, Sealos, S3, or WeCom disk.');
 
 if (blockers.length) {

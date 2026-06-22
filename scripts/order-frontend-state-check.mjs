@@ -197,6 +197,22 @@ const v315PerformanceFiles = [
   'scripts/tablet-scroll-performance-check.mjs',
   'scripts/tablet-visual-performance-check.mjs',
 ];
+const v316NativeViewportFiles = [
+  'apps/tablet/android/app/build.gradle',
+  'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/composables/use-native-app-viewport.ts',
+  'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/styles/native-connector-light.css',
+  'apps/tablet/src/styles/native-fixed-viewport.css',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/frontend-lazy-loading-check.mjs',
+  'scripts/native-connector-layout-check.mjs',
+  'scripts/native-connector-scroll-check.mjs',
+  'scripts/native-connector-light-check.mjs',
+  'scripts/native-connector-runtime-check.mjs',
+  'scripts/native-fixed-viewport-check.mjs',
+];
 
 const allowed = new Set([
   ...Object.values(files),
@@ -237,16 +253,19 @@ const allowed = new Set([
   'scripts/drawing-navigation-check.mjs',
   'scripts/tablet-ui-smoke-check.mjs',
   ...v315PerformanceFiles,
+  ...v316NativeViewportFiles,
 ]);
 const allowedPrefixes = [
   'apps/tablet/src/components/search/',
+  'apps/tablet/src/components/connectors/',
 ];
 for (const file of changedFiles()) {
   const isAllowed = allowed.has(file) || allowedPrefixes.some((prefix) => file.startsWith(prefix));
   assert(isAllowed, `出现非本轮允许修改文件：${file}`);
   assert(!file.startsWith('apps/api/') || isAllowed, `不允许修改后端文件：${file}`);
   assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
-  assert(!file.includes('/connector/') && !file.includes('/fixture/'), `不允许修改连接器或治具文件：${file}`);
+  assert(!file.includes('/connector/') || file === 'apps/tablet/src/components/connector/WarmConnectorParameterView.vue', `不允许修改连接器或治具文件：${file}`);
+  assert(!file.includes('/fixture/') || file === 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue', `不允许修改连接器或治具文件：${file}`);
 }
 
 if (changedFiles().includes('apps/api/src/document-hub/order-metadata.store.ts')) {

@@ -9,9 +9,9 @@
 <script setup lang="ts">
 import WarmNativeNetworkBanner from '@/components/native/WarmNativeNetworkBanner.vue'
 import { Toaster } from '@/components/ui/sonner'
-import { useNativeViewport } from '@/composables/use-native-viewport'
+import { useNativeAppViewport } from '@/composables/use-native-app-viewport'
 import { useTabletPerformance } from '@/composables/use-tablet-performance'
 
 const { performanceTier } = useTabletPerformance()
-useNativeViewport(performanceTier)
+useNativeAppViewport(performanceTier)
 </script>

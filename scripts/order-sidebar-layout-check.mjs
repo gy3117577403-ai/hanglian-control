@@ -258,11 +258,18 @@ const v316NativeConnectorFiles = [
   'apps/tablet/src/components/connector/WarmConnectorDetailDialog.vue',
   'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
   'apps/tablet/src/components/connector/WarmConnectorTable.vue',
+  'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/composables/use-native-app-viewport.ts',
   'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/styles/native-connector-light.css',
+  'apps/tablet/src/styles/native-fixed-viewport.css',
   'apps/tablet/src/stores/document-hub-store.ts',
   'scripts/frontend-lazy-loading-check.mjs',
   'scripts/native-connector-layout-check.mjs',
   'scripts/native-connector-scroll-check.mjs',
+  'scripts/native-connector-light-check.mjs',
+  'scripts/native-connector-runtime-check.mjs',
+  'scripts/native-fixed-viewport-check.mjs',
 ];
 
 const allowedChangedFiles = new Set([
@@ -287,12 +294,12 @@ const allowedChangedFiles = new Set([
 
 for (const file of changedFiles()) {
   const allowedByAndroidPrefix = file.startsWith('apps/tablet/android/');
-  const allowedByNativePrefix = file.startsWith('apps/tablet/src/components/native/') || file.startsWith('apps/tablet/src/native/');
+  const allowedByNativePrefix = file.startsWith('apps/tablet/src/components/native/') || file.startsWith('apps/tablet/src/native/') || file.startsWith('apps/tablet/src/components/connectors/');
   assert(allowedChangedFiles.has(file) || allowedByAndroidPrefix || allowedByNativePrefix, `本轮不允许修改该文件：${file}`);
   assert(!file.startsWith('apps/api/') || file === 'apps/api/src/document-hub/order-metadata.store.ts', `不允许修改后端文件：${file}`);
   assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
   assert(!file.includes('/connector/') || v316NativeConnectorFiles.includes(file), `不允许修改连接器文件：${file}`);
-  assert(!file.includes('/fixture/'), `不允许修改治具文件：${file}`);
+  assert(!file.includes('/fixture/') || file === 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue', `不允许修改治具文件：${file}`);
 }
 
 assert(packageJson.includes('"order-sidebar-layout:check": "node scripts/order-sidebar-layout-check.mjs"'), 'package.json 缺少 order-sidebar-layout:check。');

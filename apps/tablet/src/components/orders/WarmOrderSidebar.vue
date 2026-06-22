@@ -116,7 +116,7 @@ function openImport() {
 </script>
 
 <template>
-  <aside class="order-sidebar" :class="{ collapsed: store.effectiveOrderSidebarCollapsed }" data-scroll-key="orders">
+  <aside class="order-sidebar" :class="{ collapsed: store.effectiveOrderSidebarCollapsed }" data-scroll-key="orders" data-order-sidebar>
     <button
       class="collapsed-rail"
       type="button"

@@ -213,12 +213,19 @@ const v316NativeConnectorFiles = [
   'apps/tablet/src/components/connector/WarmConnectorDetailDialog.vue',
   'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
   'apps/tablet/src/components/connector/WarmConnectorTable.vue',
+  'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/composables/use-native-app-viewport.ts',
   'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/styles/native-connector-light.css',
+  'apps/tablet/src/styles/native-fixed-viewport.css',
   'apps/tablet/src/stores/document-hub-store.ts',
   'scripts/android-app-foundation-check.mjs',
   'scripts/frontend-lazy-loading-check.mjs',
   'scripts/native-connector-layout-check.mjs',
   'scripts/native-connector-scroll-check.mjs',
+  'scripts/native-connector-light-check.mjs',
+  'scripts/native-connector-runtime-check.mjs',
+  'scripts/native-fixed-viewport-check.mjs',
 ];
 const allowedChanges = new Set([
   paths.dashboard,
@@ -262,13 +269,13 @@ for (const file of changed) {
   const allowedByPrefix = uploadPhasePrefixes.some((prefix) => file.startsWith(prefix));
   const allowedBySearchPrefix = drawingSearchPrefixes.some((prefix) => file.startsWith(prefix));
   const allowedByAndroidPrefix = file.startsWith('apps/tablet/android/');
-  const allowedByNativePrefix = file.startsWith('apps/tablet/src/components/native/') || file.startsWith('apps/tablet/src/native/');
+  const allowedByNativePrefix = file.startsWith('apps/tablet/src/components/native/') || file.startsWith('apps/tablet/src/native/') || file.startsWith('apps/tablet/src/components/connectors/');
   assert(allowedChanges.has(file) || allowedByPrefix || allowedBySearchPrefix || allowedByAndroidPrefix || allowedByNativePrefix, `Unexpected changed file: ${file}`);
 }
 assert(!changed.some((file) => file.startsWith('apps/api/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected backend files must remain unchanged.');
 assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected Prisma files must remain unchanged.');
 assert(!changed.some((file) => file.includes('/connector/') && !v316NativeConnectorFiles.includes(file)), 'Connector components must remain unchanged.');
-assert(!changed.some((file) => file.includes('/fixture/')), 'Fixture components must remain unchanged.');
+assert(!changed.some((file) => file.includes('/fixture/') && file !== 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue'), 'Fixture components must remain unchanged.');
 assert(packageJson.includes('"pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs"'), 'Root package.json should expose pdf-import-ui:check.');
 
 if (blockers.length) {

@@ -3,6 +3,8 @@ import { computed, reactive, ref } from 'vue'
 import { Database, Download, FileSpreadsheet, Plus, RefreshCw, Ruler, Trash2 } from 'lucide-vue-next'
 import WarmConnectorDetailDialog from './WarmConnectorDetailDialog.vue'
 import WarmConnectorTable from './WarmConnectorTable.vue'
+import WarmNativeConnectorTable from '@/components/connectors/WarmNativeConnectorTable.vue'
+import { isNativeApp } from '@/native/native-platform'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 import type { ConnectorParameter, ConnectorParameterPayload } from '@/types/production'
 
@@ -15,6 +17,7 @@ const deleteOpen = ref(false)
 const editingId = ref<string | null>(null)
 const deletingRow = ref<ConnectorParameter | null>(null)
 const pendingImportFile = ref<File | null>(null)
+const nativeLayout = computed(() => isNativeApp() || (typeof document !== 'undefined' && document.documentElement.dataset.nativeApp === 'true'))
 
 const form = reactive({
   connectorModel: '',
@@ -198,7 +201,11 @@ function downloadImportReport() {
 </script>
 
 <template>
-  <div class="parameter-view">
+  <div
+    class="parameter-view"
+    :class="{ 'native-connector-view': nativeLayout }"
+    :data-native-connector-view="nativeLayout ? 'true' : undefined"
+  >
     <section class="view-head">
       <div class="title-block">
         <i><Database :size="22" /></i>
@@ -240,7 +247,15 @@ function downloadImportReport() {
       @change="handleFileChange"
     >
 
-    <div class="scroll-area" data-scroll-key="connectors">
+    <WarmNativeConnectorTable
+      v-if="nativeLayout"
+      :rows="store.connectorRows"
+      @open="store.openConnectorDetail"
+      @edit="openEdit"
+      @delete="requestDelete"
+    />
+
+    <div v-else class="scroll-area" data-scroll-key="connectors">
       <WarmConnectorTable
         :rows="store.connectorRows"
         @open="store.openConnectorDetail"
