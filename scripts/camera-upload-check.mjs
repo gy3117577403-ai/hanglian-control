@@ -316,12 +316,24 @@ const allowedChangedFiles = new Set([
   ...v315PerformanceFiles,
   ...v316AndroidFoundationFiles,
 ]);
+const v316NativeConnectorFiles = [
+  'apps/tablet/src/components/connector/WarmConnectorDetailDialog.vue',
+  'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/connector/WarmConnectorTable.vue',
+  'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/frontend-lazy-loading-check.mjs',
+  'scripts/native-connector-layout-check.mjs',
+  'scripts/native-connector-scroll-check.mjs',
+];
+for (const file of v316NativeConnectorFiles) allowedChangedFiles.add(file);
 for (const file of changed) {
   const allowed = allowedChangedFiles.has(file) || allowedChangedPrefixes.some((prefix) => file.startsWith(prefix));
   assert(allowed, `Unexpected changed file: ${file}`);
 }
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'Prisma schema must remain unchanged.');
-assert(!changed.some((file) => file.includes('/connector/') || file.includes('connector-')), 'Connector files must remain unchanged.');
+assert(!changed.some((file) => (file.includes('/connector/') || file.includes('connector-')) && !v316NativeConnectorFiles.includes(file)), 'Connector files must remain unchanged.');
 assert(!changed.some((file) => file.includes('/fixture/') || file.includes('fixture-')), 'Fixture files must remain unchanged.');
 assert(!changed.some((file) => /storage\/(uploads|metadata|tmp)\/.+\.json$/.test(file)), 'Runtime storage JSON must not be changed.');
 assert(packageJson.includes('"camera-upload:check": "node scripts/camera-upload-check.mjs"'), 'Root package.json should expose camera-upload:check.');

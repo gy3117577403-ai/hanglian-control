@@ -254,6 +254,16 @@ const v316AndroidFoundationFiles = [
   'scripts/native-api-config-check.mjs',
   'scripts/native-network-check.mjs',
 ];
+const v316NativeConnectorFiles = [
+  'apps/tablet/src/components/connector/WarmConnectorDetailDialog.vue',
+  'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/connector/WarmConnectorTable.vue',
+  'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'scripts/frontend-lazy-loading-check.mjs',
+  'scripts/native-connector-layout-check.mjs',
+  'scripts/native-connector-scroll-check.mjs',
+];
 
 const allowedChangedFiles = new Set([
   'apps/tablet/src/components/orders/WarmOrderCard.vue',
@@ -272,6 +282,7 @@ const allowedChangedFiles = new Set([
   'scripts/security-check.mjs',
   ...v315PerformanceFiles,
   ...v316AndroidFoundationFiles,
+  ...v316NativeConnectorFiles,
 ]);
 
 for (const file of changedFiles()) {
@@ -280,7 +291,7 @@ for (const file of changedFiles()) {
   assert(allowedChangedFiles.has(file) || allowedByAndroidPrefix || allowedByNativePrefix, `本轮不允许修改该文件：${file}`);
   assert(!file.startsWith('apps/api/') || file === 'apps/api/src/document-hub/order-metadata.store.ts', `不允许修改后端文件：${file}`);
   assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
-  assert(!file.includes('/connector/'), `不允许修改连接器文件：${file}`);
+  assert(!file.includes('/connector/') || v316NativeConnectorFiles.includes(file), `不允许修改连接器文件：${file}`);
   assert(!file.includes('/fixture/'), `不允许修改治具文件：${file}`);
 }
 

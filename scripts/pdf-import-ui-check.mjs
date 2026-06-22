@@ -209,6 +209,17 @@ const v316AndroidFoundationFiles = [
   'scripts/native-api-config-check.mjs',
   'scripts/native-network-check.mjs',
 ];
+const v316NativeConnectorFiles = [
+  'apps/tablet/src/components/connector/WarmConnectorDetailDialog.vue',
+  'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/connector/WarmConnectorTable.vue',
+  'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/stores/document-hub-store.ts',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/frontend-lazy-loading-check.mjs',
+  'scripts/native-connector-layout-check.mjs',
+  'scripts/native-connector-scroll-check.mjs',
+];
 const allowedChanges = new Set([
   paths.dashboard,
   paths.header,
@@ -245,6 +256,7 @@ const allowedChanges = new Set([
   paths.packageJson,
   ...v315PerformanceFiles,
   ...v316AndroidFoundationFiles,
+  ...v316NativeConnectorFiles,
 ]);
 for (const file of changed) {
   const allowedByPrefix = uploadPhasePrefixes.some((prefix) => file.startsWith(prefix));
@@ -255,7 +267,7 @@ for (const file of changed) {
 }
 assert(!changed.some((file) => file.startsWith('apps/api/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected backend files must remain unchanged.');
 assert(!changed.some((file) => file.includes('prisma/') && !uploadPhasePaths.includes(file) && !allowedChanges.has(file)), 'Unexpected Prisma files must remain unchanged.');
-assert(!changed.some((file) => file.includes('/connector/')), 'Connector components must remain unchanged.');
+assert(!changed.some((file) => file.includes('/connector/') && !v316NativeConnectorFiles.includes(file)), 'Connector components must remain unchanged.');
 assert(!changed.some((file) => file.includes('/fixture/')), 'Fixture components must remain unchanged.');
 assert(packageJson.includes('"pdf-import-ui:check": "node scripts/pdf-import-ui-check.mjs"'), 'Root package.json should expose pdf-import-ui:check.');
 

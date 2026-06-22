@@ -15,7 +15,7 @@ watch(
 )
 
 function formatMm(value?: number | null) {
-  if (typeof value !== 'number' || Number.isNaN(value)) return '未设'
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—'
   return `${value} mm`
 }
 

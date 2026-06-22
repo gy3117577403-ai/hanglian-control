@@ -379,27 +379,30 @@ function downloadImportReport() {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
-  padding: 10px 14px 14px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  overflow: hidden;
 }
 
 .view-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(360px, auto);
   gap: 14px;
   align-items: center;
   justify-content: space-between;
-  min-height: 82px;
+  min-width: 0;
+  min-height: 76px;
   margin-bottom: 8px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.76);
-  border-radius: 24px;
+  border-radius: 20px;
   background:
     linear-gradient(128deg, rgba(255, 255, 255, 0.82), rgba(255, 234, 201, 0.58) 50%, rgba(152, 194, 180, 0.36)),
     radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.96), transparent 28%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     inset 0 -18px 36px rgba(125, 162, 150, 0.1),
-    0 14px 34px rgba(76, 54, 32, 0.1);
-  backdrop-filter: blur(20px);
+    0 10px 22px rgba(76, 54, 32, 0.08);
 }
 
 .title-block {
@@ -452,20 +455,21 @@ small {
 }
 
 .head-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  gap: 8px;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .metric-pill,
 .tool-button {
   display: inline-flex;
-  gap: 7px;
+  gap: 6px;
   align-items: center;
   min-height: 38px;
-  padding: 0 12px;
+  padding: 0 11px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.5);
@@ -475,7 +479,7 @@ small {
   white-space: nowrap;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 9px 18px rgba(76, 54, 32, 0.08);
+    0 6px 12px rgba(76, 54, 32, 0.06);
 }
 
 .metric-pill.total {
@@ -508,7 +512,7 @@ small {
 }
 
 .tool-button.ghost {
-  width: 38px;
+  width: 40px;
   justify-content: center;
   padding: 0;
 }
@@ -525,9 +529,12 @@ small {
 
 .scroll-area {
   min-height: 0;
-  overflow: auto;
-  padding: 0 3px 3px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 2px 10px 0;
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .editor-panel {
@@ -759,15 +766,30 @@ small {
 
 @media (max-width: 1180px) {
   .view-head {
+    grid-template-columns: minmax(220px, 1fr) minmax(280px, auto);
     align-items: flex-start;
   }
 
   h2 {
-    font-size: 26px;
+    font-size: 23px;
+  }
+
+  small {
+    max-width: 520px;
   }
 
   .tool-button span {
     display: none;
+  }
+
+  .head-tools {
+    grid-template-columns: repeat(4, max-content);
+  }
+
+  .metric-pill {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 12px;
   }
 
   .result-metrics {
@@ -781,5 +803,30 @@ small {
   .result-row small {
     display: none;
   }
+}
+
+@media (max-width: 980px) {
+  .view-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .head-tools {
+    justify-content: start;
+  }
+}
+
+:global(html[data-native-app="true"]) .parameter-view {
+  padding: 8px 10px 10px;
+}
+
+:global(html[data-native-app="true"]) .view-head {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 8px 16px rgba(76, 54, 32, 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(html[data-native-app="true"]) .scroll-area {
+  scroll-behavior: auto;
 }
 </style>

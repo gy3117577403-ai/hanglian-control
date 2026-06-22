@@ -53,7 +53,7 @@ function openDrawingTrash() {
 </script>
 
 <template>
-  <div class="document-hub-shell" :class="{ 'orders-collapsed': store.orderSidebarCollapsed }">
+  <div class="document-hub-shell" :class="{ 'orders-collapsed': store.effectiveOrderSidebarCollapsed }">
     <WarmHubHeader
       @open-network="networkDiagnosticsOpen = true"
       @open-pdf-import="store.pdfImportDialogOpen = true"

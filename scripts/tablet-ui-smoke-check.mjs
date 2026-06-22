@@ -156,12 +156,12 @@ requireIncludes(
 
 requireIncludes(
   'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
-  ':class="{ collapsed: store.orderSidebarCollapsed }"',
+  ':class="{ collapsed: store.effectiveOrderSidebarCollapsed }"',
   'Order sidebar must keep the compact collapsed rail.',
 );
 requireNotIncludes(
   'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
-  'v-if="store.orderSidebarCollapsed"',
+  'v-if="store.effectiveOrderSidebarCollapsed"',
   'Order sidebar collapse rail must not remount on every toggle.',
 );
 requireIncludes(

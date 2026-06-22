@@ -84,6 +84,8 @@
     "native-api-config:check": "node scripts/native-api-config-check.mjs",
     "android-back:check": "node scripts/android-back-navigation-check.mjs",
     "native-network:check": "node scripts/native-network-check.mjs",
+    "native-connector-layout:check": "node scripts/native-connector-layout-check.mjs",
+    "native-connector-scroll:check": "node scripts/native-connector-scroll-check.mjs",
     "android:sync": "npm run build:android -w tablet && npm run cap:sync:android -w tablet",
     "android:build:debug": "npm run android:assemble:debug -w tablet",
     "demo:assets": "node scripts/generate-demo-upload-assets.mjs",

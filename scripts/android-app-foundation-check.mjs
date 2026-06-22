@@ -108,8 +108,8 @@ assert(!manifest.includes('RECORD_AUDIO'), '本阶段不得申请录音权限')
 assert(!manifest.includes('READ_CONTACTS') && !manifest.includes('ACCESS_FINE_LOCATION'), '本阶段不得申请联系人或定位权限')
 assert(!manifest.includes('android:usesCleartextTraffic="true"'), '主 Manifest 不得开启全局明文网络')
 assert(debugManifest.includes('android:usesCleartextTraffic="true"'), 'Debug Manifest 必须隔离开启明文网络')
-assert(/versionCode\s+1600/.test(buildGradle), 'versionCode 必须是 1600')
-assert(/versionName\s+"0\.16\.0-debug"/.test(buildGradle), 'versionName 必须是 0.16.0-debug')
+assert(/versionCode\s+1601/.test(buildGradle), 'versionCode 必须是 1601')
+assert(/versionName\s+"0\.16\.1-debug"/.test(buildGradle), 'versionName 必须是 0.16.1-debug')
 assert(strings.includes('线束资料工作台'), 'Android app name 必须是线束资料工作台')
 
 for (const scriptName of ['android:check', 'android:sync', 'android:build:debug']) {

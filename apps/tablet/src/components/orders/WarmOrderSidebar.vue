@@ -116,13 +116,13 @@ function openImport() {
 </script>
 
 <template>
-  <aside class="order-sidebar" :class="{ collapsed: store.orderSidebarCollapsed }" data-scroll-key="orders">
+  <aside class="order-sidebar" :class="{ collapsed: store.effectiveOrderSidebarCollapsed }" data-scroll-key="orders">
     <button
       class="collapsed-rail"
       type="button"
       title="展开订单"
-      :aria-hidden="!store.orderSidebarCollapsed"
-      :tabindex="store.orderSidebarCollapsed ? 0 : -1"
+      :aria-hidden="!store.effectiveOrderSidebarCollapsed"
+      :tabindex="store.effectiveOrderSidebarCollapsed ? 0 : -1"
       @pointerdown.prevent.stop="handleTogglePointerdown"
       @click="handleToggleClick"
     >
@@ -132,7 +132,7 @@ function openImport() {
       <small>{{ store.activeOrderScope === 'today' ? '今日' : '本周' }}</small>
     </button>
 
-    <div class="expanded-panel" :aria-hidden="store.orderSidebarCollapsed">
+    <div class="expanded-panel" :aria-hidden="store.effectiveOrderSidebarCollapsed">
       <div class="sidebar-head">
         <div class="head-row">
           <div class="head-title">

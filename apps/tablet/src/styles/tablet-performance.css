@@ -51,6 +51,34 @@
   transition-duration: var(--warm-motion-fast);
 }
 
+html[data-native-app="true"] .tablet-app-root {
+  --warm-shadow-card: 0 6px 12px rgba(81, 42, 16, 0.08);
+  --warm-shadow-raised: 0 8px 16px rgba(81, 42, 16, 0.1);
+}
+
+html[data-native-app="true"] :is(.connector-board, .parameter-view, .scroll-area) {
+  scroll-behavior: auto;
+}
+
+html[data-native-app="true"] :is(.connector-board *, .parameter-view *) {
+  animation: none !important;
+}
+
+html[data-native-app="true"] :is(.parameter-row, .metric-card, .remark-cell, .model-cell) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+
+html[data-native-app="true"] .parameter-row :is(.p-ink, .p-ripple) {
+  display: none !important;
+}
+
+html[data-native-app="true"] .tablet-app-root[data-performance-tier='reduced'] :is(.parameter-row, .icon-action, .tool-button) {
+  transition-duration: 80ms;
+  transition-property: transform, background-color, border-color;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tablet-app-root *,
   .tablet-app-root *::before,

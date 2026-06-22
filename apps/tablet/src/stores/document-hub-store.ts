@@ -570,6 +570,11 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const pendingPurgeItem = ref<DrawingTrashItem | null>(null)
   const lastLifecycleResult = ref<DrawingLifecycleResponse | null>(null)
   const orderSidebarCollapsed = ref(false)
+  const auxiliaryOrderSidebarExpanded = ref(false)
+  const effectiveOrderSidebarCollapsed = computed(() => {
+    if (activeMode.value === 'drawing') return orderSidebarCollapsed.value
+    return !auxiliaryOrderSidebarExpanded.value
+  })
   const connectorDetailOpen = ref(false)
   const fixtureDetailOpen = ref(false)
   const loading = ref(false)
@@ -2062,6 +2067,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
   function setActiveMode(mode: HubMode) {
     activeMode.value = mode
+    auxiliaryOrderSidebarExpanded.value = false
     navigation.rememberFunction(mode)
     clearSearch()
     if (mode !== 'drawing') drawingNavigation.clearDrawingNavigation()
@@ -2900,7 +2906,11 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   function toggleOrderSidebar() {
-    orderSidebarCollapsed.value = !orderSidebarCollapsed.value
+    if (activeMode.value === 'drawing') {
+      orderSidebarCollapsed.value = !orderSidebarCollapsed.value
+      return
+    }
+    auxiliaryOrderSidebarExpanded.value = !auxiliaryOrderSidebarExpanded.value
   }
 
   function clearLifecycleError() {
@@ -3433,6 +3443,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     pendingPurgeItem,
     lastLifecycleResult,
     orderSidebarCollapsed,
+    effectiveOrderSidebarCollapsed,
     connectorDetailOpen,
     fixtureDetailOpen,
     loading,

@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>()
 
 function formatMm(value?: number | null) {
-  if (typeof value !== 'number' || Number.isNaN(value)) return ''
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—'
   return `${value}`
 }
 
@@ -21,13 +21,15 @@ function hasMm(value?: number | null) {
   return typeof value === 'number' && !Number.isNaN(value)
 }
 
-function metricText(value?: number | null, fallback = '') {
-  return hasMm(value) ? `${value}` : fallback
-}
-
 function cleanRemark(value?: string) {
   const remark = value?.trim() ?? ''
-  return remark.includes('?') ? '' : remark
+  if (!remark || remark.includes('?')) return '—'
+  return remark
+}
+
+function isBlankRemark(value?: string) {
+  const remark = value?.trim() ?? ''
+  return !remark || remark.includes('?')
 }
 
 function isOuterBlank(row: ConnectorParameter) {
@@ -52,13 +54,15 @@ function statusClass(status?: string) {
       <span />
     </div>
 
-    <button
+    <article
       v-for="row in rows"
       :key="row.connectorId"
-      type="button"
       class="parameter-row"
       :class="{ 'missing-outer': isOuterBlank(row) }"
+      role="button"
+      tabindex="0"
       @click="emit('open', row)"
+      @keydown.enter.prevent="emit('open', row)"
     >
       <section class="model-cell">
         <i><Cable :size="21" /></i>
@@ -68,26 +72,27 @@ function statusClass(status?: string) {
         </div>
       </section>
 
-      <section class="metric-card">
-        <span>入长</span>
+      <section class="metric-card" title="入长">
+        <span class="cell-label">入长</span>
         <strong>{{ formatMm(row.insertionLengthMm) }}</strong>
-        <em>mm</em>
+        <em v-if="hasMm(row.insertionLengthMm)">mm</em>
       </section>
 
       <section class="metric-card optional" :class="{ missing: isOuterBlank(row) }">
-        <span>外剥</span>
-        <strong>{{ metricText(row.outerStripLengthMm, '未设') }}</strong>
+        <span class="cell-label">外剥长度</span>
+        <strong>{{ formatMm(row.outerStripLengthMm) }}</strong>
         <em v-if="hasMm(row.outerStripLengthMm)">mm</em>
       </section>
 
-      <section class="metric-card">
-        <span>内剥</span>
+      <section class="metric-card" title="内剥长度">
+        <span class="cell-label">内剥长度</span>
         <strong>{{ formatMm(row.innerStripLengthMm) }}</strong>
-        <em>mm</em>
+        <em v-if="hasMm(row.innerStripLengthMm)">mm</em>
       </section>
 
-      <section class="remark-cell" :class="{ empty: !cleanRemark(row.remark) }">
-        <span>{{ cleanRemark(row.remark) }}</span>
+      <section class="remark-cell" :class="{ empty: isBlankRemark(row.remark) }">
+        <span class="cell-label">备注</span>
+        <span :title="cleanRemark(row.remark)">{{ cleanRemark(row.remark) }}</span>
       </section>
 
       <section class="row-actions" aria-label="连接器参数操作">
@@ -97,9 +102,11 @@ function statusClass(status?: string) {
         <button type="button" class="icon-action danger" title="删除" @click.stop="emit('delete', row)">
           <Trash2 :size="17" />
         </button>
-        <ChevronRight class="row-arrow" :size="20" />
+        <button type="button" class="icon-action detail" title="详情" @click.stop="emit('open', row)">
+          <ChevronRight :size="18" />
+        </button>
       </section>
-    </button>
+    </article>
 
     <div v-if="!rows.length" class="empty-state">
       暂无连接器参数，请通过单型号导入或 Excel 导入补充。
@@ -109,9 +116,18 @@ function statusClass(status?: string) {
 
 <style scoped>
 .connector-board {
+  --connector-grid-template:
+    minmax(190px, 1.45fr)
+    minmax(82px, 0.62fr)
+    minmax(98px, 0.72fr)
+    minmax(98px, 0.72fr)
+    minmax(120px, 0.9fr)
+    104px;
+  container-type: inline-size;
   display: grid;
-  gap: 9px;
-  min-width: 900px;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
 }
 
 .board-labels {
@@ -119,23 +135,18 @@ function statusClass(status?: string) {
   top: 0;
   z-index: 8;
   display: grid;
-  grid-template-columns: minmax(260px, 1.52fr) 0.58fr 0.64fr 0.64fr minmax(180px, 1fr) 116px;
-  gap: 10px;
+  grid-template-columns: var(--connector-grid-template);
+  gap: 8px;
   align-items: center;
   min-height: 42px;
-  padding: 0 18px;
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  border-radius: 18px;
-  background:
-    linear-gradient(90deg, rgba(114, 72, 37, 0.94), rgba(154, 99, 50, 0.86)),
-    radial-gradient(circle at 90% 0%, rgba(255, 255, 255, 0.2), transparent 28%);
+  padding: 0 14px;
+  border: 1px solid rgba(129, 79, 35, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(114, 72, 37, 0.94), rgba(154, 99, 50, 0.9));
   color: rgba(255, 245, 230, 0.92);
   font-size: 12px;
   font-weight: 950;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 10px 22px rgba(70, 45, 25, 0.12);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 16px rgba(70, 45, 25, 0.08);
 }
 
 .board-labels span {
@@ -146,29 +157,25 @@ function statusClass(status?: string) {
 .parameter-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(260px, 1.52fr) 0.58fr 0.64fr 0.64fr minmax(180px, 1fr) 116px;
-  gap: 10px;
-  align-items: stretch;
+  grid-template-columns: var(--connector-grid-template);
+  gap: 8px;
+  align-items: center;
   width: 100%;
-  min-height: 92px;
-  padding: 10px 12px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 24px;
-  background:
-    linear-gradient(112deg, rgba(255, 255, 255, 0.82), rgba(255, 244, 225, 0.56) 36%, rgba(171, 209, 198, 0.34)),
-    radial-gradient(circle at 96% 0%, rgba(255, 255, 255, 0.92), transparent 24%);
+  min-height: 76px;
+  padding: 9px 10px 9px 14px;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 16px;
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.86), rgba(255, 244, 225, 0.54) 58%, rgba(171, 209, 198, 0.24));
   color: #352112;
   text-align: left;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -20px 36px rgba(127, 159, 148, 0.12),
-    0 18px 38px rgba(71, 48, 27, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 8px 16px rgba(71, 48, 27, 0.07);
   transform: translateZ(0);
   transition:
     transform 0.14s ease,
     border-color 0.14s ease,
-    box-shadow 0.14s ease;
+    background-color 0.14s ease;
+  cursor: pointer;
 }
 
 .parameter-row::before {
@@ -183,32 +190,19 @@ function statusClass(status?: string) {
 .parameter-row:hover {
   transform: translateY(-1px);
   border-color: rgba(204, 129, 61, 0.42);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -20px 36px rgba(127, 159, 148, 0.16),
-    0 22px 44px rgba(71, 48, 27, 0.14);
+  background-color: rgba(255, 255, 255, 0.74);
 }
 
 .model-cell,
 .metric-card,
 .remark-cell {
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.66);
-  border-radius: 18px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(255, 245, 229, 0.34)),
-    rgba(255, 255, 255, 0.26);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    0 10px 22px rgba(67, 48, 28, 0.05);
-  backdrop-filter: blur(16px);
 }
 
 .model-cell {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 12px;
 }
 
 .model-cell > div {
@@ -218,22 +212,20 @@ function statusClass(status?: string) {
 .model-cell i {
   display: grid;
   flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border-radius: 16px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(235, 202, 160, 0.68));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.64);
   color: #9b5125;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 10px 20px rgba(78, 47, 22, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
 .model-cell b {
   display: -webkit-box;
   overflow: hidden;
   color: #2f1d0f;
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 950;
   letter-spacing: 0;
   line-height: 1.18;
@@ -264,40 +256,38 @@ function statusClass(status?: string) {
 }
 
 .remark-cell {
-  display: flex;
+  display: block;
   align-items: center;
-  padding: 12px 14px;
   color: #5f4124;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1.35;
 }
 
-.remark-cell span {
+.remark-cell span:not(.cell-label) {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
 .metric-card {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto 1fr;
-  align-items: end;
-  padding: 10px 12px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  white-space: nowrap;
 }
 
-.metric-card span {
-  grid-column: 1 / -1;
+.cell-label {
+  display: none;
   color: rgba(105, 70, 38, 0.68);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 950;
 }
 
 .metric-card strong {
   color: #9b5125;
-  font-size: 25px;
+  font-size: 18px;
   font-weight: 950;
   line-height: 1;
 }
@@ -309,42 +299,31 @@ function statusClass(status?: string) {
   font-weight: 950;
 }
 
-.metric-card.optional.missing {
-  border-color: rgba(213, 142, 73, 0.28);
-  background:
-    linear-gradient(145deg, rgba(255, 250, 241, 0.72), rgba(240, 216, 178, 0.32)),
-    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.72), transparent 38%);
-}
-
 .metric-card.optional.missing strong {
   color: rgba(137, 89, 45, 0.7);
-  font-size: 19px;
 }
 
 .remark-cell.empty {
-  opacity: 0.34;
+  color: rgba(137, 89, 45, 0.7);
 }
 
 .row-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 4px;
 }
 
 .icon-action {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 14px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.5);
   color: #9b5125;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 8px 14px rgba(71, 48, 27, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition: transform 0.12s ease, background 0.12s ease;
 }
 
@@ -357,7 +336,7 @@ function statusClass(status?: string) {
   color: #b94435;
 }
 
-.row-arrow {
+.icon-action.detail {
   color: rgba(113, 75, 42, 0.34);
 }
 
@@ -372,22 +351,68 @@ function statusClass(status?: string) {
   font-weight: 900;
 }
 
-@media (max-width: 1180px) {
-  .connector-board {
-    min-width: 820px;
+@container (max-width: 900px) {
+  .board-labels {
+    display: none;
   }
 
-  .board-labels,
   .parameter-row {
-    grid-template-columns: minmax(230px, 1.4fr) 0.56fr 0.62fr 0.62fr minmax(150px, 0.84fr) 102px;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    align-items: start;
+    min-height: 116px;
+    padding: 12px;
   }
 
-  .model-cell b {
-    font-size: 17px;
+  .model-cell {
+    grid-column: 1 / 4;
+  }
+
+  .row-actions {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .metric-card {
+    display: grid;
+    gap: 3px;
+    align-items: start;
+    padding-top: 2px;
   }
 
   .metric-card strong {
-    font-size: 22px;
+    font-size: 17px;
+  }
+
+  .cell-label {
+    display: block;
+  }
+
+  .remark-cell {
+    grid-column: 1 / -1;
+    min-height: 20px;
+  }
+
+  .remark-cell span:not(.cell-label) {
+    -webkit-line-clamp: 1;
+  }
+}
+
+:global(html[data-native-app="true"]) .parameter-row {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 6px 12px rgba(71, 48, 27, 0.06);
+}
+
+:global(html[data-native-app="true"]) .model-cell i {
+  box-shadow: none;
+}
+
+:global(html[data-native-app="true"]) .icon-action {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parameter-row,
+  .icon-action {
+    transition: none;
   }
 }
 </style>

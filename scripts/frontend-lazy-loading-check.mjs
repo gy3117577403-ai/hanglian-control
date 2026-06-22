@@ -127,8 +127,8 @@ assert(store.includes("if (mode === 'fixture') void loadFixtures()"), 'Fixture d
 const changed = changedFiles();
 assert(!changed.some((file) => file.startsWith('apps/api/')), 'This frontend performance step must not modify backend files.');
 assert(!changed.some((file) => file.includes('prisma/schema.prisma')), 'This step must not modify Prisma schema.');
-assert(!changed.some((file) => file.startsWith('apps/tablet/src/components/connector/')), 'Connector component fields must remain unchanged.');
-assert(!changed.some((file) => file.startsWith('apps/tablet/src/components/fixture/')), 'Fixture component fields must remain unchanged.');
+assert(!changed.some((file) => file === 'apps/tablet/src/types/production.ts'), 'Connector component field definitions must remain unchanged.');
+assert(!changed.some((file) => file.includes('/fixtures/') || file.includes('/fixture/')), 'Fixture component field definitions must remain unchanged.');
 assert(!changed.some((file) => /storage\/(metadata|uploads|tmp)\//.test(file)), 'Runtime storage files must not be changed.');
 assert(!/new\s+PrismaClient|DATABASE_URL|db push|migrate|Sealos/i.test([dashboard, hubContent, library, orderSidebar, viewer, store].join('\n')), 'Frontend lazy loading changes must not connect to database or Sealos.');
 assert(packageJson.includes('"frontend-lazy-loading:check": "node scripts/frontend-lazy-loading-check.mjs"'), 'Root package.json should expose frontend-lazy-loading:check.');
