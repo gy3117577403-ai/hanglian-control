@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import WarmDrawingLibraryView from '@/components/drawing/WarmDrawingLibraryView.vue'
 import { createWarmAsyncComponent } from '@/lib/async-components'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
@@ -12,15 +13,22 @@ const WarmFixtureParameterView = createWarmAsyncComponent(() => import('@/compon
   name: 'WarmFixtureParameterView',
   label: '正在加载治具参数...',
 })
+const modeComponents = {
+  drawing: WarmDrawingLibraryView,
+  connector: WarmConnectorParameterView,
+  fixture: WarmFixtureParameterView,
+}
+
+const activeModeComponent = computed(() => modeComponents[store.activeMode])
 </script>
 
 <template>
   <section class="hub-content">
     <div v-if="store.loading" class="hub-loading-pill">资料加载中</div>
-    <Transition name="hub-mode-fade" mode="out-in">
-      <WarmDrawingLibraryView v-if="store.activeMode === 'drawing'" key="drawing" />
-      <WarmConnectorParameterView v-else-if="store.activeMode === 'connector'" key="connector" />
-      <WarmFixtureParameterView v-else key="fixture" />
+    <Transition name="hub-mode-fade">
+      <KeepAlive :max="3">
+        <component :is="activeModeComponent" :key="store.activeMode" />
+      </KeepAlive>
     </Transition>
   </section>
 </template>

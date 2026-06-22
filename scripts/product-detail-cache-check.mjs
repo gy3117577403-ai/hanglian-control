@@ -56,7 +56,7 @@ assert(store.includes('async function loadProductDetail'), 'Store should expose 
 assert(store.includes('productListRequests = new Map<string, Promise<HubProductModel[]>>()'), 'Store should deduplicate customer product list requests.');
 assert(store.includes('orderRequests = new Map<OrderScope, Promise<ProductionOrder[]>>()'), 'Store should deduplicate order list requests.');
 assert(store.includes('orderCache = new Map<OrderScope'), 'Store should keep a short order cache.');
-assert(store.includes('ORDER_CACHE_TTL_MS = 5_000'), 'Order cache should be short-lived.');
+assert(store.includes('ORDER_CACHE_TTL_MS = 10_000'), 'Order cache should use the V3.16 native short-lived 10s TTL.');
 assert(store.includes('invalidateOrderCache()'), 'Order writes should invalidate the short order cache.');
 assert(store.includes('loadOrdersForScope'), 'Order list loads should go through the scoped cache helper.');
 assert(store.includes('await loadProductDetail(linkedProductId)'), 'Opening an already-linked order should use the cached product detail loader.');

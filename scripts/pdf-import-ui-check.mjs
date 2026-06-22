@@ -226,6 +226,16 @@ const v316NativeConnectorFiles = [
   'scripts/native-connector-light-check.mjs',
   'scripts/native-connector-runtime-check.mjs',
   'scripts/native-fixed-viewport-check.mjs',
+  'apps/tablet/src/styles/native-header-layout.css',
+  'apps/tablet/src/styles/native-interaction-lock.css',
+  'apps/tablet/src/styles/native-switch-performance.css',
+  'scripts/android-built-assets-check.mjs',
+  'scripts/native-cache-first-check.mjs',
+  'scripts/native-header-layout-check.mjs',
+  'scripts/native-interaction-lock-check.mjs',
+  'scripts/native-mode-switch-check.mjs',
+  'scripts/native-viewport-stability-check.mjs',
+  'scripts/native-webview-zoom-check.mjs',
 ];
 const allowedChanges = new Set([
   paths.dashboard,

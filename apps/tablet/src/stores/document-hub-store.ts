@@ -40,6 +40,16 @@ import {
 } from '@/services/api'
 import { router } from '@/app/routes'
 import { createProductDetailCache } from '@/composables/use-product-detail-cache'
+import { createStaleWhileRevalidateCache } from '@/composables/use-stale-while-revalidate'
+import {
+  recordNativeBackgroundRefresh,
+  recordNativeDeduplicatedRequest,
+  recordNativeModeCacheHit,
+  recordNativeModeCacheMiss,
+  recordNativeModeFirstPaint,
+  recordNativeModeSwitch,
+  setNativeActiveMode,
+} from '@/composables/use-native-mode-cache'
 import {
   drawingCustomerRoute,
   drawingItemRoute,
@@ -589,7 +599,23 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   const productListRequests = new Map<string, Promise<HubProductModel[]>>()
   const orderRequests = new Map<OrderScope, Promise<ProductionOrder[]>>()
   const orderCache = new Map<OrderScope, { fetchedAt: number; data: ProductionOrder[] }>()
-  const ORDER_CACHE_TTL_MS = 5_000
+  const ORDER_CACHE_TTL_MS = 10_000
+  const LIGHT_DATA_CACHE_TTL_MS = 30_000
+  const customerListCache = createStaleWhileRevalidateCache<HubCustomer[]>({
+    ttlMs: LIGHT_DATA_CACHE_TTL_MS,
+    onDeduplicatedRequest: recordNativeDeduplicatedRequest,
+    onBackgroundRefresh: recordNativeBackgroundRefresh,
+  })
+  const connectorListCache = createStaleWhileRevalidateCache<ConnectorParameter[]>({
+    ttlMs: LIGHT_DATA_CACHE_TTL_MS,
+    onDeduplicatedRequest: recordNativeDeduplicatedRequest,
+    onBackgroundRefresh: recordNativeBackgroundRefresh,
+  })
+  const fixtureListCache = createStaleWhileRevalidateCache<FixtureParameter[]>({
+    ttlMs: LIGHT_DATA_CACHE_TTL_MS,
+    onDeduplicatedRequest: recordNativeDeduplicatedRequest,
+    onBackgroundRefresh: recordNativeBackgroundRefresh,
+  })
 
   function productListKey(customerId: string, keyword = '') {
     return `${customerId}::${keyword.trim()}`
@@ -608,6 +634,15 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     orderRequests.clear()
   }
 
+  function invalidateDrawingListCache() {
+    customerListCache.invalidate()
+    productListRequests.clear()
+  }
+
+  function invalidateConnectorListCache() {
+    connectorListCache.invalidate()
+  }
+
   async function loadProductDetail(productId: string, options: { force?: boolean } = {}) {
     return productDetailCache.loadProductDetail(productId, options)
   }
@@ -615,7 +650,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   async function loadProductsForCustomer(customerId: string, keyword = '') {
     const key = productListKey(customerId, keyword)
     const pending = productListRequests.get(key)
-    if (pending) return pending
+    if (pending) {
+      recordNativeDeduplicatedRequest()
+      return pending
+    }
     const request = getHubProducts(customerId, keyword || undefined)
       .finally(() => {
         productListRequests.delete(key)
@@ -628,7 +666,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     const cached = orderCache.get(scope)
     if (!options.force && cached && Date.now() - cached.fetchedAt < ORDER_CACHE_TTL_MS) return cached.data
     const pending = orderRequests.get(scope)
-    if (!options.force && pending) return pending
+    if (!options.force && pending) {
+      recordNativeDeduplicatedRequest()
+      return pending
+    }
     const request = getDocumentHubOrders({ scope, completionStatus: 'pending' })
       .then((orders) => {
         const data = orders.map(toOrderState)
@@ -1051,6 +1092,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         status: payload.status ?? 'active',
       })
       maintenanceSelectedCustomerId.value = customer.customerId
+      invalidateDrawingListCache()
       toast.success('客户资料已保存。', { description: customer.customerName })
       await refreshAfterMaintenanceWrite(customer.customerId)
       return customer
@@ -1076,6 +1118,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         aliases: payload.aliases?.map(cleanText).filter(Boolean),
       })
       maintenanceSelectedCustomerId.value = customer.customerId
+      invalidateDrawingListCache()
       toast.success('客户资料已更新。', { description: customer.customerName })
       await refreshAfterMaintenanceWrite(customer.customerId)
       return customer
@@ -1113,6 +1156,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         source: 'manual_create',
       })
       invalidateProductDetail(product.productId)
+      invalidateDrawingListCache()
       toast.success('产品资料页已创建。', { description: product.productModel })
       await refreshAfterMaintenanceWrite(product.customerId, product.productId)
       return product
@@ -1142,6 +1186,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         remark: payload.remark !== undefined ? cleanOptionalText(payload.remark) : undefined,
       })
       invalidateProductDetail(product.productId)
+      invalidateDrawingListCache()
       toast.success('产品资料已更新。', { description: product.productModel })
       await refreshAfterMaintenanceWrite(product.customerId, product.productId)
       return product
@@ -1477,11 +1522,28 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     }
   }
 
-  async function loadCustomers() {
+  async function loadCustomers(options: { force?: boolean; background?: boolean } = {}) {
+    const key = 'drawing-customers'
+    if (customerListCache.has(key) && !options.force) recordNativeModeCacheHit()
+    else recordNativeModeCacheMiss()
+
     try {
-      customers.value = withFallback(await getHubCustomers(), mockHubCustomers)
+      const rows = await customerListCache.load(
+        key,
+        async () => withFallback(await getHubCustomers(), mockHubCustomers),
+        {
+          force: options.force,
+          background: options.background,
+          onUpdate: (rows) => {
+            customers.value = rows
+          },
+        },
+      )
+      customers.value = rows
+      return rows
     } catch {
-      customers.value = clone(mockHubCustomers)
+      if (!customers.value.length) customers.value = clone(mockHubCustomers)
+      return customers.value
     }
   }
 
@@ -2040,33 +2102,67 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     await executeScopedSearch({ open: true, openExactProduct: true })
   }
 
-  async function loadConnectors(q = '') {
+  async function loadConnectors(q = '', options: { force?: boolean; background?: boolean } = {}) {
     const keyword = q.trim().toLowerCase()
+    const key = `connectors::${keyword}`
     const localMatches = sortConnectors(localConnectors.value.filter((item) => connectorMatchesKeyword(item, keyword)))
+    if (connectorListCache.has(key) && !options.force) recordNativeModeCacheHit()
+    else recordNativeModeCacheMiss()
     try {
-      connectorRows.value = sortConnectors(withFallback(await getHubConnectors(q), localMatches))
+      const rows = await connectorListCache.load(
+        key,
+        async () => sortConnectors(withFallback(await getHubConnectors(q), localMatches)),
+        {
+          force: options.force,
+          background: options.background,
+          onUpdate: (rows) => {
+            connectorRows.value = rows
+          },
+        },
+      )
+      connectorRows.value = rows
+      return rows
     } catch {
-      connectorRows.value = localMatches
+      if (!connectorRows.value.length) connectorRows.value = localMatches
+      return connectorRows.value
     }
   }
 
-  async function loadFixtures(q = '') {
+  async function loadFixtures(q = '', options: { force?: boolean; background?: boolean } = {}) {
     const keyword = q.trim().toLowerCase()
+    const key = `fixtures::${keyword}`
     const localMatches = localFixtures.value.filter((item) => !keyword || [
       item.fixtureCode,
       item.fixtureName,
       item.station,
       item.applicableProduct,
     ].some((value) => match(value, keyword)))
+    if (fixtureListCache.has(key) && !options.force) recordNativeModeCacheHit()
+    else recordNativeModeCacheMiss()
     try {
-      fixtureRows.value = withFallback(await getHubFixtures(q), localMatches)
+      const rows = await fixtureListCache.load(
+        key,
+        async () => withFallback(await getHubFixtures(q), localMatches),
+        {
+          force: options.force,
+          background: options.background,
+          onUpdate: (rows) => {
+            fixtureRows.value = rows
+          },
+        },
+      )
+      fixtureRows.value = rows
+      return rows
     } catch {
-      fixtureRows.value = localMatches
+      if (!fixtureRows.value.length) fixtureRows.value = localMatches
+      return fixtureRows.value
     }
   }
 
   function setActiveMode(mode: HubMode) {
+    const startedAt = performance.now()
     activeMode.value = mode
+    setNativeActiveMode(mode)
     auxiliaryOrderSidebarExpanded.value = false
     navigation.rememberFunction(mode)
     clearSearch()
@@ -2078,8 +2174,10 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
     selectedDrawingItem.value = null
     clearUnarchivedProductContext()
     if (mode === 'drawing' && !productDrawingDetail.value) drawingViewLevel.value = 'customers'
-    if (mode === 'connector') void loadConnectors()
-    if (mode === 'fixture') void loadFixtures()
+    if (mode === 'connector') void loadConnectors(undefined, { background: connectorRows.value.length > 0 })
+    if (mode === 'fixture') void loadFixtures(undefined, { background: fixtureRows.value.length > 0 })
+    recordNativeModeSwitch(startedAt)
+    requestAnimationFrame(() => recordNativeModeFirstPaint(startedAt))
   }
 
   function revokeUploadItem(item: DocumentHubUploadItem) {
@@ -2353,6 +2451,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   function upsertConnector(connector: ConnectorParameter) {
+    invalidateConnectorListCache()
     for (const list of [localConnectors.value, connectorRows.value]) {
       const existing = list.find((entry) => entry.connectorId === connector.connectorId)
       if (existing) Object.assign(existing, connector)
@@ -2365,6 +2464,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
   }
 
   function removeConnector(connectorId: string) {
+    invalidateConnectorListCache()
     localConnectors.value = localConnectors.value.filter((entry) => entry.connectorId !== connectorId)
     connectorRows.value = connectorRows.value.filter((entry) => entry.connectorId !== connectorId)
     if (selectedConnector.value?.connectorId === connectorId) {
@@ -2457,6 +2557,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
         })
         return result
       }
+      invalidateConnectorListCache()
       localConnectors.value = sortConnectors(clone(result.connectors))
       connectorRows.value = sortConnectors(clone(result.connectors))
       if (searchKeyword.value.trim()) await loadConnectors(searchKeyword.value)
@@ -2749,6 +2850,7 @@ export const useDocumentHubStore = defineStore('document-hub-store', () => {
 
   async function updateConnectorRemark(connectorId: string, remark: string) {
     const nextRemark = remark.trim()
+    invalidateConnectorListCache()
     patchConnector(connectorId, { remark: nextRemark })
     try {
       const updated = await updateHubConnector(connectorId, { remark: nextRemark })

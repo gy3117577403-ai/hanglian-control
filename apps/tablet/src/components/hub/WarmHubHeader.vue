@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ArchiveRestore, ClipboardList, FileText, Folders, ServerCog, UploadCloud } from 'lucide-vue-next'
+import { computed } from 'vue'
 import WarmFunctionOrb from './WarmFunctionOrb.vue'
 import WarmHubSearchBar from './WarmHubSearchBar.vue'
+import WarmNativeHeaderActions from '@/components/native/WarmNativeHeaderActions.vue'
+import { isNativeApp } from '@/native/native-platform'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const nativeHeader = computed(() => isNativeApp() || (typeof document !== 'undefined' && document.documentElement.dataset.nativeApp === 'true'))
 
-defineEmits<{
+const emit = defineEmits<{
   'open-network': []
   'open-pdf-import': []
   'open-maintenance': []
@@ -15,7 +19,14 @@ defineEmits<{
 </script>
 
 <template>
-  <header class="hub-header">
+  <WarmNativeHeaderActions
+    v-if="nativeHeader"
+    @open-network="emit('open-network')"
+    @open-pdf-import="emit('open-pdf-import')"
+    @open-maintenance="emit('open-maintenance')"
+    @open-trash="emit('open-trash')"
+  />
+  <header v-else class="hub-header">
     <div class="header-toolbox">
       <WarmFunctionOrb :active-mode="store.activeMode" @select="store.setActiveMode" />
       <WarmHubSearchBar />

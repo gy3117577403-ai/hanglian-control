@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, reactive, ref } from 'vue'
 import { Database, Download, FileSpreadsheet, Plus, RefreshCw, Ruler, Trash2 } from 'lucide-vue-next'
 import WarmConnectorDetailDialog from './WarmConnectorDetailDialog.vue'
 import WarmConnectorTable from './WarmConnectorTable.vue'
@@ -11,6 +11,7 @@ import type { ConnectorParameter, ConnectorParameterPayload } from '@/types/prod
 const store = useDocumentHubStore()
 
 const fileInput = ref<HTMLInputElement | null>(null)
+const connectorScrollTop = ref(0)
 const editorOpen = ref(false)
 const importResultOpen = ref(false)
 const deleteOpen = ref(false)
@@ -46,6 +47,25 @@ const importSummaryText = computed(() => {
     return `本次读取 ${result.totalRows} 行，${result.validRows ?? 0} 行可导入，${result.errorRows ?? 0} 行格式需修正，${result.duplicateRows?.length ?? 0} 行重复。当前尚未写入，请选择跳过重复、覆盖重复或取消。`
   }
   return `本次读取 ${result.totalRows} 行，成功导入 ${result.importedRows} 行，跳过 ${result.skippedRows} 行。`
+})
+
+function connectorScrollTarget() {
+  return document.querySelector<HTMLElement>('[data-native-connector-list], [data-scroll-key="connectors"]')
+}
+
+onDeactivated(() => {
+  connectorScrollTop.value = connectorScrollTarget()?.scrollTop ?? 0
+})
+
+onActivated(async () => {
+  await nextTick()
+  const target = connectorScrollTarget()
+  if (target) target.scrollTop = connectorScrollTop.value
+  void store.loadConnectors(store.searchKeyword, { background: true })
+})
+
+onBeforeUnmount(() => {
+  connectorScrollTop.value = 0
 })
 
 const actionLabels: Record<string, string> = {

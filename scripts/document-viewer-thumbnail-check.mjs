@@ -252,6 +252,8 @@ const allowedChangedPrefixes = [
   'apps/tablet/src/composables/',
   'apps/tablet/src/components/search/',
   'apps/tablet/src/components/connectors/',
+  'apps/tablet/src/components/native/',
+  'apps/tablet/src/native/',
   'apps/tablet/android/',
 ];
 const v316NativeConnectorFiles = new Set([
@@ -259,11 +261,22 @@ const v316NativeConnectorFiles = new Set([
   'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
   'apps/tablet/src/styles/native-connector-light.css',
   'apps/tablet/src/styles/native-fixed-viewport.css',
+  'apps/tablet/src/styles/native-header-layout.css',
+  'apps/tablet/src/styles/native-interaction-lock.css',
+  'apps/tablet/src/styles/native-switch-performance.css',
+  'apps/tablet/vite.config.ts',
+  'scripts/android-built-assets-check.mjs',
+  'scripts/native-cache-first-check.mjs',
   'scripts/native-connector-layout-check.mjs',
   'scripts/native-connector-scroll-check.mjs',
   'scripts/native-connector-light-check.mjs',
   'scripts/native-connector-runtime-check.mjs',
   'scripts/native-fixed-viewport-check.mjs',
+  'scripts/native-header-layout-check.mjs',
+  'scripts/native-interaction-lock-check.mjs',
+  'scripts/native-mode-switch-check.mjs',
+  'scripts/native-viewport-stability-check.mjs',
+  'scripts/native-webview-zoom-check.mjs',
   'scripts/customer-product-maintenance-check.mjs',
 ])
 for (const file of changed) {

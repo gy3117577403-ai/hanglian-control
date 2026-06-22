@@ -4,8 +4,10 @@ import { ScreenOrientation } from '@capacitor/screen-orientation'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { installAndroidBackHandler } from './android-back-handler'
+import { installNativeGestureLock } from './native-gesture-lock'
 import { initializeNativeNetwork, refreshNativeNetworkStatus } from './native-network'
 import { isNativeApp } from './native-platform'
+import { installNativePerfDiagnostics } from '@/composables/use-native-mode-cache'
 
 type Removable = {
   remove: () => Promise<void> | void
@@ -59,6 +61,8 @@ export async function initializeNativeShell(router: Router) {
 
   const cleanupNetwork = await initializeNativeNetwork()
   const cleanupBack = await installAndroidBackHandler(router)
+  const cleanupGestureLock = installNativeGestureLock()
+  const cleanupPerfDiagnostics = installNativePerfDiagnostics()
   const handles: Removable[] = []
 
   try {
@@ -77,6 +81,8 @@ export async function initializeNativeShell(router: Router) {
   cleanupNativeShell = () => {
     cleanupNetwork?.()
     cleanupBack?.()
+    cleanupGestureLock?.()
+    cleanupPerfDiagnostics?.()
     for (const handle of handles) void handle.remove()
     cleanupNativeShell = null
     initialized = false

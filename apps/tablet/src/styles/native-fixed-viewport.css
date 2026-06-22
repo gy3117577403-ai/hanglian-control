@@ -73,6 +73,10 @@ html[data-native-app="true"] .document-hub-shell.native-auxiliary-mode .hub-body
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
+html[data-native-app="true"] .document-hub-shell.order-sidebar-unmounted .hub-body {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
 html[data-native-app="true"] .document-hub-shell.native-auxiliary-mode .hub-content {
   width: 100%;
 }

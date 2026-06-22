@@ -113,8 +113,8 @@ for (const field of ['connectorModel', 'insertionLengthMm', 'outerStripLengthMm'
   if (!types.includes(field)) fail(`Connector type must still contain field: ${field}`)
 }
 
-if (!buildGradle.includes('versionCode 1602') || !buildGradle.includes('versionName "0.16.2-debug"')) {
-  fail('Android debug version must be 1602 / 0.16.2-debug')
+if (!buildGradle.includes('versionCode 1603') || !buildGradle.includes('versionName "0.16.3-debug"')) {
+  fail('Android debug version must be 1603 / 0.16.3-debug')
 }
 if (!buildGradle.includes('applicationId "com.hanglian.control"')) fail('Android applicationId must remain com.hanglian.control')
 if (/hardwareAccelerated\s*=\s*"false"/.test(manifest) || /hardwareAccelerated\s*=\s*"false"/.test(buildGradle)) {

@@ -121,8 +121,8 @@ assert(productHome.includes('v-if="moveToTrashOpen"'), 'Product home trash dialo
 assert(trashDialog.includes('v-if="purgeVisible"') && trashDialog.includes('v-if="viewerOpen"'), 'Trash purge and trash viewer should be on-demand.');
 
 assert(store.includes('await Promise.all([loadOrders(), loadCustomers()])'), 'Store initialization should not load connector or fixture data before their modes open.');
-assert(store.includes("if (mode === 'connector') void loadConnectors()"), 'Connector data should still load when connector mode opens.');
-assert(store.includes("if (mode === 'fixture') void loadFixtures()"), 'Fixture data should still load when fixture mode opens.');
+assert(/if \(mode === 'connector'\) void loadConnectors\(/.test(store), 'Connector data should still load when connector mode opens.');
+assert(/if \(mode === 'fixture'\) void loadFixtures\(/.test(store), 'Fixture data should still load when fixture mode opens.');
 
 const changed = changedFiles();
 assert(!changed.some((file) => file.startsWith('apps/api/')), 'This frontend performance step must not modify backend files.');

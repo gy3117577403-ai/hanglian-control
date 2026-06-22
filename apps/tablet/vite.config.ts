@@ -4,12 +4,30 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
+const androidViewportContent = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+
+function androidViewportPlugin(enabled: boolean) {
+  return {
+    name: 'hanglian-android-viewport-lock',
+    transformIndexHtml(html: string) {
+      if (!enabled) return html
+      const withoutViewport = html.replace(/\s*<meta\s+name=["']viewport["'][^>]*>\s*/gi, '\n')
+      const viewport = `    <meta name="viewport" content="${androidViewportContent}" />`
+      if (/<meta\s+charset=["']UTF-8["']\s*\/?>/i.test(withoutViewport)) {
+        return withoutViewport.replace(/(<meta\s+charset=["']UTF-8["']\s*\/?>)/i, `$1\n${viewport}`)
+      }
+      return withoutViewport.replace(/<head>/i, `<head>\n${viewport}`)
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const nativeAndroidBuild = mode === 'android'
 
   return {
   plugins: [
+    androidViewportPlugin(nativeAndroidBuild),
     vue(),
     tailwindcss(),
     !nativeAndroidBuild && VitePWA({

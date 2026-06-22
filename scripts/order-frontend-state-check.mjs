@@ -199,19 +199,41 @@ const v315PerformanceFiles = [
 ];
 const v316NativeViewportFiles = [
   'apps/tablet/android/app/build.gradle',
+  'apps/tablet/android/app/src/main/java/com/hanglian/control/MainActivity.java',
   'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
   'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/components/native/WarmNativeHeaderActions.vue',
+  'apps/tablet/src/components/native/WarmNativeMoreMenu.vue',
+  'apps/tablet/src/composables/use-idle-prefetch.ts',
   'apps/tablet/src/composables/use-native-app-viewport.ts',
+  'apps/tablet/src/composables/use-native-mode-cache.ts',
   'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/composables/use-stale-while-revalidate.ts',
+  'apps/tablet/src/native/native-gesture-lock.ts',
+  'apps/tablet/src/native/native-shell.ts',
+  'apps/tablet/src/native/native-viewport-guard.ts',
+  'apps/tablet/src/styles/native-header-layout.css',
+  'apps/tablet/src/styles/native-interaction-lock.css',
   'apps/tablet/src/styles/native-connector-light.css',
   'apps/tablet/src/styles/native-fixed-viewport.css',
+  'apps/tablet/src/styles/native-switch-performance.css',
+  'apps/tablet/vite.config.ts',
   'scripts/android-app-foundation-check.mjs',
+  'scripts/android-built-assets-check.mjs',
   'scripts/frontend-lazy-loading-check.mjs',
+  'scripts/native-cache-first-check.mjs',
   'scripts/native-connector-layout-check.mjs',
   'scripts/native-connector-scroll-check.mjs',
   'scripts/native-connector-light-check.mjs',
   'scripts/native-connector-runtime-check.mjs',
   'scripts/native-fixed-viewport-check.mjs',
+  'scripts/native-header-layout-check.mjs',
+  'scripts/native-interaction-lock-check.mjs',
+  'scripts/native-mode-switch-check.mjs',
+  'scripts/native-viewport-stability-check.mjs',
+  'scripts/native-webview-zoom-check.mjs',
+  'scripts/product-detail-cache-check.mjs',
 ];
 
 const allowed = new Set([
@@ -258,6 +280,8 @@ const allowed = new Set([
 const allowedPrefixes = [
   'apps/tablet/src/components/search/',
   'apps/tablet/src/components/connectors/',
+  'apps/tablet/src/components/native/',
+  'apps/tablet/src/native/',
 ];
 for (const file of changedFiles()) {
   const isAllowed = allowed.has(file) || allowedPrefixes.some((prefix) => file.startsWith(prefix));

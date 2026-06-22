@@ -51,6 +51,7 @@ const table = read('apps/tablet/src/components/connector/WarmConnectorTable.vue'
 const parameterView = read('apps/tablet/src/components/connector/WarmConnectorParameterView.vue')
 const performanceCss = read('apps/tablet/src/styles/tablet-performance.css')
 const nativeViewport = read('apps/tablet/src/composables/use-native-app-viewport.ts')
+const nativeViewportGuard = read('apps/tablet/src/native/native-viewport-guard.ts')
 const appVue = read('apps/tablet/src/App.vue')
 const primeVue = read('apps/tablet/src/plugins/primevue.ts')
 const manifest = read('apps/tablet/android/app/src/main/AndroidManifest.xml')
@@ -97,11 +98,11 @@ if (!performanceCss.includes('display: none !important') || !performanceCss.incl
   fail('Native performance CSS must suppress connector row ripple artifacts')
 }
 
-if (!nativeViewport.includes('requestAnimationFrame')) fail('Native viewport diagnostics must throttle updates with requestAnimationFrame')
-if (!nativeViewport.includes('{ passive: true }')) fail('Native viewport diagnostics must use passive listeners')
+if (!(nativeViewport + nativeViewportGuard).includes('requestAnimationFrame')) fail('Native viewport diagnostics must throttle updates with requestAnimationFrame')
+if (!(nativeViewport + nativeViewportGuard).includes('{ passive: true }')) fail('Native viewport diagnostics must use passive listeners')
 if (!nativeViewport.includes('onBeforeUnmount')) fail('Native viewport diagnostics must clean up listeners')
 if (!nativeViewport.includes('android-lan-debug')) fail('Native viewport diagnostics must only expose in debug Android LAN builds')
-if (!nativeViewport.includes('delete window.__HANGLIAN_NATIVE_VIEWPORT__')) fail('Native viewport diagnostics must clean its debug object')
+if (!nativeViewportGuard.includes('delete window.__HANGLIAN_NATIVE_VIEWPORT__')) fail('Native viewport diagnostics must clean its debug object')
 if (!appVue.includes('useNativeAppViewport(performanceTier)')) fail('App must install native viewport diagnostics')
 
 if (/hardwareAccelerated\s*=\s*"false"/.test(manifest)) fail('Android manifest must not disable hardware acceleration')

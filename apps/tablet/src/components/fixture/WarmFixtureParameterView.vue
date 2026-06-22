@@ -1,9 +1,30 @@
 <script setup lang="ts">
+import { nextTick, onActivated, onBeforeUnmount, onDeactivated, ref } from 'vue'
 import WarmFixtureDetailDialog from './WarmFixtureDetailDialog.vue'
 import WarmFixtureTable from './WarmFixtureTable.vue'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
 
 const store = useDocumentHubStore()
+const fixtureScrollTop = ref(0)
+
+function fixtureScrollTarget() {
+  return document.querySelector<HTMLElement>('.parameter-view [data-scroll-key="fixtures"], .parameter-view .scroll-area')
+}
+
+onDeactivated(() => {
+  fixtureScrollTop.value = fixtureScrollTarget()?.scrollTop ?? 0
+})
+
+onActivated(async () => {
+  await nextTick()
+  const target = fixtureScrollTarget()
+  if (target) target.scrollTop = fixtureScrollTop.value
+  void store.loadFixtures(store.searchKeyword, { background: true })
+})
+
+onBeforeUnmount(() => {
+  fixtureScrollTop.value = 0
+})
 </script>
 
 <template>
@@ -16,7 +37,7 @@ const store = useDocumentHubStore()
       </div>
       <b>{{ store.fixtureRows.length }} 条</b>
     </section>
-    <div class="scroll-area">
+    <div class="scroll-area" data-scroll-key="fixtures">
       <WarmFixtureTable :rows="store.fixtureRows" @open="store.openFixtureDetail" />
     </div>
     <WarmFixtureDetailDialog />

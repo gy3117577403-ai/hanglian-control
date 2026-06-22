@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import WarmHubContent from './WarmHubContent.vue'
 import WarmHubHeader from './WarmHubHeader.vue'
 import WarmOrderSidebar from '@/components/orders/WarmOrderSidebar.vue'
 import { useNativeLayoutDiagnostics } from '@/composables/use-native-app-viewport'
+import { useIdlePrefetch } from '@/composables/use-idle-prefetch'
 import { createWarmAsyncComponent } from '@/lib/async-components'
 import { isNativeApp } from '@/native/native-platform'
 import { useDocumentHubStore } from '@/stores/document-hub-store'
@@ -48,9 +49,23 @@ const { refreshNativeLayoutDiagnostics } = useNativeLayoutDiagnostics({
   orderSidebarMounted: mountOrderSidebar,
   connectorItemCount: computed(() => store.connectorRows.length),
 })
+let cleanupIdlePrefetch: (() => void) | null = null
 
 onMounted(() => {
   void store.initialize()
+  cleanupIdlePrefetch = useIdlePrefetch([
+    { name: 'connector-view', load: () => import('@/components/connector/WarmConnectorParameterView.vue'), reduced: true },
+    { name: 'fixture-view', load: () => import('@/components/fixture/WarmFixtureParameterView.vue'), reduced: true },
+    { name: 'customer-product-maintenance', load: () => import('@/components/maintenance/WarmCustomerProductMaintenanceDialog.vue') },
+    { name: 'order-overview', load: () => import('@/components/orders/WarmOrderOverviewDialog.vue') },
+    { name: 'drawing-trash', load: () => import('@/components/trash/WarmDrawingTrashDialog.vue') },
+    { name: 'hub-upload', load: () => import('./WarmHubUploadDialog.vue') },
+  ])
+})
+
+onBeforeUnmount(() => {
+  cleanupIdlePrefetch?.()
+  cleanupIdlePrefetch = null
 })
 
 watch(() => route.fullPath, () => {
@@ -69,6 +84,7 @@ function openDrawingTrash() {
     :class="{
       'orders-collapsed': store.effectiveOrderSidebarCollapsed,
       'native-auxiliary-mode': nativeAuxiliaryMode,
+      'order-sidebar-unmounted': !mountOrderSidebar,
     }"
   >
     <WarmHubHeader
@@ -182,6 +198,10 @@ function openDrawingTrash() {
 }
 
 .document-hub-shell.native-auxiliary-mode .hub-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.document-hub-shell.order-sidebar-unmounted .hub-body {
   grid-template-columns: minmax(0, 1fr);
 }
 

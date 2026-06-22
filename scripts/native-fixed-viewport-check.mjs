@@ -35,12 +35,15 @@ function changedFiles() {
 const app = read('apps/tablet/src/App.vue')
 const main = read('apps/tablet/src/main.ts')
 const fixedCss = read('apps/tablet/src/styles/native-fixed-viewport.css')
+const interactionCss = read('apps/tablet/src/styles/native-interaction-lock.css')
 const viewport = read('apps/tablet/src/composables/use-native-app-viewport.ts')
+const viewportGuard = read('apps/tablet/src/native/native-viewport-guard.ts')
 const dashboard = read('apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue')
 const packageJson = read('package.json')
 
 if (!packageJson.includes('"native-fixed-viewport:check"')) fail('package.json must expose native-fixed-viewport:check')
 if (!main.includes('./styles/native-fixed-viewport.css')) fail('main.ts must load native-fixed-viewport.css')
+if (!main.includes('./styles/native-interaction-lock.css')) fail('main.ts must load native-interaction-lock.css')
 if (!app.includes('useNativeAppViewport(performanceTier)')) fail('App.vue must install native app viewport sizing')
 
 for (const selector of [
@@ -63,33 +66,32 @@ for (const token of [
   'inset: 0',
   'grid-template-rows: auto minmax(0, 1fr)',
 ]) {
-  if (!fixedCss.includes(token)) fail(`Native fixed viewport CSS missing: ${token}`)
+  if (!(fixedCss.includes(token) || interactionCss.includes(token))) fail(`Native fixed viewport CSS missing: ${token}`)
 }
 
-if (!/--native-app-height/.test(viewport) || !/--native-app-width/.test(viewport)) {
-  fail('Native viewport composable must write native app CSS size variables')
+if (!/--native-app-height/.test(viewportGuard) || /setProperty\('--native-app-width'/.test(viewportGuard)) {
+  fail('Native viewport guard must write height only and must not control root width from visualViewport')
 }
 for (const token of [
-  'window.visualViewport?.height',
+  'installNativeViewportGuard',
   'window.innerHeight',
+  'document.documentElement.clientWidth',
   'visualViewport?.addEventListener',
   "'resize'",
   "'orientationchange'",
   'requestAnimationFrame',
-  'onBeforeUnmount',
-  'removeEventListener',
   'visibilitychange',
   'validSize',
 ]) {
-  if (!viewport.includes(token)) fail(`Native viewport composable missing: ${token}`)
+  if (!(viewport.includes(token) || viewportGuard.includes(token))) fail(`Native viewport implementation missing: ${token}`)
 }
-if (/localStorage|sessionStorage|fetch\(|navigator\.sendBeacon|XMLHttpRequest/.test(viewport)) {
+if (/localStorage|sessionStorage|fetch\(|navigator\.sendBeacon|XMLHttpRequest/.test(viewport + viewportGuard)) {
   fail('Native viewport diagnostics must not persist or upload viewport data')
 }
 if (!viewport.includes('canExposeDebugObject') || !viewport.includes('android-lan-debug')) {
   fail('Native viewport debug objects must be gated to debug Android LAN builds')
 }
-if (!fixedCss.includes('.p-dialog-content') || !fixedCss.includes('overflow-y: auto')) {
+if (!(fixedCss + interactionCss).includes('.p-dialog-content') || !(fixedCss + interactionCss).includes('overflow-y: auto')) {
   fail('Native fixed viewport CSS must keep dialog content internally scrollable')
 }
 if (!dashboard.includes('native-auxiliary-mode')) {

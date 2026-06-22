@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, ref } from 'vue'
 import WarmDrawingBreadcrumb from './WarmDrawingBreadcrumb.vue'
 import WarmProductDrawingHome from './WarmProductDrawingHome.vue'
 import { createWarmAsyncComponent } from '@/lib/async-components'
@@ -17,6 +17,21 @@ const WarmDocumentViewer = createWarmAsyncComponent(() => import('@/components/v
   label: '正在加载资料查看器...',
 })
 const viewerItems = computed<DocumentViewerItem[]>(() => store.selectedModule?.items ?? [])
+const drawingScrollTop = ref(0)
+
+function drawingScrollTarget() {
+  return document.querySelector<HTMLElement>('.drawing-library [data-scroll-key], .drawing-library .scroll-area')
+}
+
+onDeactivated(() => {
+  drawingScrollTop.value = drawingScrollTarget()?.scrollTop ?? 0
+})
+
+onActivated(async () => {
+  await nextTick()
+  const target = drawingScrollTarget()
+  if (target) target.scrollTop = drawingScrollTop.value
+})
 </script>
 
 <template>

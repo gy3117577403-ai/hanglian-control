@@ -1,20 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, type ComputedRef } from 'vue'
 import { isNativeApp } from '@/native/native-platform'
-type NativeViewportSnapshot = {
-  width: number
-  height: number
-  innerWidth: number
-  innerHeight: number
-  visualViewportWidth: number
-  visualViewportHeight: number
-  devicePixelRatio: number
-}
-
-declare global {
-  interface Window {
-    __HANGLIAN_NATIVE_VIEWPORT__?: NativeViewportSnapshot
-  }
-}
+import type { NativeViewportSnapshot } from '@/native/native-viewport-guard'
 
 function canExposeNativeViewport() {
   const apiEnv = String(import.meta.env.VITE_NATIVE_API_ENV ?? '')
@@ -24,14 +10,20 @@ function canExposeNativeViewport() {
 function readSnapshot(): NativeViewportSnapshot {
   const visualViewportWidth = window.visualViewport?.width ?? window.innerWidth
   const visualViewportHeight = window.visualViewport?.height ?? window.innerHeight
+  const visualViewportScale = window.visualViewport?.scale ?? 1
   return {
-    width: Math.round(visualViewportWidth),
-    height: Math.round(visualViewportHeight),
+    width: Math.round(document.documentElement.clientWidth || window.innerWidth),
+    height: Math.round(window.innerHeight),
     innerWidth: window.innerWidth,
     innerHeight: window.innerHeight,
     visualViewportWidth,
     visualViewportHeight,
+    visualViewportScale,
+    visualViewportOffsetLeft: window.visualViewport?.offsetLeft ?? 0,
+    visualViewportOffsetTop: window.visualViewport?.offsetTop ?? 0,
     devicePixelRatio: window.devicePixelRatio || 1,
+    ignoredZoomResizeCount: 0,
+    acceptedResizeCount: 0,
   }
 }
 
