@@ -44,20 +44,20 @@ export interface DrawingRepository {
 export type DocumentRepository = DocumentRepositoryInterface;
 
 export interface OrderRepository {
-  ensureInitialized(): OrderMetadataSummary;
-  initializeFromSeedIfEmpty(): OrderMetadataSummary;
-  listOrders(filters?: OrderListFilters): ProductionOrderRecord[];
-  getOrderById(orderId: string): ProductionOrderRecord | undefined;
-  createOrder(input: CreateProductionOrderInput): ProductionOrderRecord;
-  createOrders(inputs: CreateProductionOrderInput[]): ProductionOrderRecord[];
-  updateOrder(orderId: string, patch: Partial<CreateProductionOrderInput>): ProductionOrderRecord | undefined;
-  completeOrder(orderId: string, operator?: string): ProductionOrderRecord | undefined;
-  restoreOrder(orderId: string, operator?: string, productionStatus?: OrderProductionStatus): ProductionOrderRecord | undefined;
-  saveImportBatch(batch: OrderImportBatchRecord): OrderImportBatchRecord;
-  getImportBatch(importBatchId: string): OrderImportBatchRecord | undefined;
-  listImportBatches(): OrderImportBatchRecord[];
-  updateImportBatch(importBatchId: string, patch: Partial<OrderImportBatchRecord>): OrderImportBatchRecord | undefined;
-  getSafeSummary(): OrderMetadataSummary;
+  ensureInitialized(): MaybePromise<OrderMetadataSummary>;
+  initializeFromSeedIfEmpty(): MaybePromise<OrderMetadataSummary>;
+  listOrders(filters?: OrderListFilters): MaybePromise<ProductionOrderRecord[]>;
+  getOrderById(orderId: string): MaybePromise<ProductionOrderRecord | undefined>;
+  createOrder(input: CreateProductionOrderInput): MaybePromise<ProductionOrderRecord>;
+  createOrders(inputs: CreateProductionOrderInput[]): MaybePromise<ProductionOrderRecord[]>;
+  updateOrder(orderId: string, patch: Partial<CreateProductionOrderInput>): MaybePromise<ProductionOrderRecord | undefined>;
+  completeOrder(orderId: string, operator?: string): MaybePromise<ProductionOrderRecord | undefined>;
+  restoreOrder(orderId: string, operator?: string, productionStatus?: OrderProductionStatus): MaybePromise<ProductionOrderRecord | undefined>;
+  saveImportBatch(batch: OrderImportBatchRecord): MaybePromise<OrderImportBatchRecord>;
+  getImportBatch(importBatchId: string): MaybePromise<OrderImportBatchRecord | undefined>;
+  listImportBatches(): MaybePromise<OrderImportBatchRecord[]>;
+  updateImportBatch(importBatchId: string, patch: Partial<OrderImportBatchRecord>): MaybePromise<OrderImportBatchRecord | undefined>;
+  getSafeSummary(): MaybePromise<OrderMetadataSummary>;
 }
 
 export interface AuditRepository {
@@ -75,12 +75,12 @@ export interface DeleteLockSetting {
 }
 
 export interface DeleteLockRepository {
-  readSettings(): DeleteLockSetting;
-  writeSettings(setting: DeleteLockSetting): void;
-  updateFailedAttempts(failedAttempts: number, lockedUntil: string | null): DeleteLockSetting;
-  updateLockedUntil(lockedUntil: string | null): DeleteLockSetting;
-  updatePasswordHash(passwordHash: string, updatedBy: string): DeleteLockSetting;
-  resetLockState(): DeleteLockSetting;
+  readSettings(): MaybePromise<DeleteLockSetting>;
+  writeSettings(setting: DeleteLockSetting): MaybePromise<void>;
+  updateFailedAttempts(failedAttempts: number, lockedUntil: string | null): MaybePromise<DeleteLockSetting>;
+  updateLockedUntil(lockedUntil: string | null): MaybePromise<DeleteLockSetting>;
+  updatePasswordHash(passwordHash: string, updatedBy: string): MaybePromise<DeleteLockSetting>;
+  resetLockState(): MaybePromise<DeleteLockSetting>;
 }
 
 export interface PersistenceUnitOfWork {

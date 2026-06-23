@@ -212,20 +212,21 @@ model User {
 }
 
 model Customer {
-  id                String           @id @default(cuid())
+  id                String            @id @default(cuid())
   name              String
-  code              String?          @unique
+  code              String?           @unique
   customerName      String?
   customerShortName String?
   customerCode      String?
   aliases           Json?
-  status            String           @default("active")
+  status            String            @default("active")
   salesOwner        String?
   deletedAt         DateTime?
   products          Product[]
+  productionOrders  ProductionOrder[]
   pdfImportBatches  PdfImportBatch[]
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@index([name])
   @@index([customerName])
@@ -257,6 +258,7 @@ model Product {
   documents              ProductDocument[]
   pdfImportExistingItems PdfImportItem[]         @relation("PdfImportExistingProduct")
   pdfImportResultItems   PdfImportItem[]         @relation("PdfImportResultProduct")
+  productionOrders       ProductionOrder[]       @relation("ProductionOrderLinkedProduct")
   frontParameters        FrontProcessParameter[]
   backPackages           BackProcessPackage[]
   fixtures               Fixture[]
@@ -270,6 +272,121 @@ model Product {
   @@index([processSegment])
   @@index([deletedAt])
   @@index([updatedAt])
+}
+
+model ProductionOrder {
+  orderId                 String            @id
+  scope                   String
+  productModel            String
+  normalizedProductModel  String
+  customerId              String?
+  customer                Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName            String?
+  linkedProductId         String?
+  linkedProduct           Product?          @relation("ProductionOrderLinkedProduct", fields: [linkedProductId], references: [id], onDelete: SetNull)
+  productResolutionStatus String            @default("unknown")
+  quantity                Int?
+  quantityProvided        Boolean           @default(false)
+  productionStatus        String            @default("no_drawing")
+  completionStatus        String            @default("pending")
+  source                  String            @default("manual_create")
+  importBatchId           String?
+  importBatch             OrderImportBatch? @relation(fields: [importBatchId], references: [importBatchId], onDelete: SetNull)
+  importItemId            String?           @unique
+  importItem              OrderImportItem?  @relation(fields: [importItemId], references: [importItemId], onDelete: SetNull)
+  remark                  String?
+  plannedDate             DateTime?
+  completedAt             DateTime?
+  completedBy             String?
+  restoredAt              DateTime?
+  restoredBy              String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  deletedAt               DateTime?
+
+  @@index([scope])
+  @@index([normalizedProductModel])
+  @@index([customerId])
+  @@index([linkedProductId])
+  @@index([productResolutionStatus])
+  @@index([productionStatus])
+  @@index([completionStatus])
+  @@index([source])
+  @@index([importBatchId])
+  @@index([importItemId])
+  @@index([plannedDate])
+  @@index([completedAt])
+  @@index([deletedAt])
+  @@index([scope, completionStatus, deletedAt])
+  @@index([scope, normalizedProductModel, completionStatus, deletedAt])
+}
+
+model OrderImportBatch {
+  importBatchId          String            @id
+  scope                  String
+  fileName               String?
+  status                 String            @default("previewed")
+  totalRows              Int               @default(0)
+  createOrderCount       Int               @default(0)
+  alreadyActiveCount     Int               @default(0)
+  duplicateInFileCount   Int               @default(0)
+  needsConfirmationCount Int               @default(0)
+  productNotFoundCount   Int               @default(0)
+  errorCount             Int               @default(0)
+  createdCount           Int?
+  skippedCount           Int?
+  appliedAt              DateTime?
+  expiresAt              DateTime?
+  operatorId             String?
+  operatorName           String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  items                  OrderImportItem[]
+  orders                 ProductionOrder[]
+
+  @@index([scope])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([appliedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model OrderImportItem {
+  importItemId                String           @id
+  importBatchId               String
+  batch                       OrderImportBatch @relation(fields: [importBatchId], references: [importBatchId], onDelete: Cascade)
+  rowNumber                   Int
+  rawProductModel             String
+  productModel                String
+  normalizedProductModel      String
+  productResolutionStatus     String           @default("unknown")
+  matchedCustomerId           String?
+  matchedCustomerName         String?
+  matchedProductId            String?
+  recommendedProductionStatus String           @default("no_drawing")
+  action                      String           @default("error")
+  message                     String?
+  errorMessage                String?
+  applyResult                 String?
+  applyMessage                String?
+  applyErrorMessage           String?
+  appliedAt                   DateTime?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  order                       ProductionOrder?
+
+  @@index([importBatchId])
+  @@index([rowNumber])
+  @@index([normalizedProductModel])
+  @@index([productResolutionStatus])
+  @@index([matchedCustomerId])
+  @@index([matchedProductId])
+  @@index([recommendedProductionStatus])
+  @@index([action])
+  @@index([applyResult])
+  @@index([appliedAt])
+  @@index([createdAt])
 }
 
 model ProductionPlan {
@@ -342,6 +459,7 @@ model ProductDocument {
   mockPreviewText        String?
   keywords               String[]
   keywordMeta            Json?
+  description            String?
   remark                 String?
   sortOrder              Int             @default(0)
   isCover                Boolean         @default(false)
@@ -508,6 +626,7 @@ model AuditLog {
   planId       String?
   customerId   String?
   productId    String?
+  orderId      String?
   createdAt    DateTime        @default(now())
 
   @@index([entityType])
@@ -517,6 +636,7 @@ model AuditLog {
   @@index([planId])
   @@index([customerId])
   @@index([productId])
+  @@index([orderId])
   @@index([operatorId])
   @@index([createdAt])
 }
@@ -580,6 +700,7 @@ model QueryLog {
   createdAt        DateTime        @default(now())
 
   @@index([productionPlanId])
+  @@index([userId])
   @@index([createdAt])
   @@index([deletedAt])
 }
@@ -598,6 +719,7 @@ model ConfirmationRecord {
   createdAt        DateTime       @default(now())
 
   @@index([productionPlanId])
+  @@index([userId])
   @@index([createdAt])
   @@index([deletedAt])
 }
@@ -616,6 +738,7 @@ model FeedbackRecord {
   resolvedAt       DateTime?
 
   @@index([productionPlanId])
+  @@index([userId])
   @@index([feedbackType])
   @@index([createdAt])
   @@index([deletedAt])

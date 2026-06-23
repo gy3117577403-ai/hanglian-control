@@ -83,7 +83,7 @@ export class OrderStatusSyncService {
     reason?: string;
   } = {}) {
     const hasOriginalDrawing = await this.hasEffectiveOriginalDrawing(productId);
-    const activeOrders = this.orderRepository.listOrders({
+    const activeOrders = await this.orderRepository.listOrders({
       linkedProductId: productId,
       completionStatus: 'pending',
     });
@@ -95,7 +95,7 @@ export class OrderStatusSyncService {
         ? (order.productionStatus === 'no_drawing' ? 'front' : order.productionStatus)
         : 'no_drawing';
       if (nextStatus === order.productionStatus) continue;
-      const updated = this.orderRepository.updateOrder(order.orderId, {
+      const updated = await this.orderRepository.updateOrder(order.orderId, {
         productionStatus: nextStatus,
       });
       if (!updated) continue;

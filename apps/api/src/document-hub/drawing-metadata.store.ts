@@ -788,7 +788,7 @@ export class DrawingMetadataStore {
   }
 
   private assertMetadataReadable() {
-    const metadataDir = this.localStorageService.getMetadataDir();
+    const metadataDir = this.getMetadataDir();
     for (const fileName of [customersFile, productsFile, moduleStateFile, importRecordsFile]) {
       const file = join(metadataDir, fileName);
       if (!existsSync(file)) continue;
@@ -808,5 +808,15 @@ export class DrawingMetadataStore {
   private writeArray<T>(fileName: string, records: T[], normalize: (value: unknown) => T | undefined) {
     const normalized = asArray(records).map(normalize).filter(Boolean) as T[];
     this.localStorageService.writeMetadataArraySync(fileName, normalized);
+  }
+
+  private getMetadataDir() {
+    const service = this.localStorageService as unknown as {
+      getMetadataDir?: () => string;
+      metadataDir?: string;
+    };
+    if (typeof service.getMetadataDir === 'function') return service.getMetadataDir();
+    if (typeof service.metadataDir === 'string') return service.metadataDir;
+    throw new Error('Local storage metadata directory is not available.');
   }
 }

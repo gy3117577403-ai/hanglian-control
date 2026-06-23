@@ -109,7 +109,7 @@ export class OrderImportService {
       }
       seen.add(parsed.normalizedProductModel);
 
-      if (this.hasActiveOrder(scope, parsed.normalizedProductModel)) {
+      if (await this.hasActiveOrder(scope, parsed.normalizedProductModel)) {
         items.push(this.makePreviewItem({
           importItemId,
           rowNumber: parsed.rowNumber,
@@ -145,7 +145,7 @@ export class OrderImportService {
     }
 
     const createdAt = new Date().toISOString();
-    const batch = this.orderRepository.saveImportBatch({
+    const batch = await this.orderRepository.saveImportBatch({
       importBatchId,
       scope,
       fileName: file?.originalname,
@@ -170,13 +170,13 @@ export class OrderImportService {
   async apply(dto: OrderImportApplyDto) {
     const importBatchId = cleanText(dto.importBatchId);
     if (!importBatchId) throw new BadRequestException('订单导入批次不能为空。');
-    const batch = this.orderRepository.getImportBatch(importBatchId);
+    const batch = await this.orderRepository.getImportBatch(importBatchId);
     if (!batch) throw new NotFoundException('订单导入预览记录不存在。');
     if (batch.status === 'applying' || applyingLocks.has(importBatchId)) {
       throw new ConflictException('该订单导入批次正在处理，请稍后再试。');
     }
     if (this.isExpired(batch)) {
-      this.orderRepository.updateImportBatch(importBatchId, { status: 'expired' });
+      await this.orderRepository.updateImportBatch(importBatchId, { status: 'expired' });
       throw new GoneException('订单导入预览已过期，请重新上传 XLSX。');
     }
     if (this.isCompleted(batch)) return this.toSafeApplyResponse(batch);
@@ -193,13 +193,13 @@ export class OrderImportService {
     const op = operator(dto);
     applyingLocks.add(importBatchId);
     try {
-      this.orderRepository.updateImportBatch(importBatchId, {
+      await this.orderRepository.updateImportBatch(importBatchId, {
         status: 'applying',
         operatorId: op.operatorId,
         operatorName: op.operatorName,
       });
 
-      const latest = this.orderRepository.getImportBatch(importBatchId) ?? batch;
+      const latest = await this.orderRepository.getImportBatch(importBatchId) ?? batch;
       const previousApplyItems = new Map((latest.applyItems ?? []).map((item) => [item.importItemId, item]));
       const requestById = new Map(requestItems.map((item) => [item.importItemId, item]));
 
@@ -217,7 +217,7 @@ export class OrderImportService {
         .filter(Boolean) as OrderImportApplyItemRecord[];
       const status = this.deriveBatchStatus(applyItems);
       const appliedAt = new Date().toISOString();
-      const saved = this.orderRepository.updateImportBatch(importBatchId, {
+      const saved = await this.orderRepository.updateImportBatch(importBatchId, {
         status,
         appliedAt,
         applyItems,
@@ -256,7 +256,7 @@ export class OrderImportService {
     if (item.action === 'duplicate_in_file') {
       return { ...base, result: 'skipped_duplicate', message: '文件内重复型号已跳过。' };
     }
-    if (item.action === 'already_active' || this.hasActiveOrder(batch.scope, item.normalizedProductModel)) {
+    if (item.action === 'already_active' || await this.hasActiveOrder(batch.scope, item.normalizedProductModel)) {
       return { ...base, result: 'already_active', message: '同范围内已有进行中的相同产品型号订单。' };
     }
 
@@ -266,7 +266,7 @@ export class OrderImportService {
     const productionStatus = await this.orderStatusSyncService.deriveProductionStatus({
       linkedProductId: link.product?.productId ?? null,
     });
-    const created = this.orderRepository.createOrder({
+    const created = await this.orderRepository.createOrder({
       scope: batch.scope,
       productModel: item.productModel,
       normalizedProductModel: item.normalizedProductModel,
@@ -356,11 +356,12 @@ export class OrderImportService {
     return { status: 'found', product, customer };
   }
 
-  private hasActiveOrder(scope: 'today' | 'week', normalizedProductModel: string) {
-    return this.orderRepository.listOrders({
+  private async hasActiveOrder(scope: 'today' | 'week', normalizedProductModel: string) {
+    const orders = await this.orderRepository.listOrders({
       scope,
       completionStatus: 'pending',
-    }).some((order) => order.normalizedProductModel === normalizedProductModel);
+    });
+    return orders.some((order) => order.normalizedProductModel === normalizedProductModel);
   }
 
   private actionForResolution(status: ProductResolutionStatus): OrderImportAction {

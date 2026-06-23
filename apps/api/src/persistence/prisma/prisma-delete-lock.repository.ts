@@ -3,11 +3,29 @@ import { PrismaService } from '../../database/prisma.service';
 import { DatabaseConfigService } from '../../database/database-config.service';
 import type { DeleteLockRepository, DeleteLockSetting } from '../persistence.types';
 
+const singletonId = 'document-delete-lock';
+
 function defaultSetting(): DeleteLockSetting {
   return {
     enabled: true,
     failedAttempts: 0,
     lockedUntil: null,
+  };
+}
+
+function iso(value?: Date | string | null) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function mapSetting(row: Record<string, any> | null | undefined): DeleteLockSetting {
+  if (!row) return defaultSetting();
+  return {
+    enabled: row.enabled,
+    passwordHash: row.passwordHash,
+    failedAttempts: row.failedAttempts,
+    lockedUntil: iso(row.lockedUntil),
+    updatedAt: iso(row.updatedAt) ?? undefined,
+    updatedBy: row.updatedBy ?? undefined,
   };
 }
 
@@ -18,44 +36,70 @@ export class PrismaDeleteLockRepository implements DeleteLockRepository {
     private readonly databaseConfig: DatabaseConfigService,
   ) {}
 
-  readSettings(): DeleteLockSetting {
+  async readSettings(): Promise<DeleteLockSetting> {
     this.assertReadable();
-    return defaultSetting();
+    const row = await this.prismaService.client.deleteLockSetting.findUnique({
+      where: { id: singletonId },
+    });
+    return mapSetting(row);
   }
 
-  writeSettings(_setting: DeleteLockSetting) {
+  async writeSettings(setting: DeleteLockSetting): Promise<void> {
     this.assertWritable();
+    await this.prismaService.client.deleteLockSetting.upsert({
+      where: { id: singletonId },
+      create: this.toData(setting),
+      update: this.toData(setting),
+    });
   }
 
-  updateFailedAttempts(failedAttempts: number, lockedUntil: string | null) {
-    this.assertWritable();
-    return { ...defaultSetting(), failedAttempts, lockedUntil };
+  async updateFailedAttempts(failedAttempts: number, lockedUntil: string | null) {
+    const current = await this.readSettings();
+    const next = { ...current, failedAttempts, lockedUntil };
+    await this.writeSettings(next);
+    return next;
   }
 
-  updateLockedUntil(lockedUntil: string | null) {
-    this.assertWritable();
-    return { ...defaultSetting(), lockedUntil };
+  async updateLockedUntil(lockedUntil: string | null) {
+    const current = await this.readSettings();
+    const next = { ...current, lockedUntil };
+    await this.writeSettings(next);
+    return next;
   }
 
-  updatePasswordHash(passwordHash: string, updatedBy: string) {
-    this.assertWritable();
-    return {
+  async updatePasswordHash(passwordHash: string, updatedBy: string) {
+    const next = {
       ...defaultSetting(),
       passwordHash,
       updatedBy,
       updatedAt: new Date().toISOString(),
     };
+    await this.writeSettings(next);
+    return next;
   }
 
-  resetLockState() {
-    this.assertWritable();
-    return defaultSetting();
+  async resetLockState() {
+    const current = await this.readSettings();
+    const next = { ...current, failedAttempts: 0, lockedUntil: null };
+    await this.writeSettings(next);
+    return next;
+  }
+
+  private toData(setting: DeleteLockSetting) {
+    return {
+      id: singletonId,
+      enabled: setting.enabled,
+      passwordHash: setting.passwordHash ?? '',
+      failedAttempts: setting.failedAttempts,
+      lockedUntil: setting.lockedUntil ? new Date(setting.lockedUntil) : null,
+      updatedBy: setting.updatedBy,
+    };
   }
 
   private assertReadable() {
     this.databaseConfig.assertCanStartPostgres();
     if (!this.prismaService.getSafeStatus().databaseConnected) {
-      throw new ServiceUnavailableException('PostgreSQL 连接尚未就绪。');
+      throw new ServiceUnavailableException('PostgreSQL connection is not ready.');
     }
   }
 

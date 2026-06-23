@@ -186,7 +186,7 @@ export class UnifiedDocumentsService {
   }
 
   async delete(id: string, dto: DeleteItemDto) {
-    this.deleteLockService.assertVerified(dto.password);
+    await this.deleteLockService.assertVerified(dto.password);
     const before = this.findStoredDocument(id);
     const next = this.patchStoredDocument(id, {
       deleted: true,
@@ -214,7 +214,7 @@ export class UnifiedDocumentsService {
 
   async purge(id: string, dto: PurgeItemDto) {
     this.assertPurge(dto);
-    this.deleteLockService.assertVerified(dto.password);
+    await this.deleteLockService.assertVerified(dto.password);
     const document = this.findStoredDocument(id);
     const documents = this.localStorageService.readDocumentsSync() as MutableDocument[];
     const nextDocuments = documents.filter((item) => documentId(item) !== id);
@@ -233,7 +233,7 @@ export class UnifiedDocumentsService {
   }
 
   async bulkDelete(dto: BulkDeleteDto) {
-    this.deleteLockService.assertVerified(dto.password);
+    await this.deleteLockService.assertVerified(dto.password);
     return this.bulk(dto.ids, (id) => this.deleteWithoutPassword(id, dto.reason));
   }
 
@@ -243,7 +243,7 @@ export class UnifiedDocumentsService {
 
   async bulkPurge(dto: BulkPurgeDto) {
     this.assertPurge(dto);
-    this.deleteLockService.assertVerified(dto.password);
+    await this.deleteLockService.assertVerified(dto.password);
     return this.bulk(dto.ids, (id) => this.purgeWithoutPassword(id, dto.reason));
   }
 

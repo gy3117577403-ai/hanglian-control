@@ -442,6 +442,7 @@ export function mapPrismaAuditLog(row: AnyRecord): AuditLog {
     operatorRole: row.operatorRole ?? 'system',
     planId: row.planId ?? undefined,
     productId: row.productId ?? undefined,
+    orderId: row.orderId ?? undefined,
     createdAt: dateTime(row.createdAt),
   };
 }

@@ -168,7 +168,7 @@ export class DocumentLifecycleService {
         });
       }
 
-      this.deleteLockService.assertVerified(dto.password);
+      await this.deleteLockService.assertVerified(dto.password);
 
       const timestamp = new Date().toISOString();
       const { operatorId, operatorName } = operator(dto);
@@ -324,7 +324,7 @@ export class DocumentLifecycleService {
         throw new ConflictException('\u8bf7\u5148\u5c06\u8d44\u6599\u79fb\u5165\u56de\u6536\u7ad9\u3002');
       }
 
-      this.deleteLockService.assertVerified(dto.password);
+      await this.deleteLockService.assertVerified(dto.password);
 
       const timestamp = new Date().toISOString();
       const { operatorId, operatorName } = operator(dto);

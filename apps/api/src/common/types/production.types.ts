@@ -338,6 +338,7 @@ export interface AuditLog {
   operatorRole: string;
   planId?: string;
   productId?: string;
+  orderId?: string;
   createdAt: string;
 }
 
@@ -346,6 +347,7 @@ export interface AuditLogQuery {
   entityId?: string;
   planId?: string;
   productId?: string;
+  orderId?: string;
   action?: AuditAction;
   limit?: number;
 }
@@ -362,6 +364,7 @@ export interface CreateAuditLogPayload {
   operatorRole?: string;
   planId?: string;
   productId?: string;
+  orderId?: string;
 }
 
 export interface MigrationPreview {

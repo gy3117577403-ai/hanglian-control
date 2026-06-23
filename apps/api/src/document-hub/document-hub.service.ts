@@ -387,7 +387,7 @@ export class DocumentHubService implements OnModuleInit {
 
   onModuleInit() {
     this.initializeDrawingRepository();
-    this.initializeOrderRepository();
+    return this.initializeOrderRepository();
   }
 
   private initializeDrawingRepository() {
@@ -404,18 +404,18 @@ export class DocumentHubService implements OnModuleInit {
     this.drawingRepository.ensureInitialized();
   }
 
-  private initializeOrderRepository() {
+  private async initializeOrderRepository() {
     if (!this.orderRepository) return;
     const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
     if (mode === 'demo') {
-      this.orderRepository.initializeFromSeedIfEmpty();
+      await this.orderRepository.initializeFromSeedIfEmpty();
       return;
     }
-    this.orderRepository.ensureInitialized();
+    await this.orderRepository.ensureInitialized();
   }
 
 
-  getOrders(queryOrScope: OrderQueryDto | 'today' | 'week' | 'all' = 'week', includeCompleted?: string) {
+  async getOrders(queryOrScope: OrderQueryDto | 'today' | 'week' | 'all' = 'week', includeCompleted?: string) {
     if (!this.orderRepository) {
       const scope = typeof queryOrScope === 'string' ? queryOrScope : queryOrScope.scope ?? 'week';
       const shouldIncludeCompleted = parseBoolean(typeof queryOrScope === 'string' ? includeCompleted : queryOrScope.includeCompleted);
@@ -432,23 +432,24 @@ export class DocumentHubService implements OnModuleInit {
     const includeAllCompleted = parseBoolean(query.includeCompleted);
     const completionStatus = query.completionStatus ?? (includeAllCompleted ? 'all' : 'pending');
     const scope = query.scope ?? 'week';
-    return this.orderRepository.listOrders({
+    const orders = await this.orderRepository.listOrders({
       scope,
       completionStatus,
       productionStatus: query.productionStatus,
       keyword: query.keyword,
       customerId: query.customerId,
       linkedProductId: query.linkedProductId,
-    }).map((order) => this.toOrderResponse(order));
+    });
+    return orders.map((order) => this.toOrderResponse(order));
   }
 
-  completeOrder(orderId: string, completedBy = 'local-operator') {
+  async completeOrder(orderId: string, completedBy = 'local-operator') {
     if (this.orderRepository) {
-      const current = this.orderRepository.getOrderById(orderId);
+      const current = await this.orderRepository.getOrderById(orderId);
       if (!current) throw new NotFoundException('订单不存在。');
       const completed = current.completionStatus === 'completed'
         ? current
-        : this.orderRepository.completeOrder(orderId, completedBy);
+        : await this.orderRepository.completeOrder(orderId, completedBy);
       if (!completed) throw new NotFoundException('订单不存在。');
       void this.writeOrderAudit('order_completed', completed, {
         previousStatus: current.productionStatus,
@@ -466,12 +467,12 @@ export class DocumentHubService implements OnModuleInit {
     return order;
   }
 
-  getOrderOverview() {
+  async getOrderOverview() {
     if (this.orderRepository) {
-      const today = this.orderRepository.listOrders({ scope: 'today', completionStatus: 'all' });
-      const week = this.orderRepository.listOrders({ scope: 'week', completionStatus: 'all' });
-      const pending = this.orderRepository.listOrders({ scope: 'all', completionStatus: 'pending' });
-      const completed = this.orderRepository.listOrders({ scope: 'all', completionStatus: 'completed' });
+      const today = await this.orderRepository.listOrders({ scope: 'today', completionStatus: 'all' });
+      const week = await this.orderRepository.listOrders({ scope: 'week', completionStatus: 'all' });
+      const pending = await this.orderRepository.listOrders({ scope: 'all', completionStatus: 'pending' });
+      const completed = await this.orderRepository.listOrders({ scope: 'all', completionStatus: 'completed' });
       return {
         today: this.makeOrderScopeOverview(today),
         week: this.makeOrderScopeOverview(week),
@@ -519,13 +520,13 @@ export class DocumentHubService implements OnModuleInit {
 
   async updateOrderStatus(orderId: string, dto: UpdateOrderStatusDto) {
     const store = this.requireOrderStore();
-    const order = store.getOrderById(orderId);
+    const order = await store.getOrderById(orderId);
     if (!order) throw new NotFoundException('订单不存在。');
     if (order.completionStatus === 'completed') {
       throw new BadRequestException('已完成订单不能直接修改状态，请先恢复订单。');
     }
     await this.orderStatusSyncService?.assertCanSetProductionStatus(order, dto.productionStatus);
-    const updated = store.updateOrder(orderId, { productionStatus: dto.productionStatus });
+    const updated = await store.updateOrder(orderId, { productionStatus: dto.productionStatus });
     if (!updated) throw new NotFoundException('订单不存在。');
     await this.writeOrderAudit('order_status_changed', updated, {
       previousStatus: order.productionStatus,
@@ -538,7 +539,7 @@ export class DocumentHubService implements OnModuleInit {
 
   async restoreOrder(orderId: string, dto: RestoreOrderDto = {}) {
     const store = this.requireOrderStore();
-    const order = store.getOrderById(orderId);
+    const order = await store.getOrderById(orderId);
     if (!order) throw new NotFoundException('订单不存在。');
     const productionStatus = await this.orderStatusSyncService?.deriveProductionStatus({
       linkedProductId: order.linkedProductId,
@@ -548,7 +549,7 @@ export class DocumentHubService implements OnModuleInit {
     const operatorName = cleanText(dto.operatorName) || 'local-operator';
     const restored = order.completionStatus === 'pending'
       ? order
-      : store.restoreOrder(orderId, operatorName, productionStatus);
+      : await store.restoreOrder(orderId, operatorName, productionStatus);
     if (!restored) throw new NotFoundException('订单不存在。');
     await this.writeOrderAudit('order_restored', restored, {
       previousStatus: order.productionStatus,
@@ -561,7 +562,7 @@ export class DocumentHubService implements OnModuleInit {
 
   async linkOrderProduct(orderId: string, dto: LinkOrderProductDto) {
     const store = this.requireOrderStore();
-    const order = store.getOrderById(orderId);
+    const order = await store.getOrderById(orderId);
     if (!order) throw new NotFoundException('订单不存在。');
     const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === cleanText(dto.customerId));
     if (!customer) throw new NotFoundException('客户不存在。');
@@ -576,7 +577,7 @@ export class DocumentHubService implements OnModuleInit {
       previousStatus: order.productionStatus,
       preserveBack: true,
     }) ?? 'no_drawing';
-    const updated = store.updateOrder(orderId, {
+    const updated = await store.updateOrder(orderId, {
       customerId: customer.customerId,
       customerName: customer.customerName,
       linkedProductId: product.productId,

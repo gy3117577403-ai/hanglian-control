@@ -8,6 +8,12 @@ import type { LocalStorageService } from '../../storage/local-storage.service';
 const maxAttempts = 5;
 const lockMs = 5 * 60 * 1000;
 
+type MaybePromise<T> = T | Promise<T>;
+
+function isPromise<T>(value: MaybePromise<T>): value is Promise<T> {
+  return Boolean(value && typeof (value as Promise<T>).then === 'function');
+}
+
 @Injectable()
 export class DeleteLockService {
   private readonly deleteLockRepository: DeleteLockRepository;
@@ -23,14 +29,8 @@ export class DeleteLockService {
 
   status() {
     const setting = this.read();
-    const locked = Boolean(setting.lockedUntil && Date.parse(setting.lockedUntil) > Date.now());
-    return {
-      enabled: setting.enabled,
-      hasPassword: Boolean(setting.passwordHash),
-      locked,
-      lockedUntil: locked ? setting.lockedUntil : null,
-      failedAttempts: setting.failedAttempts,
-    };
+    if (isPromise(setting)) return setting.then((value) => this.statusFromSetting(value));
+    return this.statusFromSetting(setting);
   }
 
   setup(password: string, confirmPassword: string, updatedBy = 'local-user') {
@@ -43,26 +43,47 @@ export class DeleteLockService {
       failedAttempts: 0,
       lockedUntil: null,
     };
-    this.deleteLockRepository.writeSettings(setting);
+    const written = this.deleteLockRepository.writeSettings(setting);
+    if (isPromise(written)) return written.then(() => this.status());
     return this.status();
   }
 
   change(oldPassword: string, password: string, confirmPassword: string, updatedBy = 'local-user') {
-    this.assertVerified(oldPassword);
+    const verified = this.assertVerified(oldPassword);
+    if (isPromise(verified)) return verified.then(() => this.setup(password, confirmPassword, updatedBy));
     return this.setup(password, confirmPassword, updatedBy);
   }
 
   verify(password: string) {
     try {
-      this.assertVerified(password);
+      const verified = this.assertVerified(password);
+      if (isPromise(verified)) {
+        return verified.then(() => ({ valid: true })).catch(() => ({ valid: false }));
+      }
       return { valid: true };
     } catch {
       return { valid: false };
     }
   }
 
-  assertVerified(password: string) {
+  assertVerified(password: string): MaybePromise<void> {
     const setting = this.read();
+    if (isPromise(setting)) return setting.then((value) => this.assertVerifiedWithSetting(value, password));
+    return this.assertVerifiedWithSetting(setting, password);
+  }
+
+  private statusFromSetting(setting: DeleteLockSetting) {
+    const locked = Boolean(setting.lockedUntil && Date.parse(setting.lockedUntil) > Date.now());
+    return {
+      enabled: setting.enabled,
+      hasPassword: Boolean(setting.passwordHash),
+      locked,
+      lockedUntil: locked ? setting.lockedUntil : null,
+      failedAttempts: setting.failedAttempts,
+    };
+  }
+
+  private assertVerifiedWithSetting(setting: DeleteLockSetting, password: string): MaybePromise<void> {
     if (!setting.passwordHash) {
       throw new BadRequestException('请先设置删除密码。');
     }
@@ -72,18 +93,25 @@ export class DeleteLockService {
     if (!bcrypt.compareSync(password, setting.passwordHash)) {
       const failedAttempts = (setting.failedAttempts ?? 0) + 1;
       const lockedUntil = failedAttempts >= maxAttempts ? new Date(Date.now() + lockMs).toISOString() : null;
-      this.deleteLockRepository.writeSettings({
+      const written = this.deleteLockRepository.writeSettings({
         ...setting,
         failedAttempts,
         lockedUntil,
       });
-      throw new BadRequestException(lockedUntil ? '删除操作已临时锁定，请稍后再试。' : '删除密码错误。');
+      const error = new BadRequestException(lockedUntil ? '删除操作已临时锁定，请稍后再试。' : '删除密码错误。');
+      if (isPromise(written)) {
+        return written.then(() => {
+          throw error;
+        });
+      }
+      throw error;
     }
-    this.deleteLockRepository.writeSettings({
+    const written = this.deleteLockRepository.writeSettings({
       ...setting,
       failedAttempts: 0,
       lockedUntil: null,
     });
+    if (isPromise(written)) return written.then(() => undefined);
   }
 
   private assertPassword(password: string, confirmPassword: string) {
@@ -95,7 +123,7 @@ export class DeleteLockService {
     }
   }
 
-  private read(): DeleteLockSetting {
+  private read(): MaybePromise<DeleteLockSetting> {
     return this.deleteLockRepository.readSettings();
   }
 }
