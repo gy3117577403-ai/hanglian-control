@@ -123,6 +123,8 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-${sh
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-candidate', 'Workflow 必须生成 API candidate tag。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-candidate', 'Workflow 必须生成 Migration Runner candidate tag。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow 必须运行 Migration 镜像静态检查。');
+requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$api_image"', 'API smoke 前必须拉取刚推送的 API 镜像。');
+requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Migration Runner 离线验证前必须拉取刚推送的镜像。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke 必须使用 mock 数据源。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API smoke 必须禁用 migrate deploy。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'DATABASE_URL|S3_SECRET|TOKEN|SECRET|postgres', 'Smoke 检查必须防敏感信息泄露。');

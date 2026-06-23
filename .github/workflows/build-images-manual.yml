@@ -111,6 +111,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          api_image="${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}"
+          docker pull "$api_image"
           smoke_root="${RUNNER_TEMP}/hanglian-api-smoke"
           mkdir -p "${smoke_root}/uploads" "${smoke_root}/metadata" "${smoke_root}/tmp"
           chmod -R 777 "${smoke_root}"
@@ -139,7 +141,7 @@ jobs:
             -e ALLOW_PRISMA_WRITE=false \
             -e ALLOW_DESTRUCTIVE_DB_ACTIONS=false \
             -e SEED_MODE=dry-run \
-            "${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}"
+            "$api_image"
           trap 'docker rm -f hanglian-api-smoke >/dev/null 2>&1 || true' EXIT
           for attempt in {1..45}; do
             if curl -fsS http://127.0.0.1:18080/api/health >/tmp/health.json; then
@@ -190,6 +192,7 @@ jobs:
         run: |
           set -euo pipefail
           image="${{ steps.meta.outputs.migrate_image }}:${{ steps.meta.outputs.migrate_version_tag }}"
+          docker pull "$image"
           docker run --rm "$image" node --version
           docker run --rm "$image" npx prisma --version
           docker run --rm -i "$image" node - <<'NODE'
