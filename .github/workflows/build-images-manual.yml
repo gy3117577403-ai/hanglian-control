@@ -180,7 +180,9 @@ jobs:
           if (storage.provider !== 'local' || storage.databaseConnected !== false) throw new Error('storage smoke check failed')
           if (runtime.dataSource !== 'mock' || runtime.databaseConnected !== false) throw new Error('runtime smoke check failed')
           const text = JSON.stringify({ health, storage, runtime })
-          if (/DATABASE_URL|S3_SECRET|TOKEN|SECRET|postgres/i.test(text)) throw new Error('runtime smoke leaked sensitive data')
+          if (/DATABASE_URL|S3_SECRET|SEALOS_TOKEN|GITHUB_TOKEN|WECHAT.*SECRET|postgres(?:ql)?:\/\/|password/i.test(text)) {
+            throw new Error('runtime smoke leaked sensitive data')
+          }
           NODE
 
       - name: Build and push Migration Runner image

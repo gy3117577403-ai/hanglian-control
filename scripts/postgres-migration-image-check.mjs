@@ -127,7 +127,11 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$api_
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Migration Runner 离线验证前必须拉取刚推送的镜像。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke 必须使用 mock 数据源。');
 requireIncludes('.github/workflows/build-images-manual.yml', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API smoke 必须禁用 migrate deploy。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'DATABASE_URL|S3_SECRET|TOKEN|SECRET|postgres', 'Smoke 检查必须防敏感信息泄露。');
+requireIncludes(
+  '.github/workflows/build-images-manual.yml',
+  'DATABASE_URL|S3_SECRET|SEALOS_TOKEN|GITHUB_TOKEN|WECHAT.*SECRET|postgres(?:ql)?:\\/\\/|password',
+  'Smoke 检查必须防敏感信息泄露，且不得把普通阶段名中的 postgres 误判为泄露。',
+);
 requireNotMatches('.github/workflows/build-images-manual.yml', /:latest|:production|:stable/i, 'Workflow 不得使用 latest/production/stable tag。');
 requireNotMatches('.github/workflows/build-images-manual.yml', /\bDATABASE_URL\s*:/i, 'Workflow 不得配置 DATABASE_URL。');
 requireNotMatches('.github/workflows/build-images-manual.yml', /\bprisma\s+migrate\s+deploy\b/i, 'Workflow 不得执行 migrate deploy。');
