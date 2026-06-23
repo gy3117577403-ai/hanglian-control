@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -13,8 +14,9 @@ import { DocumentsService } from '../documents/documents.service';
 import { LocalStorageService } from '../storage/local-storage.service';
 import { StorageService } from '../storage/storage.service';
 import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
+import { DRAWING_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository } from '../persistence/persistence.types';
 import {
-  DrawingMetadataStore,
   DrawingModuleState,
   DrawingTrashRecord,
 } from './drawing-metadata.store';
@@ -81,7 +83,7 @@ export class DocumentLifecycleService {
   private readonly logger = new Logger(DocumentLifecycleService.name);
 
   constructor(
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     private readonly documentsService: DocumentsService,
     private readonly localStorageService: LocalStorageService,
     private readonly storageService: StorageService,
@@ -94,9 +96,9 @@ export class DocumentLifecycleService {
     const limit = this.clampLimit(query.limit);
     const offset = this.clampOffset(query.offset);
     const keyword = cleanLifecycleText(query.keyword, 120).toLowerCase();
-    const customers = new Map(this.drawingMetadataStore.readCustomers().map((item) => [item.customerId, item]));
-    const products = new Map(this.drawingMetadataStore.readProducts().map((item) => [item.productId, item]));
-    const state = this.drawingMetadataStore.readModuleState();
+    const customers = new Map(this.drawingRepository.readCustomers().map((item) => [item.customerId, item]));
+    const products = new Map(this.drawingRepository.readProducts().map((item) => [item.productId, item]));
+    const state = this.drawingRepository.readModuleState();
     const trashByDocumentId = new Map(
       state.trash
         .filter((record) => !record.purgedAt)
@@ -191,7 +193,7 @@ export class DocumentLifecycleService {
         deletedBy: operatorId,
       };
       const nextState = this.applyTrashToModuleState({
-        state: this.drawingMetadataStore.readModuleState(),
+        state: this.drawingRepository.readModuleState(),
         productId,
         moduleKey,
         documentId: latest.documentId,
@@ -275,7 +277,7 @@ export class DocumentLifecycleService {
       this.localStorageService.writeDocumentsSync(nextDocuments);
 
       const nextState = this.applyRestoreToModuleState({
-        state: this.drawingMetadataStore.readModuleState(),
+        state: this.drawingRepository.readModuleState(),
         productId,
         moduleKey,
         document: restoredDocument,
@@ -352,7 +354,7 @@ export class DocumentLifecycleService {
       try {
         const nextDocuments = latestDocuments.filter((document) => documentId(document) !== latest.documentId);
         const nextState = this.applyPurgeToModuleState({
-          state: this.drawingMetadataStore.readModuleState(),
+          state: this.drawingRepository.readModuleState(),
           productId,
           moduleKey,
           documentId: latest.documentId,
@@ -429,14 +431,14 @@ export class DocumentLifecycleService {
     itemId: string,
     documents: ProductDocument[],
   ): LifecycleContext {
-    const state = this.drawingMetadataStore.readModuleState();
+    const state = this.drawingRepository.readModuleState();
     const details = state.details;
     const detail = details.find((item) => item.product.productId === productId);
-    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === productId) ?? detail?.product;
+    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId) ?? detail?.product;
     if (!product) throw new NotFoundException('\u4ea7\u54c1\u4e0d\u5b58\u5728\u3002');
 
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId) ?? detail?.customer;
-    const workingDetail = detail ? clone(detail) : this.drawingMetadataStore.makeProductDetail(customer ?? {
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId) ?? detail?.customer;
+    const workingDetail = detail ? clone(detail) : this.drawingRepository.makeProductDetail(customer ?? {
       customerId: product.customerId,
       customerName: product.customerId,
       customerShortName: product.customerId,
@@ -493,7 +495,7 @@ export class DocumentLifecycleService {
         };
       }
     }
-    const trashRecord = this.drawingMetadataStore.readTrash().find((record) => (
+    const trashRecord = this.drawingRepository.readTrash().find((record) => (
       record.productId === detail.product.productId
       && record.moduleKey === moduleKey
       && (record.item.itemId === itemId || record.sourceDocumentId === itemId)
@@ -607,14 +609,14 @@ export class DocumentLifecycleService {
   private ensureDetailInState(state: DrawingModuleState, productId: string) {
     const detail = state.details.find((item) => item.product.productId === productId);
     if (detail) return detail;
-    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === productId);
+    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId);
     if (!product) throw new NotFoundException('\u4ea7\u54c1\u4e0d\u5b58\u5728\u3002');
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId) ?? {
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId) ?? {
       customerId: product.customerId,
       customerName: product.customerId,
       customerShortName: product.customerId,
     };
-    const nextDetail = this.drawingMetadataStore.makeProductDetail(customer, product);
+    const nextDetail = this.drawingRepository.makeProductDetail(customer, product);
     state.details.unshift(nextDetail);
     return nextDetail;
   }
@@ -626,11 +628,11 @@ export class DocumentLifecycleService {
   }
 
   private writeModuleStateAndProducts(state: DrawingModuleState) {
-    this.drawingMetadataStore.writeModuleState(state);
-    const latestDetails = this.drawingMetadataStore.readDetails();
+    this.drawingRepository.writeModuleState(state);
+    const latestDetails = this.drawingRepository.readDetails();
     const byProductId = new Map(latestDetails.map((detail) => [detail.product.productId, detail.product]));
-    const products = this.drawingMetadataStore.readProducts().map((product) => byProductId.get(product.productId) ?? product);
-    this.drawingMetadataStore.writeProducts(products);
+    const products = this.drawingRepository.readProducts().map((product) => byProductId.get(product.productId) ?? product);
+    this.drawingRepository.writeProducts(products);
   }
 
   private moduleKeyForDocument(document: ProductDocument, state: DrawingModuleState) {

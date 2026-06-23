@@ -1,35 +1,25 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { LocalStorageService } from '../../storage/local-storage.service';
+import { JsonDeleteLockRepository } from '../../persistence/json/json-delete-lock.repository';
+import { DELETE_LOCK_REPOSITORY } from '../../persistence/persistence.tokens';
+import type { DeleteLockRepository, DeleteLockSetting } from '../../persistence/persistence.types';
+import type { LocalStorageService } from '../../storage/local-storage.service';
 
-interface DeleteLockSetting {
-  enabled: boolean;
-  passwordHash?: string;
-  updatedAt?: string;
-  updatedBy?: string;
-  failedAttempts: number;
-  lockedUntil: string | null;
-}
-
-const fileName = 'delete-lock-settings.json';
 const maxAttempts = 5;
 const lockMs = 5 * 60 * 1000;
-const defaultDeletePasswordHash = '$2b$10$UxaACK8OE5QQTeirgV2M1.TSdSzwyZaVjL9kmuCWx3WsJ6EF1nVma';
-
-function defaultSetting(): DeleteLockSetting {
-  return {
-    enabled: true,
-    passwordHash: defaultDeletePasswordHash,
-    updatedAt: '2026-06-15T00:00:00.000Z',
-    updatedBy: 'local-default',
-    failedAttempts: 0,
-    lockedUntil: null,
-  };
-}
 
 @Injectable()
 export class DeleteLockService {
-  constructor(private readonly localStorageService: LocalStorageService) {}
+  private readonly deleteLockRepository: DeleteLockRepository;
+
+  constructor(
+    @Inject(DELETE_LOCK_REPOSITORY)
+    deleteLockRepository: DeleteLockRepository | LocalStorageService,
+  ) {
+    this.deleteLockRepository = 'readSettings' in deleteLockRepository
+      ? deleteLockRepository
+      : new JsonDeleteLockRepository(deleteLockRepository);
+  }
 
   status() {
     const setting = this.read();
@@ -53,7 +43,7 @@ export class DeleteLockService {
       failedAttempts: 0,
       lockedUntil: null,
     };
-    this.write(setting);
+    this.deleteLockRepository.writeSettings(setting);
     return this.status();
   }
 
@@ -82,14 +72,14 @@ export class DeleteLockService {
     if (!bcrypt.compareSync(password, setting.passwordHash)) {
       const failedAttempts = (setting.failedAttempts ?? 0) + 1;
       const lockedUntil = failedAttempts >= maxAttempts ? new Date(Date.now() + lockMs).toISOString() : null;
-      this.write({
+      this.deleteLockRepository.writeSettings({
         ...setting,
         failedAttempts,
         lockedUntil,
       });
       throw new BadRequestException(lockedUntil ? '删除操作已临时锁定，请稍后再试。' : '删除密码错误。');
     }
-    this.write({
+    this.deleteLockRepository.writeSettings({
       ...setting,
       failedAttempts: 0,
       lockedUntil: null,
@@ -106,19 +96,6 @@ export class DeleteLockService {
   }
 
   private read(): DeleteLockSetting {
-    const fallback = defaultSetting();
-    const setting = this.localStorageService.readMetadataSync<Partial<DeleteLockSetting>>(fileName, fallback);
-    return {
-      enabled: typeof setting.enabled === 'boolean' ? setting.enabled : fallback.enabled,
-      passwordHash: setting.passwordHash || fallback.passwordHash,
-      updatedAt: setting.updatedAt ?? fallback.updatedAt,
-      updatedBy: setting.updatedBy ?? fallback.updatedBy,
-      failedAttempts: Number.isFinite(setting.failedAttempts) ? Number(setting.failedAttempts) : fallback.failedAttempts,
-      lockedUntil: setting.lockedUntil ?? fallback.lockedUntil,
-    };
-  }
-
-  private write(setting: DeleteLockSetting) {
-    this.localStorageService.writeMetadataSync(fileName, setting);
+    return this.deleteLockRepository.readSettings();
   }
 }

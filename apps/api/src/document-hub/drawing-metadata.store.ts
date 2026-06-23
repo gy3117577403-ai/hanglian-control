@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { LocalStorageService } from '../storage/local-storage.service';
 import {
   DrawingItem,
@@ -654,6 +656,7 @@ export class DrawingMetadataStore {
   constructor(private readonly localStorageService: LocalStorageService) {}
 
   ensureInitialized(): DrawingMetadataStoreInitSummary {
+    this.assertMetadataReadable();
     const customers = this.readCustomers();
     const products = this.readProducts();
     const moduleState = this.readModuleState();
@@ -782,6 +785,19 @@ export class DrawingMetadataStore {
 
     this.writeProducts(this.readProducts().filter((product) => product.productId !== productId));
     this.writeDetails(details.filter((item) => item.product.productId !== productId));
+  }
+
+  private assertMetadataReadable() {
+    const metadataDir = this.localStorageService.getMetadataDir();
+    for (const fileName of [customersFile, productsFile, moduleStateFile, importRecordsFile]) {
+      const file = join(metadataDir, fileName);
+      if (!existsSync(file)) continue;
+      try {
+        JSON.parse(readFileSync(file, 'utf8'));
+      } catch (error) {
+        throw new Error(`Drawing metadata file is not valid JSON: ${fileName}. Fix or move the damaged file before startup.`);
+      }
+    }
   }
 
   private readArray<T>(fileName: string, fallback: T[], normalize: (value: unknown) => T | undefined): T[] {

@@ -1,10 +1,11 @@
 import { hasApiEnvLocal } from './env-loader';
 
-export type DatabaseSafetyStage = 'V3.0A_SEALOS_READONLY_CHECK' | 'V3.6_SEALOS_CLOUD_TEST';
+export type DatabaseSafetyStage = 'V3.18A_POSTGRES_FOUNDATION';
+export type RuntimeDataSource = 'mock' | 'postgres';
 
 export interface DatabaseSafetyStatus {
   stage: DatabaseSafetyStage;
-  dataSource: 'mock' | 'prisma';
+  dataSource: RuntimeDataSource;
   dbTarget: string;
   databaseConfigured: boolean;
   databaseUrlMasked: string;
@@ -14,6 +15,8 @@ export interface DatabaseSafetyStatus {
   allowTestDbConnect: boolean;
   allowPrismaWrite: boolean;
   allowDestructiveDbActions: boolean;
+  runPrismaMigrateDeploy: boolean;
+  postgresAvailable: boolean;
   prismaAvailable: boolean;
   canReadDatabase: boolean;
   canWriteDatabase: boolean;
@@ -22,6 +25,12 @@ export interface DatabaseSafetyStatus {
   warnings: string[];
   nextSteps: string[];
   message: string;
+  safeSummary: {
+    provider: 'postgresql';
+    target: string;
+    hostConfigured: boolean;
+    writeEnabled: boolean;
+  };
 }
 
 const EXAMPLE_DATABASE_URL = 'postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public';
@@ -31,39 +40,28 @@ function boolEnv(name: string) {
   return process.env[name]?.toLowerCase() === 'true';
 }
 
-function dataSource() {
-  return process.env.DATA_SOURCE?.toLowerCase() === 'prisma' ? 'prisma' : 'mock';
+export function dataSource(): RuntimeDataSource {
+  const source = process.env.DATA_SOURCE?.trim().toLowerCase();
+  if (!source || source === 'mock') return 'mock';
+  if (source === 'postgres') return 'postgres';
+  throw new Error('不支持的数据源配置。');
 }
 
 function dbTarget() {
   return process.env.DB_TARGET?.toLowerCase() ?? 'local';
 }
 
-function deploymentStage() {
-  return process.env.DEPLOYMENT_STAGE?.toLowerCase() ?? 'readonly';
-}
-
 function databaseUrl() {
   return process.env.DATABASE_URL?.trim() ?? '';
-}
-
-function hostLabel(hostname: string) {
-  return hostname || 'host';
 }
 
 export function maskDatabaseUrl(url = databaseUrl()) {
   if (!url) return 'not-configured';
   if (isExampleDatabaseUrl(url)) return 'example-database-url';
-
   try {
     const parsed = new URL(url);
-    const username = decodeURIComponent(parsed.username || '');
-    const maskedUser = username ? `${username.slice(0, 2)}***` : '***';
-    const database = parsed.pathname.replace(/^\//, '') || 'database';
-    const schema = parsed.searchParams.get('schema');
-    const schemaSuffix = schema ? `?schema=${schema}` : '';
-    const port = parsed.port ? `:${parsed.port}` : '';
-    return `${parsed.protocol}//${maskedUser}@${hostLabel(parsed.hostname)}${port}/${database}${schemaSuffix}`;
+    const port = parsed.port ? ':***' : '';
+    return `${parsed.protocol}//***@configured-host${port}/configured-database`;
   } catch {
     return 'invalid-database-url';
   }
@@ -80,49 +78,27 @@ export function isExampleDatabaseUrl(url = databaseUrl()) {
 export function isSuspiciousProductionUrl(url = databaseUrl()) {
   if (!url) return false;
   const value = decodeURIComponent(url).toLowerCase();
-  return PRODUCTION_KEYWORDS.some((keyword) => value.includes(keyword.toLowerCase()));
+  return PRODUCTION_KEYWORDS.some((keyword) => value.includes(keyword));
 }
 
 export function isDatabaseConfigured() {
   return Boolean(databaseUrl()) && !isExampleDatabaseUrl();
 }
 
-export function isSealosCloudTestMode() {
-  return deploymentStage() === 'sealos-test'
-    && dataSource() === 'prisma'
-    && isDatabaseConfigured()
-    && dbTarget() === 'test'
-    && boolEnv('ALLOW_TEST_DB_CONNECT')
-    && boolEnv('ALLOW_PRISMA_WRITE')
-    && !boolEnv('ALLOW_DESTRUCTIVE_DB_ACTIONS')
-    && !isSuspiciousProductionUrl();
-}
-
-export function canConnectTestDatabaseReadOnly() {
-  return isDatabaseConfigured()
-    && dbTarget() === 'test'
-    && boolEnv('ALLOW_TEST_DB_CONNECT')
-    && !boolEnv('ALLOW_PRISMA_WRITE')
-    && !boolEnv('ALLOW_DESTRUCTIVE_DB_ACTIONS')
-    && !isSuspiciousProductionUrl();
-}
-
 export function canConnectDatabase() {
-  return canConnectTestDatabaseReadOnly() || isSealosCloudTestMode();
+  const status = getDatabaseSafetyStatus();
+  return status.canReadDatabase;
 }
 
 export function assertReadOnlyDatabaseCheckAllowed() {
-  const status = getDatabaseSafetyStatus();
-  if (!status.canReadDatabase) {
-    throw new Error(status.message);
-  }
+  assertDatabaseReadAllowed();
 }
 
 export function assertDatabaseReadAllowed() {
-  if (dataSource() !== 'prisma') {
-    throw new Error('DATA_SOURCE=mock; business APIs will not connect to PostgreSQL.');
-  }
   const status = getDatabaseSafetyStatus();
+  if (status.dataSource !== 'postgres') {
+    throw new Error('DATA_SOURCE=mock；业务 API 不会连接 PostgreSQL。');
+  }
   if (!status.canReadDatabase) {
     throw new Error(status.message);
   }
@@ -131,22 +107,25 @@ export function assertDatabaseReadAllowed() {
 export function assertDatabaseWriteAllowed() {
   const status = getDatabaseSafetyStatus();
   if (!status.canWriteDatabase) {
-    throw new Error('Database writes are disabled. Use DEPLOYMENT_STAGE=sealos-test with DB_TARGET=test and destructive actions disabled.');
+    throw new Error('PostgreSQL 写入闸门尚未开启。');
   }
 }
 
 export function assertNotProductionDatabase() {
   const status = getDatabaseSafetyStatus();
-  if (status.databaseUrlLooksProduction || status.dbTarget !== 'test') {
-    throw new Error('The configured database is not an explicit test database. Operation blocked.');
+  if (status.databaseUrlLooksProduction || status.dbTarget !== 'staging') {
+    throw new Error('当前数据库目标不是隔离 staging，操作已阻止。');
   }
   if (!status.canWriteDatabase) {
-    throw new Error('Test database write access is not enabled.');
+    throw new Error('PostgreSQL 写入闸门尚未开启。');
   }
 }
 
 export function assertDestructiveDbActionAllowed() {
-  throw new Error('Destructive database actions are always blocked in Sealos test deployment.');
+  const status = getDatabaseSafetyStatus();
+  if (!status.destructiveActionsAllowed) {
+    throw new Error('破坏性数据库操作闸门保持关闭。');
+  }
 }
 
 export function getDatabaseSafetyStatus(): DatabaseSafetyStatus {
@@ -158,44 +137,53 @@ export function getDatabaseSafetyStatus(): DatabaseSafetyStatus {
   const allowConnect = boolEnv('ALLOW_TEST_DB_CONNECT');
   const allowWrite = boolEnv('ALLOW_PRISMA_WRITE');
   const allowDestructive = boolEnv('ALLOW_DESTRUCTIVE_DB_ACTIONS');
-  const cloudTestMode = isSealosCloudTestMode();
-  const canReadDatabase = canConnectDatabase();
-  const canWriteDatabase = cloudTestMode;
+  const runMigrateDeploy = boolEnv('RUN_PRISMA_MIGRATE_DEPLOY');
+  const targetReady = target === 'staging';
+  const canReadDatabase = source === 'postgres'
+    && configured
+    && targetReady
+    && allowConnect
+    && !looksProduction
+    && !runMigrateDeploy;
+  const canWriteDatabase = canReadDatabase && allowWrite;
   const warnings: string[] = [];
 
   if (!hasApiEnvLocal() && process.env.NODE_ENV !== 'production') {
-    warnings.push('apps/api/.env.local was not found for local testing.');
+    warnings.push('apps/api/.env.local 未找到；本地测试仍保持 mock 模式。');
   }
   if (source === 'mock') {
-    warnings.push('DATA_SOURCE=mock; business APIs are still using mock repositories.');
+    warnings.push('DATA_SOURCE=mock；业务 API 使用 JSON Repository。');
   }
-  if (looksExample) {
-    warnings.push('DATABASE_URL is missing or still an example value.');
+  if (source === 'postgres' && !configured) {
+    warnings.push('DATABASE_URL 缺失或仍是示例值。');
+  }
+  if (source === 'postgres' && !targetReady) {
+    warnings.push(`DB_TARGET=${target}；PostgreSQL 模式只允许 DB_TARGET=staging。`);
+  }
+  if (source === 'postgres' && !allowConnect) {
+    warnings.push('ALLOW_TEST_DB_CONNECT 未开启；PostgreSQL 连接被禁止。');
+  }
+  if (source === 'postgres' && runMigrateDeploy) {
+    warnings.push('RUN_PRISMA_MIGRATE_DEPLOY 必须保持 false；应用启动不会执行 migration。');
   }
   if (looksProduction) {
-    warnings.push(`DATABASE_URL looks like a production connection string and is blocked: ${maskDatabaseUrl()}`);
-  }
-  if (target !== 'test') {
-    warnings.push(`DB_TARGET=${target}; only DB_TARGET=test is allowed for this deployment stage.`);
-  }
-  if (!allowConnect) {
-    warnings.push('ALLOW_TEST_DB_CONNECT=false; PostgreSQL connection is disabled.');
-  }
-  if (allowWrite && !cloudTestMode) {
-    warnings.push('ALLOW_PRISMA_WRITE=true but DEPLOYMENT_STAGE is not sealos-test; writes remain blocked.');
+    warnings.push('DATABASE_URL 疑似生产连接串，已阻止。');
   }
   if (!allowWrite) {
-    warnings.push('ALLOW_PRISMA_WRITE=false; database writes are disabled.');
-  }
-  if (allowDestructive) {
-    warnings.push('ALLOW_DESTRUCTIVE_DB_ACTIONS=true is not allowed and destructive actions remain blocked.');
+    warnings.push('ALLOW_PRISMA_WRITE=false；数据库写入被禁止。');
   }
   if (!allowDestructive) {
-    warnings.push('Destructive database actions are disabled.');
+    warnings.push('ALLOW_DESTRUCTIVE_DB_ACTIONS=false；破坏性操作被禁止。');
   }
 
+  const message = source === 'mock'
+    ? '当前使用 JSON Repository；未连接 PostgreSQL。'
+    : canReadDatabase
+      ? 'PostgreSQL staging 只读连接闸门已满足；写入仍受 ALLOW_PRISMA_WRITE 控制。'
+      : 'PostgreSQL 安全闸门未满足，API 拒绝启动连接。';
+
   return {
-    stage: cloudTestMode ? 'V3.6_SEALOS_CLOUD_TEST' : 'V3.0A_SEALOS_READONLY_CHECK',
+    stage: 'V3.18A_POSTGRES_FOUNDATION',
     dataSource: source,
     dbTarget: target,
     databaseConfigured: configured,
@@ -206,27 +194,25 @@ export function getDatabaseSafetyStatus(): DatabaseSafetyStatus {
     allowTestDbConnect: allowConnect,
     allowPrismaWrite: allowWrite,
     allowDestructiveDbActions: allowDestructive,
-    prismaAvailable: source === 'prisma' && canReadDatabase,
+    runPrismaMigrateDeploy: runMigrateDeploy,
+    postgresAvailable: canReadDatabase,
+    prismaAvailable: canReadDatabase,
     canReadDatabase,
     canWriteDatabase,
-    destructiveActionsAllowed: false,
+    destructiveActionsAllowed: canWriteDatabase && allowDestructive,
     dryRun: !canWriteDatabase,
     warnings,
-    nextSteps: cloudTestMode
-      ? [
-          'Run prisma migrate deploy against the isolated Sealos test database.',
-          'Deploy the API with DATA_SOURCE=prisma.',
-          'Point the tablet PWA runtime config to the cloud API.',
-        ]
-      : [
-          'Configure an isolated Sealos PostgreSQL test database.',
-          'Run readonly connection validation.',
-          'Enable DEPLOYMENT_STAGE=sealos-test only after confirming the target database is isolated.',
-        ],
-    message: cloudTestMode
-      ? 'Sealos test database mode is enabled. Non-destructive Prisma reads and writes are allowed.'
-      : canConnectTestDatabaseReadOnly()
-        ? 'Readonly Sealos PostgreSQL test connection checks are allowed. Writes are still disabled.'
-        : 'Real PostgreSQL access is not enabled.',
+    nextSteps: [
+      '创建隔离 Sealos PostgreSQL staging 数据库。',
+      '先运行只读连通验证，再生成 create-only migration。',
+      '使用 JSON dry-run 和 parity check 决定是否切换 DATA_SOURCE=postgres。',
+    ],
+    message,
+    safeSummary: {
+      provider: 'postgresql',
+      target,
+      hostConfigured: configured,
+      writeEnabled: canWriteDatabase,
+    },
   };
 }

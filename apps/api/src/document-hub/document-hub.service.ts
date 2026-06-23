@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -9,8 +10,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Workbook } from 'exceljs';
 import type { DocumentTypeV03, RequiredProcess } from '../common/enums/production.enum';
 import type { ProductDocument } from '../common/types/production.types';
@@ -36,7 +35,9 @@ import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dt
 import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
 import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
 import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
-import { DrawingMetadataStore, createDefaultDrawingModules } from './drawing-metadata.store';
+import { createDefaultDrawingModules } from './drawing-metadata.store';
+import { DRAWING_REPOSITORY, ORDER_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository, OrderRepository } from '../persistence/persistence.types';
 import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
 import { normalizeProductModel } from './helpers/pdf-name-parser';
 import {
@@ -60,7 +61,6 @@ import { DrawingDocumentOperatorDto, UpdateDrawingDocumentMetadataDto } from './
 import { OrderImportService } from './order-import.service';
 import {
   normalizeOrderProductModel,
-  OrderMetadataStore,
   ProductionOrderRecord,
 } from './order-metadata.store';
 import { OrderStatusSyncService } from './order-status-sync.service';
@@ -362,13 +362,6 @@ function hasConnectorImportHeader(headers: string[], aliases: string[]) {
   return headers.some((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
-const drawingMetadataFiles = [
-  'drawing-customers.json',
-  'drawing-products.json',
-  'drawing-module-settings.json',
-  'drawing-import-records.json',
-];
-
 @Injectable()
 export class DocumentHubService implements OnModuleInit {
   private readonly logger = new Logger(DocumentHubService.name);
@@ -381,11 +374,11 @@ export class DocumentHubService implements OnModuleInit {
     private readonly localStorageService: LocalStorageService,
     private readonly storageService: StorageService,
     private readonly deleteLockService: DeleteLockService,
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     @Optional() private readonly pdfImportPreviewService?: PdfImportPreviewService,
     @Optional() private readonly pdfImportApplyService?: PdfImportApplyService,
     @Optional() private readonly documentLifecycleService?: DocumentLifecycleService,
-    @Optional() private readonly orderMetadataStore?: OrderMetadataStore,
+    @Optional() @Inject(ORDER_REPOSITORY) private readonly orderRepository?: OrderRepository,
     @Optional() private readonly orderImportService?: OrderImportService,
     @Optional() private readonly orderStatusSyncService?: OrderStatusSyncService,
     @Optional() private readonly auditService?: AuditService,
@@ -393,14 +386,13 @@ export class DocumentHubService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.assertDrawingMetadataReadable();
-    this.initializeDrawingMetadataStore();
-    this.initializeOrderMetadataStore();
+    this.initializeDrawingRepository();
+    this.initializeOrderRepository();
   }
 
-  private initializeDrawingMetadataStore() {
+  private initializeDrawingRepository() {
     const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
-    const store = this.drawingMetadataStore as DrawingMetadataStore & {
+    const store = this.drawingRepository as DrawingRepository & {
       initializeFromSeedIfEmpty?: () => unknown;
     };
 
@@ -409,37 +401,22 @@ export class DocumentHubService implements OnModuleInit {
       return;
     }
 
-    this.drawingMetadataStore.ensureInitialized();
+    this.drawingRepository.ensureInitialized();
   }
 
-  private initializeOrderMetadataStore() {
-    if (!this.orderMetadataStore) return;
+  private initializeOrderRepository() {
+    if (!this.orderRepository) return;
     const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
     if (mode === 'demo') {
-      this.orderMetadataStore.initializeFromSeedIfEmpty();
+      this.orderRepository.initializeFromSeedIfEmpty();
       return;
     }
-    this.orderMetadataStore.ensureInitialized();
+    this.orderRepository.ensureInitialized();
   }
 
-  private assertDrawingMetadataReadable() {
-    const metadataDir = this.localStorageService.getMetadataDir();
-    for (const fileName of drawingMetadataFiles) {
-      const file = join(metadataDir, fileName);
-      if (!existsSync(file)) continue;
-
-      try {
-        JSON.parse(readFileSync(file, 'utf8'));
-      } catch (error) {
-        const message = `Drawing metadata file is not valid JSON: ${fileName}. Fix or move the damaged file before starting DocumentHubService.`;
-        this.logger.error(message, error instanceof Error ? error.stack : undefined);
-        throw new Error(message);
-      }
-    }
-  }
 
   getOrders(queryOrScope: OrderQueryDto | 'today' | 'week' | 'all' = 'week', includeCompleted?: string) {
-    if (!this.orderMetadataStore) {
+    if (!this.orderRepository) {
       const scope = typeof queryOrScope === 'string' ? queryOrScope : queryOrScope.scope ?? 'week';
       const shouldIncludeCompleted = parseBoolean(typeof queryOrScope === 'string' ? includeCompleted : queryOrScope.includeCompleted);
       return this.orders.filter((order) => {
@@ -455,7 +432,7 @@ export class DocumentHubService implements OnModuleInit {
     const includeAllCompleted = parseBoolean(query.includeCompleted);
     const completionStatus = query.completionStatus ?? (includeAllCompleted ? 'all' : 'pending');
     const scope = query.scope ?? 'week';
-    return this.orderMetadataStore.listOrders({
+    return this.orderRepository.listOrders({
       scope,
       completionStatus,
       productionStatus: query.productionStatus,
@@ -466,12 +443,12 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   completeOrder(orderId: string, completedBy = 'local-operator') {
-    if (this.orderMetadataStore) {
-      const current = this.orderMetadataStore.getOrderById(orderId);
+    if (this.orderRepository) {
+      const current = this.orderRepository.getOrderById(orderId);
       if (!current) throw new NotFoundException('订单不存在。');
       const completed = current.completionStatus === 'completed'
         ? current
-        : this.orderMetadataStore.completeOrder(orderId, completedBy);
+        : this.orderRepository.completeOrder(orderId, completedBy);
       if (!completed) throw new NotFoundException('订单不存在。');
       void this.writeOrderAudit('order_completed', completed, {
         previousStatus: current.productionStatus,
@@ -490,11 +467,11 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   getOrderOverview() {
-    if (this.orderMetadataStore) {
-      const today = this.orderMetadataStore.listOrders({ scope: 'today', completionStatus: 'all' });
-      const week = this.orderMetadataStore.listOrders({ scope: 'week', completionStatus: 'all' });
-      const pending = this.orderMetadataStore.listOrders({ scope: 'all', completionStatus: 'pending' });
-      const completed = this.orderMetadataStore.listOrders({ scope: 'all', completionStatus: 'completed' });
+    if (this.orderRepository) {
+      const today = this.orderRepository.listOrders({ scope: 'today', completionStatus: 'all' });
+      const week = this.orderRepository.listOrders({ scope: 'week', completionStatus: 'all' });
+      const pending = this.orderRepository.listOrders({ scope: 'all', completionStatus: 'pending' });
+      const completed = this.orderRepository.listOrders({ scope: 'all', completionStatus: 'completed' });
       return {
         today: this.makeOrderScopeOverview(today),
         week: this.makeOrderScopeOverview(week),
@@ -586,9 +563,9 @@ export class DocumentHubService implements OnModuleInit {
     const store = this.requireOrderStore();
     const order = store.getOrderById(orderId);
     if (!order) throw new NotFoundException('订单不存在。');
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === cleanText(dto.customerId));
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === cleanText(dto.customerId));
     if (!customer) throw new NotFoundException('客户不存在。');
-    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === cleanText(dto.productId));
+    const product = this.drawingRepository.readProducts().find((item) => item.productId === cleanText(dto.productId));
     if (!product || product.customerId !== customer.customerId) throw new NotFoundException('产品不存在。');
     const normalizedProductModel = product.normalizedProductModel ?? normalizeOrderProductModel(product.productModel);
     if (normalizedProductModel !== order.normalizedProductModel) {
@@ -627,7 +604,7 @@ export class DocumentHubService implements OnModuleInit {
 
   getCustomers(query?: DrawingQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    const customers = this.drawingMetadataStore.readCustomers();
+    const customers = this.drawingRepository.readCustomers();
     if (!q) return customers;
     return customers.filter((customer) => [
       customer.customerName,
@@ -639,7 +616,7 @@ export class DocumentHubService implements OnModuleInit {
 
   getProducts(customerId: string, query?: DrawingQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    return this.drawingMetadataStore.readProducts().filter((product) => {
+    return this.drawingRepository.readProducts().filter((product) => {
       const customerMatched = product.customerId === customerId;
       const queryMatched = !q || [
         product.productModel,
@@ -656,7 +633,7 @@ export class DocumentHubService implements OnModuleInit {
     const customerName = normalizeDuplicateKey(dto.customerName ?? '');
     if (!customerName) throw new BadRequestException('客户名称不能为空。');
 
-    const customers = this.drawingMetadataStore.readCustomers();
+    const customers = this.drawingRepository.readCustomers();
     this.assertUniqueCustomerName(customers, customerName);
 
     const timestamp = new Date().toISOString();
@@ -671,12 +648,12 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: timestamp,
     };
 
-    this.drawingMetadataStore.writeCustomers([...customers, customer]);
-    return this.drawingMetadataStore.readCustomers().find((item) => item.customerId === customer.customerId) ?? customer;
+    this.drawingRepository.writeCustomers([...customers, customer]);
+    return this.drawingRepository.readCustomers().find((item) => item.customerId === customer.customerId) ?? customer;
   }
 
   updateDrawingCustomer(customerId: string, dto: UpdateDrawingCustomerDto) {
-    const customers = this.drawingMetadataStore.readCustomers();
+    const customers = this.drawingRepository.readCustomers();
     const current = customers.find((customer) => customer.customerId === customerId);
     if (!current) throw new NotFoundException('客户不存在。');
 
@@ -698,17 +675,17 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: new Date().toISOString(),
     };
 
-    this.drawingMetadataStore.writeCustomers(customers.map((customer) => (
+    this.drawingRepository.writeCustomers(customers.map((customer) => (
       customer.customerId === customerId ? nextCustomer : customer
     )));
     this.syncCustomerIntoDetails(nextCustomer);
 
-    return this.drawingMetadataStore.readCustomers().find((customer) => customer.customerId === customerId) ?? nextCustomer;
+    return this.drawingRepository.readCustomers().find((customer) => customer.customerId === customerId) ?? nextCustomer;
   }
 
   createDrawingProduct(dto: CreateDrawingProductDto) {
     const customerId = cleanText(dto.customerId);
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === customerId);
     if (customer?.status === 'disabled') throw new ConflictException('当前客户已停用，不能新增产品。');
     if (!customer) throw new NotFoundException('客户不存在。');
 
@@ -716,12 +693,12 @@ export class DocumentHubService implements OnModuleInit {
     const normalizedProductModel = normalizeProductModel(productModel);
     if (!productModel || !normalizedProductModel) throw new BadRequestException('产品型号不能为空。');
 
-    const products = this.drawingMetadataStore.readProducts();
+    const products = this.drawingRepository.readProducts();
     this.assertUniqueProductModel(products, customerId, normalizedProductModel);
 
     const timestamp = new Date().toISOString();
     const product: HubProductModel = {
-      productId: this.drawingMetadataStore.makeProductId(customerId, normalizedProductModel),
+      productId: this.drawingRepository.makeProductId(customerId, normalizedProductModel),
       customerId,
       productModel,
       normalizedProductModel,
@@ -734,14 +711,14 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: timestamp,
     };
 
-    this.drawingMetadataStore.writeProducts([...products, product]);
-    const savedProduct = this.drawingMetadataStore.readProducts().find((item) => item.productId === product.productId) ?? product;
-    this.drawingMetadataStore.upsertDetail(this.drawingMetadataStore.makeProductDetail(customer, savedProduct));
+    this.drawingRepository.writeProducts([...products, product]);
+    const savedProduct = this.drawingRepository.readProducts().find((item) => item.productId === product.productId) ?? product;
+    this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, savedProduct));
     return savedProduct;
   }
 
   updateDrawingProduct(productId: string, dto: UpdateDrawingProductDto) {
-    const products = this.drawingMetadataStore.readProducts();
+    const products = this.drawingRepository.readProducts();
     const current = products.find((product) => product.productId === productId);
     if (!current) throw new NotFoundException('产品不存在。');
 
@@ -763,11 +740,11 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: new Date().toISOString(),
     };
 
-    this.drawingMetadataStore.writeProducts(products.map((product) => (
+    this.drawingRepository.writeProducts(products.map((product) => (
       product.productId === productId ? nextProduct : product
     )));
 
-    const savedProduct = this.drawingMetadataStore.readProducts().find((product) => product.productId === productId) ?? nextProduct;
+    const savedProduct = this.drawingRepository.readProducts().find((product) => product.productId === productId) ?? nextProduct;
     this.syncProductIntoDetail(savedProduct);
     return savedProduct;
   }
@@ -780,7 +757,7 @@ export class DocumentHubService implements OnModuleInit {
 
   async getProductByModel(productModel: string) {
     const normalizedProductModel = normalizeProductModel(productModel);
-    const product = this.drawingMetadataStore.readProducts().find((item) => (
+    const product = this.drawingRepository.readProducts().find((item) => (
       item.productModel === productModel ||
       item.normalizedProductModel === normalizedProductModel ||
       normalizeProductModel(item.productModel) === normalizedProductModel
@@ -796,7 +773,7 @@ export class DocumentHubService implements OnModuleInit {
       throw new BadRequestException('产品型号不能为空。');
     }
 
-    const customer = this.findResolveCustomer(this.drawingMetadataStore.readCustomers(), query);
+    const customer = this.findResolveCustomer(this.drawingRepository.readCustomers(), query);
     if (!customer) {
       return {
         status: 'customer_not_found' as const,
@@ -808,7 +785,7 @@ export class DocumentHubService implements OnModuleInit {
       };
     }
 
-    const product = this.drawingMetadataStore.readProducts().find((item) => (
+    const product = this.drawingRepository.readProducts().find((item) => (
       item.customerId === customer.customerId &&
       (item.normalizedProductModel ?? normalizeProductModel(item.productModel)) === normalizedProductModel
     ));
@@ -824,7 +801,7 @@ export class DocumentHubService implements OnModuleInit {
     }
 
     const detail = await this.withUploadedDocuments(
-      this.findDrawingDetail(product.productId) ?? this.drawingMetadataStore.makeProductDetail(customer, product),
+      this.findDrawingDetail(product.productId) ?? this.drawingRepository.makeProductDetail(customer, product),
     );
 
     return {
@@ -1224,10 +1201,10 @@ export class DocumentHubService implements OnModuleInit {
       return { mode: 'drawing', query: '', total: 0, groups: emptyGroups, results: [] };
     }
 
-    const activeCustomers = this.drawingMetadataStore
+    const activeCustomers = this.drawingRepository
       .readCustomers()
       .filter((customer) => !isSoftDeletedEntity(customer));
-    const activeProducts = this.drawingMetadataStore
+    const activeProducts = this.drawingRepository
       .readProducts()
       .filter((product) => !isSoftDeletedEntity(product));
     const customerById = new Map(activeCustomers.map((customer) => [customer.customerId, customer]));
@@ -1397,10 +1374,10 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   private requireOrderStore() {
-    if (!this.orderMetadataStore) {
+    if (!this.orderRepository) {
       throw new InternalServerErrorException('Order metadata store is not available.');
     }
-    return this.orderMetadataStore;
+    return this.orderRepository;
   }
 
   private requireDocumentVersionService() {
@@ -1573,7 +1550,7 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   private syncCustomerIntoDetails(customer: HubCustomer) {
-    const details = this.drawingMetadataStore.readDetails();
+    const details = this.drawingRepository.readDetails();
     let changed = false;
     const nextDetails = details.map((detail) => {
       if (detail.product.customerId !== customer.customerId && detail.customer?.customerId !== customer.customerId) {
@@ -1585,16 +1562,16 @@ export class DocumentHubService implements OnModuleInit {
         customer,
       };
     });
-    if (changed) this.drawingMetadataStore.writeDetails(nextDetails);
+    if (changed) this.drawingRepository.writeDetails(nextDetails);
   }
 
   private syncProductIntoDetail(product: HubProductModel) {
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId);
-    const details = this.drawingMetadataStore.readDetails();
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId);
+    const details = this.drawingRepository.readDetails();
     const detail = details.find((item) => item.product.productId === product.productId);
 
     if (detail) {
-      this.drawingMetadataStore.upsertDetail({
+      this.drawingRepository.upsertDetail({
         ...detail,
         product,
         customer: customer ?? detail.customer,
@@ -1603,7 +1580,7 @@ export class DocumentHubService implements OnModuleInit {
     }
 
     if (customer) {
-      this.drawingMetadataStore.upsertDetail(this.drawingMetadataStore.makeProductDetail(customer, product));
+      this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, product));
     }
   }
 
@@ -1689,13 +1666,13 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   private findDrawingDetail(productId: string): ProductDrawingDetail | undefined {
-    const detail = this.drawingMetadataStore.readDetails().find((item) => item.product.productId === productId);
+    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
     if (detail) return this.withCurrentDrawingMetadata(detail);
 
-    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === productId);
+    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId);
     if (!product) return undefined;
 
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId);
     return {
       product: clone(product),
       customer: customer ? clone(customer) : undefined,
@@ -1704,10 +1681,10 @@ export class DocumentHubService implements OnModuleInit {
   }
 
   private withCurrentDrawingMetadata(detail: ProductDrawingDetail): ProductDrawingDetail {
-    const product = this.drawingMetadataStore
+    const product = this.drawingRepository
       .readProducts()
       .find((item) => item.productId === detail.product.productId) ?? detail.product;
-    const customer = this.drawingMetadataStore
+    const customer = this.drawingRepository
       .readCustomers()
       .find((item) => item.customerId === product.customerId) ?? detail.customer;
 

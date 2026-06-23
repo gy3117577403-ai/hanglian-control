@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { AuditService } from '../audit/audit.service';
 import type { MockUser } from '../auth/mock-users';
-import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
 import type { DocumentStatus } from '../common/enums/production.enum';
+import { DOCUMENT_REPOSITORY } from '../persistence/persistence.tokens';
 import { StorageService } from '../storage/storage.service';
 import type { ProductDocument } from '../common/types/production.types';
 import type { DocumentRepositoryInterface } from '../repositories/interfaces/document.repository.interface';
@@ -148,7 +148,7 @@ export interface CreateStoredDocumentMetadataInput {
 @Injectable()
 export class DocumentsService {
   constructor(
-    @Inject(REPOSITORY_TOKENS.document)
+    @Inject(DOCUMENT_REPOSITORY)
     private readonly documentRepository: DocumentRepositoryInterface,
     private readonly storageService: StorageService,
     private readonly auditService: AuditService,

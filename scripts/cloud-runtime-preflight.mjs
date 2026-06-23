@@ -69,7 +69,7 @@ requireIncludes('apps/api/src/storage/controllers/storage-status.controller.ts',
 requireIncludes('apps/api/src/storage/storage-mount-check.service.ts', 'runProbe', 'Storage mount CLI probe service must exist.');
 requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.DATA_SOURCE ??= 'mock'", 'Cloud startup must default DATA_SOURCE to mock.');
 requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.RUN_PRISMA_MIGRATE_DEPLOY ??= 'false'", 'Cloud startup must default migration deploy to false.');
-requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.DATA_SOURCE !== 'prisma'", 'Cloud startup must refuse migration outside prisma mode.');
+requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.DATA_SOURCE !== 'postgres'", 'Cloud startup must refuse migration outside postgres mode.');
 requireIncludes('deploy/sealos/api-persistent-volume-env.example', 'STORAGE_ROOT=/data/hanglian', 'Sealos API env example must include persistent volume storage root.');
 requireIncludes('deploy/sealos/api-persistent-volume-env.example', 'CORS_ORIGINS=https://YOUR_TABLET_DOMAIN', 'Sealos API env example must use placeholder Tablet domain.');
 requireIncludes('deploy/sealos/tablet-env.example', 'RUNTIME_API_BASE_URL=https://YOUR_API_DOMAIN/api', 'Tablet env example must use placeholder API domain.');

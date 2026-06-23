@@ -1,6 +1,6 @@
-import { getDatabaseSafetyStatus } from '../database/database-safety';
+import { getDatabaseSafetyStatus, type RuntimeDataSource } from '../database/database-safety';
 
-export type DataSourceName = 'mock' | 'prisma';
+export type DataSourceName = RuntimeDataSource;
 
 export interface DataSourceConfig {
   dataSource: DataSourceName;
@@ -13,6 +13,8 @@ export interface DataSourceConfig {
   allowTestDbConnect: boolean;
   allowPrismaWrite: boolean;
   allowDestructiveDbActions: boolean;
+  runPrismaMigrateDeploy: boolean;
+  postgresAvailable: boolean;
   prismaAvailable: boolean;
   canReadDatabase: boolean;
   canWriteDatabase: boolean;
@@ -34,12 +36,12 @@ export function getDataSourceConfig(): DataSourceConfig {
     allowTestDbConnect: safety.allowTestDbConnect,
     allowPrismaWrite: safety.allowPrismaWrite,
     allowDestructiveDbActions: safety.allowDestructiveDbActions,
+    runPrismaMigrateDeploy: safety.runPrismaMigrateDeploy,
+    postgresAvailable: safety.postgresAvailable,
     prismaAvailable: safety.prismaAvailable,
     canReadDatabase: safety.canReadDatabase,
     canWriteDatabase: safety.canWriteDatabase,
     stage: safety.stage,
-    message: safety.dataSource === 'mock'
-      ? '当前使用 Mock Repository，尚未连接 Sealos PostgreSQL。'
-      : safety.message,
+    message: safety.message,
   };
 }

@@ -158,7 +158,7 @@ function run(command, args, options = {}) {
 
 function assertCloudMigrationAllowed() {
   const checks = [
-    ['DATA_SOURCE', process.env.DATA_SOURCE === 'prisma'],
+    ['DATA_SOURCE', process.env.DATA_SOURCE === 'postgres'],
     ['DEPLOYMENT_STAGE', process.env.DEPLOYMENT_STAGE === 'sealos-test'],
     ['DB_TARGET', process.env.DB_TARGET === 'test'],
     ['ALLOW_TEST_DB_CONNECT', isTrue(process.env.ALLOW_TEST_DB_CONNECT)],
@@ -180,8 +180,8 @@ function assertCloudMigrationAllowed() {
 }
 
 if (isTrue(process.env.RUN_PRISMA_MIGRATE_DEPLOY)) {
-  if (process.env.DATA_SOURCE !== 'prisma') {
-    console.error('Refusing to run prisma migrate deploy while DATA_SOURCE is not prisma.');
+  if (process.env.DATA_SOURCE !== 'postgres') {
+    console.error('Refusing to run prisma migrate deploy while DATA_SOURCE is not postgres.');
     process.exit(1);
   }
   const schemaName = assertCloudMigrationAllowed();

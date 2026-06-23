@@ -1,10 +1,10 @@
-import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import type { ProductDocument } from '../common/types/production.types';
 import { AuditService } from '../audit/audit.service';
 import { DocumentsService } from '../documents/documents.service';
-import { DrawingMetadataStore } from './drawing-metadata.store';
+import { DRAWING_REPOSITORY, ORDER_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository, OrderRepository } from '../persistence/persistence.types';
 import {
-  OrderMetadataStore,
   OrderProductionStatus,
   ProductionOrderRecord,
 } from './order-metadata.store';
@@ -34,14 +34,14 @@ function operator(input?: { operatorId?: string; operatorName?: string }) {
 @Injectable()
 export class OrderStatusSyncService {
   constructor(
-    private readonly orderMetadataStore: OrderMetadataStore,
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(ORDER_REPOSITORY) private readonly orderRepository: OrderRepository,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     private readonly documentsService: DocumentsService,
     @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async hasEffectiveOriginalDrawing(productId: string) {
-    const detail = this.drawingMetadataStore.readDetails().find((item) => item.product.productId === productId);
+    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
     const moduleHasOriginal = detail?.modules
       .find((module) => module.moduleKey === 'original_drawing')
       ?.items
@@ -83,7 +83,7 @@ export class OrderStatusSyncService {
     reason?: string;
   } = {}) {
     const hasOriginalDrawing = await this.hasEffectiveOriginalDrawing(productId);
-    const activeOrders = this.orderMetadataStore.listOrders({
+    const activeOrders = this.orderRepository.listOrders({
       linkedProductId: productId,
       completionStatus: 'pending',
     });
@@ -95,7 +95,7 @@ export class OrderStatusSyncService {
         ? (order.productionStatus === 'no_drawing' ? 'front' : order.productionStatus)
         : 'no_drawing';
       if (nextStatus === order.productionStatus) continue;
-      const updated = this.orderMetadataStore.updateOrder(order.orderId, {
+      const updated = this.orderRepository.updateOrder(order.orderId, {
         productionStatus: nextStatus,
       });
       if (!updated) continue;
@@ -150,7 +150,7 @@ export class OrderStatusSyncService {
   }
 
   activeOriginalDocumentIds(productId: string) {
-    const detail = this.drawingMetadataStore.readDetails().find((item) => item.product.productId === productId);
+    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
     return detail?.modules
       .find((module) => module.moduleKey === 'original_drawing')
       ?.items

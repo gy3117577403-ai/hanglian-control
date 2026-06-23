@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
+import { PersistenceModule } from '../persistence/persistence.module';
 import { StorageModule } from '../storage/storage.module';
 import { DeleteLockService } from './helpers/delete-lock.service';
 import { DeleteLockController, UnifiedDocumentsController } from './unified-documents.controller';
 import { UnifiedDocumentsService } from './unified-documents.service';
 
 @Module({
-  imports: [StorageModule, AuditModule, DocumentsModule, KnowledgeModule],
+  imports: [StorageModule, AuditModule, DocumentsModule, KnowledgeModule, PersistenceModule],
   controllers: [UnifiedDocumentsController, DeleteLockController],
   providers: [UnifiedDocumentsService, DeleteLockService],
 })

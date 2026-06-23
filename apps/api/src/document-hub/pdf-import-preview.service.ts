@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -7,7 +8,9 @@ import {
 import { createHash, randomUUID } from 'node:crypto';
 import type { ProductDocument } from '../common/types/production.types';
 import { DocumentsService } from '../documents/documents.service';
-import { DrawingMetadataStore, PdfImportBatchRecord, PdfImportItemRecord } from './drawing-metadata.store';
+import { DRAWING_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository } from '../persistence/persistence.types';
+import { PdfImportBatchRecord, PdfImportItemRecord } from './drawing-metadata.store';
 import { PdfImportPreviewFormDto, PdfImportPreviewResponseDto } from './dto/pdf-import.dto';
 import { normalizeProductModel, parseProductModelFromPdfName } from './helpers/pdf-name-parser';
 import {
@@ -31,7 +34,7 @@ interface DuplicateMatch {
 @Injectable()
 export class PdfImportPreviewService {
   constructor(
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     private readonly documentsService: DocumentsService,
     private readonly tempStorage: PdfImportTempStorageService,
   ) {}
@@ -40,7 +43,7 @@ export class PdfImportPreviewService {
     const customerId = this.cleanText(dto.customerId);
     if (!customerId) throw new BadRequestException('请选择客户。');
 
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === customerId);
     if (!customer) throw new NotFoundException('客户资料不存在。');
 
     const batchValidation = validatePdfImportBatch(files);
@@ -68,7 +71,7 @@ export class PdfImportPreviewService {
         }));
       }
 
-      const batch = this.drawingMetadataStore.upsertImportBatch({
+      const batch = this.drawingRepository.upsertImportBatch({
         importBatchId,
         customerId,
         status: 'previewed',
@@ -96,12 +99,12 @@ export class PdfImportPreviewService {
 
   getPreview(importBatchId: string): PdfImportPreviewResponseDto {
     const cleanImportBatchId = this.cleanText(importBatchId);
-    const batch = this.drawingMetadataStore
+    const batch = this.drawingRepository
       .readImportRecords()
       .find((item) => item.importBatchId === cleanImportBatchId);
     if (!batch) throw new NotFoundException('PDF 导入预览记录不存在。');
 
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === batch.customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === batch.customerId);
     return this.toSafeResponse(batch, customer);
   }
 
@@ -174,7 +177,7 @@ export class PdfImportPreviewService {
         };
       }
 
-      const existingProduct = this.drawingMetadataStore.readProducts().find((product) => (
+      const existingProduct = this.drawingRepository.readProducts().find((product) => (
         product.customerId === input.customerId &&
         (product.normalizedProductModel ?? normalizeProductModel(product.productModel)) === normalizedProductModel
       ));
@@ -244,7 +247,7 @@ export class PdfImportPreviewService {
       return { found: true, existingDocumentId: duplicateDocument.documentId ?? duplicateDocument.id };
     }
 
-    const detail = this.drawingMetadataStore.readDetails().find((item) => item.product.productId === input.productId);
+    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === input.productId);
     const duplicateItem = detail?.modules
       .flatMap((module) => module.items)
       .find((item) => !item.deletedAt && this.cleanText(item.checksumSha256).toLowerCase() === input.checksumSha256);
@@ -252,7 +255,7 @@ export class PdfImportPreviewService {
       return { found: true, existingDocumentId: duplicateItem.itemId };
     }
 
-    const duplicatePreviewItem = this.drawingMetadataStore.readImportRecords()
+    const duplicatePreviewItem = this.drawingRepository.readImportRecords()
       .filter((batch) => (
         batch.importBatchId !== input.currentBatchId &&
         batch.customerId === input.customerId &&

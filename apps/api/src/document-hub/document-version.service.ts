@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,8 +9,9 @@ import { AuditService } from '../audit/audit.service';
 import { documentStatusLabelMap } from '../common/enums/production.enum';
 import type { ProductDocument } from '../common/types/production.types';
 import { LocalStorageService } from '../storage/local-storage.service';
+import { DRAWING_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository } from '../persistence/persistence.types';
 import {
-  DrawingMetadataStore,
   type DrawingModuleState,
 } from './drawing-metadata.store';
 import {
@@ -94,7 +96,7 @@ function withStatusLabel(document: ProductDocument): ProductDocument {
 @Injectable()
 export class DocumentVersionService {
   constructor(
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     private readonly localStorageService: LocalStorageService,
     private readonly auditService: AuditService,
   ) {}
@@ -278,7 +280,7 @@ export class DocumentVersionService {
 
   private resolveContext(productId: string, moduleKeyInput: string, itemId: string): VersionContext {
     const moduleKey = assertLifecycleModuleKey(moduleKeyInput);
-    const state = this.drawingMetadataStore.readModuleState();
+    const state = this.drawingRepository.readModuleState();
     const documents = this.localStorageService.readDocumentsSync();
     const document = documents.find((item) => documentMatchesId(item, itemId));
 
@@ -378,14 +380,14 @@ export class DocumentVersionService {
   private ensureDetailInState(state: DrawingModuleState, productId: string) {
     const detail = state.details.find((item) => item.product.productId === productId);
     if (detail) return detail;
-    const product = this.drawingMetadataStore.readProducts().find((item) => item.productId === productId);
+    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId);
     if (!product) throw new NotFoundException('\u4ea7\u54c1\u4e0d\u5b58\u5728\u3002');
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId) ?? {
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId) ?? {
       customerId: product.customerId,
       customerName: product.customerId,
       customerShortName: product.customerId,
     } satisfies HubCustomer;
-    const nextDetail = this.drawingMetadataStore.makeProductDetail(customer, product);
+    const nextDetail = this.drawingRepository.makeProductDetail(customer, product);
     state.details.unshift(nextDetail);
     return nextDetail;
   }
@@ -397,11 +399,11 @@ export class DocumentVersionService {
   }
 
   private writeModuleStateAndProducts(state: DrawingModuleState) {
-    this.drawingMetadataStore.writeModuleState(state);
-    const latestDetails = this.drawingMetadataStore.readDetails();
+    this.drawingRepository.writeModuleState(state);
+    const latestDetails = this.drawingRepository.readDetails();
     const byProductId = new Map(latestDetails.map((detail) => [detail.product.productId, detail.product]));
-    const products = this.drawingMetadataStore.readProducts().map((product) => byProductId.get(product.productId) ?? product);
-    this.drawingMetadataStore.writeProducts(products);
+    const products = this.drawingRepository.readProducts().map((product) => byProductId.get(product.productId) ?? product);
+    this.drawingRepository.writeProducts(products);
   }
 
   private canPreview(document: ProductDocument) {

@@ -365,7 +365,7 @@ export interface CreateAuditLogPayload {
 }
 
 export interface MigrationPreview {
-  dataSource: 'mock' | 'prisma';
+  dataSource: 'mock' | 'postgres';
   target: 'prisma_postgresql';
   safeToMigrate: boolean;
   summary: {

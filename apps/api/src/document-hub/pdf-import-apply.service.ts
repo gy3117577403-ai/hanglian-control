@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   GoneException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,8 +10,9 @@ import { createHash } from 'node:crypto';
 import type { ProductDocument } from '../common/types/production.types';
 import { AuditService } from '../audit/audit.service';
 import { DocumentsService } from '../documents/documents.service';
+import { DRAWING_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository } from '../persistence/persistence.types';
 import {
-  DrawingMetadataStore,
   PdfImportApplyItemRecord,
   PdfImportApplySummaryRecord,
   PdfImportBatchRecord,
@@ -41,7 +43,7 @@ function clone<T>(value: T): T {
 @Injectable()
 export class PdfImportApplyService {
   constructor(
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     private readonly documentsService: DocumentsService,
     private readonly tempStorage: PdfImportTempStorageService,
     private readonly auditService: AuditService,
@@ -59,7 +61,7 @@ export class PdfImportApplyService {
     }
     if (this.isExpired(batch)) throw new GoneException(expiredPreviewMessage);
 
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === batch.customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === batch.customerId);
     if (!customer) throw new NotFoundException('客户资料不存在。');
 
     const requestItems = (dto.items ?? []).map((item) => normalizeApplyItemInput(item as unknown as Record<string, unknown>));
@@ -280,7 +282,7 @@ export class PdfImportApplyService {
     } catch (error) {
       if (createdProductId) {
         try {
-          this.drawingMetadataStore.rollbackNewProduct(createdProductId);
+          this.drawingRepository.rollbackNewProduct(createdProductId);
         } catch {
           // Keep the original item failure; rollback refusal is safer than deleting uncertain data.
         }
@@ -319,7 +321,7 @@ export class PdfImportApplyService {
   }
 
   private findProduct(customerId: string, normalizedProductModel: string) {
-    return this.drawingMetadataStore.readProducts().find((product) => (
+    return this.drawingRepository.readProducts().find((product) => (
       product.customerId === customerId &&
       (product.normalizedProductModel ?? normalizeProductModel(product.productModel)) === normalizedProductModel
     ));
@@ -330,7 +332,7 @@ export class PdfImportApplyService {
     const document = documents.find((item) => this.isActiveDocument(item) && item.checksumSha256 === checksumSha256);
     if (document) return { documentId: document.documentId ?? document.id };
 
-    const detail = this.drawingMetadataStore.readDetails().find((item) => item.product.productId === productId);
+    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
     const moduleItem = detail?.modules
       .flatMap((module) => module.items)
       .find((item) => !item.deletedAt && item.checksumSha256 === checksumSha256);
@@ -347,7 +349,7 @@ export class PdfImportApplyService {
   }) {
     const timestamp = new Date().toISOString();
     const product: HubProductModel = {
-      productId: this.drawingMetadataStore.makeProductId(input.customer.customerId, input.normalizedProductModel),
+      productId: this.drawingRepository.makeProductId(input.customer.customerId, input.normalizedProductModel),
       customerId: input.customer.customerId,
       productModel: input.productModel,
       normalizedProductModel: input.normalizedProductModel,
@@ -358,8 +360,8 @@ export class PdfImportApplyService {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    this.drawingMetadataStore.writeProducts([...this.drawingMetadataStore.readProducts(), product]);
-    this.drawingMetadataStore.upsertDetail(this.drawingMetadataStore.makeProductDetail(input.customer, product));
+    this.drawingRepository.writeProducts([...this.drawingRepository.readProducts(), product]);
+    this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(input.customer, product));
     return this.findProduct(input.customer.customerId, input.normalizedProductModel) ?? product;
   }
 
@@ -369,18 +371,18 @@ export class PdfImportApplyService {
     version?: string;
   }) {
     const timestamp = new Date().toISOString();
-    const products = this.drawingMetadataStore.readProducts();
+    const products = this.drawingRepository.readProducts();
     const nextProduct: HubProductModel = {
       ...product,
       drawingStatus: 'available',
       updatedAt: timestamp,
       searchKeywords: [...new Set([...(product.searchKeywords ?? []), product.productModel, product.normalizedProductModel, options.originalFileName, options.version].filter(Boolean) as string[])],
     };
-    this.drawingMetadataStore.writeProducts(products.map((item) => item.productId === product.productId ? nextProduct : item));
+    this.drawingRepository.writeProducts(products.map((item) => item.productId === product.productId ? nextProduct : item));
 
-    const details = this.drawingMetadataStore.readDetails();
+    const details = this.drawingRepository.readDetails();
     const currentDetail = details.find((item) => item.product.productId === product.productId)
-      ?? this.drawingMetadataStore.makeProductDetail(customer, nextProduct);
+      ?? this.drawingRepository.makeProductDetail(customer, nextProduct);
     const detail = clone(currentDetail);
     detail.product = nextProduct;
     detail.customer = customer;
@@ -397,7 +399,7 @@ export class PdfImportApplyService {
       originalModule.coverDocumentId = drawingItem.itemId;
     }
     originalModule.updatedAt = timestamp;
-    this.drawingMetadataStore.upsertDetail(detail);
+    this.drawingRepository.upsertDetail(detail);
   }
 
   private documentToDrawingItem(document: ProductDocument): DrawingItem {
@@ -511,7 +513,7 @@ export class PdfImportApplyService {
   }
 
   private toSafeApplyResponse(batch: PdfImportBatchRecord): PdfImportApplyResponseDto {
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === batch.customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === batch.customerId);
     const items = batch.applyItems ?? [];
     return {
       importBatchId: batch.importBatchId,
@@ -546,11 +548,11 @@ export class PdfImportApplyService {
   }
 
   private findBatch(importBatchId: string) {
-    return this.drawingMetadataStore.readImportRecords().find((batch) => batch.importBatchId === importBatchId);
+    return this.drawingRepository.readImportRecords().find((batch) => batch.importBatchId === importBatchId);
   }
 
   private updateBatch(batch: PdfImportBatchRecord) {
-    return this.drawingMetadataStore.upsertImportBatch(batch);
+    return this.drawingRepository.upsertImportBatch(batch);
   }
 
   private isExpired(batch: PdfImportBatchRecord) {

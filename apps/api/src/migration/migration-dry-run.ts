@@ -57,7 +57,7 @@ export interface MigrationValidationResult {
 
 export interface MigrationEnvironmentStatus {
   envLocalExists: boolean;
-  dataSource: 'mock' | 'prisma';
+  dataSource: 'mock' | 'postgres';
   dbTarget: string;
   databaseConfigured: boolean;
   databaseUrlMasked: string;

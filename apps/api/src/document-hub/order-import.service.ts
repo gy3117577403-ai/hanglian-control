@@ -2,13 +2,15 @@ import {
   BadRequestException,
   ConflictException,
   GoneException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
-import { DrawingMetadataStore } from './drawing-metadata.store';
+import { DRAWING_REPOSITORY, ORDER_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository, OrderRepository } from '../persistence/persistence.types';
 import { OrderImportApplyDto, OrderImportPreviewFormDto } from './dto/order-import.dto';
 import { parseOrderExcel } from './helpers/order-excel-parser';
 import type { HubCustomer, HubProductModel } from './mock/document-hub.seed';
@@ -18,7 +20,6 @@ import {
   OrderImportApplyItemRecord,
   OrderImportBatchRecord,
   OrderImportPreviewItemRecord,
-  OrderMetadataStore,
   OrderProductionStatus,
   ProductResolutionStatus,
 } from './order-metadata.store';
@@ -52,8 +53,8 @@ interface ProductResolution {
 @Injectable()
 export class OrderImportService {
   constructor(
-    private readonly orderMetadataStore: OrderMetadataStore,
-    private readonly drawingMetadataStore: DrawingMetadataStore,
+    @Inject(ORDER_REPOSITORY) private readonly orderRepository: OrderRepository,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
     private readonly orderStatusSyncService: OrderStatusSyncService,
     @Optional() private readonly auditService?: AuditService,
   ) {}
@@ -144,7 +145,7 @@ export class OrderImportService {
     }
 
     const createdAt = new Date().toISOString();
-    const batch = this.orderMetadataStore.saveImportBatch({
+    const batch = this.orderRepository.saveImportBatch({
       importBatchId,
       scope,
       fileName: file?.originalname,
@@ -169,13 +170,13 @@ export class OrderImportService {
   async apply(dto: OrderImportApplyDto) {
     const importBatchId = cleanText(dto.importBatchId);
     if (!importBatchId) throw new BadRequestException('订单导入批次不能为空。');
-    const batch = this.orderMetadataStore.getImportBatch(importBatchId);
+    const batch = this.orderRepository.getImportBatch(importBatchId);
     if (!batch) throw new NotFoundException('订单导入预览记录不存在。');
     if (batch.status === 'applying' || applyingLocks.has(importBatchId)) {
       throw new ConflictException('该订单导入批次正在处理，请稍后再试。');
     }
     if (this.isExpired(batch)) {
-      this.orderMetadataStore.updateImportBatch(importBatchId, { status: 'expired' });
+      this.orderRepository.updateImportBatch(importBatchId, { status: 'expired' });
       throw new GoneException('订单导入预览已过期，请重新上传 XLSX。');
     }
     if (this.isCompleted(batch)) return this.toSafeApplyResponse(batch);
@@ -192,13 +193,13 @@ export class OrderImportService {
     const op = operator(dto);
     applyingLocks.add(importBatchId);
     try {
-      this.orderMetadataStore.updateImportBatch(importBatchId, {
+      this.orderRepository.updateImportBatch(importBatchId, {
         status: 'applying',
         operatorId: op.operatorId,
         operatorName: op.operatorName,
       });
 
-      const latest = this.orderMetadataStore.getImportBatch(importBatchId) ?? batch;
+      const latest = this.orderRepository.getImportBatch(importBatchId) ?? batch;
       const previousApplyItems = new Map((latest.applyItems ?? []).map((item) => [item.importItemId, item]));
       const requestById = new Map(requestItems.map((item) => [item.importItemId, item]));
 
@@ -216,7 +217,7 @@ export class OrderImportService {
         .filter(Boolean) as OrderImportApplyItemRecord[];
       const status = this.deriveBatchStatus(applyItems);
       const appliedAt = new Date().toISOString();
-      const saved = this.orderMetadataStore.updateImportBatch(importBatchId, {
+      const saved = this.orderRepository.updateImportBatch(importBatchId, {
         status,
         appliedAt,
         applyItems,
@@ -265,7 +266,7 @@ export class OrderImportService {
     const productionStatus = await this.orderStatusSyncService.deriveProductionStatus({
       linkedProductId: link.product?.productId ?? null,
     });
-    const created = this.orderMetadataStore.createOrder({
+    const created = this.orderRepository.createOrder({
       scope: batch.scope,
       productModel: item.productModel,
       normalizedProductModel: item.normalizedProductModel,
@@ -314,8 +315,8 @@ export class OrderImportService {
           },
         };
       }
-      const product = this.drawingMetadataStore.readProducts().find((entry) => entry.productId === confirmedProductId);
-      const customer = this.drawingMetadataStore.readCustomers().find((entry) => entry.customerId === confirmedCustomerId);
+      const product = this.drawingRepository.readProducts().find((entry) => entry.productId === confirmedProductId);
+      const customer = this.drawingRepository.readCustomers().find((entry) => entry.customerId === confirmedCustomerId);
       if (!product || !customer || product.customerId !== customer.customerId) {
         return { result: { result: 'error', message: '所选客户或产品不存在。', errorMessage: '所选客户或产品不存在。' } };
       }
@@ -333,9 +334,9 @@ export class OrderImportService {
     }
 
     if (item.matchedProductId) {
-      const product = this.drawingMetadataStore.readProducts().find((entry) => entry.productId === item.matchedProductId);
+      const product = this.drawingRepository.readProducts().find((entry) => entry.productId === item.matchedProductId);
       const customer = product
-        ? this.drawingMetadataStore.readCustomers().find((entry) => entry.customerId === product.customerId)
+        ? this.drawingRepository.readCustomers().find((entry) => entry.customerId === product.customerId)
         : undefined;
       return { product, customer };
     }
@@ -344,19 +345,19 @@ export class OrderImportService {
   }
 
   private resolveProduct(normalizedProductModel: string): ProductResolution {
-    const products = this.drawingMetadataStore.readProducts().filter((product) => (
+    const products = this.drawingRepository.readProducts().filter((product) => (
       (product.normalizedProductModel ?? normalizeOrderProductModel(product.productModel)) === normalizedProductModel
     ));
     if (!products.length) return { status: 'product_not_found' };
     if (products.length > 1) return { status: 'ambiguous', products };
     const product = products[0];
-    const customer = this.drawingMetadataStore.readCustomers().find((item) => item.customerId === product.customerId);
+    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId);
     if (!customer) return { status: 'customer_not_found', product };
     return { status: 'found', product, customer };
   }
 
   private hasActiveOrder(scope: 'today' | 'week', normalizedProductModel: string) {
-    return this.orderMetadataStore.listOrders({
+    return this.orderRepository.listOrders({
       scope,
       completionStatus: 'pending',
     }).some((order) => order.normalizedProductModel === normalizedProductModel);
