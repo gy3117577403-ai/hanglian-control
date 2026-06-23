@@ -116,7 +116,10 @@ jobs:
           smoke_root="${RUNNER_TEMP}/hanglian-api-smoke"
           mkdir -p "${smoke_root}/uploads" "${smoke_root}/metadata" "${smoke_root}/tmp"
           chmod -R 777 "${smoke_root}"
-          docker run -d --rm \
+          if docker ps -a --format '{{.Names}}' | grep -qx 'hanglian-api-smoke'; then
+            docker rm -f hanglian-api-smoke >/dev/null
+          fi
+          if ! docker run -d \
             --name hanglian-api-smoke \
             -p 18080:3000 \
             -v "${smoke_root}:/data/hanglian" \
@@ -141,15 +144,28 @@ jobs:
             -e ALLOW_PRISMA_WRITE=false \
             -e ALLOW_DESTRUCTIVE_DB_ACTIONS=false \
             -e SEED_MODE=dry-run \
-            "$api_image"
+            "$api_image"; then
+            echo "::error::API smoke container failed to start from image ${api_image}."
+            docker image inspect "$api_image" --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' || true
+            docker ps -a || true
+            exit 1
+          fi
           trap 'docker rm -f hanglian-api-smoke >/dev/null 2>&1 || true' EXIT
           for attempt in {1..45}; do
             if curl -fsS http://127.0.0.1:18080/api/health >/tmp/health.json; then
               break
             fi
+            if [ "$(docker inspect -f '{{.State.Running}}' hanglian-api-smoke 2>/dev/null || echo false)" != "true" ]; then
+              echo "::error::API smoke container exited before health became ready."
+              docker inspect hanglian-api-smoke --format '{{json .State}}' || true
+              docker logs hanglian-api-smoke || true
+              exit 1
+            fi
             sleep 2
           done
           if [ ! -s /tmp/health.json ]; then
+            echo "::error::API smoke health endpoint did not become ready."
+            docker inspect hanglian-api-smoke --format '{{json .State}}' || true
             docker logs hanglian-api-smoke || true
             exit 1
           fi
