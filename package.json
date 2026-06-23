@@ -96,6 +96,7 @@
     "postgres-foundation:check": "node scripts/postgres-foundation-check.mjs",
     "postgres-security-gates:check": "node scripts/postgres-security-gates-check.mjs",
     "prisma-v318-incremental-migration:check": "node scripts/prisma-v318-incremental-migration-check.mjs",
+    "postgres-migration-image:check": "node scripts/postgres-migration-image-check.mjs",
     "json-migration-tooling:check": "node scripts/json-migration-tooling-check.mjs",
     "repository-parity-contract:check": "node scripts/repository-parity-contract-check.mjs",
     "cloud-staging:preflight": "node scripts/cloud-staging-deploy-preflight.mjs",

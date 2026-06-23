@@ -1,4 +1,4 @@
-name: Build API and Tablet Images
+name: Build V3.18 PostgreSQL Candidate Images
 
 on:
   workflow_dispatch:
@@ -7,40 +7,31 @@ on:
         description: Git ref to build. Leave empty for the workflow branch.
         required: false
         default: ""
-      image_tag:
-        description: Extra safe image tag. Do not use latest, production, or stable.
-        required: false
-        default: v3.17-cloud-candidate
-      build_api:
-        description: Build API image.
-        required: true
-        default: true
-        type: boolean
-      build_tablet:
-        description: Build Tablet image.
-        required: true
-        default: true
-        type: boolean
   push:
     branches:
-      - feature/v3-12-image-build-validation
-      - feature/v3-17-cloud-staging-prep
+      - feature/v3-18-postgres-foundation
     paths:
       - "apps/api/**"
-      - "apps/tablet/**"
       - "Dockerfile.api"
-      - "Dockerfile.tablet"
+      - "Dockerfile.migrate"
       - "package.json"
       - "package-lock.json"
+      - "scripts/run-prisma-migrate-deploy.mjs"
+      - "scripts/postgres-migration-image-check.mjs"
+      - "scripts/prisma-v318-incremental-migration-check.mjs"
       - ".github/workflows/build-images-manual.yml"
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: v318-postgres-images-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-images:
-    name: Build API and Tablet Images
+    name: Build API and Migration Runner Images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout selected ref
@@ -52,35 +43,37 @@ jobs:
         id: meta
         shell: bash
         run: |
+          set -euo pipefail
           full_sha="$(git rev-parse HEAD)"
           short_sha="$(git rev-parse --short=12 HEAD)"
           owner_lower="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          repo_name="$(basename '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
-          extra_tag="${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || 'v3.17-cloud-candidate' }}"
-          extra_tag="$(echo "${extra_tag:-v3.17-cloud-candidate}" | tr '[:upper:]' '[:lower:]')"
-          case "$extra_tag" in
-            latest|production|stable)
-              echo "Unsafe image tag is not allowed: $extra_tag" >&2
-              exit 1
-              ;;
-          esac
           echo "full_sha=${full_sha}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "api_image=ghcr.io/${owner_lower}/${repo_name}-api" >> "$GITHUB_OUTPUT"
-          echo "tablet_image=ghcr.io/${owner_lower}/${repo_name}-tablet" >> "$GITHUB_OUTPUT"
-          echo "version_tag=v3.17-cloud-${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "extra_tag=${extra_tag}" >> "$GITHUB_OUTPUT"
+          echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
+          echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-postgres-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
+          echo "migrate_version_tag=v3.18-migrate-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "migrate_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "migrate_candidate_tag=v3.18-migrate-candidate" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Preflight checks
         run: |
+          npm run prisma-v318-incremental-migration:check
+          npm run postgres-migration-image:check
+          npm run postgres-foundation:check
+          npm run postgres-security-gates:check
+          npm run json-migration-tooling:check
+          npm run repository-parity-contract:check
+          npx prisma format --schema=apps/api/prisma/schema.prisma
+          npx prisma validate --schema=apps/api/prisma/schema.prisma
+          npx prisma generate --schema=apps/api/prisma/schema.prisma
+          npm run build -w api
           npm run security:check
-          npm run cloud-staging-api:check
-          npm run cloud-staging:preflight
-          npm run android-cloud-staging:check
           npm run build
           npm run check
 
@@ -96,7 +89,6 @@ jobs:
 
       - name: Build and push API image
         id: build-api
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_api }}
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -105,18 +97,17 @@ jobs:
           build-args: |
             OCI_SOURCE=https://github.com/${{ github.repository }}
             OCI_REVISION=${{ steps.meta.outputs.full_sha }}
-            OCI_VERSION=${{ steps.meta.outputs.version_tag }}
+            OCI_VERSION=${{ steps.meta.outputs.api_version_tag }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
-            org.opencontainers.image.version=${{ steps.meta.outputs.version_tag }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.api_version_tag }}
           tags: |
-            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.version_tag }}
-            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.sha_tag }}
-            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.extra_tag }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_sha_tag }}
+            ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_candidate_tag }}
 
       - name: Smoke test API image
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_api }}
         shell: bash
         run: |
           set -euo pipefail
@@ -133,7 +124,7 @@ jobs:
             -e API_PREFIX=api \
             -e DATA_SOURCE=mock \
             -e DEMO_DATA_MODE=demo \
-            -e DEPLOYMENT_STAGE=v3.17-cloud-staging-smoke \
+            -e DEPLOYMENT_STAGE=v3.18-postgres-candidate-smoke \
             -e DB_TARGET=local \
             -e FILE_STORAGE_PROVIDER=local \
             -e STORAGE_ROOT=/data/hanglian \
@@ -148,7 +139,7 @@ jobs:
             -e ALLOW_PRISMA_WRITE=false \
             -e ALLOW_DESTRUCTIVE_DB_ACTIONS=false \
             -e SEED_MODE=dry-run \
-            "${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.version_tag }}"
+            "${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}"
           trap 'docker rm -f hanglian-api-smoke >/dev/null 2>&1 || true' EXIT
           for attempt in {1..45}; do
             if curl -fsS http://127.0.0.1:18080/api/health >/tmp/health.json; then
@@ -171,49 +162,83 @@ jobs:
           if (storage.provider !== 'local' || storage.databaseConnected !== false) throw new Error('storage smoke check failed')
           if (runtime.dataSource !== 'mock' || runtime.databaseConnected !== false) throw new Error('runtime smoke check failed')
           const text = JSON.stringify({ health, storage, runtime })
-          if (/DATABASE_URL|S3_SECRET|TOKEN|SECRET|postgres:\/\//i.test(text)) throw new Error('runtime smoke leaked sensitive data')
+          if (/DATABASE_URL|S3_SECRET|TOKEN|SECRET|postgres/i.test(text)) throw new Error('runtime smoke leaked sensitive data')
           NODE
 
-      - name: Build and push Tablet image
-        id: build-tablet
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_tablet }}
+      - name: Build and push Migration Runner image
+        id: build-migrate
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.tablet
+          file: Dockerfile.migrate
           push: true
           build-args: |
             OCI_SOURCE=https://github.com/${{ github.repository }}
             OCI_REVISION=${{ steps.meta.outputs.full_sha }}
-            OCI_VERSION=${{ steps.meta.outputs.version_tag }}
+            OCI_VERSION=${{ steps.meta.outputs.migrate_version_tag }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
-            org.opencontainers.image.version=${{ steps.meta.outputs.version_tag }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.migrate_version_tag }}
           tags: |
-            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.version_tag }}
-            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.sha_tag }}
-            ${{ steps.meta.outputs.tablet_image }}:${{ steps.meta.outputs.extra_tag }}
+            ${{ steps.meta.outputs.migrate_image }}:${{ steps.meta.outputs.migrate_version_tag }}
+            ${{ steps.meta.outputs.migrate_image }}:${{ steps.meta.outputs.migrate_sha_tag }}
+            ${{ steps.meta.outputs.migrate_image }}:${{ steps.meta.outputs.migrate_candidate_tag }}
+
+      - name: Verify Migration Runner image offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.meta.outputs.migrate_image }}:${{ steps.meta.outputs.migrate_version_tag }}"
+          docker run --rm "$image" node --version
+          docker run --rm "$image" npx prisma --version
+          docker run --rm -i "$image" node - <<'NODE'
+          const fs = require('node:fs')
+          const crypto = require('node:crypto')
+          const required = [
+            'apps/api/prisma/schema.prisma',
+            'apps/api/prisma/migrations/migration_lock.toml',
+            'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
+            'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
+          ]
+          for (const file of required) {
+            if (!fs.existsSync(file)) throw new Error(`missing ${file}`)
+          }
+          const initial = crypto
+            .createHash('sha256')
+            .update(fs.readFileSync('apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql'))
+            .digest('hex')
+          const incremental = crypto
+            .createHash('sha256')
+            .update(fs.readFileSync('apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql'))
+            .digest('hex')
+          if (initial !== 'ef2508e428b7c3264bd06a353036a496afe0028a6ce849cf143f0f40fec6f3f6') throw new Error('initial migration sha mismatch')
+          if (incremental !== '027c925924c1e6e5f0ebf153a0a58a72b7c993dcc1db41cf6e0267d121666a8d') throw new Error('incremental migration sha mismatch')
+          if (fs.readFileSync('apps/api/prisma/migrations/migration_lock.toml', 'utf8').trim() !== 'provider = "postgresql"') {
+            throw new Error('migration lock provider mismatch')
+          }
+          for (const forbidden of ['apps/api/.env.local', '.env.local', 'apps/api/storage/metadata', 'apps/api/storage/uploads', 'apps/api/storage/tmp']) {
+            if (fs.existsSync(forbidden)) throw new Error(`forbidden runtime file copied: ${forbidden}`)
+          }
+          NODE
 
       - name: Write build summary
         shell: bash
         run: |
           {
-            echo "## Hanglian V3.17 cloud staging image build"
+            echo "## Hanglian V3.18 PostgreSQL candidate images"
             echo ""
-            echo "- Git ref: \`${{ github.ref }}\`"
             echo "- Commit SHA: \`${{ steps.meta.outputs.full_sha }}\`"
             echo "- API image: \`${{ steps.meta.outputs.api_image }}\`"
-            echo "- API tags: \`${{ steps.meta.outputs.version_tag }}\`, \`${{ steps.meta.outputs.sha_tag }}\`, \`${{ steps.meta.outputs.extra_tag }}\`"
+            echo "- API tags: \`${{ steps.meta.outputs.api_version_tag }}\`, \`${{ steps.meta.outputs.api_sha_tag }}\`, \`${{ steps.meta.outputs.api_candidate_tag }}\`"
             echo "- API digest: \`${{ steps.build-api.outputs.digest }}\`"
-            echo "- Tablet image: \`${{ steps.meta.outputs.tablet_image }}\`"
-            echo "- Tablet tags: \`${{ steps.meta.outputs.version_tag }}\`, \`${{ steps.meta.outputs.sha_tag }}\`, \`${{ steps.meta.outputs.extra_tag }}\`"
-            echo "- Tablet digest: \`${{ steps.build-tablet.outputs.digest }}\`"
-            echo "- API Dockerfile: \`Dockerfile.api\`"
-            echo "- Tablet Dockerfile: \`Dockerfile.tablet\`"
+            echo "- Migration image: \`${{ steps.meta.outputs.migrate_image }}\`"
+            echo "- Migration tags: \`${{ steps.meta.outputs.migrate_version_tag }}\`, \`${{ steps.meta.outputs.migrate_sha_tag }}\`, \`${{ steps.meta.outputs.migrate_candidate_tag }}\`"
+            echo "- Migration digest: \`${{ steps.build-migrate.outputs.digest }}\`"
+            echo "- Initial migration SHA-256: \`ef2508e428b7c3264bd06a353036a496afe0028a6ce849cf143f0f40fec6f3f6\`"
+            echo "- Incremental migration SHA-256: \`027c925924c1e6e5f0ebf153a0a58a72b7c993dcc1db41cf6e0267d121666a8d\`"
             echo "- Database connection: not executed"
             echo "- Database migration: not executed"
+            echo "- Secret creation: not executed"
             echo "- Sealos deployment: not executed"
-            echo "- S3 connection: not executed"
-            echo "- API smoke test: health, storage status, runtime info"
           } >> "$GITHUB_STEP_SUMMARY"
