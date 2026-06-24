@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { assertDatabaseWriteAllowed } from '../../database/database-safety';
 import { PrismaService } from '../../database/prisma.service';
 import { evaluatePlanReadiness } from '../../common/utils/readiness';
+import { supportsSingleEffectiveDocumentType } from '../../common/utils/document-version-rules';
 import type {
   CreateUploadedDocumentPayload,
   DocumentCompareField,
@@ -174,7 +175,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       },
     });
 
-    if (payload.status === 'effective') {
+    if (payload.status === 'effective' && supportsSingleEffectiveDocumentType(payload.documentType)) {
       await this.expireOtherEffectiveDocuments(row.id, versionGroupKey);
     }
     return mapPrismaDocument(row);
@@ -193,7 +194,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       },
     });
     const document = mapPrismaDocument(row);
-    if (payload.status === 'effective') {
+    if (payload.status === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       await this.expireOtherEffectiveDocuments(document.id, docGroupKey(document));
     }
     return this.findDocumentById(document.id);
@@ -212,7 +213,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       },
     });
     const document = mapPrismaDocument(row);
-    if (document.documentStatus === 'effective') {
+    if (document.documentStatus === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       await this.expireOtherEffectiveDocuments(document.id, docGroupKey(document));
     }
     return this.findDocumentById(document.id);
@@ -263,7 +264,9 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     assertDatabaseWriteAllowed();
     const current = await this.findDocumentById(id);
     if (!current) return undefined;
-    await this.expireOtherEffectiveDocuments(current.id, docGroupKey(current));
+    if (supportsSingleEffectiveDocumentType(current.documentType)) {
+      await this.expireOtherEffectiveDocuments(current.id, docGroupKey(current));
+    }
     await this.prisma.client.productDocument.update({
       where: { id: current.id },
       data: {

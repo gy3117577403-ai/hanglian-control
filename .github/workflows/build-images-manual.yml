@@ -17,6 +17,11 @@ on:
       - "package.json"
       - "package-lock.json"
       - "scripts/run-prisma-migrate-deploy.mjs"
+      - "scripts/document-version-rules.mjs"
+      - "scripts/json-migration-plan.mjs"
+      - "scripts/json-migration-dry-run.mjs"
+      - "scripts/json-migration-tooling-check.mjs"
+      - "scripts/json-to-postgres-import.mjs"
       - "scripts/postgres-migration-image-check.mjs"
       - "scripts/prisma-v318-incremental-migration-check.mjs"
       - ".github/workflows/build-images-manual.yml"
@@ -54,9 +59,9 @@ jobs:
           echo "api_version_tag=v3.18-postgres-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
-          echo "migrate_version_tag=v3.18-migrate-config-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "migrate_version_tag=v3.18-import-finished-images-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "migrate_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "migrate_candidate_tag=v3.18-migrate-config-candidate" >> "$GITHUB_OUTPUT"
+          echo "migrate_candidate_tag=v3.18-import-candidate" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: npm ci
@@ -223,6 +228,7 @@ jobs:
             'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
             'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
             'scripts/run-prisma-migrate-deploy.mjs',
+            'scripts/document-version-rules.mjs',
             'scripts/json-migration-plan.mjs',
             'scripts/json-migration-dry-run.mjs',
             'scripts/json-to-postgres-import.mjs',

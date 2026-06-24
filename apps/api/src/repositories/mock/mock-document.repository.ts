@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { documentStatusLabelMap, legacyDocumentTypeMap } from '../../common/enums/production.enum';
 import { evaluatePlanReadiness } from '../../common/utils/readiness';
+import { supportsSingleEffectiveDocumentType } from '../../common/utils/document-version-rules';
 import { mockStore } from '../../mock/production.mock';
 import { LocalStorageService } from '../../storage/local-storage.service';
 import type {
@@ -128,7 +129,7 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
     };
 
     this.persistDocument(document);
-    if (document.documentStatus === 'effective') {
+    if (document.documentStatus === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       this.expireOtherEffectiveDocuments(document);
     }
     return document;
@@ -141,7 +142,7 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
     document.status = documentStatusLabelMap[payload.status];
     document.updatedAt = new Date().toISOString();
     document.remark = payload.reason ?? document.remark;
-    if (payload.status === 'effective') {
+    if (payload.status === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       document.effectiveDate = document.updatedAt.slice(0, 10);
       this.expireOtherEffectiveDocuments(document);
     }
@@ -158,7 +159,7 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       document.status = documentStatusLabelMap[payload.status];
     }
     document.updatedAt = new Date().toISOString();
-    if (document.documentStatus === 'effective') {
+    if (document.documentStatus === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       document.effectiveDate = document.updatedAt.slice(0, 10);
       this.expireOtherEffectiveDocuments(document);
     }
@@ -212,7 +213,9 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
     document.status = documentStatusLabelMap.effective;
     document.effectiveDate = new Date().toISOString().slice(0, 10);
     document.updatedAt = new Date().toISOString();
-    this.expireOtherEffectiveDocuments(document);
+    if (supportsSingleEffectiveDocumentType(document.documentType)) {
+      this.expireOtherEffectiveDocuments(document);
+    }
     this.persistDocument(document);
 
     const versions = this.findDocumentVersions(documentId(document));

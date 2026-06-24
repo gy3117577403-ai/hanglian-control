@@ -3,6 +3,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  documentEffectiveVersionGroupKey,
+  drawingModuleForDocumentType,
+  isInactiveDocumentForEffectiveCheck,
+  supportsSingleEffectiveVersion,
+} from './document-version-rules.mjs';
 
 const moduleKeys = new Set(['original_drawing', 'sop', 'finished_images', 'accessory_specs', 'notes', 'tooling']);
 const executionOrder = [
@@ -166,18 +172,20 @@ function collectMultipleEffectiveVersions(documents) {
   for (const document of documents) {
     const status = document?.documentStatus ?? document?.status;
     const productId = document?.productId;
-    const moduleKey = document?.moduleKey;
+    const moduleKey = document?.moduleKey ?? drawingModuleForDocumentType(document?.documentType);
     const documentId = document?.documentId ?? document?.id ?? document?.itemId;
-    if (document?.deletedAt || document?.archived) continue;
+    const versionGroupKey = documentEffectiveVersionGroupKey({ ...document, moduleKey });
+    if (isInactiveDocumentForEffectiveCheck(document)) continue;
+    if (!supportsSingleEffectiveVersion(moduleKey)) continue;
     if (status !== 'effective' || !productId || !moduleKey || !documentId) continue;
-    const key = `${productId}:${moduleKey}`;
-    const group = groups.get(key) ?? { productId, moduleKey, documentIds: [] };
+    const key = versionGroupKey ?? `${productId}:${moduleKey}`;
+    const group = groups.get(key) ?? { productId, moduleKey, versionGroupKey: key, documentIds: [] };
     group.documentIds.push(documentId);
     groups.set(key, group);
   }
   return [...groups.values()]
     .filter((group) => group.documentIds.length > 1)
-    .sort((left, right) => `${left.productId}:${left.moduleKey}`.localeCompare(`${right.productId}:${right.moduleKey}`));
+    .sort((left, right) => String(left.versionGroupKey).localeCompare(String(right.versionGroupKey)));
 }
 
 export function assertWritablePathOutsideSources(targetPath, sourceRoots) {
@@ -222,6 +230,10 @@ export function collectPlan(options) {
   const customerIds = new Set(customers.map((item) => item?.customerId).filter(Boolean));
   const productIds = new Set(products.map((item) => item?.productId).filter(Boolean));
   const documentIds = new Set(productDocuments.map((item) => item?.documentId ?? item?.id ?? item?.itemId).filter(Boolean));
+  const activeDocumentIds = new Set(productDocuments
+    .filter((item) => !isInactiveDocumentForEffectiveCheck(item))
+    .map((item) => item?.documentId ?? item?.id ?? item?.itemId)
+    .filter(Boolean));
   const pdfImportBatchIds = new Set(pdfImportBatches.map((item) => item?.importBatchId).filter(Boolean));
   const orderImportBatchIds = new Set(orderImportBatches.map((item) => item?.importBatchId).filter(Boolean));
   const orderIds = new Set(productionOrders.map((item) => item?.orderId).filter(Boolean));
@@ -243,7 +255,9 @@ export function collectPlan(options) {
   for (const module of productModules) {
     if (!productIds.has(module.productId)) orphanRelations.push({ model: 'ProductModule', id: `${module.productId}:${module.moduleKey}`, relation: 'productId' });
     if (!moduleKeys.has(module.moduleKey)) invalidRecords.push({ model: 'ProductModule', id: `${module.productId}:${module.moduleKey}`, reason: 'invalid moduleKey' });
-    if (module.coverDocumentId && !documentIds.has(module.coverDocumentId)) orphanRelations.push({ model: 'ProductModule', id: `${module.productId}:${module.moduleKey}`, relation: 'coverDocumentId' });
+    if (module.coverDocumentId && (!documentIds.has(module.coverDocumentId) || !activeDocumentIds.has(module.coverDocumentId))) {
+      orphanRelations.push({ model: 'ProductModule', id: `${module.productId}:${module.moduleKey}`, relation: 'coverDocumentId' });
+    }
   }
   for (const document of productDocuments) {
     const id = document?.documentId ?? document?.id ?? document?.itemId;

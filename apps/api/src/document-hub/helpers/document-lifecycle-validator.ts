@@ -1,6 +1,12 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { documentStatusLabelMap, type DocumentTypeV03, type RequiredProcess } from '../../common/enums/production.enum';
 import type { ProductDocument } from '../../common/types/production.types';
+import {
+  documentTypeForDrawingModule,
+  drawingModuleForDocumentType,
+  requiredProcessForDrawingModule,
+  supportsSingleEffectiveVersion,
+} from '../../common/utils/document-version-rules';
 import type {
   DrawingItem,
   DrawingModule,
@@ -56,32 +62,18 @@ export function moduleNameForKey(moduleKey: DrawingModuleKey) {
 }
 
 export function documentTypeForModule(moduleKey: DrawingModuleKey): DocumentTypeV03 {
-  const map: Record<DrawingModuleKey, DocumentTypeV03> = {
-    original_drawing: 'drawing_pdf',
-    sop: 'sop_image',
-    finished_images: 'finished_detail_image',
-    accessory_specs: 'process_card',
-    notes: 'process_card',
-    tooling: 'process_card',
-  };
-  return map[moduleKey];
+  return documentTypeForDrawingModule(moduleKey);
 }
 
 export function moduleForDocumentType(documentType: DocumentTypeV03): DrawingModuleKey {
-  const map: Record<DocumentTypeV03, DrawingModuleKey> = {
-    drawing_pdf: 'original_drawing',
-    sop_image: 'sop',
-    connector_manual: 'sop',
-    pinout_diagram: 'notes',
-    finished_detail_image: 'finished_images',
-    process_card: 'accessory_specs',
-  };
-  return map[documentType];
+  return drawingModuleForDocumentType(documentType) ?? 'accessory_specs';
 }
 
 export function requiredProcessForModule(moduleKey: DrawingModuleKey): RequiredProcess {
-  return moduleKey === 'sop' || moduleKey === 'finished_images' ? 'back' : 'common';
+  return requiredProcessForDrawingModule(moduleKey);
 }
+
+export { supportsSingleEffectiveVersion };
 
 export function isFormalLifecycleDocument(document?: ProductDocument): document is LifecycleDocument {
   return Boolean(document && (

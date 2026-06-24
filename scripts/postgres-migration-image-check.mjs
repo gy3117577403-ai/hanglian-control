@@ -63,6 +63,7 @@ requireIncludes('Dockerfile.migrate', 'PRISMA_CLI_VERSION=7.8.0', 'Migration Run
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma.config.ts ./apps/api/prisma.config.ts', 'Migration Runner image must copy apps/api/prisma.config.ts.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma ./apps/api/prisma', 'Migration Runner image must copy schema and migrations.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs', 'Migration Runner image must copy the migration wrapper.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/document-version-rules.mjs ./scripts/document-version-rules.mjs', 'Migration Runner image must copy document version rules helper.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/json-migration-plan.mjs ./scripts/json-migration-plan.mjs', 'Migration Runner image must copy JSON migration plan CLI.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/json-migration-dry-run.mjs ./scripts/json-migration-dry-run.mjs', 'Migration Runner image must copy JSON migration dry-run CLI.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/json-to-postgres-import.mjs ./scripts/json-to-postgres-import.mjs', 'Migration Runner image must copy JSON import CLI.');
@@ -130,6 +131,7 @@ for (const file of [
   'apps/api/prisma/migrations/migration_lock.toml',
   'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
   'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
+  'scripts/document-version-rules.mjs',
   'scripts/json-migration-plan.mjs',
   'scripts/json-migration-dry-run.mjs',
   'scripts/json-to-postgres-import.mjs',
@@ -152,11 +154,12 @@ if (read('apps/api/prisma/migrations/migration_lock.toml').trim() !== 'provider 
 
 requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-postgres-foundation', 'Workflow must support current branch push trigger.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow must build Migration Runner image.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-config-${short_sha}', 'Workflow must generate config-specific Migration Runner tag.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-config-candidate', 'Workflow must generate config-specific Migration Runner candidate tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-finished-images-${short_sha}', 'Workflow must generate finished-images Migration Runner tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-candidate', 'Workflow must generate import candidate Migration Runner tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'apps/api/prisma.config.ts', 'Workflow must verify prisma.config.ts inside the image.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/document-version-rules.mjs', 'Workflow must verify document version rules helper inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/json-migration-dry-run.mjs', 'Workflow must verify JSON dry-run CLI inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/json-to-postgres-import.mjs', 'Workflow must verify JSON import CLI inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'process.env.DATABASE_URL ?? ""', 'Workflow must verify Prisma config datasource.url.');

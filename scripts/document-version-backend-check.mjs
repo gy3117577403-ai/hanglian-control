@@ -355,9 +355,8 @@ function runStaticCheck() {
   assert(versionService.includes('document_set_effective'), 'set-effective audit is missing.');
   assert(versionService.includes('document_cover_updated'), 'set-cover audit is missing.');
   assert(
-    versionService.includes('effectiveModuleKeys')
-      && versionService.includes('!effectiveModuleKeys.includes(moduleKey)')
-      && !/const effectiveModuleKeys[\s\S]{0,220}finished_images/.test(versionService),
+    versionService.includes('supportsSingleEffectiveVersion(moduleKey)')
+      && !versionService.includes('effectiveModuleKeys'),
     'finished_images must be excluded from set-effective.',
   );
   assert(versionService.includes('documentLocks') && versionService.includes('withDocumentLock'), 'document version mutations need a per-document lock.');

@@ -27,6 +27,7 @@ import {
   isFormalLifecycleDocument,
   moduleForDocumentType,
   recalculateLifecycleDetail,
+  supportsSingleEffectiveVersion,
   versionGroupKey,
   type LifecycleDocument,
 } from './helpers/document-lifecycle-validator';
@@ -37,13 +38,6 @@ import type {
 } from './mock/document-hub.seed';
 
 const placeholderMessage = '\u8be5\u8d44\u6599\u4e3a\u7cfb\u7edf\u5360\u4f4d\u8d44\u6599\uff0c\u6682\u4e0d\u652f\u6301\u7f16\u8f91\u3002';
-const effectiveModuleKeys: DrawingModuleKey[] = [
-  'original_drawing',
-  'sop',
-  'accessory_specs',
-  'notes',
-  'tooling',
-];
 const documentLocks = new Set<string>();
 
 interface VersionContext {
@@ -151,7 +145,7 @@ export class DocumentVersionService {
 
   async setEffective(productId: string, moduleKeyInput: string, itemId: string, dto: DrawingDocumentOperatorDto = {}) {
     const moduleKey = assertLifecycleModuleKey(moduleKeyInput);
-    if (!effectiveModuleKeys.includes(moduleKey)) {
+    if (!supportsSingleEffectiveVersion(moduleKey)) {
       throw new BadRequestException('\u6210\u54c1\u56fe\u4e0d\u4f7f\u7528\u5355\u4e00\u5f53\u524d\u6709\u6548\u7248\u672c\uff0c\u8bf7\u4f7f\u7528\u9996\u9875\u5c01\u9762\u3002');
     }
 

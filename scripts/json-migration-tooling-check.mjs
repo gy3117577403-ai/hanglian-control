@@ -28,6 +28,66 @@ function run(args, env = {}) {
   });
 }
 
+function moduleState(productId, modules) {
+  return {
+    schemaVersion: 1,
+    updatedAt: new Date(0).toISOString(),
+    trash: [],
+    details: [{
+      customer: { customerId: 'cust-a', customerName: 'Customer A' },
+      product: { productId, customerId: 'cust-a', productModel: 'HL-A', normalizedProductModel: 'HL-A' },
+      modules,
+    }],
+  };
+}
+
+function drawingModule(moduleKey, items, coverDocumentId = undefined) {
+  return {
+    moduleKey,
+    moduleName: moduleKey,
+    status: items.length ? 'uploaded' : 'pending',
+    coverDocumentId,
+    items,
+  };
+}
+
+function documentItem(id, patch = {}) {
+  return {
+    itemId: id,
+    documentId: id,
+    title: id,
+    fileType: 'image',
+    source: 'manual_upload',
+    documentStatus: 'effective',
+    ...patch,
+  };
+}
+
+function writeSingleProductFixture(modules) {
+  writeJson('drawing-products.json', [{ productId: 'prod-a', customerId: 'cust-a', productModel: 'HL-A', normalizedProductModel: 'HL-A', drawingStatus: 'available' }]);
+  writeJson('drawing-module-settings.json', moduleState('prod-a', modules));
+}
+
+function runDryRunForFixture() {
+  const result = run(['scripts/json-migration-dry-run.mjs', '--metadata-root', metadataRoot, '--uploads-root', uploadsRoot]);
+  return {
+    result,
+    output: result.stdout ? JSON.parse(result.stdout) : undefined,
+  };
+}
+
+function assertNoBlockersOrWarnings(label) {
+  const { result, output } = runDryRunForFixture();
+  if (result.status !== 0) throw new Error(`${label} should pass: ${result.stderr || result.stdout}`);
+  if (output.blockers.length || output.warnings.length) throw new Error(`${label} should not produce blockers or warnings`);
+}
+
+function assertBlocked(label, expectedText) {
+  const { result, output } = runDryRunForFixture();
+  if (result.status !== 3) throw new Error(`${label} should block migration`);
+  if (!JSON.stringify(output).includes(expectedText)) throw new Error(`${label} blocker did not include ${expectedText}`);
+}
+
 try {
   const fileBuffer = Buffer.from('fake pdf payload');
   const checksum = createHash('sha256').update(fileBuffer).digest('hex');
@@ -115,6 +175,56 @@ try {
   if (!readFileSync(manifestFile, 'utf8').includes('"mode": "dry-run"')) throw new Error('dry-run manifest missing');
   if (sourceHash !== sha(join(metadataRoot, 'drawing-customers.json'))) throw new Error('source JSON was modified');
 
+  writeSingleProductFixture([
+    drawingModule('finished_images', [
+      documentItem('fi-a', { versionGroupKey: 'prod-a::finished_images::gallery' }),
+      documentItem('fi-b', { versionGroupKey: 'prod-a::finished_images::gallery' }),
+      documentItem('fi-c', { versionGroupKey: 'prod-a::finished_images::gallery' }),
+    ], 'fi-a'),
+  ]);
+  assertNoBlockersOrWarnings('finished_images multiple effective documents');
+
+  writeSingleProductFixture([
+    drawingModule('finished_images', [
+      documentItem('fi-cover-a', { versionGroupKey: 'prod-a::finished_images::gallery' }),
+      documentItem('fi-cover-b', { versionGroupKey: 'prod-a::finished_images::gallery' }),
+      documentItem('fi-cover-c', { versionGroupKey: 'prod-a::finished_images::gallery' }),
+    ], 'fi-cover-b'),
+  ]);
+  assertNoBlockersOrWarnings('finished_images independent cover document');
+
+  writeSingleProductFixture([
+    drawingModule('original_drawing', [
+      documentItem('od-a', { fileType: 'pdf', versionGroupKey: 'prod-a::drawing_pdf::common' }),
+      documentItem('od-b', { fileType: 'pdf', versionGroupKey: 'prod-a::drawing_pdf::common' }),
+    ], 'od-a'),
+  ]);
+  assertBlocked('original_drawing duplicate effective version group', 'multiple effective document versions exist');
+
+  writeSingleProductFixture([
+    drawingModule('sop', [
+      documentItem('sop-a', { versionGroupKey: 'prod-a::sop_image::back::line-a' }),
+      documentItem('sop-b', { versionGroupKey: 'prod-a::sop_image::back::line-b' }),
+    ], 'sop-a'),
+  ]);
+  assertNoBlockersOrWarnings('sop different version groups');
+
+  writeSingleProductFixture([
+    drawingModule('original_drawing', [
+      documentItem('od-deleted', { fileType: 'pdf', versionGroupKey: 'prod-a::drawing_pdf::common', deletedAt: new Date(0).toISOString() }),
+      documentItem('od-active', { fileType: 'pdf', versionGroupKey: 'prod-a::drawing_pdf::common' }),
+    ], 'od-active'),
+  ]);
+  assertNoBlockersOrWarnings('deleted effective document is excluded');
+
+  writeSingleProductFixture([
+    drawingModule('finished_images', [
+      documentItem('deleted-cover', { deletedAt: new Date(0).toISOString() }),
+      documentItem('fi-active', {}),
+    ], 'deleted-cover'),
+  ]);
+  assertBlocked('deleted cover document', 'coverDocumentId');
+
   result = run(['scripts/json-migration-dry-run.mjs', '--metadata-root', metadataRoot, '--uploads-root', uploadsRoot, '--output', metadataRoot]);
   if (result.status === 0) throw new Error('dry-run accepted output inside metadata-root');
 
@@ -151,6 +261,7 @@ try {
 
   const dockerfile = readFileSync('Dockerfile.migrate', 'utf8');
   for (const script of [
+    'scripts/document-version-rules.mjs',
     'scripts/json-migration-plan.mjs',
     'scripts/json-migration-dry-run.mjs',
     'scripts/json-to-postgres-import.mjs',
