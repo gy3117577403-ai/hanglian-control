@@ -25,6 +25,7 @@ ENV PRISMA_CLI_VERSION=7.8.0
 COPY --from=deps --chown=node:node /app/package.json /app/package-lock.json ./
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node apps/api/package.json ./apps/api/package.json
+COPY --chown=node:node apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY --chown=node:node apps/api/prisma ./apps/api/prisma
 COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs ./scripts/run-prisma-migrate-deploy.mjs
 

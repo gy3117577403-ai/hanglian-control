@@ -14,7 +14,7 @@ function fail(message) {
 
 function read(relativePath) {
   if (!existsSync(relativePath)) {
-    fail(`缺少文件：${relativePath}`);
+    fail(`Missing file: ${relativePath}`);
     return '';
   }
   return readFileSync(relativePath, 'utf8');
@@ -24,51 +24,67 @@ function sha256(relativePath) {
   return createHash('sha256').update(readFileSync(relativePath)).digest('hex');
 }
 
+function gitBlobSha(relativePath) {
+  return createHash('sha256').update(execFileSync('git', ['show', `HEAD:${relativePath}`])).digest('hex');
+}
+
 function requireIncludes(file, needle, message) {
   if (!read(file).includes(needle)) fail(message);
+}
+
+function requireNotIncludes(file, needle, message) {
+  if (read(file).includes(needle)) fail(message);
 }
 
 function requireNotMatches(file, pattern, message) {
   if (pattern.test(read(file))) fail(message);
 }
 
-function gitBlobSha(relativePath) {
-  return createHash('sha256').update(execFileSync('git', ['show', `HEAD:${relativePath}`])).digest('hex');
-}
-
+const prismaConfig = read('apps/api/prisma.config.ts');
 const dockerfile = read('Dockerfile.migrate');
 const apiDockerfile = read('Dockerfile.api');
 const wrapper = read('scripts/run-prisma-migrate-deploy.mjs');
 const workflow = read('.github/workflows/build-images-manual.yml');
 const packageLock = read('package-lock.json');
 
-requireIncludes('Dockerfile.migrate', 'FROM node:22-alpine AS deps', 'Migration Runner 必须使用 API 兼容 Node 主版本。');
-requireIncludes('Dockerfile.migrate', 'RUN npm ci', 'Migration Runner 必须使用 lockfile 安装依赖。');
-requireIncludes('Dockerfile.migrate', 'PRISMA_CLI_VERSION=7.8.0', 'Migration Runner 必须标记 Prisma CLI 版本 7.8.0。');
-requireIncludes('package-lock.json', '"node_modules/prisma"', 'package-lock 必须包含 Prisma CLI。');
-requireIncludes('package-lock.json', '"version": "7.8.0"', 'package-lock 必须锁定 Prisma 7.8.0。');
-requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma ./apps/api/prisma', 'schema 和 migrations 必须复制到镜像。');
-requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs', 'Migration wrapper 必须复制到镜像。');
-requireIncludes('Dockerfile.migrate', 'USER node', 'Migration Runner 应使用非 root 用户。');
-requireIncludes('Dockerfile.migrate', 'CMD ["npx", "prisma", "--version"]', '默认命令必须是只读命令。');
+requireIncludes('apps/api/prisma.config.ts', 'defineConfig', 'Prisma config must use defineConfig.');
+requireIncludes('apps/api/prisma.config.ts', 'schema: "prisma/schema.prisma"', 'Prisma config schema path must be relative to apps/api.');
+requireIncludes('apps/api/prisma.config.ts', 'path: "prisma/migrations"', 'Prisma config migrations path must be relative to apps/api.');
+requireIncludes('apps/api/prisma.config.ts', 'datasource', 'Prisma config must include datasource.');
+requireIncludes('apps/api/prisma.config.ts', 'url: process.env.DATABASE_URL ?? ""', 'Prisma config datasource.url must read process.env.DATABASE_URL with an empty fallback.');
+requireNotIncludes('apps/api/prisma.config.ts', 'dotenv/config', 'Prisma config must not auto-load dotenv.');
+requireNotIncludes('apps/api/prisma.config.ts', 'env("DATABASE_URL")', 'Prisma config must not use env("DATABASE_URL").');
+requireNotIncludes('apps/api/prisma.config.ts', 'shadowDatabaseUrl', 'Prisma config must not define shadowDatabaseUrl.');
+if (/postgres(?:ql)?:\/\//i.test(prismaConfig)) fail('Prisma config must not hard-code a database URL.');
+
+requireIncludes('Dockerfile.migrate', 'FROM node:22-alpine AS deps', 'Migration Runner must use Node 22 alpine.');
+requireIncludes('Dockerfile.migrate', 'RUN npm ci', 'Migration Runner must install dependencies from the lockfile.');
+requireIncludes('Dockerfile.migrate', 'PRISMA_CLI_VERSION=7.8.0', 'Migration Runner must mark Prisma CLI version 7.8.0.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma.config.ts ./apps/api/prisma.config.ts', 'Migration Runner image must copy apps/api/prisma.config.ts.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma ./apps/api/prisma', 'Migration Runner image must copy schema and migrations.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs', 'Migration Runner image must copy the migration wrapper.');
+requireIncludes('Dockerfile.migrate', 'USER node', 'Migration Runner should use the non-root node user.');
+requireIncludes('Dockerfile.migrate', 'CMD ["npx", "prisma", "--version"]', 'Migration Runner default command must be read-only.');
+requireIncludes('package-lock.json', '"node_modules/prisma"', 'package-lock must include Prisma CLI.');
+requireIncludes('package-lock.json', '"version": "7.8.0"', 'package-lock must lock Prisma 7.8.0.');
 
 for (const [file, text] of [
   ['Dockerfile.migrate', dockerfile],
   ['Dockerfile.api', apiDockerfile],
 ]) {
   if (/ENV\s+DATABASE_URL|ARG\s+DATABASE_URL|postgres(?:ql)?:\/\//i.test(text)) {
-    fail(`${file} 不得写入 DATABASE_URL 或数据库 URL。`);
+    fail(`${file} must not embed DATABASE_URL or a database URL.`);
   }
 }
 
 for (const forbidden of ['.env', '.env.local', 'apps/api/storage', 'metadata', 'uploads', 'tmp', 'local-test-assets', '.git']) {
   if (new RegExp(`COPY[^\\n]*${forbidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(dockerfile)) {
-    fail(`Migration Runner 不得复制 ${forbidden}。`);
+    fail(`Migration Runner image must not copy ${forbidden}.`);
   }
 }
 
 if (/CMD\s+.*migrate\s+deploy|ENTRYPOINT\s+.*migrate\s+deploy/i.test(dockerfile)) {
-  fail('Migration Runner 不得自动执行 migration。');
+  fail('Migration Runner must not automatically run migration.');
 }
 
 for (const needle of [
@@ -79,10 +95,18 @@ for (const needle of [
   "RUN_PRISMA_MIGRATE_DEPLOY: 'true'",
   "MIGRATION_CONFIRMATION: 'APPLY_V318_MIGRATIONS_TO_STAGING'",
   "process.env.DB_TARGET === 'production'",
-  'DATABASE_URL 未配置',
+  'DATABASE_URL is missing',
   "'prisma', 'migrate', 'deploy'",
+  '--config=',
+  'configLoaded: true',
+  'datasourceConfigured: true',
+  'schemaPathConfigured: true',
+  'migrationsPathConfigured: true',
 ]) {
-  if (!wrapper.includes(needle)) fail(`Migration wrapper 缺少确认或执行逻辑：${needle}`);
+  if (!wrapper.includes(needle)) fail(`Migration wrapper is missing required safety or execution logic: ${needle}`);
+}
+if (wrapper.includes("'--schema'") || wrapper.includes('"--schema"')) {
+  fail('Migration wrapper must not rely on --schema.');
 }
 
 for (const pattern of [
@@ -90,57 +114,59 @@ for (const pattern of [
   /\bseed\b/i,
   /\bmigrate\s+reset\b/i,
   /\bmigrate\s+dev\b/i,
+  /\bmigrate\s+resolve\b/i,
   /\bpsql\b/i,
 ]) {
-  if (pattern.test(wrapper)) fail(`Migration wrapper 不得包含禁用命令：${pattern}`);
+  if (pattern.test(wrapper)) fail(`Migration wrapper must not contain forbidden command: ${pattern}`);
 }
 
 for (const file of [
+  'apps/api/prisma.config.ts',
   'apps/api/prisma/schema.prisma',
   'apps/api/prisma/migrations/migration_lock.toml',
   'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
   'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
 ]) {
-  if (!existsSync(file)) fail(`缺少迁移运行所需文件：${file}`);
+  if (!existsSync(file)) fail(`Missing migration runner required file: ${file}`);
 }
 
 if (gitBlobSha('apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql') !== expectedInitialSha) {
-  fail('初始 migration Git blob SHA-256 不匹配。');
+  fail('Initial migration Git blob SHA-256 mismatch.');
 }
 
 if (sha256('apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql') !== expectedIncrementalSha) {
-  fail('增量 migration SHA-256 不匹配。');
+  fail('Incremental migration SHA-256 mismatch.');
 }
 
 if (read('apps/api/prisma/migrations/migration_lock.toml').trim() !== 'provider = "postgresql"') {
-  fail('migration_lock.toml provider 必须为 postgresql。');
+  fail('migration_lock.toml provider must be postgresql.');
 }
 
-requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-postgres-foundation', 'Workflow 必须支持当前分支 push 触发。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow 必须构建 Migration Runner 镜像。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-${short_sha}', 'Workflow 必须生成 API V3.18 short SHA tag。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-${short_sha}', 'Workflow 必须生成 Migration Runner V3.18 short SHA tag。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-candidate', 'Workflow 必须生成 API candidate tag。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-candidate', 'Workflow 必须生成 Migration Runner candidate tag。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow 必须运行 Migration 镜像静态检查。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$api_image"', 'API smoke 前必须拉取刚推送的 API 镜像。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Migration Runner 离线验证前必须拉取刚推送的镜像。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke 必须使用 mock 数据源。');
-requireIncludes('.github/workflows/build-images-manual.yml', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API smoke 必须禁用 migrate deploy。');
+requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-postgres-foundation', 'Workflow must support current branch push trigger.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow must build Migration Runner image.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-config-${short_sha}', 'Workflow must generate config-specific Migration Runner tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-config-candidate', 'Workflow must generate config-specific Migration Runner candidate tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'apps/api/prisma.config.ts', 'Workflow must verify prisma.config.ts inside the image.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'process.env.DATABASE_URL ?? ""', 'Workflow must verify Prisma config datasource.url.');
+requireIncludes('.github/workflows/build-images-manual.yml', '--config=', 'Workflow must verify wrapper uses --config.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke must use mock data source.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API smoke must disable migrate deploy.');
 requireIncludes(
   '.github/workflows/build-images-manual.yml',
   'DATABASE_URL|S3_SECRET|SEALOS_TOKEN|GITHUB_TOKEN|WECHAT.*SECRET|postgres(?:ql)?:\\/\\/|password',
-  'Smoke 检查必须防敏感信息泄露，且不得把普通阶段名中的 postgres 误判为泄露。',
+  'Smoke check must block sensitive runtime output without flagging plain stage names.',
 );
-requireNotMatches('.github/workflows/build-images-manual.yml', /:latest|:production|:stable/i, 'Workflow 不得使用 latest/production/stable tag。');
-requireNotMatches('.github/workflows/build-images-manual.yml', /\bDATABASE_URL\s*:/i, 'Workflow 不得配置 DATABASE_URL。');
-requireNotMatches('.github/workflows/build-images-manual.yml', /\bprisma\s+migrate\s+deploy\b/i, 'Workflow 不得执行 migrate deploy。');
+requireNotMatches('.github/workflows/build-images-manual.yml', /:latest|:production|:stable/i, 'Workflow must not use latest/production/stable tags.');
+requireNotMatches('.github/workflows/build-images-manual.yml', /\bDATABASE_URL\s*:/i, 'Workflow must not configure DATABASE_URL.');
+requireNotMatches('.github/workflows/build-images-manual.yml', /\bprisma\s+migrate\s+deploy\b/i, 'Workflow must not execute migrate deploy.');
 
 if (/\bsealos\s+(apply|deploy|update|restart|delete|scale|create|run)\b/i.test(workflow)) {
-  fail('Workflow 不得访问 Sealos。');
+  fail('Workflow must not operate Sealos.');
 }
-if (workflow.includes('psql')) fail('Workflow 不得运行 psql。');
-if (path.sep === '\\' && dockerfile.includes('\\')) fail('Dockerfile.migrate 路径应保持容器兼容。');
+if (workflow.includes('psql')) fail('Workflow must not run psql.');
+if (path.sep === '\\' && dockerfile.includes('\\')) fail('Dockerfile.migrate paths must stay container-compatible.');
 
 if (failures.length > 0) {
   console.error(failures.map((item) => `- ${item}`).join('\n'));

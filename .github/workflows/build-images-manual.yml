@@ -54,9 +54,9 @@ jobs:
           echo "api_version_tag=v3.18-postgres-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
-          echo "migrate_version_tag=v3.18-migrate-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "migrate_version_tag=v3.18-migrate-config-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "migrate_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "migrate_candidate_tag=v3.18-migrate-candidate" >> "$GITHUB_OUTPUT"
+          echo "migrate_candidate_tag=v3.18-migrate-config-candidate" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: npm ci
@@ -217,14 +217,23 @@ jobs:
           const fs = require('node:fs')
           const crypto = require('node:crypto')
           const required = [
+            'apps/api/prisma.config.ts',
             'apps/api/prisma/schema.prisma',
             'apps/api/prisma/migrations/migration_lock.toml',
             'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
             'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
+            'scripts/run-prisma-migrate-deploy.mjs',
           ]
           for (const file of required) {
             if (!fs.existsSync(file)) throw new Error(`missing ${file}`)
           }
+          const config = fs.readFileSync('apps/api/prisma.config.ts', 'utf8')
+          if (!config.includes('datasource') || !config.includes('process.env.DATABASE_URL ?? ""')) {
+            throw new Error('Prisma config datasource.url mismatch')
+          }
+          const wrapper = fs.readFileSync('scripts/run-prisma-migrate-deploy.mjs', 'utf8')
+          if (!wrapper.includes('--config=')) throw new Error('migration wrapper must pass --config')
+          if (wrapper.includes("'--schema'") || wrapper.includes('"--schema"')) throw new Error('migration wrapper must not rely on --schema only')
           const initial = crypto
             .createHash('sha256')
             .update(fs.readFileSync('apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql'))
