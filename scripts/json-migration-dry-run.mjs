@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
-import { collectPlan, writeSnapshot } from './json-migration-plan.mjs';
+import {
+  assertWritablePathOutsideSources,
+  collectPlan,
+  writeManifestFile,
+  writeSnapshot,
+} from './json-migration-plan.mjs';
 
 function parseArgs(argv) {
   const args = new Map();
@@ -19,39 +24,57 @@ function parseArgs(argv) {
 
 function requireString(args, name) {
   const value = args.get(name);
-  if (!value || value === true) throw new Error(`${name} 为必填参数。`);
+  if (!value || value === true) throw new Error(`${name} is required.`);
   return String(value);
 }
 
 export function dryRun(options) {
   const plan = collectPlan(options);
   const status = plan.blockers.length
-    ? '阻塞迁移'
+    ? 'blocked'
     : plan.warnings.length
-      ? '可迁移但警告'
-      : '可迁移';
+      ? 'ready_with_warnings'
+      : 'ready';
   return {
     generatedAt: plan.generatedAt,
+    mode: 'dry-run',
     status,
+    dryRunOnly: true,
+    databaseAccess: false,
+    wrotePostgres: false,
+    modifiedMetadata: false,
+    modifiedUploads: false,
     counts: plan.counts,
     duplicates: plan.duplicates,
+    duplicateRecords: plan.duplicateRecords,
     invalidRecords: plan.invalidRecords,
     missingRelations: plan.missingRelations,
+    orphanRelations: plan.orphanRelations,
     missingFiles: plan.missingFiles,
     checksumConflicts: plan.checksumConflicts,
+    multipleEffectiveVersions: plan.multipleEffectiveVersions,
     blockers: plan.blockers,
     warnings: plan.warnings,
     executionOrder: plan.executionOrder,
+    sourceFileHashes: plan.sourceFileHashes,
   };
 }
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has('--execute')) throw new Error('dry-run command does not support --execute.');
   const metadataRoot = requireString(args, '--metadata-root');
   const uploadsRoot = requireString(args, '--uploads-root');
   const plan = collectPlan({ metadataRoot, uploadsRoot });
-  if (args.has('--output')) writeSnapshot(plan, requireString(args, '--output'));
+  if (args.has('--output')) {
+    const outputDir = requireString(args, '--output');
+    assertWritablePathOutsideSources(outputDir, [metadataRoot, uploadsRoot]);
+    writeSnapshot(plan, outputDir);
+  }
   const result = dryRun({ metadataRoot, uploadsRoot });
+  if (args.has('--manifest')) {
+    writeManifestFile(requireString(args, '--manifest'), result, [metadataRoot, uploadsRoot]);
+  }
   console.log(JSON.stringify(result, null, 2));
   if (result.blockers.length) process.exit(3);
   if (result.warnings.length) process.exit(2);

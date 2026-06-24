@@ -63,6 +63,10 @@ requireIncludes('Dockerfile.migrate', 'PRISMA_CLI_VERSION=7.8.0', 'Migration Run
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma.config.ts ./apps/api/prisma.config.ts', 'Migration Runner image must copy apps/api/prisma.config.ts.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node apps/api/prisma ./apps/api/prisma', 'Migration Runner image must copy schema and migrations.');
 requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs', 'Migration Runner image must copy the migration wrapper.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/json-migration-plan.mjs ./scripts/json-migration-plan.mjs', 'Migration Runner image must copy JSON migration plan CLI.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/json-migration-dry-run.mjs ./scripts/json-migration-dry-run.mjs', 'Migration Runner image must copy JSON migration dry-run CLI.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/json-to-postgres-import.mjs ./scripts/json-to-postgres-import.mjs', 'Migration Runner image must copy JSON import CLI.');
+requireIncludes('Dockerfile.migrate', 'COPY --chown=node:node scripts/postgres-parity-check.mjs ./scripts/postgres-parity-check.mjs', 'Migration Runner image must copy PostgreSQL parity CLI.');
 requireIncludes('Dockerfile.migrate', 'USER node', 'Migration Runner should use the non-root node user.');
 requireIncludes('Dockerfile.migrate', 'CMD ["npx", "prisma", "--version"]', 'Migration Runner default command must be read-only.');
 requireIncludes('package-lock.json', '"node_modules/prisma"', 'package-lock must include Prisma CLI.');
@@ -126,6 +130,10 @@ for (const file of [
   'apps/api/prisma/migrations/migration_lock.toml',
   'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
   'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
+  'scripts/json-migration-plan.mjs',
+  'scripts/json-migration-dry-run.mjs',
+  'scripts/json-to-postgres-import.mjs',
+  'scripts/postgres-parity-check.mjs',
 ]) {
   if (!existsSync(file)) fail(`Missing migration runner required file: ${file}`);
 }
@@ -149,6 +157,8 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-migrate-conf
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'apps/api/prisma.config.ts', 'Workflow must verify prisma.config.ts inside the image.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/json-migration-dry-run.mjs', 'Workflow must verify JSON dry-run CLI inside the image.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/json-to-postgres-import.mjs', 'Workflow must verify JSON import CLI inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'process.env.DATABASE_URL ?? ""', 'Workflow must verify Prisma config datasource.url.');
 requireIncludes('.github/workflows/build-images-manual.yml', '--config=', 'Workflow must verify wrapper uses --config.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke must use mock data source.');

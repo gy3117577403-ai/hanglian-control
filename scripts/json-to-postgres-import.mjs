@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
+import {
+  assertWritablePathOutsideSources,
+  collectPlan,
+  writeManifestFile,
+  writeSnapshot,
+} from './json-migration-plan.mjs';
+import { dryRun as buildDryRunResult } from './json-migration-dry-run.mjs';
 
 function parseArgs(argv) {
   const args = new Map();
@@ -16,8 +23,41 @@ function parseArgs(argv) {
   return args;
 }
 
+function optionalString(args, name) {
+  const value = args.get(name);
+  return value && value !== true ? String(value) : undefined;
+}
+
+function requireString(args, name) {
+  const value = optionalString(args, name);
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
+}
+
+function assertNoPlainDatabaseUrl(argv) {
+  if (argv.some((item) => /^postgres(?:ql)?:\/\//i.test(item) || item === '--database-url')) {
+    throw new Error('Passing DATABASE_URL on the command line is forbidden.');
+  }
+}
+
+function writeDryRunArtifacts(args, metadataRoot, uploadsRoot) {
+  const plan = collectPlan({ metadataRoot, uploadsRoot });
+  if (args.has('--output')) {
+    const outputDir = requireString(args, '--output');
+    assertWritablePathOutsideSources(outputDir, [metadataRoot, uploadsRoot]);
+    writeSnapshot(plan, outputDir);
+  }
+  const result = buildDryRunResult({ metadataRoot, uploadsRoot });
+  if (args.has('--manifest')) {
+    writeManifestFile(requireString(args, '--manifest'), result, [metadataRoot, uploadsRoot]);
+  }
+  return result;
+}
+
 function main() {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  assertNoPlainDatabaseUrl(argv);
+  const args = parseArgs(argv);
   const execute = args.has('--execute');
   const dryRun = !execute || args.has('--dry-run');
   const gatesReady = process.env.DB_TARGET === 'staging'
@@ -26,15 +66,30 @@ function main() {
     && process.env.MIGRATION_CONFIRMATION === 'IMPORT_JSON_TO_STAGING_POSTGRES';
 
   if (process.env.DB_TARGET === 'production') {
-    throw new Error('拒绝生产数据库目标。');
+    throw new Error('拒绝生产数据库目标。 Refusing production database target.');
   }
   if (execute && !gatesReady) {
-    throw new Error('迁移执行需要 --execute、staging 闸门、写入闸门和明确确认词。');
+    throw new Error('JSON import execute requires --execute, staging gates, write gate, and explicit confirmation.');
+  }
+
+  if (dryRun) {
+    const metadataRoot = requireString(args, '--metadata-root');
+    const uploadsRoot = requireString(args, '--uploads-root');
+    const result = writeDryRunArtifacts(args, metadataRoot, uploadsRoot);
+    console.log(JSON.stringify({
+      ...result,
+      executeAllowed: false,
+      connected: false,
+      wroteDatabase: false,
+    }, null, 2));
+    if (result.blockers.length) process.exit(3);
+    if (result.warnings.length) process.exit(2);
+    return;
   }
 
   console.log(JSON.stringify({
     generatedAt: new Date().toISOString(),
-    mode: dryRun ? 'dry-run' : 'execute',
+    mode: 'execute-not-implemented',
     executeAllowed: execute && gatesReady,
     batchSize: Number(args.get('--batch-size') ?? 100),
     resumeFrom: args.get('--resume-from') || null,
@@ -46,6 +101,7 @@ function main() {
     deletesSourceJson: false,
     deletesUploads: false,
     connected: false,
+    wroteDatabase: false,
   }, null, 2));
 }
 

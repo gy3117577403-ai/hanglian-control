@@ -9,6 +9,7 @@ const root = mkdtempSync(join(tmpdir(), 'hanglian-json-migration-'));
 const metadataRoot = join(root, 'metadata');
 const uploadsRoot = join(root, 'uploads');
 const outputRoot = join(root, 'snapshot');
+const manifestFile = join(root, 'dry-run-manifest.json');
 mkdirSync(metadataRoot, { recursive: true });
 mkdirSync(join(uploadsRoot, 'documents'), { recursive: true });
 
@@ -71,10 +72,51 @@ try {
   const plan = JSON.parse(result.stdout);
   if (plan.counts.customers !== 1 || plan.executionOrder[0] !== 'Customers') throw new Error('plan counts/order invalid');
 
-  result = run(['scripts/json-migration-dry-run.mjs', '--metadata-root', metadataRoot, '--uploads-root', uploadsRoot, '--output', outputRoot]);
+  result = run([
+    'scripts/json-migration-dry-run.mjs',
+    '--dry-run',
+    '--metadata-root',
+    metadataRoot,
+    '--uploads-root',
+    uploadsRoot,
+    '--output',
+    outputRoot,
+    '--manifest',
+    manifestFile,
+  ]);
   if (result.status !== 0) throw new Error(`dry-run failed: ${result.stderr}`);
   if (!readFileSync(join(outputRoot, 'manifest.json'), 'utf8').includes('sourceFileHashes')) throw new Error('snapshot manifest missing hashes');
+  const dryRun = JSON.parse(result.stdout);
+  for (const key of [
+    'customers',
+    'products',
+    'productModules',
+    'productDocuments',
+    'pdfImportBatches',
+    'pdfImportItems',
+    'productionOrders',
+    'orderImportBatches',
+    'orderImportItems',
+    'auditLogs',
+    'deleteLockSettings',
+    'duplicateRecords',
+    'orphanRelations',
+    'missingFiles',
+    'checksumConflicts',
+    'multipleEffectiveVersions',
+    'blockers',
+    'warnings',
+  ]) {
+    if (typeof dryRun.counts[key] !== 'number') throw new Error(`dry-run count missing: ${key}`);
+  }
+  if (dryRun.databaseAccess !== false || dryRun.wrotePostgres !== false || dryRun.modifiedMetadata !== false || dryRun.modifiedUploads !== false) {
+    throw new Error('dry-run safety flags invalid');
+  }
+  if (!readFileSync(manifestFile, 'utf8').includes('"mode": "dry-run"')) throw new Error('dry-run manifest missing');
   if (sourceHash !== sha(join(metadataRoot, 'drawing-customers.json'))) throw new Error('source JSON was modified');
+
+  result = run(['scripts/json-migration-dry-run.mjs', '--metadata-root', metadataRoot, '--uploads-root', uploadsRoot, '--output', metadataRoot]);
+  if (result.status === 0) throw new Error('dry-run accepted output inside metadata-root');
 
   writeJson('drawing-products.json', [
     { productId: 'prod-a', customerId: 'missing-customer', productModel: 'HL-A', normalizedProductModel: 'HL-A' },
@@ -94,6 +136,28 @@ try {
     FAKE_DATABASE_URL: 'postgresql://redacted',
   });
   if (result.status !== 0) throw new Error(`parity mock check failed: ${result.stderr}`);
+
+  result = run([
+    'scripts/json-to-postgres-import.mjs',
+    '--dry-run',
+    '--metadata-root',
+    metadataRoot,
+    '--uploads-root',
+    uploadsRoot,
+    '--manifest',
+    join(root, 'import-dry-run-manifest.json'),
+  ]);
+  if (result.status !== 3) throw new Error('import dry-run should reuse dry-run blockers and exit 3');
+
+  const dockerfile = readFileSync('Dockerfile.migrate', 'utf8');
+  for (const script of [
+    'scripts/json-migration-plan.mjs',
+    'scripts/json-migration-dry-run.mjs',
+    'scripts/json-to-postgres-import.mjs',
+    'scripts/postgres-parity-check.mjs',
+  ]) {
+    if (!dockerfile.includes(script)) throw new Error(`Migration Runner Dockerfile does not copy ${script}`);
+  }
 
   console.log('JSON migration tooling check passed.');
 } finally {

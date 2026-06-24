@@ -223,6 +223,10 @@ jobs:
             'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
             'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
             'scripts/run-prisma-migrate-deploy.mjs',
+            'scripts/json-migration-plan.mjs',
+            'scripts/json-migration-dry-run.mjs',
+            'scripts/json-to-postgres-import.mjs',
+            'scripts/postgres-parity-check.mjs',
           ]
           for (const file of required) {
             if (!fs.existsSync(file)) throw new Error(`missing ${file}`)

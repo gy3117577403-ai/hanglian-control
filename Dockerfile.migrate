@@ -28,6 +28,10 @@ COPY --chown=node:node apps/api/package.json ./apps/api/package.json
 COPY --chown=node:node apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY --chown=node:node apps/api/prisma ./apps/api/prisma
 COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs ./scripts/run-prisma-migrate-deploy.mjs
+COPY --chown=node:node scripts/json-migration-plan.mjs ./scripts/json-migration-plan.mjs
+COPY --chown=node:node scripts/json-migration-dry-run.mjs ./scripts/json-migration-dry-run.mjs
+COPY --chown=node:node scripts/json-to-postgres-import.mjs ./scripts/json-to-postgres-import.mjs
+COPY --chown=node:node scripts/postgres-parity-check.mjs ./scripts/postgres-parity-check.mjs
 
 RUN chown -R node:node /app
 
