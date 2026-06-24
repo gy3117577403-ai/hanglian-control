@@ -279,12 +279,12 @@ try {
   result = run(['scripts/json-migration-plan.mjs']);
   if (result.status === 0) throw new Error('plan accepted missing required args');
 
-  result = run(['scripts/postgres-parity-check.mjs', '--metadata-root', metadataRoot, '--uploads-root', uploadsRoot, '--database-url-env', 'FAKE_DATABASE_URL'], {
+  result = run(['scripts/postgres-parity-check.mjs', '--metadata-root', metadataRoot, '--uploads-root', uploadsRoot, '--database-url-env', 'FAKE_POSTGRES_URL'], {
     DB_TARGET: 'staging',
     ALLOW_TEST_DB_CONNECT: 'true',
-    FAKE_DATABASE_URL: 'postgresql://redacted',
+    FAKE_POSTGRES_URL: 'postgresql://redacted',
   });
-  if (result.status !== 0) throw new Error(`parity mock check failed: ${result.stderr}`);
+  if (result.status === 0) throw new Error('parity check must not return a mock success without a reachable PostgreSQL test database');
 
   result = run([
     'scripts/json-to-postgres-import.mjs',
@@ -303,6 +303,7 @@ try {
     'scripts/document-version-rules.mjs',
     'scripts/json-migration-plan.mjs',
     'scripts/json-migration-dry-run.mjs',
+    'scripts/json-postgres-migration-core.mjs',
     'scripts/json-to-postgres-import.mjs',
     'scripts/postgres-parity-check.mjs',
   ]) {

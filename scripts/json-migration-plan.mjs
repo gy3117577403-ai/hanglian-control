@@ -19,9 +19,9 @@ const executionOrder = [
   'ProductDocuments',
   'PdfImportBatches',
   'PdfImportItems',
-  'ProductionOrders',
   'OrderImportBatches',
   'OrderImportItems',
+  'ProductionOrders',
   'AuditLogs',
   'DeleteLockSetting',
 ];

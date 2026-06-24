@@ -21,7 +21,10 @@ on:
       - "scripts/json-migration-plan.mjs"
       - "scripts/json-migration-dry-run.mjs"
       - "scripts/json-migration-tooling-check.mjs"
+      - "scripts/json-postgres-migration-core.mjs"
+      - "scripts/json-postgres-import-parity-check.mjs"
       - "scripts/json-to-postgres-import.mjs"
+      - "scripts/postgres-parity-check.mjs"
       - "scripts/postgres-migration-image-check.mjs"
       - "scripts/prisma-v318-incremental-migration-check.mjs"
       - ".github/workflows/build-images-manual.yml"
@@ -38,6 +41,19 @@ jobs:
   build-images:
     name: Build API and Migration Runner Images
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: hanglian_v318_import_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hanglian_v318_import_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout selected ref
         uses: actions/checkout@v4
@@ -66,7 +82,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Preflight checks
+      - name: Static preflight checks
         run: |
           npm run prisma-v318-incremental-migration:check
           npm run postgres-migration-image:check
@@ -74,10 +90,22 @@ jobs:
           npm run postgres-security-gates:check
           npm run json-migration-tooling:check
           npm run repository-parity-contract:check
+
+      - name: Prisma client and API build
+        run: |
           npx prisma format --schema=apps/api/prisma/schema.prisma
           npx prisma validate --schema=apps/api/prisma/schema.prisma
           npx prisma generate --schema=apps/api/prisma/schema.prisma
           npm run build -w api
+
+      - name: JSON import parity integration
+        run: |
+          export JSON_POSTGRES_TEST_URL="postgres""ql://postgres@127.0.0.1:5432/hanglian_v318_import_test?schema=public"
+          export ALLOW_DESTRUCTIVE_TEST_DB_RESET=true
+          npm run json-postgres-import-parity:check
+
+      - name: Full repository checks
+        run: |
           npm run security:check
           npm run build
           npm run check
@@ -231,6 +259,7 @@ jobs:
             'scripts/document-version-rules.mjs',
             'scripts/json-migration-plan.mjs',
             'scripts/json-migration-dry-run.mjs',
+            'scripts/json-postgres-migration-core.mjs',
             'scripts/json-to-postgres-import.mjs',
             'scripts/postgres-parity-check.mjs',
           ]
