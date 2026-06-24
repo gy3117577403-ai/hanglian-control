@@ -154,7 +154,7 @@ if (read('apps/api/prisma/migrations/migration_lock.toml').trim() !== 'provider 
 
 requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-postgres-foundation', 'Workflow must support current branch push trigger.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow must build Migration Runner image.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-finished-images-${short_sha}', 'Workflow must generate finished-images Migration Runner tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-module-scope-${short_sha}', 'Workflow must generate module-scope Migration Runner tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-candidate', 'Workflow must generate import candidate Migration Runner tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');

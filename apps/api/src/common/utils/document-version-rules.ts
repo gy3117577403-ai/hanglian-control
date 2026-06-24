@@ -53,3 +53,36 @@ export function supportsSingleEffectiveDocumentType(documentType?: string | null
   return supportsSingleEffectiveVersion(moduleKey);
 }
 
+export function normalizeEffectiveVersionGroupKey(value?: string | null) {
+  return typeof value === 'string' ? value.normalize('NFKC').trim().replace(/\s+/g, ' ') : undefined;
+}
+
+export function documentEffectiveVersionGroupKey(document: {
+  productId?: string | null;
+  moduleKey?: string | null;
+  documentType?: string | null;
+  requiredForProcess?: string | null;
+  versionGroupKey?: string | null;
+}) {
+  if (document.versionGroupKey) return document.versionGroupKey;
+  const moduleKey = document.moduleKey ?? drawingModuleForDocumentType(document.documentType);
+  const documentType = document.documentType ?? (moduleKey ? documentTypeForDrawingModule(moduleKey as DrawingVersionModuleKey) : undefined);
+  const requiredForProcess = document.requiredForProcess ?? (moduleKey ? requiredProcessForDrawingModule(moduleKey as DrawingVersionModuleKey) : undefined);
+  return document.productId && documentType && requiredForProcess
+    ? `${document.productId}::${documentType}::${requiredForProcess}`
+    : undefined;
+}
+
+export function documentEffectiveConflictKey(document: {
+  productId?: string | null;
+  moduleKey?: string | null;
+  documentType?: string | null;
+  requiredForProcess?: string | null;
+  versionGroupKey?: string | null;
+}) {
+  const moduleKey = document.moduleKey ?? drawingModuleForDocumentType(document.documentType);
+  const versionGroupKey = normalizeEffectiveVersionGroupKey(documentEffectiveVersionGroupKey({ ...document, moduleKey }));
+  return document.productId && moduleKey && versionGroupKey
+    ? `${document.productId}::${moduleKey}::${versionGroupKey}`
+    : undefined;
+}

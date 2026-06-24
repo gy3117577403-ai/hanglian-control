@@ -176,6 +176,45 @@ try {
   if (sourceHash !== sha(join(metadataRoot, 'drawing-customers.json'))) throw new Error('source JSON was modified');
 
   writeSingleProductFixture([
+    drawingModule('accessory_specs', [
+      documentItem('as-shared', { versionGroupKey: 'prod-a::process_card::common' }),
+    ], 'as-shared'),
+    drawingModule('notes', [
+      documentItem('nt-shared', { versionGroupKey: 'prod-a::process_card::common' }),
+    ], 'nt-shared'),
+    drawingModule('tooling', [
+      documentItem('tg-shared', { versionGroupKey: 'prod-a::process_card::common' }),
+    ], 'tg-shared'),
+  ]);
+  assertNoBlockersOrWarnings('different modules sharing a compatible versionGroupKey');
+
+  writeSingleProductFixture([
+    drawingModule('accessory_specs', [
+      documentItem('as-a', { versionGroupKey: 'prod-a::process_card::common' }),
+      documentItem('as-b', { versionGroupKey: 'prod-a::process_card::common' }),
+    ], 'as-a'),
+  ]);
+  assertBlocked('same module duplicate effective version group', 'multiple effective document versions exist');
+
+  writeSingleProductFixture([
+    drawingModule('accessory_specs', [
+      documentItem('as-module-a', { versionGroupKey: 'prod-a::process_card::common' }),
+    ], 'as-module-a'),
+    drawingModule('notes', [
+      documentItem('nt-module-a', { versionGroupKey: 'prod-a::process_card::common' }),
+    ], 'nt-module-a'),
+  ]);
+  assertNoBlockersOrWarnings('same product different modules with one effective each');
+
+  writeSingleProductFixture([
+    drawingModule('accessory_specs', [
+      documentItem('as-vg-a', { versionGroupKey: 'prod-a::process_card::common::a' }),
+      documentItem('as-vg-b', { versionGroupKey: 'prod-a::process_card::common::b' }),
+    ], 'as-vg-a'),
+  ]);
+  assertNoBlockersOrWarnings('same module different version groups');
+
+  writeSingleProductFixture([
     drawingModule('finished_images', [
       documentItem('fi-a', { versionGroupKey: 'prod-a::finished_images::gallery' }),
       documentItem('fi-b', { versionGroupKey: 'prod-a::finished_images::gallery' }),

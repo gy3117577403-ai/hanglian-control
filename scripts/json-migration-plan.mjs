@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  documentEffectiveConflictKey,
   documentEffectiveVersionGroupKey,
   drawingModuleForDocumentType,
   isInactiveDocumentForEffectiveCheck,
@@ -175,17 +176,18 @@ function collectMultipleEffectiveVersions(documents) {
     const moduleKey = document?.moduleKey ?? drawingModuleForDocumentType(document?.documentType);
     const documentId = document?.documentId ?? document?.id ?? document?.itemId;
     const versionGroupKey = documentEffectiveVersionGroupKey({ ...document, moduleKey });
+    const conflictKey = documentEffectiveConflictKey({ ...document, moduleKey });
     if (isInactiveDocumentForEffectiveCheck(document)) continue;
     if (!supportsSingleEffectiveVersion(moduleKey)) continue;
     if (status !== 'effective' || !productId || !moduleKey || !documentId) continue;
-    const key = versionGroupKey ?? `${productId}:${moduleKey}`;
-    const group = groups.get(key) ?? { productId, moduleKey, versionGroupKey: key, documentIds: [] };
+    const key = conflictKey ?? `${productId}::${moduleKey}::${versionGroupKey ?? 'unknown'}`;
+    const group = groups.get(key) ?? { productId, moduleKey, versionGroupKey, conflictKey: key, documentIds: [] };
     group.documentIds.push(documentId);
     groups.set(key, group);
   }
   return [...groups.values()]
     .filter((group) => group.documentIds.length > 1)
-    .sort((left, right) => String(left.versionGroupKey).localeCompare(String(right.versionGroupKey)));
+    .sort((left, right) => String(left.conflictKey).localeCompare(String(right.conflictKey)));
 }
 
 export function assertWritablePathOutsideSources(targetPath, sourceRoots) {

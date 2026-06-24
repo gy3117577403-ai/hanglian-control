@@ -79,7 +79,15 @@ for (const [name, text] of [
   }
 }
 
-if (!migrationPlan.includes('documentEffectiveVersionGroupKey') || !migrationPlan.includes('supportsSingleEffectiveVersion')) {
+if (!versionRules.includes('documentEffectiveConflictKey') || !versionRules.includes('normalizeEffectiveVersionGroupKey')) {
+  failures.push('Unified document version rule helper must expose a product/module/version-group conflict key.');
+}
+
+if (!scriptVersionRules.includes('documentEffectiveConflictKey') || !scriptVersionRules.includes('normalizeEffectiveVersionGroupKey')) {
+  failures.push('JSON migration version rule helper must expose a normalized product/module/version-group conflict key.');
+}
+
+if (!migrationPlan.includes('documentEffectiveConflictKey') || !migrationPlan.includes('supportsSingleEffectiveVersion')) {
   failures.push('JSON migration plan must check multiple-effective documents with shared version rules.');
 }
 
@@ -89,6 +97,10 @@ if (!migrationPlan.includes('isInactiveDocumentForEffectiveCheck')) {
 
 if (migrationPlan.includes('const key = `${productId}:${moduleKey}`')) {
   failures.push('JSON migration plan must not group effective conflicts only by productId and moduleKey.');
+}
+
+if (!migrationPlan.includes('conflictKey') || !migrationPlan.includes('productId') || !migrationPlan.includes('moduleKey') || !migrationPlan.includes('versionGroupKey')) {
+  failures.push('JSON migration plan conflict details must include productId, moduleKey, and versionGroupKey.');
 }
 
 if (/expireOtherEffective|historical|documentStatus\s*=/.test(migrationImport)) {

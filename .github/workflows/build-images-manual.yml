@@ -59,7 +59,7 @@ jobs:
           echo "api_version_tag=v3.18-postgres-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
-          echo "migrate_version_tag=v3.18-import-finished-images-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "migrate_version_tag=v3.18-import-module-scope-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "migrate_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "migrate_candidate_tag=v3.18-import-candidate" >> "$GITHUB_OUTPUT"
 

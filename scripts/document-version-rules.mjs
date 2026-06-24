@@ -58,3 +58,15 @@ export function documentEffectiveVersionGroupKey(document) {
     : undefined;
 }
 
+export function normalizeEffectiveVersionGroupKey(value) {
+  return typeof value === 'string' ? value.normalize('NFKC').trim().replace(/\s+/g, ' ') : undefined;
+}
+
+export function documentEffectiveConflictKey(document) {
+  const productId = document?.productId;
+  const moduleKey = document?.moduleKey ?? drawingModuleForDocumentType(document?.documentType);
+  const versionGroupKey = normalizeEffectiveVersionGroupKey(documentEffectiveVersionGroupKey({ ...document, moduleKey }));
+  return productId && moduleKey && versionGroupKey
+    ? `${productId}::${moduleKey}::${versionGroupKey}`
+    : undefined;
+}
