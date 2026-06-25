@@ -1,9 +1,16 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { DatabaseConfigService } from './database-config.service';
+import { loadGeneratedPrismaClient } from './prisma-client-loader';
+import {
+  assertPrismaSchemaRoute,
+  createSchemaAwarePrismaPgAdapter,
+  type PrismaPgSchemaRoute,
+} from './prisma-pg-schema';
 
 type PrismaClientLike = {
   $connect?: () => Promise<void>;
   $disconnect?: () => Promise<void>;
+  $queryRawUnsafe?: (query: string) => Promise<Array<Record<string, unknown>>>;
   $transaction: <T>(work: ((client?: PrismaClientLike) => Promise<T> | T) | unknown[]) => Promise<T>;
   [key: string]: any;
 };
@@ -14,6 +21,7 @@ export type PrismaConnectionStatus = 'disabled' | 'connecting' | 'connected' | '
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   private clientInstance?: PrismaClientLike;
+  private schemaRoute?: PrismaPgSchemaRoute;
   private status: PrismaConnectionStatus = 'disabled';
   private failureMessage?: string;
 
@@ -51,6 +59,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       if (typeof client.$connect === 'function') {
         await this.withTimeout(client.$connect(), 5000);
       }
+      if (this.schemaRoute) {
+        await this.withTimeout(assertPrismaSchemaRoute(client, this.schemaRoute), 5000);
+      }
       this.status = 'connected';
     } catch (error) {
       this.status = 'failed';
@@ -80,14 +91,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   private createClient(): PrismaClientLike {
     // Lazy require keeps mock startup safe and prevents a DB pool during module import.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { PrismaClient } = require('../../generated/prisma/client');
+    const { PrismaClient } = loadGeneratedPrismaClient();
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PrismaPg } = require('@prisma/adapter-pg');
+    const databaseUrl = process.env.DATABASE_URL ?? '';
+    const { adapter, route } = createSchemaAwarePrismaPgAdapter(PrismaPg, databaseUrl);
+    this.schemaRoute = route;
     return new PrismaClient({
-      adapter: new PrismaPg({
-        connectionString: process.env.DATABASE_URL,
-      }),
+      adapter,
       log: ['warn', 'error'],
     });
   }

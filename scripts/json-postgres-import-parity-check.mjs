@@ -9,6 +9,7 @@ import { Client } from 'pg';
 const root = process.cwd();
 const testDatabaseUrlEnv = 'JSON_POSTGRES_TEST_URL';
 const testDatabaseUrl = process.env[testDatabaseUrlEnv];
+const integrationSchema = 'hanglian_v318_staging';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -65,6 +66,8 @@ function safeLocalTestDatabaseUrl(urlText) {
 
 async function resetTemporaryDatabase() {
   safeLocalTestDatabaseUrl(testDatabaseUrl);
+  const url = new URL(testDatabaseUrl);
+  assert(url.searchParams.get('schema') === integrationSchema, `temporary test DATABASE_URL must target schema=${integrationSchema}`);
   if (process.env.ALLOW_DESTRUCTIVE_TEST_DB_RESET !== 'true') {
     throw new Error('ALLOW_DESTRUCTIVE_TEST_DB_RESET=true is required for the local temporary database surrogate.');
   }
@@ -73,6 +76,9 @@ async function resetTemporaryDatabase() {
   try {
     await client.query('DROP SCHEMA IF EXISTS public CASCADE');
     await client.query('CREATE SCHEMA public');
+    await client.query(`DROP SCHEMA IF EXISTS ${integrationSchema} CASCADE`);
+    await client.query(`CREATE SCHEMA ${integrationSchema}`);
+    await client.query(`SET search_path TO ${integrationSchema}`);
     const migrations = [
       'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
       'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
@@ -80,8 +86,56 @@ async function resetTemporaryDatabase() {
     for (const migration of migrations) {
       await client.query(read(migration));
     }
+    const publicCustomer = await client.query('SELECT to_regclass($1) AS table_name', ['public."Customer"']);
+    assert(publicCustomer.rows[0]?.table_name === null, 'public.Customer must not exist in non-public schema integration test');
+    const targetCustomer = await client.query('SELECT to_regclass($1) AS table_name', [`${integrationSchema}."Customer"`]);
+    assert(targetCustomer.rows[0]?.table_name !== null, 'target schema Customer table must exist');
   } finally {
     await client.end();
+  }
+}
+
+async function assertTargetSchemaRows() {
+  const client = new Client({ connectionString: testDatabaseUrl });
+  await client.connect();
+  try {
+    const publicCustomer = await client.query('SELECT to_regclass($1) AS table_name', ['public."Customer"']);
+    assert(publicCustomer.rows[0]?.table_name === null, 'public.Customer must remain absent after import');
+    const targetCount = await client.query(`SELECT count(*)::int AS count FROM ${integrationSchema}."Customer"`);
+    assert(targetCount.rows[0]?.count === 1, 'target schema Customer row must be inserted');
+  } finally {
+    await client.end();
+  }
+}
+
+async function assertApiRepositoryUsesTargetSchema() {
+  process.env.DATA_SOURCE = 'postgres';
+  process.env.DB_TARGET = 'staging';
+  process.env.ALLOW_TEST_DB_CONNECT = 'true';
+  process.env.ALLOW_PRISMA_WRITE = 'false';
+  process.env.RUN_PRISMA_MIGRATE_DEPLOY = 'false';
+  process.env.DATABASE_URL = testDatabaseUrl;
+  const { PrismaService } = await import('../apps/api/dist/src/database/prisma.service.js');
+  const { PrismaDeleteLockRepository } = await import('../apps/api/dist/src/persistence/prisma/prisma-delete-lock.repository.js');
+  const databaseConfig = {
+    isMockMode: () => false,
+    assertCanStartPostgres: () => undefined,
+    assertWriteAllowed: () => undefined,
+    getStatus: () => ({
+      dataSource: 'postgres',
+      dbTarget: 'staging',
+      canWriteDatabase: false,
+      safeSummary: { provider: 'postgresql', hostConfigured: true },
+    }),
+  };
+  const prismaService = new PrismaService(databaseConfig);
+  await prismaService.onModuleInit();
+  try {
+    const repository = new PrismaDeleteLockRepository(prismaService, databaseConfig);
+    const setting = await repository.readSettings();
+    assert(setting.enabled === true, 'API Prisma repository must read DeleteLockSetting from target schema');
+  } finally {
+    await prismaService.onModuleDestroy();
   }
 }
 
@@ -365,6 +419,7 @@ async function integrationCheck() {
     assert(result.status === 0, `execute import failed: ${result.stderr || result.stdout}`);
     const imported = JSON.parse(result.stdout);
     assert(imported.wroteDatabase === true && imported.modifiedMetadata === false && imported.modifiedUploads === false, 'execute safety flags invalid');
+    await assertTargetSchemaRows();
 
     result = run('node', [
       'scripts/json-to-postgres-import.mjs',
@@ -393,6 +448,7 @@ async function integrationCheck() {
     const parity = JSON.parse(result.stdout);
     assert(parity.result === 'match', 'parity result must match');
     assert(parity.finishedImagesEffectiveCount === 3, 'finished_images multiple effective documents must be preserved');
+    await assertApiRepositoryUsesTargetSchema();
     assertNoSourceMutation(sourceHashes, sourceFiles);
   } finally {
     rmSync(tmpRoot, { recursive: true, force: true });

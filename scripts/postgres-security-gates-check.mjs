@@ -28,6 +28,15 @@ includes('scripts/json-to-postgres-import.mjs', '拒绝生产数据库目标。'
 rejects('node', ['scripts/postgres-parity-check.mjs', '--metadata-root', '.', '--database-url', 'postgresql://u:p@host/db'], 'parity 工具接受了明文数据库 URL。');
 rejects('node', ['scripts/json-to-postgres-import.mjs', '--execute'], '导入执行器在缺少闸门时允许执行。');
 
+includes('apps/api/src/database/prisma.service.ts', 'assertPrismaSchemaRoute', 'PrismaService must assert schema routing after connect.');
+includes('apps/api/src/database/prisma.service.ts', 'createSchemaAwarePrismaPgAdapter', 'PrismaService must use schema-aware PrismaPg adapter.');
+includes('apps/api/src/database/prisma-pg-schema.ts', '{ schema: route.schema }', 'PrismaPg helper must pass official schema option.');
+includes('apps/api/src/database/prisma-pg-schema.ts', 'search_path', 'PrismaPg helper must configure pg search_path.');
+includes('apps/api/src/database/prisma-pg-schema.ts', 'current_schema()', 'PrismaPg helper must assert current_schema.');
+includes('scripts/prisma-pg-schema-route.mjs', '{ schema: route.schema }', 'Import Runner PrismaPg helper must pass official schema option.');
+includes('scripts/prisma-pg-schema-route.mjs', 'search_path', 'Import Runner PrismaPg helper must configure pg search_path.');
+includes('scripts/prisma-pg-schema-route.mjs', 'current_schema()', 'Import Runner PrismaPg helper must assert current_schema.');
+
 if (failures.length) {
   console.error(failures.map((item) => `- ${item}`).join('\n'));
   process.exit(1);

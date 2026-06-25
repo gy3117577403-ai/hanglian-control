@@ -299,10 +299,19 @@ try {
   if (result.status !== 3) throw new Error('import dry-run should reuse dry-run blockers and exit 3');
 
   const dockerfile = readFileSync('Dockerfile.migrate', 'utf8');
+  const core = readFileSync('scripts/json-postgres-migration-core.mjs', 'utf8');
+  const schemaRoute = readFileSync('scripts/prisma-pg-schema-route.mjs', 'utf8');
+  if (!core.includes('assertPrismaSchemaRoute') || !core.includes('createSchemaAwarePrismaPgAdapter')) {
+    throw new Error('import core must assert PrismaPg schema routing');
+  }
+  if (!schemaRoute.includes('{ schema: route.schema }') || !schemaRoute.includes('search_path') || !schemaRoute.includes('current_schema()')) {
+    throw new Error('PrismaPg route helper must use schema option, search_path, and current_schema assertion');
+  }
   for (const script of [
     'scripts/document-version-rules.mjs',
     'scripts/json-migration-plan.mjs',
     'scripts/json-migration-dry-run.mjs',
+    'scripts/prisma-pg-schema-route.mjs',
     'scripts/json-postgres-migration-core.mjs',
     'scripts/json-to-postgres-import.mjs',
     'scripts/postgres-parity-check.mjs',

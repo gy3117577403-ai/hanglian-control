@@ -39,6 +39,7 @@ COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs ./scripts/run-prism
 COPY --chown=node:node scripts/document-version-rules.mjs ./scripts/document-version-rules.mjs
 COPY --chown=node:node scripts/json-migration-plan.mjs ./scripts/json-migration-plan.mjs
 COPY --chown=node:node scripts/json-migration-dry-run.mjs ./scripts/json-migration-dry-run.mjs
+COPY --chown=node:node scripts/prisma-pg-schema-route.mjs ./scripts/prisma-pg-schema-route.mjs
 COPY --chown=node:node scripts/json-postgres-migration-core.mjs ./scripts/json-postgres-migration-core.mjs
 COPY --chown=node:node scripts/json-to-postgres-import.mjs ./scripts/json-to-postgres-import.mjs
 COPY --chown=node:node scripts/postgres-parity-check.mjs ./scripts/postgres-parity-check.mjs

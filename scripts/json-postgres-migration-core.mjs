@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { assertWritablePathOutsideSources, collectPlan } from './json-migration-plan.mjs';
+import { assertPrismaSchemaRoute, createSchemaAwarePrismaPgAdapter } from './prisma-pg-schema-route.mjs';
 import {
   documentEffectiveVersionGroupKey,
   documentTypeForDrawingModule,
@@ -319,10 +320,13 @@ export async function createPrismaClient(databaseUrl) {
   const clientPath = await transpileGeneratedPrismaClient();
   const { PrismaClient } = await import(pathToFileURL(clientPath).href);
   const { PrismaPg } = await import('@prisma/adapter-pg');
-  return new PrismaClient({
-    adapter: new PrismaPg({ connectionString: databaseUrl }),
+  const { adapter, route } = createSchemaAwarePrismaPgAdapter(PrismaPg, databaseUrl);
+  const prisma = new PrismaClient({
+    adapter,
     log: ['warn', 'error'],
   });
+  await assertPrismaSchemaRoute(prisma, route);
+  return prisma;
 }
 
 export function readJsonFile(file) {

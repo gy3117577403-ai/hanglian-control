@@ -21,6 +21,7 @@ on:
       - "scripts/json-migration-plan.mjs"
       - "scripts/json-migration-dry-run.mjs"
       - "scripts/json-migration-tooling-check.mjs"
+      - "scripts/prisma-pg-schema-route.mjs"
       - "scripts/json-postgres-migration-core.mjs"
       - "scripts/json-postgres-import-parity-check.mjs"
       - "scripts/json-to-postgres-import.mjs"
@@ -72,10 +73,10 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
-          echo "api_version_tag=v3.18-postgres-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-postgres-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
-          echo "migrate_version_tag=v3.18-import-module-scope-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "migrate_version_tag=v3.18-import-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "migrate_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "migrate_candidate_tag=v3.18-import-candidate" >> "$GITHUB_OUTPUT"
 
@@ -100,7 +101,7 @@ jobs:
 
       - name: JSON import parity integration
         run: |
-          export JSON_POSTGRES_TEST_URL="postgres""ql://postgres@127.0.0.1:5432/hanglian_v318_import_test?schema=public"
+          export JSON_POSTGRES_TEST_URL="postgres""ql://postgres@127.0.0.1:5432/hanglian_v318_import_test?schema=hanglian_v318_staging"
           export ALLOW_DESTRUCTIVE_TEST_DB_RESET=true
           npm run json-postgres-import-parity:check
 
@@ -259,6 +260,7 @@ jobs:
             'scripts/document-version-rules.mjs',
             'scripts/json-migration-plan.mjs',
             'scripts/json-migration-dry-run.mjs',
+            'scripts/prisma-pg-schema-route.mjs',
             'scripts/json-postgres-migration-core.mjs',
             'scripts/json-to-postgres-import.mjs',
             'scripts/postgres-parity-check.mjs',
@@ -273,6 +275,10 @@ jobs:
           const wrapper = fs.readFileSync('scripts/run-prisma-migrate-deploy.mjs', 'utf8')
           if (!wrapper.includes('--config=')) throw new Error('migration wrapper must pass --config')
           if (wrapper.includes("'--schema'") || wrapper.includes('"--schema"')) throw new Error('migration wrapper must not rely on --schema only')
+          const schemaRoute = fs.readFileSync('scripts/prisma-pg-schema-route.mjs', 'utf8')
+          if (!schemaRoute.includes('schema?: string') && !schemaRoute.includes('{ schema: route.schema }')) {
+            throw new Error('PrismaPg schema-aware route helper missing schema option')
+          }
           const initial = crypto
             .createHash('sha256')
             .update(fs.readFileSync('apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql'))
