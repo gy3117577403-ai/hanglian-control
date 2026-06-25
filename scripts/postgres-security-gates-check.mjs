@@ -33,6 +33,10 @@ includes('apps/api/src/database/prisma.service.ts', 'createSchemaAwarePrismaPgAd
 includes('apps/api/src/database/prisma-pg-schema.ts', '{ schema: route.schema }', 'PrismaPg helper must pass official schema option.');
 includes('apps/api/src/database/prisma-pg-schema.ts', 'search_path', 'PrismaPg helper must configure pg search_path.');
 includes('apps/api/src/database/prisma-pg-schema.ts', 'current_schema()', 'PrismaPg helper must assert current_schema.');
+includes('apps/api/src/database/prisma-client-loader.ts', 'resolveApiRoot', 'Prisma client loader must resolve API root without trusting cwd.');
+includes('apps/api/src/database/prisma-client-loader.ts', 'Generated Prisma client source is missing. Checked paths:', 'Prisma client loader missing-source error must list checked paths.');
+includes('apps/api/src/database/prisma-client-loader.ts', 'node_modules/.cache', 'Prisma client loader must prefer API-root cache.');
+includes('apps/api/src/database/prisma-client-loader.ts', 'tmpdir()', 'Prisma client loader must fall back to a system temp cache.');
 includes('scripts/prisma-pg-schema-route.mjs', '{ schema: route.schema }', 'Import Runner PrismaPg helper must pass official schema option.');
 includes('scripts/prisma-pg-schema-route.mjs', 'search_path', 'Import Runner PrismaPg helper must configure pg search_path.');
 includes('scripts/prisma-pg-schema-route.mjs', 'current_schema()', 'Import Runner PrismaPg helper must assert current_schema.');

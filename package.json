@@ -103,6 +103,7 @@
     "postgres-parity:check": "node scripts/postgres-parity-check.mjs",
     "json-migration-tooling:check": "node scripts/json-migration-tooling-check.mjs",
     "json-postgres-import-parity:check": "node scripts/json-postgres-import-parity-check.mjs",
+    "api-prisma-client-loader:check": "node scripts/api-prisma-client-loader-check.mjs",
     "repository-parity-contract:check": "node scripts/repository-parity-contract-check.mjs",
     "cloud-staging:preflight": "node scripts/cloud-staging-deploy-preflight.mjs",
     "android-cloud-staging:check": "node scripts/android-cloud-staging-check.mjs",

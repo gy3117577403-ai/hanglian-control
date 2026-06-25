@@ -46,6 +46,7 @@ const apiDockerfile = read('Dockerfile.api');
 const wrapper = read('scripts/run-prisma-migrate-deploy.mjs');
 const workflow = read('.github/workflows/build-images-manual.yml');
 const packageLock = read('package-lock.json');
+const packageJson = read('package.json');
 
 requireIncludes('apps/api/prisma.config.ts', 'defineConfig', 'Prisma config must use defineConfig.');
 requireIncludes('apps/api/prisma.config.ts', 'schema: "prisma/schema.prisma"', 'Prisma config schema path must be relative to apps/api.');
@@ -76,6 +77,7 @@ requireIncludes('Dockerfile.migrate', 'USER node', 'Migration Runner should use 
 requireIncludes('Dockerfile.migrate', 'CMD ["npx", "prisma", "--version"]', 'Migration Runner default command must be read-only.');
 requireIncludes('package-lock.json', '"node_modules/prisma"', 'package-lock must include Prisma CLI.');
 requireIncludes('package-lock.json', '"version": "7.8.0"', 'package-lock must lock Prisma 7.8.0.');
+if (!packageJson.includes('"api-prisma-client-loader:check"')) fail('package.json must expose API Prisma client loader check.');
 
 for (const [file, text] of [
   ['Dockerfile.migrate', dockerfile],
@@ -162,8 +164,9 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-post
 requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow must build Migration Runner image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-schema-fix-${short_sha}', 'Workflow must generate schema-fix Migration Runner tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-candidate', 'Workflow must generate import candidate Migration Runner tag.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-schema-fix-${short_sha}', 'Workflow must generate schema-fix API tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-loader-fix-${short_sha}', 'Workflow must generate loader-fix API tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-candidate', 'Workflow must generate PostgreSQL candidate API tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'api-prisma-client-loader:check', 'Workflow must run API Prisma client loader cwd check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'apps/api/prisma.config.ts', 'Workflow must verify prisma.config.ts inside the image.');
@@ -174,6 +177,10 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/json-postg
 requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/json-to-postgres-import.mjs', 'Workflow must verify JSON import CLI inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'json-postgres-import-parity:check', 'Workflow must run JSON PostgreSQL import/parity integration check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'schema=hanglian_v318_staging', 'Workflow integration test must use a non-public schema.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'Smoke test API image in PostgreSQL mode', 'Workflow must run API PostgreSQL image smoke.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'cwd=/app/apps/api', 'API image smoke must verify cwd=/app/apps/api loader path.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'public.Customer must not exist', 'API PostgreSQL smoke must prove public.Customer is absent.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'Repository did not read smoke Customer through target schema', 'API PostgreSQL smoke must verify repository reads target schema.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'process.env.DATABASE_URL ?? ""', 'Workflow must verify Prisma config datasource.url.');
 requireIncludes('.github/workflows/build-images-manual.yml', '--config=', 'Workflow must verify wrapper uses --config.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke must use mock data source.');

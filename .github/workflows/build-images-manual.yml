@@ -21,6 +21,7 @@ on:
       - "scripts/json-migration-plan.mjs"
       - "scripts/json-migration-dry-run.mjs"
       - "scripts/json-migration-tooling-check.mjs"
+      - "scripts/api-prisma-client-loader-check.mjs"
       - "scripts/prisma-pg-schema-route.mjs"
       - "scripts/json-postgres-migration-core.mjs"
       - "scripts/json-postgres-import-parity-check.mjs"
@@ -73,7 +74,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
-          echo "api_version_tag=v3.18-postgres-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-postgres-loader-fix-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
           echo "migrate_version_tag=v3.18-import-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
@@ -98,6 +99,7 @@ jobs:
           npx prisma validate --schema=apps/api/prisma/schema.prisma
           npx prisma generate --schema=apps/api/prisma/schema.prisma
           npm run build -w api
+          npm run api-prisma-client-loader:check
 
       - name: JSON import parity integration
         run: |
@@ -217,6 +219,158 @@ jobs:
           if (/DATABASE_URL|S3_SECRET|SEALOS_TOKEN|GITHUB_TOKEN|WECHAT.*SECRET|postgres(?:ql)?:\/\/|password/i.test(text)) {
             throw new Error('runtime smoke leaked sensitive data')
           }
+          NODE
+
+      - name: Smoke test API image in PostgreSQL mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_image="${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}"
+          docker pull "$api_image"
+          docker run --rm "$api_image" test -f /app/apps/api/generated/prisma/client.ts
+          docker run --rm -w /app "$api_image" node - <<'NODE'
+          const { loadGeneratedPrismaClient } = require('./apps/api/dist/src/database/prisma-client-loader.js')
+          const { PrismaClient } = loadGeneratedPrismaClient()
+          if (typeof PrismaClient !== 'function') throw new Error('PrismaClient missing for cwd=/app')
+          NODE
+          docker run --rm -w /app/apps/api "$api_image" node - <<'NODE'
+          const { loadGeneratedPrismaClient } = require('./dist/src/database/prisma-client-loader.js')
+          const { PrismaClient } = loadGeneratedPrismaClient()
+          if (typeof PrismaClient !== 'function') throw new Error('PrismaClient missing for cwd=/app/apps/api')
+          NODE
+
+          smoke_schema="hanglian_v318_staging"
+          export API_POSTGRES_SMOKE_URL="postgres""ql://postgres@127.0.0.1:5432/hanglian_v318_import_test?schema=${smoke_schema}"
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const { Client } = require('pg')
+          const schema = 'hanglian_v318_staging'
+          const client = new Client({ connectionString: process.env.API_POSTGRES_SMOKE_URL })
+          function ident(value) {
+            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error('invalid schema')
+            return `"${value}"`
+          }
+          ;(async () => {
+            await client.connect()
+            try {
+              await client.query('DROP SCHEMA IF EXISTS public CASCADE')
+              await client.query('CREATE SCHEMA public')
+              await client.query(`DROP SCHEMA IF EXISTS ${ident(schema)} CASCADE`)
+              await client.query(`CREATE SCHEMA ${ident(schema)}`)
+              await client.query(`SET search_path TO ${ident(schema)}`)
+              for (const file of [
+                'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
+                'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
+              ]) {
+                await client.query(fs.readFileSync(file, 'utf8'))
+              }
+              const publicCustomer = await client.query('SELECT to_regclass($1) AS table_name', ['public."Customer"'])
+              if (publicCustomer.rows[0]?.table_name !== null) throw new Error('public.Customer must not exist')
+              await client.query(`
+                INSERT INTO ${ident(schema)}."Customer" (id, name, "customerName", "customerShortName", status, "createdAt", "updatedAt")
+                VALUES ('smoke-customer', 'Smoke Customer', 'Smoke Customer', 'Smoke', 'active', now(), now())
+              `)
+              await client.query(`
+                INSERT INTO ${ident(schema)}."Product" (id, "customerId", "productCode", "normalizedProductModel", "productName", "currentVersion", "createdAt", "updatedAt")
+                VALUES ('smoke-product', 'smoke-customer', 'SMOKE-PRODUCT', 'SMOKE-PRODUCT', 'Smoke Product', 'V1', now(), now())
+              `)
+              await client.query(`
+                INSERT INTO ${ident(schema)}."ProductionPlan" (id, "planCode", "planDate", "weekPlanCode", sales, "productId", "plannedQuantity", owner, "createdAt", "updatedAt")
+                VALUES ('smoke-plan', 'SMOKE-PLAN', now(), 'SMOKE-WEEK', 'Smoke', 'smoke-product', 1, 'Smoke Owner', now(), now())
+              `)
+              const targetCount = await client.query(`SELECT count(*)::int AS count FROM ${ident(schema)}."Customer"`)
+              if (targetCount.rows[0]?.count !== 1) throw new Error('target schema Customer row missing')
+            } finally {
+              await client.end()
+            }
+          })().catch((error) => {
+            console.error(error)
+            process.exit(1)
+          })
+          NODE
+
+          smoke_root="${RUNNER_TEMP}/hanglian-api-postgres-smoke"
+          mkdir -p "${smoke_root}/uploads" "${smoke_root}/metadata" "${smoke_root}/tmp"
+          chmod -R 777 "${smoke_root}"
+          if docker ps -a --format '{{.Names}}' | grep -qx 'hanglian-api-postgres-smoke'; then
+            docker rm -f hanglian-api-postgres-smoke >/dev/null
+          fi
+          docker run -d \
+            --name hanglian-api-postgres-smoke \
+            --network host \
+            -w /app/apps/api \
+            -v "${smoke_root}:/data/hanglian" \
+            -e NODE_ENV=production \
+            -e HOST=0.0.0.0 \
+            -e PORT=18081 \
+            -e API_PREFIX=api \
+            -e DATA_SOURCE=postgres \
+            -e DEPLOYMENT_STAGE=v3.18-postgres-candidate-smoke \
+            -e DB_TARGET=staging \
+            -e FILE_STORAGE_PROVIDER=local \
+            -e STORAGE_ROOT=/data/hanglian \
+            -e METADATA_ROOT=/data/hanglian/metadata \
+            -e STORAGE_TEMP_ROOT=/data/hanglian/tmp \
+            -e STORAGE_MAX_FILE_SIZE_MB=30 \
+            -e STORAGE_URL_MODE=proxy \
+            -e CORS_ORIGINS=https://localhost,https://fqbkxzzolqqq.sealoshzh.site \
+            -e CORS_ALLOW_CREDENTIALS=false \
+            -e DATABASE_URL="${API_POSTGRES_SMOKE_URL}" \
+            -e RUN_PRISMA_MIGRATE_DEPLOY=false \
+            -e ALLOW_TEST_DB_CONNECT=true \
+            -e ALLOW_PRISMA_WRITE=false \
+            -e ALLOW_DESTRUCTIVE_DB_ACTIONS=false \
+            "$api_image" \
+            node scripts/start-cloud.mjs
+          trap 'docker rm -f hanglian-api-postgres-smoke >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..45}; do
+            if curl -fsS http://127.0.0.1:18081/api/health >/tmp/postgres-health.json; then
+              break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' hanglian-api-postgres-smoke 2>/dev/null || echo false)" != "true" ]; then
+              echo "::error::API PostgreSQL smoke container exited before health became ready."
+              docker inspect hanglian-api-postgres-smoke --format '{{json .State}}' || true
+              docker logs hanglian-api-postgres-smoke || true
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ ! -s /tmp/postgres-health.json ]; then
+            echo "::error::API PostgreSQL smoke health endpoint did not become ready."
+            docker logs hanglian-api-postgres-smoke || true
+            exit 1
+          fi
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const health = JSON.parse(fs.readFileSync('/tmp/postgres-health.json', 'utf8'))
+          if (health.dataSource !== 'postgres' || health.databaseConnected !== true) throw new Error('PostgreSQL health smoke check failed')
+          NODE
+          docker exec -i -w /app/apps/api hanglian-api-postgres-smoke node - <<'NODE'
+          const { PrismaService } = require('./dist/src/database/prisma.service.js')
+          const { PrismaProductRepository } = require('./dist/src/repositories/prisma/prisma-product.repository.js')
+          const databaseConfig = {
+            isMockMode: () => false,
+            assertCanStartPostgres: () => undefined,
+            getStatus: () => ({
+              dataSource: 'postgres',
+              dbTarget: 'staging',
+              canWriteDatabase: false,
+              safeSummary: { provider: 'postgresql', hostConfigured: true },
+            }),
+          }
+          ;(async () => {
+            const service = new PrismaService(databaseConfig)
+            await service.onModuleInit()
+            try {
+              const rows = await new PrismaProductRepository(service).findProductsByCustomer('smoke-customer')
+              if (!rows.length || rows[0].customerId !== 'smoke-customer') throw new Error('Repository did not read smoke Customer through target schema')
+            } finally {
+              await service.onModuleDestroy()
+            }
+          })().catch((error) => {
+            console.error(error)
+            process.exit(1)
+          })
           NODE
 
       - name: Build and push Migration Runner image

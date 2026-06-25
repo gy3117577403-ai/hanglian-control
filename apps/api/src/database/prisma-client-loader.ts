@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 
@@ -23,11 +24,54 @@ function patchGeneratedSource(source: string) {
   return source.replace('fileURLToPath(import.meta.url)', '__filename');
 }
 
-export function loadGeneratedPrismaClient() {
-  const sourceRoot = resolve(process.cwd(), 'apps/api/generated/prisma');
-  if (!existsSync(join(sourceRoot, 'client.ts'))) {
-    throw new Error('Generated Prisma client source is missing.');
+function addAncestors(start: string, candidates: Set<string>) {
+  let current = resolve(start);
+  while (true) {
+    candidates.add(current);
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
+}
+
+function resolveApiRoot() {
+  const candidates = new Set<string>();
+  addAncestors(__dirname, candidates);
+  addAncestors(process.cwd(), candidates);
+  candidates.add(resolve(process.cwd(), 'apps/api'));
+
+  const checked: string[] = [];
+  for (const candidate of candidates) {
+    const clientPath = join(candidate, 'generated/prisma/client.ts');
+    checked.push(clientPath);
+    if (existsSync(clientPath)) return candidate;
+  }
+
+  throw new Error(`Generated Prisma client source is missing. Checked paths: ${checked.join('; ')}`);
+}
+
+function resolveWritableCacheRoot(apiRoot: string, signature: string) {
+  const candidates = [
+    resolve(apiRoot, 'node_modules/.cache', `hanglian-prisma-client-cjs-${signature}`),
+    resolve(tmpdir(), 'hanglian-prisma-client-cache', `hanglian-prisma-client-cjs-${signature}`),
+  ];
+  for (const candidate of candidates) {
+    try {
+      mkdirSync(candidate, { recursive: true });
+      const probe = join(candidate, '.write-test');
+      writeFileSync(probe, '');
+      rmSync(probe, { force: true });
+      return candidate;
+    } catch {
+      // Try the next cache location.
+    }
+  }
+  throw new Error('Generated Prisma client cache directory is not writable.');
+}
+
+export function loadGeneratedPrismaClient() {
+  const apiRoot = resolveApiRoot();
+  const sourceRoot = join(apiRoot, 'generated/prisma');
 
   const sourceFiles = listGeneratedPrismaSources(sourceRoot);
   const signature = createHash('sha256')
@@ -43,7 +87,7 @@ export function loadGeneratedPrismaClient() {
     )
     .digest('hex')
     .slice(0, 16);
-  const outputRoot = resolve(process.cwd(), 'node_modules/.cache', `hanglian-prisma-client-cjs-${signature}`);
+  const outputRoot = resolveWritableCacheRoot(apiRoot, signature);
   const clientPath = join(outputRoot, 'client.js');
 
   if (!existsSync(clientPath)) {
