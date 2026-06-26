@@ -173,7 +173,30 @@ async function checkEmptyModeStoreReadChain() {
     mimeType: 'image/png',
   };
 
-  const { tempRoot, storage, store, service } = createRuntime([manualDocument]);
+  const duplicateManualDocument = {
+    ...manualDocument,
+    title: 'Manual SOP duplicate source row',
+    updatedAt: '2026-06-20T08:10:00.000Z',
+  };
+
+  const archivedAtOnlyDocument = {
+    ...manualDocument,
+    id: 'manual-doc-archived-at-only',
+    documentId: 'manual-doc-archived-at-only',
+    title: 'ArchivedAt-only SOP',
+    archived: false,
+    archivedAt: '2026-06-20T09:00:00.000Z',
+    deleted: false,
+    deletedAt: null,
+    storageKey: 'documents/archived-at-only-sop.png',
+    updatedAt: '2026-06-20T09:00:00.000Z',
+  };
+
+  const { tempRoot, storage, store, service } = createRuntime([
+    manualDocument,
+    duplicateManualDocument,
+    archivedAtOnlyDocument,
+  ]);
 
   try {
     await service.onModuleInit();
@@ -234,6 +257,26 @@ async function checkEmptyModeStoreReadChain() {
           ],
           updatedAt: '2026-06-20T07:00:00.000Z',
         },
+        {
+          moduleKey: 'sop',
+          moduleName: 'SOP',
+          status: 'uploaded',
+          coverDocumentId: 'manual-doc-1',
+          itemCount: 1,
+          items: [
+            {
+              itemId: 'manual-doc-1',
+              documentId: 'manual-doc-1',
+              title: 'Stored manual SOP placeholder',
+              fileType: 'image',
+              fileName: 'manual-sop.png',
+              version: 'SOP-0',
+              uploadedAt: '2026-06-20T07:30:00.000Z',
+              source: 'manual_upload',
+            },
+          ],
+          updatedAt: '2026-06-20T07:30:00.000Z',
+        },
       ],
     });
 
@@ -260,16 +303,32 @@ async function checkEmptyModeStoreReadChain() {
       sopModule?.items.some((item) => item.itemId === 'manual-doc-1' && item.storageKey === 'documents/manual-sop.png'),
       'Service getProduct should merge manual uploaded documents with storage metadata.',
     );
+    assert(
+      !sopModule?.items.some((item) => item.itemId === 'manual-doc-archived-at-only' || item.documentId === 'manual-doc-archived-at-only'),
+      'Service getProduct must not merge archivedAt-only uploaded documents back into current modules.',
+    );
+    const sopIds = sopModule?.items.map((item) => item.itemId ?? item.documentId) ?? [];
+    assert(new Set(sopIds).size === sopIds.length, 'Service getProduct must not duplicate uploaded documents with the same id.');
+    assert(sopModule?.items.filter((item) => item.itemId === 'manual-doc-1' || item.documentId === 'manual-doc-1').length === 1, 'Service getProduct should merge duplicate uploaded source rows into one item.');
+    assert(sopModule?.itemCount === sopModule?.items.length, 'Service getProduct module itemCount should equal visible items length.');
+    assert(Boolean(sopModule?.coverDocumentId && sopIds.includes(sopModule.coverDocumentId)), 'Service getProduct coverDocumentId should point to a visible item.');
 
     const byModel = await service.getProductByModel('HL-CTRL-1907B');
     assert(byModel?.product.productId === 'prod-a', 'Service getProductByModel should use store product lookup.');
 
     const moduleResult = await service.getModule('prod-a', 'sop');
     assert(moduleResult.module.items.some((item) => item.itemId === 'manual-doc-1'), 'Service getModule should include merged manual upload item.');
+    assert(
+      !moduleResult.module.items.some((item) => item.itemId === 'manual-doc-archived-at-only' || item.documentId === 'manual-doc-archived-at-only'),
+      'Service getModule must not expose archivedAt-only uploaded documents.',
+    );
 
     const searchResult = await service.search({ mode: 'drawing', q: 'Manual SOP' });
     const drawingSearchItems = searchResult.results ?? searchResult.items ?? [];
     assert(drawingSearchItems.length === 1, 'Service drawing search should read store details and merged uploads.');
+    const archivedSearch = await service.search({ mode: 'drawing', q: 'ArchivedAt-only SOP' });
+    const archivedSearchItems = archivedSearch.results ?? archivedSearch.items ?? [];
+    assert(archivedSearchItems.length === 0, 'Service drawing search must not expose archivedAt-only uploaded documents.');
   } finally {
     if (previousDemoMode === undefined) delete process.env.DEMO_DATA_MODE;
     else process.env.DEMO_DATA_MODE = previousDemoMode;

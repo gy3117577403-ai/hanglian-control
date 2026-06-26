@@ -95,6 +95,10 @@ function isSoftDeletedEntity(value: unknown) {
   return Boolean(item?.deleted || item?.deletedAt);
 }
 
+function isDocumentArchived(document: ProductDocument) {
+  return document.archived === true || Boolean(document.archivedAt);
+}
+
 function parseBoolean(value?: string) {
   return value === 'true' || value === '1';
 }
@@ -1726,7 +1730,7 @@ export class DocumentHubService implements OnModuleInit {
         document.source === 'manual_upload'
         || document.source === 'pdf_import'
         || document.source === 'camera_capture'
-      ) && !document.archived && !isDocumentDeleted(document))
+      ) && !isDocumentArchived(document) && !isDocumentDeleted(document))
       .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
 
     for (const document of uploadedItems) {

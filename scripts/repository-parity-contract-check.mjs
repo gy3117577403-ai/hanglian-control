@@ -131,6 +131,14 @@ if (!documentHubService.includes('moduleForUploadedDocument') || !documentHubSer
   failures.push('DocumentHubService must merge uploaded PostgreSQL documents by explicit moduleKey when available.');
 }
 
+if (
+  !documentHubService.includes('function isDocumentArchived') ||
+  !documentHubService.includes('document.archived === true || Boolean(document.archivedAt)') ||
+  !documentHubService.includes('!isDocumentArchived(document) && !isDocumentDeleted(document)')
+) {
+  failures.push('DocumentHubService must exclude archived and archivedAt-only uploads during Drawing Hub merge.');
+}
+
 if (!readFileSync('apps/api/src/repositories/prisma/prisma-mappers.ts', 'utf8').includes('moduleKey: row.moduleKey')) {
   failures.push('Prisma document mapper must preserve ProductDocument.moduleKey for drawing module merges.');
 }

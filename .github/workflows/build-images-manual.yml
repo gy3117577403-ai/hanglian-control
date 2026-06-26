@@ -74,7 +74,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
-          echo "api_version_tag=v3.18-postgres-archive-filter-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-postgres-upload-archive-filter-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
           echo "migrate_version_tag=v3.18-import-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
@@ -344,6 +344,8 @@ jobs:
                 for (const module of detail.modules) {
                   const items = Array.isArray(module.items) ? module.items : []
                   if (module.itemCount !== items.length) throw new Error('HTTP module itemCount must equal visible items length')
+                  const ids = items.map((item) => item.itemId || item.documentId).filter(Boolean)
+                  if (new Set(ids).size !== ids.length) throw new Error('HTTP module contains duplicate document ids after merge')
                   documentCount += items.length
                   if (items.some((item) => item.itemId === expected.archivedDocumentId || item.documentId === expected.archivedDocumentId)) {
                     archivedDocumentVisible = true
