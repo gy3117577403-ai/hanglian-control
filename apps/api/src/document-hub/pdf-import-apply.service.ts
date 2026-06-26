@@ -53,7 +53,7 @@ export class PdfImportApplyService {
     const importBatchId = cleanApplyText(dto.importBatchId, 120);
     if (!importBatchId) throw new BadRequestException('PDF 导入预览记录不存在。');
 
-    const batch = this.findBatch(importBatchId);
+    const batch = await this.findBatch(importBatchId);
     if (!batch) throw new NotFoundException('PDF 导入预览记录不存在。');
     if (this.isCompleted(batch)) return this.toSafeApplyResponse(batch);
     if (batch.status === 'applying' || batch.applyStatus === 'applying' || applyingLocks.has(importBatchId)) {
@@ -61,7 +61,7 @@ export class PdfImportApplyService {
     }
     if (this.isExpired(batch)) throw new GoneException(expiredPreviewMessage);
 
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === batch.customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === batch.customerId);
     if (!customer) throw new NotFoundException('客户资料不存在。');
 
     const requestItems = (dto.items ?? []).map((item) => normalizeApplyItemInput(item as unknown as Record<string, unknown>));
@@ -79,7 +79,7 @@ export class PdfImportApplyService {
     applyingLocks.add(importBatchId);
 
     try {
-      this.updateBatch({
+      await this.updateBatch({
         ...batch,
         status: 'applying',
         applyStatus: 'applying',
@@ -88,7 +88,7 @@ export class PdfImportApplyService {
         operatorName,
       });
 
-      const latestBatch = this.findBatch(importBatchId) ?? batch;
+      const latestBatch = await this.findBatch(importBatchId) ?? batch;
       const previousApplyItems = latestBatch.applyItems ?? [];
       const applyItemsById = new Map(previousApplyItems.map((item) => [item.importItemId, item]));
       const requestById = new Map(requestItems.map((item) => [item.importItemId, item]));
@@ -117,7 +117,7 @@ export class PdfImportApplyService {
       const applySummary = this.summarize(applyItems);
       const status = this.deriveBatchStatus(latestBatch, applyItems);
       const appliedAt = new Date().toISOString();
-      const saved = this.updateBatch({
+      const saved = await this.updateBatch({
         ...latestBatch,
         status,
         applyStatus: status,
@@ -187,7 +187,7 @@ export class PdfImportApplyService {
       };
     }
 
-    let product = this.findProduct(batch.customerId, normalizedProductModel);
+    let product = await this.findProduct(batch.customerId, normalizedProductModel);
     const productExisted = Boolean(product);
     if (product) {
       const duplicate = await this.findDuplicateChecksum(product.productId, previewItem.checksumSha256);
@@ -206,7 +206,7 @@ export class PdfImportApplyService {
 
     let createdProductId: string | undefined;
     if (!product) {
-      product = this.createProductFromImport({
+      product = await this.createProductFromImport({
         customer,
         productModel: confirmedProductModel,
         normalizedProductModel,
@@ -252,7 +252,7 @@ export class PdfImportApplyService {
         finalDocument = effectiveResult.document;
       }
 
-      this.attachDocumentToProduct(customer, product, finalDocument, {
+      await this.attachDocumentToProduct(customer, product, finalDocument, {
         setAsEffective: shouldSetEffective,
         originalFileName: previewItem.originalFileName,
         version: decision.confirmedVersion ?? previewItem.parsedVersion ?? previewItem.version,
@@ -282,7 +282,7 @@ export class PdfImportApplyService {
     } catch (error) {
       if (createdProductId) {
         try {
-          this.drawingRepository.rollbackNewProduct(createdProductId);
+          await this.drawingRepository.rollbackNewProduct(createdProductId);
         } catch {
           // Keep the original item failure; rollback refusal is safer than deleting uncertain data.
         }
@@ -320,8 +320,8 @@ export class PdfImportApplyService {
     }
   }
 
-  private findProduct(customerId: string, normalizedProductModel: string) {
-    return this.drawingRepository.readProducts().find((product) => (
+  private async findProduct(customerId: string, normalizedProductModel: string) {
+    return (await this.drawingRepository.readProducts()).find((product) => (
       product.customerId === customerId &&
       (product.normalizedProductModel ?? normalizeProductModel(product.productModel)) === normalizedProductModel
     ));
@@ -332,14 +332,14 @@ export class PdfImportApplyService {
     const document = documents.find((item) => this.isActiveDocument(item) && item.checksumSha256 === checksumSha256);
     if (document) return { documentId: document.documentId ?? document.id };
 
-    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
+    const detail = (await this.drawingRepository.readDetails()).find((item) => item.product.productId === productId);
     const moduleItem = detail?.modules
       .flatMap((module) => module.items)
       .find((item) => !item.deletedAt && item.checksumSha256 === checksumSha256);
     return moduleItem ? { documentId: moduleItem.itemId } : undefined;
   }
 
-  private createProductFromImport(input: {
+  private async createProductFromImport(input: {
     customer: HubCustomer;
     productModel: string;
     normalizedProductModel: string;
@@ -360,27 +360,27 @@ export class PdfImportApplyService {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    this.drawingRepository.writeProducts([...this.drawingRepository.readProducts(), product]);
-    this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(input.customer, product));
-    return this.findProduct(input.customer.customerId, input.normalizedProductModel) ?? product;
+    await this.drawingRepository.writeProducts([...(await this.drawingRepository.readProducts()), product]);
+    await this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(input.customer, product));
+    return await this.findProduct(input.customer.customerId, input.normalizedProductModel) ?? product;
   }
 
-  private attachDocumentToProduct(customer: HubCustomer, product: HubProductModel, document: ProductDocument, options: {
+  private async attachDocumentToProduct(customer: HubCustomer, product: HubProductModel, document: ProductDocument, options: {
     setAsEffective: boolean;
     originalFileName: string;
     version?: string;
   }) {
     const timestamp = new Date().toISOString();
-    const products = this.drawingRepository.readProducts();
+    const products = await this.drawingRepository.readProducts();
     const nextProduct: HubProductModel = {
       ...product,
       drawingStatus: 'available',
       updatedAt: timestamp,
       searchKeywords: [...new Set([...(product.searchKeywords ?? []), product.productModel, product.normalizedProductModel, options.originalFileName, options.version].filter(Boolean) as string[])],
     };
-    this.drawingRepository.writeProducts(products.map((item) => item.productId === product.productId ? nextProduct : item));
+    await this.drawingRepository.writeProducts(products.map((item) => item.productId === product.productId ? nextProduct : item));
 
-    const details = this.drawingRepository.readDetails();
+    const details = await this.drawingRepository.readDetails();
     const currentDetail = details.find((item) => item.product.productId === product.productId)
       ?? this.drawingRepository.makeProductDetail(customer, nextProduct);
     const detail = clone(currentDetail);
@@ -399,7 +399,7 @@ export class PdfImportApplyService {
       originalModule.coverDocumentId = drawingItem.itemId;
     }
     originalModule.updatedAt = timestamp;
-    this.drawingRepository.upsertDetail(detail);
+    await this.drawingRepository.upsertDetail(detail);
   }
 
   private documentToDrawingItem(document: ProductDocument): DrawingItem {
@@ -512,8 +512,8 @@ export class PdfImportApplyService {
     return 'partially_applied' as const;
   }
 
-  private toSafeApplyResponse(batch: PdfImportBatchRecord): PdfImportApplyResponseDto {
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === batch.customerId);
+  private async toSafeApplyResponse(batch: PdfImportBatchRecord): Promise<PdfImportApplyResponseDto> {
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === batch.customerId);
     const items = batch.applyItems ?? [];
     return {
       importBatchId: batch.importBatchId,
@@ -547,8 +547,8 @@ export class PdfImportApplyService {
     }
   }
 
-  private findBatch(importBatchId: string) {
-    return this.drawingRepository.readImportRecords().find((batch) => batch.importBatchId === importBatchId);
+  private async findBatch(importBatchId: string) {
+    return (await this.drawingRepository.readImportRecords()).find((batch) => batch.importBatchId === importBatchId);
   }
 
   private updateBatch(batch: PdfImportBatchRecord) {

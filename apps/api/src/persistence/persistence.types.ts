@@ -19,26 +19,26 @@ import type { DocumentRepositoryInterface } from '../repositories/interfaces/doc
 export type MaybePromise<T> = T | Promise<T>;
 
 export interface DrawingRepository {
-  ensureInitialized(): DrawingMetadataStoreInitSummary;
-  initializeFromSeedIfEmpty?(): DrawingMetadataStoreInitSummary;
-  readCustomers(): HubCustomer[];
-  writeCustomers(customers: HubCustomer[]): void;
-  readProducts(): HubProductModel[];
-  writeProducts(products: HubProductModel[]): void;
-  readModuleState(): DrawingModuleState;
-  writeModuleState(state: DrawingModuleState): void;
-  readDetails(): ProductDrawingDetail[];
-  writeDetails(details: ProductDrawingDetail[]): void;
-  readTrash(): DrawingTrashRecord[];
-  writeTrash(trash: DrawingTrashRecord[]): void;
-  upsertDetail(detail: ProductDrawingDetail): ProductDrawingDetail;
-  readImportRecords(): PdfImportBatchRecord[];
-  writeImportRecords(records: PdfImportBatchRecord[]): void;
-  upsertImportBatch(batch: PdfImportBatchRecord): PdfImportBatchRecord;
+  ensureInitialized(): MaybePromise<DrawingMetadataStoreInitSummary>;
+  initializeFromSeedIfEmpty?(): MaybePromise<DrawingMetadataStoreInitSummary>;
+  readCustomers(): MaybePromise<HubCustomer[]>;
+  writeCustomers(customers: HubCustomer[]): MaybePromise<void>;
+  readProducts(): MaybePromise<HubProductModel[]>;
+  writeProducts(products: HubProductModel[]): MaybePromise<void>;
+  readModuleState(): MaybePromise<DrawingModuleState>;
+  writeModuleState(state: DrawingModuleState): MaybePromise<void>;
+  readDetails(): MaybePromise<ProductDrawingDetail[]>;
+  writeDetails(details: ProductDrawingDetail[]): MaybePromise<void>;
+  readTrash(): MaybePromise<DrawingTrashRecord[]>;
+  writeTrash(trash: DrawingTrashRecord[]): MaybePromise<void>;
+  upsertDetail(detail: ProductDrawingDetail): MaybePromise<ProductDrawingDetail>;
+  readImportRecords(): MaybePromise<PdfImportBatchRecord[]>;
+  writeImportRecords(records: PdfImportBatchRecord[]): MaybePromise<void>;
+  upsertImportBatch(batch: PdfImportBatchRecord): MaybePromise<PdfImportBatchRecord>;
   makeProductId(customerId: string, productModel: string): string;
   makeProductDetail(customer: HubCustomer, product: HubProductModel): ProductDrawingDetail;
   clone<T>(value: T): T;
-  rollbackNewProduct(productId: string): void;
+  rollbackNewProduct(productId: string): MaybePromise<void>;
 }
 
 export type DocumentRepository = DocumentRepositoryInterface;

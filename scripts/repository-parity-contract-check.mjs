@@ -8,6 +8,8 @@ const scriptVersionRules = readFileSync('scripts/document-version-rules.mjs', 'u
 const versionService = readFileSync('apps/api/src/document-hub/document-version.service.ts', 'utf8');
 const prismaDocumentRepository = readFileSync('apps/api/src/repositories/prisma/prisma-document.repository.ts', 'utf8');
 const mockDocumentRepository = readFileSync('apps/api/src/repositories/mock/mock-document.repository.ts', 'utf8');
+const prismaDrawingRepository = readFileSync('apps/api/src/persistence/prisma/prisma-drawing.repository.ts', 'utf8');
+const documentHubService = readFileSync('apps/api/src/document-hub/document-hub.service.ts', 'utf8');
 const migrationPlan = readFileSync('scripts/json-migration-plan.mjs', 'utf8');
 const migrationImport = readFileSync('scripts/json-to-postgres-import.mjs', 'utf8');
 const tsSingleEffectiveList = versionRules.match(/singleEffectiveDrawingModuleKeys[\s\S]*?\] as const;/)?.[0] ?? '';
@@ -18,8 +20,16 @@ for (const method of [
   'writeCustomers',
   'readProducts',
   'writeProducts',
+  'readModuleState',
+  'writeModuleState',
+  'readDetails',
+  'writeDetails',
+  'upsertDetail',
   'makeProductDetail',
   'readImportRecords',
+  'writeImportRecords',
+  'upsertImportBatch',
+  'rollbackNewProduct',
   'listOrders',
   'createOrder',
   'updateOrder',
@@ -30,6 +40,87 @@ for (const method of [
   'runInTransaction',
 ]) {
   if (!types.includes(method)) failures.push(`Repository contract missing method: ${method}`);
+}
+
+if (!types.includes('type MaybePromise<T> = T | Promise<T>')) {
+  failures.push('DrawingRepository contract must support asynchronous PostgreSQL implementations.');
+}
+
+for (const method of [
+  'ensureInitialized',
+  'initializeFromSeedIfEmpty',
+  'readCustomers',
+  'writeCustomers',
+  'readProducts',
+  'writeProducts',
+  'readModuleState',
+  'writeModuleState',
+  'readDetails',
+  'writeDetails',
+  'upsertDetail',
+  'readImportRecords',
+  'writeImportRecords',
+  'upsertImportBatch',
+  'rollbackNewProduct',
+]) {
+  if (!new RegExp(`${method}\\([^)]*\\): MaybePromise`).test(types)) {
+    failures.push(`DrawingRepository method must be MaybePromise: ${method}`);
+  }
+}
+
+for (const [method, pattern] of [
+  ['readCustomers', /async\s+readCustomers[\s\S]*?customer\.findMany/],
+  ['readProducts', /async\s+readProducts[\s\S]*?product\.findMany/],
+  ['readDetails', /async\s+readDetails[\s\S]*?productModule[\s\S]*?productDocument/],
+  ['readImportRecords', /async\s+readImportRecords[\s\S]*?pdfImportBatch[\s\S]*?pdfImportItem/],
+]) {
+  if (!pattern.test(prismaDrawingRepository)) failures.push(`PrismaDrawingRepository must implement real PostgreSQL read for ${method}.`);
+}
+
+for (const [method, pattern] of [
+  ['writeCustomers', /async\s+writeCustomers[\s\S]*?\$transaction[\s\S]*?customer\.upsert/],
+  ['writeProducts', /async\s+writeProducts[\s\S]*?\$transaction[\s\S]*?product\.upsert/],
+  ['writeDetails', /async\s+writeDetails[\s\S]*?\$transaction[\s\S]*?productDocument\.upsert/],
+  ['upsertImportBatch', /async\s+upsertImportBatch[\s\S]*?\$transaction[\s\S]*?pdfImportBatch\.upsert/],
+  ['rollbackNewProduct', /async\s+rollbackNewProduct[\s\S]*?\$transaction[\s\S]*?product\.updateMany/],
+]) {
+  if (!pattern.test(prismaDrawingRepository)) failures.push(`PrismaDrawingRepository must implement transactional PostgreSQL write for ${method}.`);
+}
+
+for (const [method, pattern] of [
+  ['readCustomers', /readCustomers[\s\S]*?return\s+\[\s*\]/],
+  ['readProducts', /readProducts[\s\S]*?return\s+\[\s*\]/],
+  ['readDetails', /readDetails[\s\S]*?return\s+\[\s*\]/],
+  ['readImportRecords', /readImportRecords[\s\S]*?return\s+\[\s*\]/],
+]) {
+  if (pattern.test(prismaDrawingRepository)) failures.push(`PrismaDrawingRepository still contains a hard-coded empty result in ${method}.`);
+}
+
+if (/new\s+DrawingMetadataStore|\bdrawingMetadataStore\b/.test(prismaDrawingRepository)) {
+  failures.push('PrismaDrawingRepository must not fall back to JSON DrawingMetadataStore in PostgreSQL mode.');
+}
+
+if (!/supportsSingleEffectiveVersion\([^)]*moduleKey/.test(prismaDrawingRepository)) {
+  failures.push('PrismaDrawingRepository must preserve finished_images multi-effective semantics.');
+}
+
+if (
+  !prismaDrawingRepository.includes('documentEffectiveVersionGroupKey') ||
+  !/productId[\s\S]*moduleKey[\s\S]*versionGroupKey/.test(prismaDrawingRepository)
+) {
+  failures.push('PrismaDrawingRepository effective conflict scope must include productId, moduleKey, and versionGroupKey.');
+}
+
+if (!documentHubService.includes('await this.drawingRepository.readCustomers()') || !documentHubService.includes('await this.drawingRepository.readDetails()')) {
+  failures.push('DocumentHubService must await asynchronous DrawingRepository reads.');
+}
+
+if (!documentHubService.includes('moduleForUploadedDocument') || !documentHubService.includes('drawingModuleKeySet')) {
+  failures.push('DocumentHubService must merge uploaded PostgreSQL documents by explicit moduleKey when available.');
+}
+
+if (!readFileSync('apps/api/src/repositories/prisma/prisma-mappers.ts', 'utf8').includes('moduleKey: row.moduleKey')) {
+  failures.push('Prisma document mapper must preserve ProductDocument.moduleKey for drawing module merges.');
 }
 
 for (const path of [

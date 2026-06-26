@@ -96,9 +96,9 @@ export class DocumentVersionService {
   ) {}
 
   async updateMetadata(productId: string, moduleKeyInput: string, itemId: string, dto: UpdateDrawingDocumentMetadataDto) {
-    const context = this.resolveContext(productId, moduleKeyInput, itemId);
+    const context = await this.resolveContext(productId, moduleKeyInput, itemId);
     return this.withDocumentLock(context.documentId, async () => {
-      const latest = this.resolveContext(productId, moduleKeyInput, itemId);
+      const latest = await this.resolveContext(productId, moduleKeyInput, itemId);
       const title = dto.title !== undefined ? text(dto.title, 160) : latest.document.title;
       if (!title) throw new BadRequestException('\u8d44\u6599\u6807\u9898\u4e0d\u80fd\u4e3a\u7a7a\u3002');
 
@@ -119,7 +119,7 @@ export class DocumentVersionService {
         documentMatchesId(document, latest.documentId) ? nextDocument : document
       ));
       this.localStorageService.writeDocumentsSync(nextDocuments);
-      this.writeModuleStateAndProducts(this.applyDocumentsToModuleState(
+      await this.writeModuleStateAndProducts(await this.applyDocumentsToModuleState(
         latest.state,
         productId,
         latest.moduleKey,
@@ -149,9 +149,9 @@ export class DocumentVersionService {
       throw new BadRequestException('\u6210\u54c1\u56fe\u4e0d\u4f7f\u7528\u5355\u4e00\u5f53\u524d\u6709\u6548\u7248\u672c\uff0c\u8bf7\u4f7f\u7528\u9996\u9875\u5c01\u9762\u3002');
     }
 
-    const context = this.resolveContext(productId, moduleKey, itemId);
+    const context = await this.resolveContext(productId, moduleKey, itemId);
     return this.withDocumentLock(context.documentId, async () => {
-      const latest = this.resolveContext(productId, moduleKey, itemId);
+      const latest = await this.resolveContext(productId, moduleKey, itemId);
       const groupKey = versionGroupKey(latest.document);
       const timestamp = new Date().toISOString();
       const downgraded: ProductDocument[] = [];
@@ -189,8 +189,8 @@ export class DocumentVersionService {
         return document;
       });
 
-      const stateWithCover = this.setModuleCover(
-        this.applyDocumentsToModuleState(latest.state, productId, latest.moduleKey, nextDocuments.filter((document) => (
+      const stateWithCover = await this.setModuleCover(
+        await this.applyDocumentsToModuleState(latest.state, productId, latest.moduleKey, nextDocuments.filter((document) => (
           this.documentBelongsToCurrentModule(latest.state, productId, latest.moduleKey, document)
           && versionGroupKey(document) === groupKey
         ))),
@@ -203,7 +203,7 @@ export class DocumentVersionService {
 
       if (changed) {
         this.localStorageService.writeDocumentsSync(nextDocuments);
-        this.writeModuleStateAndProducts(stateWithCover);
+        await this.writeModuleStateAndProducts(stateWithCover);
         const nextDocument = nextDocuments.find((document) => documentMatchesId(document, latest.documentId)) ?? latest.document;
         const { operatorId, operatorName } = operator(dto);
         await this.writeAudit('document_set_effective', nextDocument, {
@@ -231,13 +231,13 @@ export class DocumentVersionService {
   }
 
   async setCover(productId: string, moduleKeyInput: string, itemId: string, dto: DrawingDocumentOperatorDto = {}) {
-    const context = this.resolveContext(productId, moduleKeyInput, itemId);
+    const context = await this.resolveContext(productId, moduleKeyInput, itemId);
     if (!this.canPreview(context.document)) {
       throw new BadRequestException('\u8be5\u8d44\u6599\u6682\u65e0\u53ef\u9884\u89c8\u5185\u5bb9\uff0c\u4e0d\u80fd\u8bbe\u4e3a\u9996\u9875\u5c01\u9762\u3002');
     }
 
     return this.withDocumentLock(context.documentId, async () => {
-      const latest = this.resolveContext(productId, moduleKeyInput, itemId);
+      const latest = await this.resolveContext(productId, moduleKeyInput, itemId);
       const currentCoverId = this.moduleCoverId(latest.state, productId, latest.moduleKey);
       if (currentCoverId === latest.documentId) {
         return {
@@ -248,13 +248,13 @@ export class DocumentVersionService {
         };
       }
 
-      const nextState = this.setModuleCover(
-        this.applyDocumentsToModuleState(latest.state, productId, latest.moduleKey, [latest.document]),
+      const nextState = await this.setModuleCover(
+        await this.applyDocumentsToModuleState(latest.state, productId, latest.moduleKey, [latest.document]),
         productId,
         latest.moduleKey,
         latest.documentId,
       );
-      this.writeModuleStateAndProducts(nextState);
+      await this.writeModuleStateAndProducts(nextState);
       const { operatorId, operatorName } = operator(dto);
       await this.writeAudit('document_cover_updated', latest.document, {
         before: { productId, moduleKey: latest.moduleKey, coverDocumentId: currentCoverId },
@@ -272,9 +272,9 @@ export class DocumentVersionService {
     });
   }
 
-  private resolveContext(productId: string, moduleKeyInput: string, itemId: string): VersionContext {
+  private async resolveContext(productId: string, moduleKeyInput: string, itemId: string): Promise<VersionContext> {
     const moduleKey = assertLifecycleModuleKey(moduleKeyInput);
-    const state = this.drawingRepository.readModuleState();
+    const state = await this.drawingRepository.readModuleState();
     const documents = this.localStorageService.readDocumentsSync();
     const document = documents.find((item) => documentMatchesId(item, itemId));
 
@@ -309,14 +309,14 @@ export class DocumentVersionService {
     return module?.items.find((item) => item.itemId === itemId || sameDocumentId(item.documentId, itemId));
   }
 
-  private applyDocumentsToModuleState(
+  private async applyDocumentsToModuleState(
     inputState: DrawingModuleState,
     productId: string,
     moduleKey: DrawingModuleKey,
     documents: ProductDocument[],
   ) {
     const state = clone(inputState);
-    const detail = this.ensureDetailInState(state, productId);
+    const detail = await this.ensureDetailInState(state, productId);
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
     if (!module) return state;
 
@@ -336,9 +336,9 @@ export class DocumentVersionService {
     return state;
   }
 
-  private setModuleCover(inputState: DrawingModuleState, productId: string, moduleKey: DrawingModuleKey, documentIdValue: string) {
+  private async setModuleCover(inputState: DrawingModuleState, productId: string, moduleKey: DrawingModuleKey, documentIdValue: string) {
     const state = clone(inputState);
-    const detail = this.ensureDetailInState(state, productId);
+    const detail = await this.ensureDetailInState(state, productId);
     const module = detail.modules.find((item) => item.moduleKey === moduleKey);
     if (!module) return state;
 
@@ -371,12 +371,12 @@ export class DocumentVersionService {
     );
   }
 
-  private ensureDetailInState(state: DrawingModuleState, productId: string) {
+  private async ensureDetailInState(state: DrawingModuleState, productId: string) {
     const detail = state.details.find((item) => item.product.productId === productId);
     if (detail) return detail;
-    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId);
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === productId);
     if (!product) throw new NotFoundException('\u4ea7\u54c1\u4e0d\u5b58\u5728\u3002');
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId) ?? {
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId) ?? {
       customerId: product.customerId,
       customerName: product.customerId,
       customerShortName: product.customerId,
@@ -392,12 +392,12 @@ export class DocumentVersionService {
     ));
   }
 
-  private writeModuleStateAndProducts(state: DrawingModuleState) {
-    this.drawingRepository.writeModuleState(state);
-    const latestDetails = this.drawingRepository.readDetails();
+  private async writeModuleStateAndProducts(state: DrawingModuleState) {
+    await this.drawingRepository.writeModuleState(state);
+    const latestDetails = await this.drawingRepository.readDetails();
     const byProductId = new Map(latestDetails.map((detail) => [detail.product.productId, detail.product]));
-    const products = this.drawingRepository.readProducts().map((product) => byProductId.get(product.productId) ?? product);
-    this.drawingRepository.writeProducts(products);
+    const products = (await this.drawingRepository.readProducts()).map((product) => byProductId.get(product.productId) ?? product);
+    await this.drawingRepository.writeProducts(products);
   }
 
   private canPreview(document: ProductDocument) {

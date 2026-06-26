@@ -164,7 +164,7 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-post
 requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow must build Migration Runner image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-schema-fix-${short_sha}', 'Workflow must generate schema-fix Migration Runner tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-candidate', 'Workflow must generate import candidate Migration Runner tag.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-loader-fix-${short_sha}', 'Workflow must generate loader-fix API tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-drawing-repository-${short_sha}', 'Workflow must generate drawing-repository API tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-candidate', 'Workflow must generate PostgreSQL candidate API tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'api-prisma-client-loader:check', 'Workflow must run API Prisma client loader cwd check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
@@ -180,7 +180,14 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'schema=hanglian_v3
 requireIncludes('.github/workflows/build-images-manual.yml', 'Smoke test API image in PostgreSQL mode', 'Workflow must run API PostgreSQL image smoke.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'cwd=/app/apps/api', 'API image smoke must verify cwd=/app/apps/api loader path.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'public.Customer must not exist', 'API PostgreSQL smoke must prove public.Customer is absent.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'Repository did not read smoke Customer through target schema', 'API PostgreSQL smoke must verify repository reads target schema.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'http://127.0.0.1:18081/api/document-hub', 'API PostgreSQL smoke must verify DocumentHub HTTP base URL.');
+requireIncludes('.github/workflows/build-images-manual.yml', "/drawings/customers'", 'API PostgreSQL smoke must verify HTTP customers endpoint.');
+requireIncludes('.github/workflows/build-images-manual.yml', '/drawings/customers/${customerId}/products', 'API PostgreSQL smoke must verify HTTP products endpoint.');
+requireIncludes('.github/workflows/build-images-manual.yml', '/drawings/products/${productId}', 'API PostgreSQL smoke must verify HTTP product detail endpoint.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'HTTP customers count mismatch', 'API PostgreSQL smoke must assert real customer counts through HTTP.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'HTTP products count mismatch', 'API PostgreSQL smoke must assert real product counts through HTTP.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'HTTP documents count mismatch', 'API PostgreSQL smoke must assert real document counts through HTTP.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'HTTP write smoke customer missing', 'API PostgreSQL smoke must verify HTTP customer/product write persistence.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'process.env.DATABASE_URL ?? ""', 'Workflow must verify Prisma config datasource.url.');
 requireIncludes('.github/workflows/build-images-manual.yml', '--config=', 'Workflow must verify wrapper uses --config.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'DATA_SOURCE=mock', 'API smoke must use mock data source.');

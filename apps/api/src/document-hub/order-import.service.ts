@@ -124,7 +124,7 @@ export class OrderImportService {
         continue;
       }
 
-      const resolution = this.resolveProduct(parsed.normalizedProductModel);
+      const resolution = await this.resolveProduct(parsed.normalizedProductModel);
       const productionStatus = resolution.product
         ? await this.orderStatusSyncService.deriveProductionStatus({ linkedProductId: resolution.product.productId })
         : 'no_drawing';
@@ -260,7 +260,7 @@ export class OrderImportService {
       return { ...base, result: 'already_active', message: '同范围内已有进行中的相同产品型号订单。' };
     }
 
-    const link = this.resolveApplyLink(item, request);
+    const link = await this.resolveApplyLink(item, request);
     if (link.result) return { ...base, ...link.result };
 
     const productionStatus = await this.orderStatusSyncService.deriveProductionStatus({
@@ -296,14 +296,14 @@ export class OrderImportService {
     };
   }
 
-  private resolveApplyLink(
+  private async resolveApplyLink(
     item: OrderImportPreviewItemRecord,
     request: { confirmedCustomerId?: string; confirmedProductId?: string },
-  ): {
+  ): Promise<{
     product?: HubProductModel;
     customer?: HubCustomer;
     result?: Pick<OrderImportApplyItemRecord, 'result' | 'message' | 'errorMessage'>;
-  } {
+  }> {
     if (item.action === 'needs_customer_confirmation') {
       const confirmedProductId = cleanText(request.confirmedProductId);
       const confirmedCustomerId = cleanText(request.confirmedCustomerId);
@@ -315,8 +315,8 @@ export class OrderImportService {
           },
         };
       }
-      const product = this.drawingRepository.readProducts().find((entry) => entry.productId === confirmedProductId);
-      const customer = this.drawingRepository.readCustomers().find((entry) => entry.customerId === confirmedCustomerId);
+      const product = (await this.drawingRepository.readProducts()).find((entry) => entry.productId === confirmedProductId);
+      const customer = (await this.drawingRepository.readCustomers()).find((entry) => entry.customerId === confirmedCustomerId);
       if (!product || !customer || product.customerId !== customer.customerId) {
         return { result: { result: 'error', message: '所选客户或产品不存在。', errorMessage: '所选客户或产品不存在。' } };
       }
@@ -334,9 +334,9 @@ export class OrderImportService {
     }
 
     if (item.matchedProductId) {
-      const product = this.drawingRepository.readProducts().find((entry) => entry.productId === item.matchedProductId);
+      const product = (await this.drawingRepository.readProducts()).find((entry) => entry.productId === item.matchedProductId);
       const customer = product
-        ? this.drawingRepository.readCustomers().find((entry) => entry.customerId === product.customerId)
+        ? (await this.drawingRepository.readCustomers()).find((entry) => entry.customerId === product.customerId)
         : undefined;
       return { product, customer };
     }
@@ -344,14 +344,14 @@ export class OrderImportService {
     return {};
   }
 
-  private resolveProduct(normalizedProductModel: string): ProductResolution {
-    const products = this.drawingRepository.readProducts().filter((product) => (
+  private async resolveProduct(normalizedProductModel: string): Promise<ProductResolution> {
+    const products = (await this.drawingRepository.readProducts()).filter((product) => (
       (product.normalizedProductModel ?? normalizeOrderProductModel(product.productModel)) === normalizedProductModel
     ));
     if (!products.length) return { status: 'product_not_found' };
     if (products.length > 1) return { status: 'ambiguous', products };
     const product = products[0];
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId);
     if (!customer) return { status: 'customer_not_found', product };
     return { status: 'found', product, customer };
   }

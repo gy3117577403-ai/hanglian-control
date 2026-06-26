@@ -41,7 +41,7 @@ export class OrderStatusSyncService {
   ) {}
 
   async hasEffectiveOriginalDrawing(productId: string) {
-    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
+    const detail = (await this.drawingRepository.readDetails()).find((item) => item.product.productId === productId);
     const moduleHasOriginal = detail?.modules
       .find((module) => module.moduleKey === 'original_drawing')
       ?.items
@@ -149,8 +149,8 @@ export class OrderStatusSyncService {
     });
   }
 
-  activeOriginalDocumentIds(productId: string) {
-    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
+  async activeOriginalDocumentIds(productId: string) {
+    const detail = (await this.drawingRepository.readDetails()).find((item) => item.product.productId === productId);
     return detail?.modules
       .find((module) => module.moduleKey === 'original_drawing')
       ?.items

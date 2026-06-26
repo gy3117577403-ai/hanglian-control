@@ -81,6 +81,15 @@ function normalizeSearchProductModel(value: unknown) {
   return cleanText(String(value ?? '')).toUpperCase().replace(/\s+/g, '');
 }
 
+const drawingModuleKeySet = new Set<DrawingModuleKey>([
+  'original_drawing',
+  'sop',
+  'finished_images',
+  'accessory_specs',
+  'notes',
+  'tooling',
+]);
+
 function isSoftDeletedEntity(value: unknown) {
   const item = value as { deleted?: boolean; deletedAt?: string | null } | null | undefined;
   return Boolean(item?.deleted || item?.deletedAt);
@@ -385,23 +394,23 @@ export class DocumentHubService implements OnModuleInit {
     @Optional() private readonly documentVersionService?: DocumentVersionService,
   ) {}
 
-  onModuleInit() {
-    this.initializeDrawingRepository();
-    return this.initializeOrderRepository();
+  async onModuleInit() {
+    await this.initializeDrawingRepository();
+    await this.initializeOrderRepository();
   }
 
-  private initializeDrawingRepository() {
+  private async initializeDrawingRepository() {
     const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
     const store = this.drawingRepository as DrawingRepository & {
-      initializeFromSeedIfEmpty?: () => unknown;
+      initializeFromSeedIfEmpty?: () => unknown | Promise<unknown>;
     };
 
     if (mode === 'demo' && typeof store.initializeFromSeedIfEmpty === 'function') {
-      store.initializeFromSeedIfEmpty();
+      await store.initializeFromSeedIfEmpty();
       return;
     }
 
-    this.drawingRepository.ensureInitialized();
+    await this.drawingRepository.ensureInitialized();
   }
 
   private async initializeOrderRepository() {
@@ -564,9 +573,9 @@ export class DocumentHubService implements OnModuleInit {
     const store = this.requireOrderStore();
     const order = await store.getOrderById(orderId);
     if (!order) throw new NotFoundException('订单不存在。');
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === cleanText(dto.customerId));
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === cleanText(dto.customerId));
     if (!customer) throw new NotFoundException('客户不存在。');
-    const product = this.drawingRepository.readProducts().find((item) => item.productId === cleanText(dto.productId));
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === cleanText(dto.productId));
     if (!product || product.customerId !== customer.customerId) throw new NotFoundException('产品不存在。');
     const normalizedProductModel = product.normalizedProductModel ?? normalizeOrderProductModel(product.productModel);
     if (normalizedProductModel !== order.normalizedProductModel) {
@@ -603,9 +612,9 @@ export class DocumentHubService implements OnModuleInit {
     });
   }
 
-  getCustomers(query?: DrawingQueryDto) {
+  async getCustomers(query?: DrawingQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    const customers = this.drawingRepository.readCustomers();
+    const customers = await this.drawingRepository.readCustomers();
     if (!q) return customers;
     return customers.filter((customer) => [
       customer.customerName,
@@ -615,9 +624,9 @@ export class DocumentHubService implements OnModuleInit {
     ].some((value) => includes(value, q)));
   }
 
-  getProducts(customerId: string, query?: DrawingQueryDto) {
+  async getProducts(customerId: string, query?: DrawingQueryDto) {
     const q = query?.q?.trim().toLowerCase();
-    return this.drawingRepository.readProducts().filter((product) => {
+    return (await this.drawingRepository.readProducts()).filter((product) => {
       const customerMatched = product.customerId === customerId;
       const queryMatched = !q || [
         product.productModel,
@@ -630,11 +639,11 @@ export class DocumentHubService implements OnModuleInit {
     });
   }
 
-  createDrawingCustomer(dto: CreateDrawingCustomerDto) {
+  async createDrawingCustomer(dto: CreateDrawingCustomerDto) {
     const customerName = normalizeDuplicateKey(dto.customerName ?? '');
     if (!customerName) throw new BadRequestException('客户名称不能为空。');
 
-    const customers = this.drawingRepository.readCustomers();
+    const customers = await this.drawingRepository.readCustomers();
     this.assertUniqueCustomerName(customers, customerName);
 
     const timestamp = new Date().toISOString();
@@ -649,12 +658,12 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: timestamp,
     };
 
-    this.drawingRepository.writeCustomers([...customers, customer]);
-    return this.drawingRepository.readCustomers().find((item) => item.customerId === customer.customerId) ?? customer;
+    await this.drawingRepository.writeCustomers([...customers, customer]);
+    return (await this.drawingRepository.readCustomers()).find((item) => item.customerId === customer.customerId) ?? customer;
   }
 
-  updateDrawingCustomer(customerId: string, dto: UpdateDrawingCustomerDto) {
-    const customers = this.drawingRepository.readCustomers();
+  async updateDrawingCustomer(customerId: string, dto: UpdateDrawingCustomerDto) {
+    const customers = await this.drawingRepository.readCustomers();
     const current = customers.find((customer) => customer.customerId === customerId);
     if (!current) throw new NotFoundException('客户不存在。');
 
@@ -676,17 +685,17 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: new Date().toISOString(),
     };
 
-    this.drawingRepository.writeCustomers(customers.map((customer) => (
+    await this.drawingRepository.writeCustomers(customers.map((customer) => (
       customer.customerId === customerId ? nextCustomer : customer
     )));
-    this.syncCustomerIntoDetails(nextCustomer);
+    await this.syncCustomerIntoDetails(nextCustomer);
 
-    return this.drawingRepository.readCustomers().find((customer) => customer.customerId === customerId) ?? nextCustomer;
+    return (await this.drawingRepository.readCustomers()).find((customer) => customer.customerId === customerId) ?? nextCustomer;
   }
 
-  createDrawingProduct(dto: CreateDrawingProductDto) {
+  async createDrawingProduct(dto: CreateDrawingProductDto) {
     const customerId = cleanText(dto.customerId);
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === customerId);
     if (customer?.status === 'disabled') throw new ConflictException('当前客户已停用，不能新增产品。');
     if (!customer) throw new NotFoundException('客户不存在。');
 
@@ -694,7 +703,7 @@ export class DocumentHubService implements OnModuleInit {
     const normalizedProductModel = normalizeProductModel(productModel);
     if (!productModel || !normalizedProductModel) throw new BadRequestException('产品型号不能为空。');
 
-    const products = this.drawingRepository.readProducts();
+    const products = await this.drawingRepository.readProducts();
     this.assertUniqueProductModel(products, customerId, normalizedProductModel);
 
     const timestamp = new Date().toISOString();
@@ -712,14 +721,14 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: timestamp,
     };
 
-    this.drawingRepository.writeProducts([...products, product]);
-    const savedProduct = this.drawingRepository.readProducts().find((item) => item.productId === product.productId) ?? product;
-    this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, savedProduct));
+    await this.drawingRepository.writeProducts([...products, product]);
+    const savedProduct = (await this.drawingRepository.readProducts()).find((item) => item.productId === product.productId) ?? product;
+    await this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, savedProduct));
     return savedProduct;
   }
 
-  updateDrawingProduct(productId: string, dto: UpdateDrawingProductDto) {
-    const products = this.drawingRepository.readProducts();
+  async updateDrawingProduct(productId: string, dto: UpdateDrawingProductDto) {
+    const products = await this.drawingRepository.readProducts();
     const current = products.find((product) => product.productId === productId);
     if (!current) throw new NotFoundException('产品不存在。');
 
@@ -741,24 +750,24 @@ export class DocumentHubService implements OnModuleInit {
       updatedAt: new Date().toISOString(),
     };
 
-    this.drawingRepository.writeProducts(products.map((product) => (
+    await this.drawingRepository.writeProducts(products.map((product) => (
       product.productId === productId ? nextProduct : product
     )));
 
-    const savedProduct = this.drawingRepository.readProducts().find((product) => product.productId === productId) ?? nextProduct;
-    this.syncProductIntoDetail(savedProduct);
+    const savedProduct = (await this.drawingRepository.readProducts()).find((product) => product.productId === productId) ?? nextProduct;
+    await this.syncProductIntoDetail(savedProduct);
     return savedProduct;
   }
 
   async getProduct(productId: string) {
-    const detail = this.findDrawingDetail(productId);
+    const detail = await this.findDrawingDetail(productId);
     if (!detail) throw new NotFoundException('产品图纸资料不存在。');
     return this.withUploadedDocuments(detail);
   }
 
   async getProductByModel(productModel: string) {
     const normalizedProductModel = normalizeProductModel(productModel);
-    const product = this.drawingRepository.readProducts().find((item) => (
+    const product = (await this.drawingRepository.readProducts()).find((item) => (
       item.productModel === productModel ||
       item.normalizedProductModel === normalizedProductModel ||
       normalizeProductModel(item.productModel) === normalizedProductModel
@@ -774,7 +783,7 @@ export class DocumentHubService implements OnModuleInit {
       throw new BadRequestException('产品型号不能为空。');
     }
 
-    const customer = this.findResolveCustomer(this.drawingRepository.readCustomers(), query);
+    const customer = this.findResolveCustomer(await this.drawingRepository.readCustomers(), query);
     if (!customer) {
       return {
         status: 'customer_not_found' as const,
@@ -786,7 +795,7 @@ export class DocumentHubService implements OnModuleInit {
       };
     }
 
-    const product = this.drawingRepository.readProducts().find((item) => (
+    const product = (await this.drawingRepository.readProducts()).find((item) => (
       item.customerId === customer.customerId &&
       (item.normalizedProductModel ?? normalizeProductModel(item.productModel)) === normalizedProductModel
     ));
@@ -802,7 +811,7 @@ export class DocumentHubService implements OnModuleInit {
     }
 
     const detail = await this.withUploadedDocuments(
-      this.findDrawingDetail(product.productId) ?? this.drawingRepository.makeProductDetail(customer, product),
+      await this.findDrawingDetail(product.productId) ?? this.drawingRepository.makeProductDetail(customer, product),
     );
 
     return {
@@ -1202,11 +1211,11 @@ export class DocumentHubService implements OnModuleInit {
       return { mode: 'drawing', query: '', total: 0, groups: emptyGroups, results: [] };
     }
 
-    const activeCustomers = this.drawingRepository
-      .readCustomers()
+    const activeCustomers = (await this.drawingRepository
+      .readCustomers())
       .filter((customer) => !isSoftDeletedEntity(customer));
-    const activeProducts = this.drawingRepository
-      .readProducts()
+    const activeProducts = (await this.drawingRepository
+      .readProducts())
       .filter((product) => !isSoftDeletedEntity(product));
     const customerById = new Map(activeCustomers.map((customer) => [customer.customerId, customer]));
     const productsByCustomer = activeProducts.reduce<Map<string, HubProductModel[]>>((acc, product) => {
@@ -1216,9 +1225,9 @@ export class DocumentHubService implements OnModuleInit {
       return acc;
     }, new Map());
     const details = await Promise.all(activeProducts.map(async (product) => {
-      const detail = this.findDrawingDetail(product.productId);
+      const detail = await this.findDrawingDetail(product.productId);
       if (!detail) return undefined;
-      return this.withUploadedDocuments(this.withCurrentDrawingMetadata(detail));
+      return this.withUploadedDocuments(await this.withCurrentDrawingMetadata(detail));
     }));
 
     const results: DrawingSearchResult[] = [];
@@ -1550,8 +1559,8 @@ export class DocumentHubService implements OnModuleInit {
     if (duplicate) throw new ConflictException('同客户下产品型号已存在。');
   }
 
-  private syncCustomerIntoDetails(customer: HubCustomer) {
-    const details = this.drawingRepository.readDetails();
+  private async syncCustomerIntoDetails(customer: HubCustomer) {
+    const details = await this.drawingRepository.readDetails();
     let changed = false;
     const nextDetails = details.map((detail) => {
       if (detail.product.customerId !== customer.customerId && detail.customer?.customerId !== customer.customerId) {
@@ -1563,16 +1572,16 @@ export class DocumentHubService implements OnModuleInit {
         customer,
       };
     });
-    if (changed) this.drawingRepository.writeDetails(nextDetails);
+    if (changed) await this.drawingRepository.writeDetails(nextDetails);
   }
 
-  private syncProductIntoDetail(product: HubProductModel) {
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId);
-    const details = this.drawingRepository.readDetails();
+  private async syncProductIntoDetail(product: HubProductModel) {
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId);
+    const details = await this.drawingRepository.readDetails();
     const detail = details.find((item) => item.product.productId === product.productId);
 
     if (detail) {
-      this.drawingRepository.upsertDetail({
+      await this.drawingRepository.upsertDetail({
         ...detail,
         product,
         customer: customer ?? detail.customer,
@@ -1581,7 +1590,7 @@ export class DocumentHubService implements OnModuleInit {
     }
 
     if (customer) {
-      this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, product));
+      await this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, product));
     }
   }
 
@@ -1666,14 +1675,14 @@ export class DocumentHubService implements OnModuleInit {
     }));
   }
 
-  private findDrawingDetail(productId: string): ProductDrawingDetail | undefined {
-    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === productId);
+  private async findDrawingDetail(productId: string): Promise<ProductDrawingDetail | undefined> {
+    const detail = (await this.drawingRepository.readDetails()).find((item) => item.product.productId === productId);
     if (detail) return this.withCurrentDrawingMetadata(detail);
 
-    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId);
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === productId);
     if (!product) return undefined;
 
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId);
     return {
       product: clone(product),
       customer: customer ? clone(customer) : undefined,
@@ -1681,12 +1690,12 @@ export class DocumentHubService implements OnModuleInit {
     };
   }
 
-  private withCurrentDrawingMetadata(detail: ProductDrawingDetail): ProductDrawingDetail {
-    const product = this.drawingRepository
-      .readProducts()
+  private async withCurrentDrawingMetadata(detail: ProductDrawingDetail): Promise<ProductDrawingDetail> {
+    const product = (await this.drawingRepository
+      .readProducts())
       .find((item) => item.productId === detail.product.productId) ?? detail.product;
-    const customer = this.drawingRepository
-      .readCustomers()
+    const customer = (await this.drawingRepository
+      .readCustomers())
       .find((item) => item.customerId === product.customerId) ?? detail.customer;
 
     return {
@@ -1721,7 +1730,7 @@ export class DocumentHubService implements OnModuleInit {
       .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
 
     for (const document of uploadedItems) {
-      const moduleKey = this.moduleForDocumentType(document.documentType);
+      const moduleKey = this.moduleForUploadedDocument(document);
       const module = next.modules.find((item) => item.moduleKey === moduleKey);
       if (!module) continue;
       const item = this.documentToDrawingItem(document);
@@ -1819,6 +1828,14 @@ export class DocumentHubService implements OnModuleInit {
       process_card: 'accessory_specs',
     };
     return map[documentType];
+  }
+
+  private moduleForUploadedDocument(document: ProductDocument): DrawingModuleKey {
+    const moduleKey = (document as ProductDocument & { moduleKey?: unknown }).moduleKey;
+    if (typeof moduleKey === 'string' && drawingModuleKeySet.has(moduleKey as DrawingModuleKey)) {
+      return moduleKey as DrawingModuleKey;
+    }
+    return this.moduleForDocumentType(document.documentType);
   }
 
   private requiredProcessForModule(moduleKey: DrawingModuleKey): RequiredProcess {

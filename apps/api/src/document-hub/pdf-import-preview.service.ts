@@ -43,7 +43,7 @@ export class PdfImportPreviewService {
     const customerId = this.cleanText(dto.customerId);
     if (!customerId) throw new BadRequestException('请选择客户。');
 
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === customerId);
     if (!customer) throw new NotFoundException('客户资料不存在。');
 
     const batchValidation = validatePdfImportBatch(files);
@@ -71,7 +71,7 @@ export class PdfImportPreviewService {
         }));
       }
 
-      const batch = this.drawingRepository.upsertImportBatch({
+      const batch = await this.drawingRepository.upsertImportBatch({
         importBatchId,
         customerId,
         status: 'previewed',
@@ -97,14 +97,14 @@ export class PdfImportPreviewService {
     }
   }
 
-  getPreview(importBatchId: string): PdfImportPreviewResponseDto {
+  async getPreview(importBatchId: string): Promise<PdfImportPreviewResponseDto> {
     const cleanImportBatchId = this.cleanText(importBatchId);
-    const batch = this.drawingRepository
-      .readImportRecords()
+    const batch = (await this.drawingRepository
+      .readImportRecords())
       .find((item) => item.importBatchId === cleanImportBatchId);
     if (!batch) throw new NotFoundException('PDF 导入预览记录不存在。');
 
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === batch.customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === batch.customerId);
     return this.toSafeResponse(batch, customer);
   }
 
@@ -177,7 +177,7 @@ export class PdfImportPreviewService {
         };
       }
 
-      const existingProduct = this.drawingRepository.readProducts().find((product) => (
+      const existingProduct = (await this.drawingRepository.readProducts()).find((product) => (
         product.customerId === input.customerId &&
         (product.normalizedProductModel ?? normalizeProductModel(product.productModel)) === normalizedProductModel
       ));
@@ -247,7 +247,7 @@ export class PdfImportPreviewService {
       return { found: true, existingDocumentId: duplicateDocument.documentId ?? duplicateDocument.id };
     }
 
-    const detail = this.drawingRepository.readDetails().find((item) => item.product.productId === input.productId);
+    const detail = (await this.drawingRepository.readDetails()).find((item) => item.product.productId === input.productId);
     const duplicateItem = detail?.modules
       .flatMap((module) => module.items)
       .find((item) => !item.deletedAt && this.cleanText(item.checksumSha256).toLowerCase() === input.checksumSha256);
@@ -255,7 +255,7 @@ export class PdfImportPreviewService {
       return { found: true, existingDocumentId: duplicateItem.itemId };
     }
 
-    const duplicatePreviewItem = this.drawingRepository.readImportRecords()
+    const duplicatePreviewItem = (await this.drawingRepository.readImportRecords())
       .filter((batch) => (
         batch.importBatchId !== input.currentBatchId &&
         batch.customerId === input.customerId &&

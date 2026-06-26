@@ -40,6 +40,11 @@ includes('apps/api/src/database/prisma-client-loader.ts', 'tmpdir()', 'Prisma cl
 includes('scripts/prisma-pg-schema-route.mjs', '{ schema: route.schema }', 'Import Runner PrismaPg helper must pass official schema option.');
 includes('scripts/prisma-pg-schema-route.mjs', 'search_path', 'Import Runner PrismaPg helper must configure pg search_path.');
 includes('scripts/prisma-pg-schema-route.mjs', 'current_schema()', 'Import Runner PrismaPg helper must assert current_schema.');
+includes('apps/api/src/persistence/prisma/prisma-drawing.repository.ts', 'assertWriteAllowed', 'PrismaDrawingRepository writes must stay behind the PostgreSQL write gate.');
+includes('apps/api/src/persistence/prisma/prisma-drawing.repository.ts', 'customer.findMany', 'PrismaDrawingRepository must read customers from PostgreSQL.');
+includes('apps/api/src/persistence/prisma/prisma-drawing.repository.ts', 'productDocument', 'PrismaDrawingRepository must read and write product documents through PostgreSQL.');
+includes('apps/api/src/persistence/prisma/prisma-drawing.repository.ts', 'pdfImportBatch', 'PrismaDrawingRepository must read and write PDF import batches through PostgreSQL.');
+includes('apps/api/src/persistence/prisma/prisma-drawing.repository.ts', 'supportsSingleEffectiveVersion(document.moduleKey)', 'PrismaDrawingRepository must keep finished_images multi-effective behavior.');
 
 if (failures.length) {
   console.error(failures.map((item) => `- ${item}`).join('\n'));

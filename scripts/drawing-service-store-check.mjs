@@ -176,11 +176,11 @@ async function checkEmptyModeStoreReadChain() {
   const { tempRoot, storage, store, service } = createRuntime([manualDocument]);
 
   try {
-    service.onModuleInit();
+    await service.onModuleInit();
     for (const fileName of drawingMetadataFiles) {
       assert(existsSync(storage.metadataFilePath(fileName)), `Service init did not create ${fileName}.`);
     }
-    assert(service.getCustomers().length === 0, 'Empty mode should not create demo customers through service init.');
+    assert((await service.getCustomers()).length === 0, 'Empty mode should not create demo customers through service init.');
 
     store.writeCustomers([
       {
@@ -237,15 +237,15 @@ async function checkEmptyModeStoreReadChain() {
       ],
     });
 
-    const customers = service.getCustomers();
+    const customers = await service.getCustomers();
     assert(customers.length === 1, 'Service getCustomers should read active customers from DrawingMetadataStore.');
     assert(customers[0]?.customerId === 'cust-a', 'Service getCustomers returned the wrong customer.');
-    assert(service.getCustomers({ q: 'CA' }).length === 1, 'Service customer search should include short name.');
+    assert((await service.getCustomers({ q: 'CA' })).length === 1, 'Service customer search should include short name.');
 
-    const products = service.getProducts('cust-a');
+    const products = await service.getProducts('cust-a');
     assert(products.length === 1, 'Service getProducts should read active products from DrawingMetadataStore.');
     assert(products[0]?.normalizedProductModel === 'HL-CTRL-1907B', 'Service getProducts should preserve normalized model.');
-    assert(service.getProducts('cust-a', { q: '1907B' }).length === 1, 'Service product search should include model.');
+    assert((await service.getProducts('cust-a', { q: '1907B' })).length === 1, 'Service product search should include model.');
 
     const detail = await service.getProduct('prod-a');
     assert(detail.product.productId === 'prod-a', 'Service getProduct returned wrong product.');
@@ -277,7 +277,7 @@ async function checkEmptyModeStoreReadChain() {
   }
 }
 
-function checkPersistedDataWinsInDemoMode() {
+async function checkPersistedDataWinsInDemoMode() {
   const previousDemoMode = process.env.DEMO_DATA_MODE;
   delete process.env.DEMO_DATA_MODE;
   const { tempRoot, storage, service } = createRuntime();
@@ -299,8 +299,8 @@ function checkPersistedDataWinsInDemoMode() {
     });
     storage.writeRawJson('drawing-import-records.json', []);
 
-    service.onModuleInit();
-    const customers = service.getCustomers();
+    await service.onModuleInit();
+    const customers = await service.getCustomers();
     assert(customers.length === 1, 'Demo mode should not overwrite existing persisted customers with seed data.');
     assert(customers[0]?.customerId === 'persisted-customer', 'Persisted customer should remain first-class data.');
   } finally {
@@ -310,7 +310,7 @@ function checkPersistedDataWinsInDemoMode() {
   }
 }
 
-function checkCorruptJsonAbortsInitialization() {
+async function checkCorruptJsonAbortsInitialization() {
   const previousDemoMode = process.env.DEMO_DATA_MODE;
   delete process.env.DEMO_DATA_MODE;
   const { tempRoot, storage, service } = createRuntime();
@@ -320,7 +320,7 @@ function checkCorruptJsonAbortsInitialization() {
     service.logger.error = () => {};
     let failed = false;
     try {
-      service.onModuleInit();
+      await service.onModuleInit();
     } catch {
       failed = true;
     }
@@ -339,8 +339,8 @@ console.log('This check uses isolated temp metadata and does not connect to a da
 runApiBuild();
 if (!blockers.length) {
   await checkEmptyModeStoreReadChain();
-  checkPersistedDataWinsInDemoMode();
-  checkCorruptJsonAbortsInitialization();
+  await checkPersistedDataWinsInDemoMode();
+  await checkCorruptJsonAbortsInitialization();
 }
 
 if (blockers.length) {

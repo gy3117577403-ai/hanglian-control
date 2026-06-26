@@ -268,7 +268,7 @@ function seedCustomerAndProducts(store, localStorage, duplicateBuffer) {
 async function checkSuccessfulApplyAndIdempotency() {
   const runtime = createRuntime();
   try {
-    runtime.service.onModuleInit();
+    await runtime.service.onModuleInit();
     const duplicateBuffer = minimalPdfBuffer('duplicate');
     const { customer, existingProduct, duplicateProduct } = seedCustomerAndProducts(runtime.store, runtime.localStorage, duplicateBuffer);
     const newBuffer = minimalPdfBuffer('new-product');
@@ -333,7 +333,7 @@ async function checkSuccessfulApplyAndIdempotency() {
     assert(audits.some((audit) => audit.action === 'pdf_drawing_imported'), 'Apply should write drawing import audit records.');
     assert(audits.some((audit) => audit.action === 'pdf_import_product_created'), 'Apply should audit new product creation.');
 
-    const getPreview = runtime.controller.getPdfImportPreview(preview.importBatchId);
+    const getPreview = await runtime.controller.getPdfImportPreview(preview.importBatchId);
     assert(getPreview.applySummary?.createdProduct === 1, 'Preview GET should expose applySummary after apply.');
     assert(getPreview.applyItems?.length === 3, 'Preview GET should expose safe applyItems after apply.');
     assertSafeResponse(getPreview, runtime.tempRoot);
@@ -355,7 +355,7 @@ async function checkSuccessfulApplyAndIdempotency() {
 async function checkPartialFailureAndRetry() {
   const runtime = createRuntime();
   try {
-    runtime.service.onModuleInit();
+    await runtime.service.onModuleInit();
     const customer = { customerId: 'cust-partial', customerName: 'Partial Customer', customerShortName: 'PC' };
     runtime.store.writeCustomers([customer]);
     runtime.store.writeProducts([]);
@@ -417,7 +417,7 @@ async function checkPartialFailureAndRetry() {
 async function checkSkippedUserAndBatchValidation() {
   const runtime = createRuntime();
   try {
-    runtime.service.onModuleInit();
+    await runtime.service.onModuleInit();
     const customer = { customerId: 'cust-validation', customerName: 'Validation Customer', customerShortName: 'VC' };
     runtime.store.writeCustomers([customer]);
     runtime.store.writeProducts([]);
@@ -526,7 +526,7 @@ async function checkCompensationCleanup() {
       assert(listFilesRecursive(runtime.config.uploadsRoot).length === beforeFiles, 'Stored file should be deleted when formal metadata creation fails.');
     }
 
-    runtime.service.onModuleInit();
+    await runtime.service.onModuleInit();
     const customer = { customerId: 'cust-rollback', customerName: 'Rollback Customer', customerShortName: 'RC' };
     runtime.store.writeCustomers([customer]);
     runtime.store.writeProducts([]);

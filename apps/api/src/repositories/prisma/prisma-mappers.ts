@@ -103,13 +103,17 @@ const DOCUMENT_SOURCE_FROM_PRISMA: Record<string, DocumentSource> = {
   MOCK: 'mock',
   WECOM_DISK: 'wecom_disk',
   MANUAL_UPLOAD: 'manual_upload',
+  PDF_IMPORT: 'pdf_import',
+  MANUAL_CREATE: 'manual_upload',
+  FUTURE_WECOM: 'wecom_disk',
+  SEED: 'mock',
 };
 
 const DOCUMENT_SOURCE_TO_PRISMA: Record<DocumentSource, string> = {
   mock: 'MOCK',
   wecom_disk: 'WECOM_DISK',
   manual_upload: 'MANUAL_UPLOAD',
-  pdf_import: 'MANUAL_UPLOAD',
+  pdf_import: 'PDF_IMPORT',
   camera_capture: 'MANUAL_UPLOAD',
 };
 
@@ -292,10 +296,11 @@ export function mapPrismaDocument(row: AnyRecord): ProductDocument {
       ? 'back'
       : 'common';
 
-  return {
+  const document = {
     id: row.id,
     documentId: row.id,
     productId,
+    moduleKey: row.moduleKey ?? undefined,
     planId: row.productionPlanId ?? undefined,
     type: legacyDocumentTypeMap[documentType],
     documentType,
@@ -328,7 +333,8 @@ export function mapPrismaDocument(row: AnyRecord): ProductDocument {
     archivedBy: row.archivedBy ?? undefined,
     remark: row.remark ?? undefined,
     versionGroupKey: row.versionGroupKey ?? documentVersionGroupKey({ productId, documentType, requiredForProcess }),
-  };
+  } as ProductDocument & { moduleKey?: string };
+  return document;
 }
 
 function mapFront(row?: AnyRecord): FrontProcessParameterSeed {

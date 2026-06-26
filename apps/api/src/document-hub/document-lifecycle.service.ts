@@ -96,9 +96,9 @@ export class DocumentLifecycleService {
     const limit = this.clampLimit(query.limit);
     const offset = this.clampOffset(query.offset);
     const keyword = cleanLifecycleText(query.keyword, 120).toLowerCase();
-    const customers = new Map(this.drawingRepository.readCustomers().map((item) => [item.customerId, item]));
-    const products = new Map(this.drawingRepository.readProducts().map((item) => [item.productId, item]));
-    const state = this.drawingRepository.readModuleState();
+    const customers = new Map((await this.drawingRepository.readCustomers()).map((item) => [item.customerId, item]));
+    const products = new Map((await this.drawingRepository.readProducts()).map((item) => [item.productId, item]));
+    const state = await this.drawingRepository.readModuleState();
     const trashByDocumentId = new Map(
       state.trash
         .filter((record) => !record.purgedAt)
@@ -145,7 +145,7 @@ export class DocumentLifecycleService {
   async trash(productId: string, moduleKeyInput: string, itemId: string, dto: TrashDocumentDto) {
     const moduleKey = assertLifecycleModuleKey(moduleKeyInput);
     const documents = this.localStorageService.readDocumentsSync();
-    const context = this.resolveContext(productId, moduleKey, itemId, documents);
+    const context = await this.resolveContext(productId, moduleKey, itemId, documents);
 
     if (isDocumentDeleted(context.document)) {
       return this.toTrashResponse(context, {
@@ -158,7 +158,7 @@ export class DocumentLifecycleService {
 
     return this.withDocumentLock(context.documentId, async () => {
       const latestDocuments = this.localStorageService.readDocumentsSync();
-      const latest = this.resolveContext(productId, moduleKey, itemId, latestDocuments);
+      const latest = await this.resolveContext(productId, moduleKey, itemId, latestDocuments);
       if (isDocumentDeleted(latest.document)) {
         return this.toTrashResponse(latest, {
           deletedAt: latest.document.deletedAt ?? latest.trashRecord?.deletedAt ?? new Date().toISOString(),
@@ -192,8 +192,8 @@ export class DocumentLifecycleService {
         deletedAt: timestamp,
         deletedBy: operatorId,
       };
-      const nextState = this.applyTrashToModuleState({
-        state: this.drawingRepository.readModuleState(),
+      const nextState = await this.applyTrashToModuleState({
+        state: await this.drawingRepository.readModuleState(),
         productId,
         moduleKey,
         documentId: latest.documentId,
@@ -202,7 +202,7 @@ export class DocumentLifecycleService {
         deletedBy: operatorId,
         reason,
       });
-      this.writeModuleStateAndProducts(nextState);
+      await this.writeModuleStateAndProducts(nextState);
 
       const activeDocuments = nextDocuments.filter((document) => documentId(document) !== latest.documentId);
       const warning = this.effectiveRemovalWarning(deletedDocument, activeDocuments);
@@ -215,7 +215,7 @@ export class DocumentLifecycleService {
         message: reason ?? '\u8d44\u6599\u5df2\u79fb\u5165\u56de\u6536\u7ad9\u3002',
       });
 
-      const response = this.toTrashResponse(this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
+      const response = this.toTrashResponse(await this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
         deletedAt: timestamp,
         movedToTrash: true,
         message: '\u8d44\u6599\u5df2\u79fb\u5165\u56de\u6536\u7ad9\u3002',
@@ -228,7 +228,7 @@ export class DocumentLifecycleService {
   async restore(productId: string, moduleKeyInput: string, itemId: string, dto: RestoreDocumentDto) {
     const moduleKey = assertLifecycleModuleKey(moduleKeyInput);
     const documents = this.localStorageService.readDocumentsSync();
-    const context = this.resolveContext(productId, moduleKey, itemId, documents);
+    const context = await this.resolveContext(productId, moduleKey, itemId, documents);
 
     if (!isDocumentDeleted(context.document)) {
       return this.toRestoreResponse(context, {
@@ -240,7 +240,7 @@ export class DocumentLifecycleService {
 
     return this.withDocumentLock(context.documentId, async () => {
       const latestDocuments = this.localStorageService.readDocumentsSync();
-      const latest = this.resolveContext(productId, moduleKey, itemId, latestDocuments);
+      const latest = await this.resolveContext(productId, moduleKey, itemId, latestDocuments);
       if (!isDocumentDeleted(latest.document)) {
         return this.toRestoreResponse(latest, {
           restoredAt: latest.document.restoredAt ?? latest.document.updatedAt,
@@ -276,8 +276,8 @@ export class DocumentLifecycleService {
       ));
       this.localStorageService.writeDocumentsSync(nextDocuments);
 
-      const nextState = this.applyRestoreToModuleState({
-        state: this.drawingRepository.readModuleState(),
+      const nextState = await this.applyRestoreToModuleState({
+        state: await this.drawingRepository.readModuleState(),
         productId,
         moduleKey,
         document: restoredDocument,
@@ -285,7 +285,7 @@ export class DocumentLifecycleService {
         restoredAt: timestamp,
         restoredBy: operatorId,
       });
-      this.writeModuleStateAndProducts(nextState);
+      await this.writeModuleStateAndProducts(nextState);
 
       await this.writeAudit('document_restored', restoredDocument, {
         before,
@@ -296,7 +296,7 @@ export class DocumentLifecycleService {
         message: remark ?? '\u8d44\u6599\u5df2\u6062\u590d\u3002',
       });
 
-      const response = this.toRestoreResponse(this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
+      const response = this.toRestoreResponse(await this.resolveContext(productId, moduleKey, latest.documentId, nextDocuments), {
         restoredAt: timestamp,
         message: '\u8d44\u6599\u5df2\u6062\u590d\u3002',
         warning: downgrade.warning,
@@ -312,14 +312,14 @@ export class DocumentLifecycleService {
     }
 
     const documents = this.localStorageService.readDocumentsSync();
-    const context = this.resolveContext(productId, moduleKey, itemId, documents);
+    const context = await this.resolveContext(productId, moduleKey, itemId, documents);
     if (!isDocumentDeleted(context.document)) {
       throw new ConflictException('\u8bf7\u5148\u5c06\u8d44\u6599\u79fb\u5165\u56de\u6536\u7ad9\u3002');
     }
 
     return this.withDocumentLock(context.documentId, async () => {
       const latestDocuments = this.localStorageService.readDocumentsSync();
-      const latest = this.resolveContext(productId, moduleKey, itemId, latestDocuments);
+      const latest = await this.resolveContext(productId, moduleKey, itemId, latestDocuments);
       if (!isDocumentDeleted(latest.document)) {
         throw new ConflictException('\u8bf7\u5148\u5c06\u8d44\u6599\u79fb\u5165\u56de\u6536\u7ad9\u3002');
       }
@@ -353,15 +353,15 @@ export class DocumentLifecycleService {
 
       try {
         const nextDocuments = latestDocuments.filter((document) => documentId(document) !== latest.documentId);
-        const nextState = this.applyPurgeToModuleState({
-          state: this.drawingRepository.readModuleState(),
+        const nextState = await this.applyPurgeToModuleState({
+          state: await this.drawingRepository.readModuleState(),
           productId,
           moduleKey,
           documentId: latest.documentId,
           purgedAt: timestamp,
         });
         this.localStorageService.writeDocumentsSync(nextDocuments);
-        this.writeModuleStateAndProducts(nextState);
+        await this.writeModuleStateAndProducts(nextState);
       } catch (error) {
         await this.writeAudit('document_purge_failed', latest.document, {
           after: this.safeAuditSummary(latest.document, { moduleKey, reason, purgedAt: timestamp, fileDeleted, fileMissing, operatorId, operatorName }),
@@ -425,25 +425,25 @@ export class DocumentLifecycleService {
     }
   }
 
-  private resolveContext(
+  private async resolveContext(
     productId: string,
     moduleKey: DrawingModuleKey,
     itemId: string,
     documents: ProductDocument[],
-  ): LifecycleContext {
-    const state = this.drawingRepository.readModuleState();
+  ): Promise<LifecycleContext> {
+    const state = await this.drawingRepository.readModuleState();
     const details = state.details;
     const detail = details.find((item) => item.product.productId === productId);
-    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId) ?? detail?.product;
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === productId) ?? detail?.product;
     if (!product) throw new NotFoundException('\u4ea7\u54c1\u4e0d\u5b58\u5728\u3002');
 
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId) ?? detail?.customer;
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId) ?? detail?.customer;
     const workingDetail = detail ? clone(detail) : this.drawingRepository.makeProductDetail(customer ?? {
       customerId: product.customerId,
       customerName: product.customerId,
       customerShortName: product.customerId,
     }, product);
-    const locatedItem = this.findDrawingItem(workingDetail, moduleKey, itemId);
+    const locatedItem = await this.findDrawingItem(workingDetail, moduleKey, itemId);
     const locatedDocument = documents.find((document) => {
       const docId = documentId(document);
       if (document.productId !== productId) return false;
@@ -485,7 +485,7 @@ export class DocumentLifecycleService {
     };
   }
 
-  private findDrawingItem(detail: ProductDrawingDetail, moduleKey: DrawingModuleKey, itemId: string) {
+  private async findDrawingItem(detail: ProductDrawingDetail, moduleKey: DrawingModuleKey, itemId: string) {
     for (const module of detail.modules) {
       const item = module.items.find((entry) => entry.itemId === itemId);
       if (item) {
@@ -495,7 +495,7 @@ export class DocumentLifecycleService {
         };
       }
     }
-    const trashRecord = this.drawingRepository.readTrash().find((record) => (
+    const trashRecord = (await this.drawingRepository.readTrash()).find((record) => (
       record.productId === detail.product.productId
       && record.moduleKey === moduleKey
       && (record.item.itemId === itemId || record.sourceDocumentId === itemId)
@@ -503,7 +503,7 @@ export class DocumentLifecycleService {
     return trashRecord ? { moduleKey: trashRecord.moduleKey, item: trashRecord.item } : undefined;
   }
 
-  private applyTrashToModuleState(input: {
+  private async applyTrashToModuleState(input: {
     state: DrawingModuleState;
     productId: string;
     moduleKey: DrawingModuleKey;
@@ -514,7 +514,7 @@ export class DocumentLifecycleService {
     reason?: string;
   }) {
     const state = clone(input.state);
-    const detail = this.ensureDetailInState(state, input.productId);
+    const detail = await this.ensureDetailInState(state, input.productId);
     const module = detail.modules.find((item) => item.moduleKey === input.moduleKey);
     if (module) {
       module.items = module.items.filter((item) => item.itemId !== input.documentId && item.itemId !== input.item.itemId);
@@ -541,7 +541,7 @@ export class DocumentLifecycleService {
     return state;
   }
 
-  private applyRestoreToModuleState(input: {
+  private async applyRestoreToModuleState(input: {
     state: DrawingModuleState;
     productId: string;
     moduleKey: DrawingModuleKey;
@@ -551,7 +551,7 @@ export class DocumentLifecycleService {
     restoredBy: string;
   }) {
     const state = clone(input.state);
-    const detail = this.ensureDetailInState(state, input.productId);
+    const detail = await this.ensureDetailInState(state, input.productId);
     const module = detail.modules.find((item) => item.moduleKey === input.moduleKey);
     if (module && !module.items.some((item) => item.itemId === input.documentId)) {
       const trashItem = state.trash.find((record) => (
@@ -582,7 +582,7 @@ export class DocumentLifecycleService {
     return state;
   }
 
-  private applyPurgeToModuleState(input: {
+  private async applyPurgeToModuleState(input: {
     state: DrawingModuleState;
     productId: string;
     moduleKey: DrawingModuleKey;
@@ -590,7 +590,7 @@ export class DocumentLifecycleService {
     purgedAt: string;
   }) {
     const state = clone(input.state);
-    const detail = this.ensureDetailInState(state, input.productId);
+    const detail = await this.ensureDetailInState(state, input.productId);
     const module = detail.modules.find((item) => item.moduleKey === input.moduleKey);
     if (module) {
       module.items = module.items.filter((item) => item.itemId !== input.documentId);
@@ -606,12 +606,12 @@ export class DocumentLifecycleService {
     return state;
   }
 
-  private ensureDetailInState(state: DrawingModuleState, productId: string) {
+  private async ensureDetailInState(state: DrawingModuleState, productId: string) {
     const detail = state.details.find((item) => item.product.productId === productId);
     if (detail) return detail;
-    const product = this.drawingRepository.readProducts().find((item) => item.productId === productId);
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === productId);
     if (!product) throw new NotFoundException('\u4ea7\u54c1\u4e0d\u5b58\u5728\u3002');
-    const customer = this.drawingRepository.readCustomers().find((item) => item.customerId === product.customerId) ?? {
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId) ?? {
       customerId: product.customerId,
       customerName: product.customerId,
       customerShortName: product.customerId,
@@ -627,12 +627,12 @@ export class DocumentLifecycleService {
     ));
   }
 
-  private writeModuleStateAndProducts(state: DrawingModuleState) {
-    this.drawingRepository.writeModuleState(state);
-    const latestDetails = this.drawingRepository.readDetails();
+  private async writeModuleStateAndProducts(state: DrawingModuleState) {
+    await this.drawingRepository.writeModuleState(state);
+    const latestDetails = await this.drawingRepository.readDetails();
     const byProductId = new Map(latestDetails.map((detail) => [detail.product.productId, detail.product]));
-    const products = this.drawingRepository.readProducts().map((product) => byProductId.get(product.productId) ?? product);
-    this.drawingRepository.writeProducts(products);
+    const products = (await this.drawingRepository.readProducts()).map((product) => byProductId.get(product.productId) ?? product);
+    await this.drawingRepository.writeProducts(products);
   }
 
   private moduleKeyForDocument(document: ProductDocument, state: DrawingModuleState) {

@@ -74,7 +74,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
-          echo "api_version_tag=v3.18-postgres-loader-fix-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-postgres-drawing-repository-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
           echo "migrate_version_tag=v3.18-import-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
@@ -241,53 +241,10 @@ jobs:
 
           smoke_schema="hanglian_v318_staging"
           export API_POSTGRES_SMOKE_URL="postgres""ql://postgres@127.0.0.1:5432/hanglian_v318_import_test?schema=${smoke_schema}"
-          node - <<'NODE'
-          const fs = require('node:fs')
-          const { Client } = require('pg')
-          const schema = 'hanglian_v318_staging'
-          const client = new Client({ connectionString: process.env.API_POSTGRES_SMOKE_URL })
-          function ident(value) {
-            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error('invalid schema')
-            return `"${value}"`
-          }
-          ;(async () => {
-            await client.connect()
-            try {
-              await client.query('DROP SCHEMA IF EXISTS public CASCADE')
-              await client.query('CREATE SCHEMA public')
-              await client.query(`DROP SCHEMA IF EXISTS ${ident(schema)} CASCADE`)
-              await client.query(`CREATE SCHEMA ${ident(schema)}`)
-              await client.query(`SET search_path TO ${ident(schema)}`)
-              for (const file of [
-                'apps/api/prisma/migrations/20260617000100_initial_schema/migration.sql',
-                'apps/api/prisma/migrations/20260623010000_v318_persistence_upgrade/migration.sql',
-              ]) {
-                await client.query(fs.readFileSync(file, 'utf8'))
-              }
-              const publicCustomer = await client.query('SELECT to_regclass($1) AS table_name', ['public."Customer"'])
-              if (publicCustomer.rows[0]?.table_name !== null) throw new Error('public.Customer must not exist')
-              await client.query(`
-                INSERT INTO ${ident(schema)}."Customer" (id, name, "customerName", "customerShortName", status, "createdAt", "updatedAt")
-                VALUES ('smoke-customer', 'Smoke Customer', 'Smoke Customer', 'Smoke', 'active', now(), now())
-              `)
-              await client.query(`
-                INSERT INTO ${ident(schema)}."Product" (id, "customerId", "productCode", "normalizedProductModel", "productName", "currentVersion", "createdAt", "updatedAt")
-                VALUES ('smoke-product', 'smoke-customer', 'SMOKE-PRODUCT', 'SMOKE-PRODUCT', 'Smoke Product', 'V1', now(), now())
-              `)
-              await client.query(`
-                INSERT INTO ${ident(schema)}."ProductionPlan" (id, "planCode", "planDate", "weekPlanCode", sales, "productId", "plannedQuantity", owner, "createdAt", "updatedAt")
-                VALUES ('smoke-plan', 'SMOKE-PLAN', now(), 'SMOKE-WEEK', 'Smoke', 'smoke-product', 1, 'Smoke Owner', now(), now())
-              `)
-              const targetCount = await client.query(`SELECT count(*)::int AS count FROM ${ident(schema)}."Customer"`)
-              if (targetCount.rows[0]?.count !== 1) throw new Error('target schema Customer row missing')
-            } finally {
-              await client.end()
-            }
-          })().catch((error) => {
-            console.error(error)
-            process.exit(1)
-          })
-          NODE
+          # Non-public schema isolation is asserted by json-postgres-import-parity:check with "public.Customer must not exist".
+          cat >/tmp/postgres-smoke-counts.json <<'JSON'
+          {"Customer":1,"Product":1,"httpProductModules":6,"ProductDocument":6,"finishedImagesEffective":3,"finishedImagesWithCover":1}
+          JSON
 
           smoke_root="${RUNNER_TEMP}/hanglian-api-postgres-smoke"
           mkdir -p "${smoke_root}/uploads" "${smoke_root}/metadata" "${smoke_root}/tmp"
@@ -318,7 +275,7 @@ jobs:
             -e DATABASE_URL="${API_POSTGRES_SMOKE_URL}" \
             -e RUN_PRISMA_MIGRATE_DEPLOY=false \
             -e ALLOW_TEST_DB_CONNECT=true \
-            -e ALLOW_PRISMA_WRITE=false \
+            -e ALLOW_PRISMA_WRITE=true \
             -e ALLOW_DESTRUCTIVE_DB_ACTIONS=false \
             "$api_image" \
             node scripts/start-cloud.mjs
@@ -345,29 +302,92 @@ jobs:
           const health = JSON.parse(fs.readFileSync('/tmp/postgres-health.json', 'utf8'))
           if (health.dataSource !== 'postgres' || health.databaseConnected !== true) throw new Error('PostgreSQL health smoke check failed')
           NODE
-          docker exec -i -w /app/apps/api hanglian-api-postgres-smoke node - <<'NODE'
-          const { PrismaService } = require('./dist/src/database/prisma.service.js')
-          const { PrismaProductRepository } = require('./dist/src/repositories/prisma/prisma-product.repository.js')
-          const databaseConfig = {
-            isMockMode: () => false,
-            assertCanStartPostgres: () => undefined,
-            getStatus: () => ({
-              dataSource: 'postgres',
-              dbTarget: 'staging',
-              canWriteDatabase: false,
-              safeSummary: { provider: 'postgresql', hostConfigured: true },
-            }),
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const base = 'http://127.0.0.1:18081/api/document-hub'
+          const expected = JSON.parse(fs.readFileSync('/tmp/postgres-smoke-counts.json', 'utf8'))
+          function sanitize(message) {
+            return String(message).replace(/postgres(?:ql)?:\/\/[^@\s]+@/gi, 'postgresql://***@')
+          }
+          async function request(path, options = {}) {
+            const response = await fetch(`${base}${path}`, {
+              ...options,
+              headers: {
+                'content-type': 'application/json',
+                ...(options.headers ?? {}),
+              },
+            })
+            const body = await response.text()
+            if (!response.ok) throw new Error(`HTTP ${response.status} ${path}: ${body}`)
+            return body ? JSON.parse(body) : null
           }
           ;(async () => {
-            const service = new PrismaService(databaseConfig)
-            await service.onModuleInit()
-            try {
-              const rows = await new PrismaProductRepository(service).findProductsByCustomer('smoke-customer')
-              if (!rows.length || rows[0].customerId !== 'smoke-customer') throw new Error('Repository did not read smoke Customer through target schema')
-            } finally {
-              await service.onModuleDestroy()
+            const customers = await request('/drawings/customers')
+            if (!Array.isArray(customers) || customers.length !== expected.Customer) throw new Error('HTTP customers count mismatch')
+            let productCount = 0
+            let moduleCount = 0
+            let documentCount = 0
+            let finishedEffectiveCount = 0
+            let productsWithFinishedCovers = 0
+            for (const customer of customers) {
+              const customerId = customer.customerId
+              const products = await request(`/drawings/customers/${customerId}/products`)
+              if (!Array.isArray(products)) throw new Error('HTTP products response must be an array')
+              productCount += products.length
+              for (const product of products) {
+                const productId = product.productId
+                const detail = await request(`/drawings/products/${productId}`)
+                if (!detail?.product || detail.product.productId !== productId) throw new Error('HTTP product detail mismatch')
+                if (!Array.isArray(detail.modules)) throw new Error('HTTP product detail modules missing')
+                moduleCount += detail.modules.length
+                for (const module of detail.modules) {
+                  const items = Array.isArray(module.items) ? module.items : []
+                  documentCount += items.length
+                  if (module.moduleKey === 'finished_images') {
+                    const effective = items.filter((item) => item.documentStatus === 'effective')
+                    finishedEffectiveCount += effective.length
+                    if (effective.length > 0) {
+                      if (!module.coverDocumentId) throw new Error('finished_images coverDocumentId missing')
+                      if (!items.some((item) => item.itemId === module.coverDocumentId)) throw new Error('finished_images coverDocumentId mismatch')
+                      productsWithFinishedCovers += 1
+                    }
+                  }
+                }
+              }
             }
+            if (productCount !== expected.Product) throw new Error('HTTP products count mismatch')
+            if (moduleCount !== expected.httpProductModules) throw new Error('HTTP modules count mismatch')
+            if (documentCount !== expected.ProductDocument) throw new Error('HTTP documents count mismatch')
+            if (finishedEffectiveCount !== expected.finishedImagesEffective) throw new Error('HTTP finished_images effective mismatch')
+            if (productsWithFinishedCovers !== expected.finishedImagesWithCover) throw new Error('HTTP finished_images cover mismatch')
+
+            const createdCustomer = await request('/drawings/customers', {
+              method: 'POST',
+              body: JSON.stringify({
+                customerName: 'HTTP Smoke Customer',
+                customerShortName: 'HTTP Smoke',
+                customerCode: 'HTTP-SMOKE',
+                aliases: ['http smoke'],
+              }),
+            })
+            const createdProduct = await request('/drawings/products', {
+              method: 'POST',
+              body: JSON.stringify({
+                customerId: createdCustomer.customerId,
+                productModel: 'HTTP-SMOKE-001',
+                productName: 'HTTP Smoke Harness',
+                source: 'manual_create',
+              }),
+            })
+            const smokeDetail = await request(`/drawings/products/${createdProduct.productId}`)
+            if (!Array.isArray(smokeDetail.modules) || smokeDetail.modules.length !== 6) throw new Error('HTTP write smoke product modules missing')
+            const customersAfterWrite = await request('/drawings/customers')
+            if (!customersAfterWrite.some((customer) => customer.customerId === createdCustomer.customerId)) throw new Error('HTTP write smoke customer missing')
+            const productsAfterWrite = await request(`/drawings/customers/${createdCustomer.customerId}/products`)
+            if (!productsAfterWrite.some((product) => product.productId === createdProduct.productId)) throw new Error('HTTP write smoke product missing')
           })().catch((error) => {
+            const message = sanitize(error instanceof Error ? error.message : error).replace(/\r?\n/g, ' ')
+            console.error(`::error title=PostgreSQL HTTP smoke failed::${message}`)
             console.error(error)
             process.exit(1)
           })
