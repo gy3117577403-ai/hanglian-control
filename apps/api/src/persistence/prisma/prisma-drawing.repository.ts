@@ -524,7 +524,9 @@ export class PrismaDrawingRepository implements DrawingRepository {
   private mapDetail(row: AnyRecord): ProductDrawingDetail {
     const product = this.mapProduct(row);
     const customer = row.customer ? this.mapCustomer(row.customer) : undefined;
-    const activeDocuments = (row.documents ?? []).filter((document: AnyRecord) => !document.deleted && !document.deletedAt);
+    const activeDocuments = (row.documents ?? []).filter(
+      (document: AnyRecord) => !document.deleted && !document.deletedAt && !document.archived && !document.archivedAt,
+    );
     const moduleRows = new Map<string, AnyRecord>((row.modules ?? []).map((module: AnyRecord) => [module.moduleKey, module]));
     const modules = createDefaultDrawingModules().map((module) => {
       const moduleRow = moduleRows.get(module.moduleKey);
@@ -534,8 +536,11 @@ export class PrismaDrawingRepository implements DrawingRepository {
           const order = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
           return order || String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? ''));
         });
-      const coverDocumentId = moduleRow?.coverDocumentId
-        ?? documents.find((document: AnyRecord) => document.isCover)?.id
+      const visibleDocumentIds = new Set(documents.map((document: AnyRecord) => document.id));
+      const persistedCoverDocumentId = optionalText(moduleRow?.coverDocumentId);
+      const coverDocumentId = persistedCoverDocumentId && visibleDocumentIds.has(persistedCoverDocumentId)
+        ? persistedCoverDocumentId
+        : documents.find((document: AnyRecord) => document.isCover)?.id
         ?? documents.find((document: AnyRecord) => documentStatusApi(document) === 'effective')?.id
         ?? documents[0]?.id;
       const items = documents.map((document: AnyRecord) => this.mapDocumentItem(document, coverDocumentId));
@@ -545,7 +550,7 @@ export class PrismaDrawingRepository implements DrawingRepository {
         status: moduleStatus(moduleRow?.status, module.moduleKey, items.length),
         items,
         coverDocumentId,
-        itemCount: moduleRow?.itemCount ?? items.length,
+        itemCount: items.length,
         remark: optionalText(moduleRow?.remark) ?? module.remark,
         updatedAt: iso(moduleRow?.updatedAt) ?? module.updatedAt,
       };

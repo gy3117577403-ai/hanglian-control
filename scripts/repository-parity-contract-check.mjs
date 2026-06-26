@@ -111,6 +111,18 @@ if (
   failures.push('PrismaDrawingRepository effective conflict scope must include productId, moduleKey, and versionGroupKey.');
 }
 
+if (
+  !prismaDrawingRepository.includes('!document.archived && !document.archivedAt') ||
+  !prismaDrawingRepository.includes('const visibleDocumentIds = new Set') ||
+  !prismaDrawingRepository.includes('visibleDocumentIds.has(persistedCoverDocumentId)')
+) {
+  failures.push('PrismaDrawingRepository must exclude archived documents from current drawing modules and only honor visible coverDocumentId.');
+}
+
+if (!/itemCount:\s*items\.length/.test(prismaDrawingRepository)) {
+  failures.push('PrismaDrawingRepository drawing module itemCount must equal current visible items length.');
+}
+
 if (!documentHubService.includes('await this.drawingRepository.readCustomers()') || !documentHubService.includes('await this.drawingRepository.readDetails()')) {
   failures.push('DocumentHubService must await asynchronous DrawingRepository reads.');
 }

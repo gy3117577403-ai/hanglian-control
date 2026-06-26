@@ -148,6 +148,7 @@ function writeFixture(metadataRoot, uploadsRoot) {
   writeFileSync(join(uploadsRoot, 'documents', 'fixture-a.png'), fileBuffer);
   writeFileSync(join(uploadsRoot, 'documents', 'fixture-b.png'), fileBuffer);
   writeFileSync(join(uploadsRoot, 'documents', 'fixture-c.png'), fileBuffer);
+  writeFileSync(join(uploadsRoot, 'documents', 'fixture-archived.png'), fileBuffer);
 
   writeJson(metadataRoot, 'drawing-customers.json', [{
     customerId: 'cust-import-a',
@@ -203,21 +204,40 @@ function writeFixture(metadataRoot, uploadsRoot) {
           moduleName: 'Finished Images',
           status: 'uploaded',
           coverDocumentId: 'doc-fi-b',
-          items: ['a', 'b', 'c'].map((suffix) => ({
-            itemId: `doc-fi-${suffix}`,
-            documentId: `doc-fi-${suffix}`,
-            title: `Finished ${suffix}`,
-            fileType: 'image',
-            source: 'manual_upload',
-            storageKey: `documents/fixture-${suffix}.png`,
-            fileSize: fileBuffer.length,
-            checksumSha256: checksum,
-            version: 'IMG-A',
-            documentStatus: 'effective',
-            versionGroupKey: 'prod-import-a::finished_images::gallery',
-            createdAt: now,
-            updatedAt: now,
-          })),
+          items: [
+            ...['a', 'b', 'c'].map((suffix) => ({
+              itemId: `doc-fi-${suffix}`,
+              documentId: `doc-fi-${suffix}`,
+              title: `Finished ${suffix}`,
+              fileType: 'image',
+              source: 'manual_upload',
+              storageKey: `documents/fixture-${suffix}.png`,
+              fileSize: fileBuffer.length,
+              checksumSha256: checksum,
+              version: 'IMG-A',
+              documentStatus: 'effective',
+              versionGroupKey: 'prod-import-a::finished_images::gallery',
+              createdAt: now,
+              updatedAt: now,
+            })),
+            {
+              itemId: 'doc-fi-archived',
+              documentId: 'doc-fi-archived',
+              title: 'Finished archived',
+              fileType: 'image',
+              source: 'manual_upload',
+              storageKey: 'documents/fixture-archived.png',
+              fileSize: fileBuffer.length,
+              checksumSha256: checksum,
+              version: 'IMG-ARCHIVE',
+              documentStatus: 'effective',
+              versionGroupKey: 'prod-import-a::finished_images::gallery',
+              archived: true,
+              archivedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
         },
         {
           moduleKey: 'accessory_specs',
@@ -386,6 +406,10 @@ async function integrationCheck() {
       join(metadataRoot, 'audit-logs.json'),
       join(metadataRoot, 'delete-lock-settings.json'),
       join(uploadsRoot, 'documents', 'fixture.pdf'),
+      join(uploadsRoot, 'documents', 'fixture-a.png'),
+      join(uploadsRoot, 'documents', 'fixture-b.png'),
+      join(uploadsRoot, 'documents', 'fixture-c.png'),
+      join(uploadsRoot, 'documents', 'fixture-archived.png'),
     ];
     const sourceHashes = new Map(sourceFiles.map((file) => [file, sha(file)]));
     let result = run('node', [
@@ -448,6 +472,7 @@ async function integrationCheck() {
     const parity = JSON.parse(result.stdout);
     assert(parity.result === 'match', 'parity result must match');
     assert(parity.finishedImagesEffectiveCount === 3, 'finished_images multiple effective documents must be preserved');
+    assert(parity.counts?.ProductDocuments === 7, 'parity must preserve archived ProductDocument rows');
     await assertApiRepositoryUsesTargetSchema();
     assertNoSourceMutation(sourceHashes, sourceFiles);
   } finally {

@@ -74,7 +74,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
-          echo "api_version_tag=v3.18-postgres-drawing-repository-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-postgres-archive-filter-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
           echo "migrate_version_tag=v3.18-import-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
@@ -243,7 +243,7 @@ jobs:
           export API_POSTGRES_SMOKE_URL="postgres""ql://postgres@127.0.0.1:5432/hanglian_v318_import_test?schema=${smoke_schema}"
           # Non-public schema isolation is asserted by json-postgres-import-parity:check with "public.Customer must not exist".
           cat >/tmp/postgres-smoke-counts.json <<'JSON'
-          {"Customer":1,"Product":1,"httpProductModules":6,"ProductDocument":6,"finishedImagesEffective":3,"finishedImagesWithCover":1}
+          {"Customer":1,"Product":1,"httpProductModules":6,"databaseProductDocuments":7,"httpVisibleDocuments":6,"finishedImagesEffective":3,"finishedImagesWithCover":1,"archivedDocumentId":"doc-fi-archived"}
           JSON
 
           smoke_root="${RUNNER_TEMP}/hanglian-api-postgres-smoke"
@@ -329,6 +329,7 @@ jobs:
             let documentCount = 0
             let finishedEffectiveCount = 0
             let productsWithFinishedCovers = 0
+            let archivedDocumentVisible = false
             for (const customer of customers) {
               const customerId = customer.customerId
               const products = await request(`/drawings/customers/${customerId}/products`)
@@ -342,7 +343,11 @@ jobs:
                 moduleCount += detail.modules.length
                 for (const module of detail.modules) {
                   const items = Array.isArray(module.items) ? module.items : []
+                  if (module.itemCount !== items.length) throw new Error('HTTP module itemCount must equal visible items length')
                   documentCount += items.length
+                  if (items.some((item) => item.itemId === expected.archivedDocumentId || item.documentId === expected.archivedDocumentId)) {
+                    archivedDocumentVisible = true
+                  }
                   if (module.moduleKey === 'finished_images') {
                     const effective = items.filter((item) => item.documentStatus === 'effective')
                     finishedEffectiveCount += effective.length
@@ -357,9 +362,10 @@ jobs:
             }
             if (productCount !== expected.Product) throw new Error('HTTP products count mismatch')
             if (moduleCount !== expected.httpProductModules) throw new Error('HTTP modules count mismatch')
-            if (documentCount !== expected.ProductDocument) throw new Error('HTTP documents count mismatch')
+            if (documentCount !== expected.httpVisibleDocuments) throw new Error('HTTP visible documents count mismatch')
             if (finishedEffectiveCount !== expected.finishedImagesEffective) throw new Error('HTTP finished_images effective mismatch')
             if (productsWithFinishedCovers !== expected.finishedImagesWithCover) throw new Error('HTTP finished_images cover mismatch')
+            if (archivedDocumentVisible) throw new Error('HTTP archived document leaked into current drawing modules')
 
             const createdCustomer = await request('/drawings/customers', {
               method: 'POST',
