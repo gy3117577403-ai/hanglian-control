@@ -13,7 +13,7 @@ export function friendlyErrorMessage(error: unknown, fallback = '操作失败，
   if (/PDF|JPG|PNG|WEBP|mimetype|extension|扩展名|格式/i.test(text)) return '文件格式不支持，请上传 PDF、JPG、PNG 或 WEBP。'
   if (/path|traversal|非法|不安全/i.test(text)) return '文件名不安全，请重命名后再上传。'
   if (/not found|404|不存在/i.test(text)) return '文件或资料不存在，请刷新后重试。'
-  if (/database|Prisma|Sealos|DATABASE_URL/i.test(text)) return '当前未接入真实数据库，请使用 Mock 演示流程。'
+  if (/database|Prisma|Sealos|database connection url/i.test(text)) return '当前未接入真实数据库，请使用 Mock 演示流程。'
   if (text.length > 90) return fallback
   return text
 }

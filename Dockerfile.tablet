@@ -25,9 +25,10 @@ COPY apps/tablet/docker/entrypoint.sh /docker-entrypoint.d/40-hanglian-runtime-c
 RUN chmod +x /docker-entrypoint.d/40-hanglian-runtime-config.sh
 COPY --from=builder /app/apps/tablet/dist /usr/share/nginx/html
 
-ENV RUNTIME_API_BASE_URL=
+ENV RUNTIME_API_BASE_URL=/api
 ENV RUNTIME_APP_ENV=local
 ENV RUNTIME_STORAGE_MODE=local
+ENV API_UPSTREAM=http://hanglian-control-api-arjqfyctswwx.ns-jhdb1ue7.svc.cluster.local:3000
 
 EXPOSE 80
 

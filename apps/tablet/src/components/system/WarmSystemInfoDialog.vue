@@ -148,7 +148,7 @@ function confirmResetDemoUi() {
           <span v-for="item in safetyRows" :key="item">{{ item }}</span>
         </div>
         <p class="mt-3 text-sm font-bold text-[#76512a]">
-          当前 API 状态：{{ store.apiOnline ? '在线' : '离线/检查中' }}；不会显示完整 DATABASE_URL，也不会写入真实数据库。
+          当前 API 状态：{{ store.apiOnline ? '在线' : '离线/检查中' }}；不会显示完整数据库连接信息，也不会写入真实数据库。
         </p>
       </section>
 

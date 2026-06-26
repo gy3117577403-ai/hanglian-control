@@ -1,0 +1,171 @@
+name: Build V3.18 Web Entry Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git ref to build. Leave empty for the workflow branch.
+        required: false
+        default: ""
+  push:
+    branches:
+      - feature/v3-18-postgres-foundation
+    paths:
+      - "apps/tablet/**"
+      - "Dockerfile.tablet"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-web-entry-image.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: v318-web-entry-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-web-image:
+    name: Build Tablet Web Gateway Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.git_ref || github.ref }}
+
+      - name: Set image metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          full_sha="$(git rev-parse HEAD)"
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          owner_lower="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "full_sha=${full_sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "web_image=ghcr.io/${owner_lower}/hanglian-control-tablet" >> "$GITHUB_OUTPUT"
+          echo "web_version_tag=v3.18-web-entry-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "web_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "web_candidate_tag=v3.18-web-candidate" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Frontend preflight checks
+        run: |
+          npm run runtime-config:check
+          npm run security:check
+          npm run build -w tablet
+
+      - name: Verify frontend gateway source safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'DATABASE_URL|postgres(ql)?://|kubeconfig|SEALOS_TOKEN|GITHUB_TOKEN|S3_SECRET|WECHAT.*SECRET|CORPSECRET' \
+            Dockerfile.tablet apps/tablet/docker apps/tablet/dist; then
+            echo "::error::Frontend gateway files contain forbidden secret markers."
+            exit 1
+          fi
+          grep -Fq 'try_files $uri $uri/ /index.html' apps/tablet/docker/nginx.conf
+          grep -Fq 'location ^~ /api/' apps/tablet/docker/nginx.conf
+          grep -Fq 'proxy_pass __API_UPSTREAM__' apps/tablet/docker/nginx.conf
+          grep -Fq 'RUNTIME_API_BASE_URL:-/api' apps/tablet/docker/entrypoint.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push Tablet Web image
+        id: build-web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.tablet
+          push: true
+          build-args: |
+            OCI_SOURCE=https://github.com/${{ github.repository }}
+            OCI_REVISION=${{ steps.meta.outputs.full_sha }}
+            OCI_VERSION=${{ steps.meta.outputs.web_version_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.web_version_tag }}
+          tags: |
+            ${{ steps.meta.outputs.web_image }}:${{ steps.meta.outputs.web_version_tag }}
+            ${{ steps.meta.outputs.web_image }}:${{ steps.meta.outputs.web_sha_tag }}
+            ${{ steps.meta.outputs.web_image }}:${{ steps.meta.outputs.web_candidate_tag }}
+
+      - name: Smoke test Tablet Web image
+        shell: bash
+        run: |
+          set -euo pipefail
+          web_image="${{ steps.meta.outputs.web_image }}:${{ steps.meta.outputs.web_version_tag }}"
+          docker pull "$web_image"
+          docker network create hanglian-web-smoke
+          trap 'docker rm -f hanglian-web-smoke hanglian-web-smoke-api >/dev/null 2>&1 || true; docker network rm hanglian-web-smoke >/dev/null 2>&1 || true' EXIT
+
+          docker run -d \
+            --name hanglian-web-smoke-api \
+            --network hanglian-web-smoke \
+            node:22-alpine \
+            node -e "require('http').createServer((req,res)=>{ if(req.url==='/api/health'){res.setHeader('content-type','application/json');res.end(JSON.stringify({status:'ok',dataSource:'postgres',databaseConnected:true,prismaWriteEnabled:true}))}else{res.statusCode=404;res.end('not found')}}).listen(3000,'0.0.0.0')"
+
+          docker run -d \
+            --name hanglian-web-smoke \
+            --network hanglian-web-smoke \
+            -p 18082:80 \
+            -e RUNTIME_API_BASE_URL=/api \
+            -e API_UPSTREAM=http://hanglian-web-smoke-api:3000 \
+            "$web_image"
+
+          for attempt in {1..45}; do
+            if curl -fsSI http://127.0.0.1:18082/ >/tmp/web-root-head.txt; then
+              break
+            fi
+            sleep 2
+          done
+
+          curl -fsSI http://127.0.0.1:18082/tablet >/tmp/web-tablet-head.txt
+          curl -fsS http://127.0.0.1:18082/ >/tmp/web-root.html
+          curl -fsS http://127.0.0.1:18082/tablet >/tmp/web-tablet.html
+          curl -fsS http://127.0.0.1:18082/api/health >/tmp/web-health.json
+
+          grep -qi 'content-type: text/html' /tmp/web-root-head.txt
+          grep -qi 'content-type: text/html' /tmp/web-tablet-head.txt
+          grep -qi '<!doctype html' /tmp/web-root.html
+          grep -qi '<!doctype html' /tmp/web-tablet.html
+          grep -q '"dataSource":"postgres"' /tmp/web-health.json
+          grep -RInE 'DATABASE_URL|postgres(ql)?://|kubeconfig|SEALOS_TOKEN|GITHUB_TOKEN|S3_SECRET|WECHAT.*SECRET|CORPSECRET' \
+            /tmp/web-root.html /tmp/web-tablet.html && exit 1 || true
+
+      - name: Write build summary
+        shell: bash
+        run: |
+          {
+            echo "## Hanglian V3.18 Web entry image"
+            echo ""
+            echo "- Commit SHA: \`${{ steps.meta.outputs.full_sha }}\`"
+            echo "- Web image: \`${{ steps.meta.outputs.web_image }}\`"
+            echo "- Web tags: \`${{ steps.meta.outputs.web_version_tag }}\`, \`${{ steps.meta.outputs.web_sha_tag }}\`, \`${{ steps.meta.outputs.web_candidate_tag }}\`"
+            echo "- Web digest: \`${{ steps.build-web.outputs.digest }}\`"
+            echo "- Runtime API base: \`/api\`"
+            echo "- API upstream: configurable by \`API_UPSTREAM\`"
+            echo "- Sealos deployment: not executed"
+            echo "- Database migration: not executed"
+            echo "- JSON import: not executed"
+          } >> "$GITHUB_STEP_SUMMARY"
