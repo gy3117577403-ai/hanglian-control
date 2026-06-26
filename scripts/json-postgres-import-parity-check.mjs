@@ -472,7 +472,7 @@ async function integrationCheck() {
     const parity = JSON.parse(result.stdout);
     assert(parity.result === 'match', 'parity result must match');
     assert(parity.finishedImagesEffectiveCount === 3, 'finished_images multiple effective documents must be preserved');
-    assert(parity.counts?.ProductDocuments === 7, 'parity must preserve archived ProductDocument rows');
+    assert(parity.counts?.productDocuments === 7, 'parity must preserve archived ProductDocument rows');
     await assertApiRepositoryUsesTargetSchema();
     assertNoSourceMutation(sourceHashes, sourceFiles);
   } finally {
