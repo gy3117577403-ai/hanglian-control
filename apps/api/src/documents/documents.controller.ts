@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, Param, ParseIntPipe, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { CompareDocumentsDto } from './dto/compare-documents.dto';
 import { DocumentQueryDto } from './dto/document-query.dto';
@@ -10,13 +11,17 @@ import { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { DocumentsService } from './documents.service';
+import { PdfPreviewService } from './pdf-preview.service';
 
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
 @ApiTags('documents')
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly pdfPreviewService: PdfPreviewService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: '查询资料列表，包含 seed 资料和本地上传资料' })
@@ -70,6 +75,27 @@ export class DocumentsController {
   }))
   upload(@Body() dto: UploadDocumentDto, @UploadedFile() file?: Express.Multer.File) {
     return this.documentsService.upload(dto, file);
+  }
+
+  @Get(':id/preview')
+  @ApiOperation({ summary: 'Get document image preview pages for ArkTS rendering' })
+  preview(@Param('id') id: string) {
+    return this.pdfPreviewService.getPreview(id);
+  }
+
+  @Get(':id/preview-pages/:pageNo')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @ApiOperation({ summary: 'Read one generated preview page image' })
+  async previewPage(
+    @Param('id') id: string,
+    @Param('pageNo', ParseIntPipe) pageNo: number,
+    @Res() response: Response,
+  ) {
+    const page = await this.pdfPreviewService.getPreviewPageFile(id, pageNo);
+    response.setHeader('Content-Type', page.mimeType);
+    response.setHeader('Content-Length', page.size);
+    response.setHeader('Content-Disposition', `inline; filename="${page.fileName}"`);
+    page.stream.pipe(response);
   }
 
   @Get(':id/versions')

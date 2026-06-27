@@ -10,6 +10,7 @@ import type { SetEffectiveDocumentDto } from './dto/set-effective-document.dto';
 import type { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import type { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
 import type { UploadDocumentDto } from './dto/upload-document.dto';
+import { PdfPreviewService } from './pdf-preview.service';
 
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
@@ -41,6 +42,7 @@ export class DocumentsService {
     private readonly documentRepository: DocumentRepositoryInterface,
     private readonly localStorageService: LocalStorageService,
     private readonly auditService: AuditService,
+    private readonly pdfPreviewService: PdfPreviewService,
   ) {}
 
   async findAll(query: DocumentQueryDto) {
@@ -104,6 +106,7 @@ export class DocumentsService {
       planId: document.planId,
       productId: document.productId,
     });
+    await this.pdfPreviewService.warmPreviewAfterUpload(document);
     return document;
   }
 
