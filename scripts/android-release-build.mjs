@@ -4,9 +4,13 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 const releaseWebUrl = process.env.CAPACITOR_REMOTE_WEB_URL?.trim() || 'https://fyeboolnlvqv.sealoshzh.site/tablet'
+const releaseApiBaseUrl = process.env.VITE_NATIVE_API_BASE_URL?.trim() || 'https://fyeboolnlvqv.sealoshzh.site/api'
+const releaseApiEnv = process.env.VITE_NATIVE_API_ENV?.trim() || 'android-cloud-release'
 const env = {
   ...process.env,
   CAPACITOR_REMOTE_WEB_URL: releaseWebUrl,
+  VITE_NATIVE_API_BASE_URL: releaseApiBaseUrl,
+  VITE_NATIVE_API_ENV: releaseApiEnv,
 }
 
 const commands = [

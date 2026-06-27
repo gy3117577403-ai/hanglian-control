@@ -45,6 +45,7 @@ const androidIndex = readOptional('apps/tablet/android/app/src/main/assets/publi
 const androidOffline = readOptional('apps/tablet/android/app/src/main/assets/public/offline.html')
 const generatedCapacitorConfig = readOptional('apps/tablet/android/app/src/main/assets/capacitor.config.json')
 const capacitor = read('apps/tablet/capacitor.config.ts')
+const releaseBuild = read('scripts/android-release-build.mjs')
 const mainActivity = read('apps/tablet/android/app/src/main/java/com/hanglian/control/MainActivity.java')
 const buildGradle = read('apps/tablet/android/app/build.gradle')
 const remoteEntryEnabled = /"server"\s*:\s*\{[\s\S]*"url"\s*:\s*"https:\/\/[^"]+\/tablet"[\s\S]*"cleartext"\s*:\s*false[\s\S]*\}/.test(generatedCapacitorConfig)
@@ -66,6 +67,9 @@ if (!/zoomEnabled:\s*false/.test(capacitor)) fail('android.zoomEnabled=false mus
 if (!/CAPACITOR_REMOTE_WEB_URL/.test(capacitor) || !/url:\s*remoteWebUrl/.test(capacitor)) {
   fail('Capacitor remote server.url must be controlled by CAPACITOR_REMOTE_WEB_URL')
 }
+if (!releaseBuild.includes('VITE_NATIVE_API_BASE_URL') || !releaseBuild.includes('https://fyeboolnlvqv.sealoshzh.site/api')) {
+  fail('Android release build must inject the production native API base URL')
+}
 if (/url:\s*['"]https?:\/\//.test(capacitor)) fail('Capacitor source config must not hardcode remote server.url')
 if (!mainActivity.includes('setSupportZoom(false)') || !mainActivity.includes('OVER_SCROLL_NEVER')) {
   fail('MainActivity WebSettings zoom lock must exist')
@@ -76,8 +80,8 @@ if (!mainActivity.includes('setDownloadListener') || !mainActivity.includes('Dow
 if (!/versionCode\s+1603/.test(buildGradle) || !/versionName\s+"0\.16\.3-debug"/.test(buildGradle)) {
   fail('Android debug version must be 1603 / 0.16.3-debug')
 }
-if (!/production\s*\{[\s\S]*versionCode\s+1800[\s\S]*versionName\s+"0\.18\.0"[\s\S]*\}/.test(buildGradle)) {
-  fail('Android production release version must be 1800 / 0.18.0')
+if (!/production\s*\{[\s\S]*versionCode\s+1801[\s\S]*versionName\s+"0\.18\.1"[\s\S]*\}/.test(buildGradle)) {
+  fail('Android production release version must be 1801 / 0.18.1')
 }
 if (!/applicationId\s+"com\.hanglian\.control"/.test(buildGradle)) fail('applicationId must remain com.hanglian.control')
 if (/localhost:5173|192\.168\.\d+\.\d+:5173|DATABASE_URL|postgres:\/\//.test(distIndex + androidIndex + androidOffline + generatedCapacitorConfig)) {
