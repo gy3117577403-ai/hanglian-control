@@ -71,7 +71,7 @@ assert(tabletPackage.includes('"build:android:staging"') && tabletPackage.includ
 assert(tabletPackage.includes('"android:assemble:staging-debug"') && tabletPackage.includes('assembleStagingDebug'), 'Tablet package must assemble staging debug variant.')
 
 assert(viteConfig.includes('android-staging'), 'Vite config must support android-staging mode.')
-assert(viteConfig.includes('.env.android.staging.local'), 'Vite config must load the ignored staging env file.')
+assert(viteConfig.includes('loadAndroidNativeEnv') && viteConfig.includes('`.env.android.${envName}.local`'), 'Vite config must load the ignored staging env file through the native env loader.')
 assert(viteConfig.includes('androidViewportPlugin(nativeAndroidBuild)'), 'Android staging must keep the viewport lock plugin.')
 assert(stagingExample.includes('VITE_NATIVE_API_BASE_URL=https://YOUR_SEALOS_API_DOMAIN/api'), 'Staging example must use HTTPS placeholder.')
 if (stagingLocal) {

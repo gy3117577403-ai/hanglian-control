@@ -1,5 +1,26 @@
 apply plugin: 'com.android.application'
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { stream -> localProperties.load(stream) }
+}
+
+def releaseSigningValue = { name ->
+    def value = localProperties.getProperty(name)
+    if (value == null || value.trim().isEmpty()) value = System.getenv(name)
+    return value == null ? '' : value.trim()
+}
+
+def releaseStoreFilePath = releaseSigningValue('HANG_LIAN_RELEASE_STORE_FILE')
+def releaseStorePassword = releaseSigningValue('HANG_LIAN_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = releaseSigningValue('HANG_LIAN_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = releaseSigningValue('HANG_LIAN_RELEASE_KEY_PASSWORD')
+def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def isReleaseBuildTask = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains('release') || taskName.toLowerCase().contains('bundle')
+}
+
 android {
     namespace = "com.hanglian.control"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -26,9 +47,29 @@ android {
             versionCode 1700
             versionName "0.17.0-staging-debug"
         }
+        production {
+            dimension "environment"
+            versionCode 1800
+            versionName "0.18.0"
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else if (isReleaseBuildTask) {
+                throw new GradleException('Release signing is missing. Configure HANG_LIAN_RELEASE_* in ignored apps/tablet/android/local.properties or environment variables.')
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

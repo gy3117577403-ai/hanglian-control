@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const androidViewportContent = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
-const androidBuildModes = new Set(['android', 'android-staging'])
+const androidBuildModes = new Set(['android', 'android-staging', 'android-release'])
 
 function readSimpleEnvFile(filePath: string) {
   if (!fs.existsSync(filePath)) return {}
@@ -22,11 +22,12 @@ function readSimpleEnvFile(filePath: string) {
   )
 }
 
-function loadAndroidStagingEnv(mode: string) {
-  if (mode !== 'android-staging') return {}
+function loadAndroidNativeEnv(mode: string) {
+  if (mode !== 'android-staging' && mode !== 'android-release') return {}
+  const envName = mode.replace('android-', '')
   const viteEnv = loadEnv(mode, __dirname, 'VITE_')
-  const exampleEnv = readSimpleEnvFile(path.resolve(__dirname, '.env.android.staging.example'))
-  const localEnv = readSimpleEnvFile(path.resolve(__dirname, '.env.android.staging.local'))
+  const exampleEnv = readSimpleEnvFile(path.resolve(__dirname, `.env.android.${envName}.example`))
+  const localEnv = readSimpleEnvFile(path.resolve(__dirname, `.env.android.${envName}.local`))
   return { ...exampleEnv, ...viteEnv, ...localEnv }
 }
 
@@ -48,11 +49,11 @@ function androidViewportPlugin(enabled: boolean) {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const nativeAndroidBuild = androidBuildModes.has(mode)
-  const androidStagingBuild = mode === 'android-staging'
-  const androidStagingEnv = loadAndroidStagingEnv(mode)
+  const androidNativeBuild = mode === 'android-staging' || mode === 'android-release'
+  const androidNativeEnv = loadAndroidNativeEnv(mode)
 
-  if (androidStagingBuild) {
-    for (const [key, value] of Object.entries(androidStagingEnv)) {
+  if (androidNativeBuild) {
+    for (const [key, value] of Object.entries(androidNativeEnv)) {
       if (key.startsWith('VITE_')) process.env[key] = value
     }
   }
@@ -147,7 +148,7 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
-  define: androidStagingBuild ? {
+  define: androidNativeBuild ? {
     'import.meta.env.VITE_NATIVE_API_BASE_URL': JSON.stringify(process.env.VITE_NATIVE_API_BASE_URL ?? ''),
     'import.meta.env.VITE_NATIVE_API_ENV': JSON.stringify(process.env.VITE_NATIVE_API_ENV ?? ''),
     __HANGLIAN_ANDROID_STAGING_API_BASE_URL__: JSON.stringify(process.env.VITE_NATIVE_API_BASE_URL ?? ''),

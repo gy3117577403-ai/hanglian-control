@@ -2,6 +2,16 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const lanDebug = process.env.CAPACITOR_LAN_DEBUG === 'true'
 const loggingBehavior = lanDebug ? 'debug' : 'none'
+const remoteWebUrl = process.env.CAPACITOR_REMOTE_WEB_URL?.trim() ?? ''
+const server = remoteWebUrl
+  ? {
+      url: remoteWebUrl,
+      cleartext: false,
+    }
+  : {
+      hostname: 'localhost',
+      androidScheme: 'https',
+    }
 
 const config: CapacitorConfig = {
   appId: 'com.hanglian.control',
@@ -9,10 +19,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   loggingBehavior,
   backgroundColor: '#fff7ed',
-  server: {
-    hostname: 'localhost',
-    androidScheme: 'https',
-  },
+  server,
   android: {
     allowMixedContent: lanDebug,
     backgroundColor: '#fff7ed',
