@@ -164,10 +164,15 @@ requireIncludes('.github/workflows/build-images-manual.yml', 'feature/v3-18-post
 requireIncludes('.github/workflows/build-images-manual.yml', 'hanglian-control-api-migrate', 'Workflow must build Migration Runner image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-schema-fix-${short_sha}', 'Workflow must generate schema-fix Migration Runner tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-import-candidate', 'Workflow must generate import candidate Migration Runner tag.');
-requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-upload-archive-filter-${short_sha}', 'Workflow must generate upload-archive-filter API tag.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-api-with-tablet-web-${short_sha}', 'Workflow must generate API-with-Tablet-Web API tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'v3.18-postgres-candidate', 'Workflow must generate PostgreSQL candidate API tag.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'api-prisma-client-loader:check', 'Workflow must run API Prisma client loader cwd check.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'postgres-migration-image:check', 'Workflow must run Migration image static check.');
+requireIncludes('Dockerfile.api', 'RUN npm run build:tablet', 'API image build must build Tablet production assets.');
+requireIncludes('Dockerfile.api', '/app/apps/tablet/dist ./apps/tablet/dist', 'API image must copy Tablet production assets.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'test -f /app/apps/tablet/dist/index.html', 'Workflow must verify Tablet assets exist in API image.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'API_BASE_URL: "/api"', 'Workflow must verify runtime-config.js uses same-origin /api.');
+requireIncludes('.github/workflows/build-images-manual.yml', '/api/not-exist must remain API JSON 404', 'Workflow must verify /api routes do not fall back to the SPA.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'apps/api/prisma.config.ts', 'Workflow must verify prisma.config.ts inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/document-version-rules.mjs', 'Workflow must verify document version rules helper inside the image.');
