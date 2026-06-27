@@ -21,9 +21,11 @@ import { ProductsModule } from './products/products.module';
 import { RuntimeModule } from './runtime/runtime.module';
 import { SearchModule } from './search/search.module';
 import { SettingsModule } from './settings/settings.module';
+import { StorageModule } from './storage/storage.module';
 import { SystemModule } from './system/system.module';
 import { SystemQaModule } from './system-qa/system-qa.module';
 import { UnifiedDocumentsModule } from './unified-documents/unified-documents.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -37,6 +39,7 @@ import { UnifiedDocumentsModule } from './unified-documents/unified-documents.mo
       ],
     }),
     AuthModule,
+    UsersModule,
     DatabaseModule,
     AnalyticsModule,
     HealthModule,
@@ -49,6 +52,7 @@ import { UnifiedDocumentsModule } from './unified-documents/unified-documents.mo
     DocumentHubModule,
     ExecutionModule,
     FilesModule,
+    StorageModule,
     ImportsModule,
     KnowledgeModule,
     MaintenanceModule,

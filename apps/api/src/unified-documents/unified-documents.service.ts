@@ -249,7 +249,7 @@ export class UnifiedDocumentsService {
 
   private async allItems(includeDeleted = false): Promise<UnifiedDocumentItem[]> {
     const documents = await this.documentsService.findAll({});
-    const documentItems = (documents as MutableDocument[])
+    const documentItems = (documents as unknown as MutableDocument[])
       .map((document) => this.withProductMeta(document))
       .map(normalizeDocument);
     const knowledgeItems = [

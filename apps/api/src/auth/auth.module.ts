@@ -11,6 +11,6 @@ import { MockPermissionGuard } from './guards/mock-permission.guard';
   imports: [JwtModule.register({}), UsersModule],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, MockPermissionGuard],
-  exports: [AuthService, JwtAuthGuard, MockPermissionGuard],
+  exports: [AuthService, JwtAuthGuard, MockPermissionGuard, UsersModule],
 })
 export class AuthModule {}

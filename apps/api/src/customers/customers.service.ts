@@ -45,7 +45,7 @@ export class CustomersService {
   ) {}
 
   async findAll() {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       const rows = await this.prisma.client.customer.findMany({
         where: { deletedAt: null },
         include: { _count: { select: { products: true } } },
@@ -65,7 +65,7 @@ export class CustomersService {
   }
 
   async create(dto: CreateCustomerDto) {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
       const row = await this.prisma.client.customer.create({
         data: {
@@ -89,7 +89,7 @@ export class CustomersService {
   }
 
   async update(id: string, dto: UpdateCustomerDto) {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
       const current = await this.prisma.client.customer.findFirst({
         where: { id, deletedAt: null },
@@ -123,7 +123,7 @@ export class CustomersService {
   }
 
   async remove(id: string) {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
       const current = await this.prisma.client.customer.findFirst({
         where: { id, deletedAt: null },

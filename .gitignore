@@ -37,6 +37,7 @@ apps/tablet/android/app/src/main/assets/public
 
 # Local Codex state
 .codex/
+hanglian-agent-*/
 local-backups/
 demo-upload-assets/
 

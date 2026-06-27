@@ -2,8 +2,9 @@
 // Do not run migrations, db push, real seed, or connect to a production Sealos PostgreSQL database in this stage.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {

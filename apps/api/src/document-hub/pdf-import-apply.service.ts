@@ -242,7 +242,7 @@ export class PdfImportApplyService {
         skipAudit: true,
       });
 
-      let finalDocument = document;
+      let finalDocument: ProductDocument = document;
       if (productExisted && shouldSetEffective) {
         const effectiveResult = await this.documentsService.setEffective(document.documentId ?? document.id, {
           reason: input.remark ?? 'PDF 导入设为当前有效版本',

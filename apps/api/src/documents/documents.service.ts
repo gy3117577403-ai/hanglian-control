@@ -141,8 +141,9 @@ function versionGroupKey(
 
 function rawStatus(document: ProductDocument): DocumentStatus {
   if (document.documentStatus) return document.documentStatus;
-  if (document.status === '鏈夋晥') return 'effective';
-  if (document.status === '寰呯‘璁?') return 'pending_review';
+  const legacyStatus = String(document.status);
+  if (legacyStatus === '鏈夋晥') return 'effective';
+  if (legacyStatus === '寰呯‘璁?') return 'pending_review';
   return 'expired';
 }
 

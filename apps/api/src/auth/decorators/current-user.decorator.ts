@@ -20,7 +20,7 @@ export const CurrentUser = createParamDecorator(
     return (
       request.user ??
       request.currentUser ??
-      resolveMockUserFromRequestLike(request)
+      resolveMockUserFromRequestLike(request as Parameters<typeof resolveMockUserFromRequestLike>[0])
     );
   },
 );

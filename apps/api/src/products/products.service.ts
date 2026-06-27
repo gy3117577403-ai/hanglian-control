@@ -67,7 +67,7 @@ export class ProductsService {
   ) {}
 
   async findAll() {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       const rows = await this.prisma.client.product.findMany({
         where: { deletedAt: null },
         include: { customer: true },
@@ -89,7 +89,7 @@ export class ProductsService {
   }
 
   async create(dto: CreateProductDto) {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
       const row = await this.prisma.client.product.create({
         data: {
@@ -121,7 +121,7 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto) {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
       const current = await this.findProductRow(id);
       if (!current) throw new NotFoundException(`未找到产品：${id}`);
@@ -165,7 +165,7 @@ export class ProductsService {
   }
 
   async remove(id: string) {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
       const current = await this.findProductRow(id);
       if (!current) throw new NotFoundException(`未找到产品：${id}`);
@@ -220,7 +220,7 @@ export class ProductsService {
   private async resolveProduct(
     idOrCode: string,
   ): Promise<ProductSeed | undefined> {
-    if (this.dataSourceConfig.dataSource === 'prisma') {
+    if (this.dataSourceConfig.dataSource === 'postgres') {
       const row = await this.findProductRow(idOrCode);
       return row
         ? {

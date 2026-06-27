@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CompleteOrderDto } from './dto/complete-order.dto';
 import { UpdateOrderProductionStatusDto } from './dto/update-order-production-status.dto';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
