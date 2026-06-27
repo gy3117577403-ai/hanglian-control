@@ -96,18 +96,23 @@ enum AuditAction {
 }
 
 model User {
-  id              String               @id @default(cuid())
-  username        String               @unique
-  displayName     String
-  role            UserRole             @default(VIEWER)
-  teamName        String?
-  isActive        Boolean              @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  queryLogs       QueryLog[]
-  confirmations   ConfirmationRecord[]
-  feedbackRecords FeedbackRecord[]
+  id               String               @id @default(cuid())
+  username         String               @unique
+  displayName      String
+  passwordHash     String?
+  refreshTokenHash String?
+  role             UserRole             @default(VIEWER)
+  teamName         String?
+  isActive         Boolean              @default(true)
+  lastLoginAt      DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  queryLogs        QueryLog[]
+  confirmations    ConfirmationRecord[]
+  feedbackRecords  FeedbackRecord[]
+
+  @@map("users")
 }
 
 model Customer {

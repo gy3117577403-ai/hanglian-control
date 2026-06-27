@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuditModule } from './audit/audit.module';
+import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { DocumentsModule } from './documents/documents.module';
 import { FeedbackModule } from './feedback/feedback.module';
@@ -16,8 +17,14 @@ import { SystemModule } from './system/system.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['apps/api/.env.local', 'apps/api/.env', '.env.local', '.env'],
+      envFilePath: [
+        'apps/api/.env.local',
+        'apps/api/.env',
+        '.env.local',
+        '.env',
+      ],
     }),
+    AuthModule,
     DatabaseModule,
     HealthModule,
     AuditModule,
