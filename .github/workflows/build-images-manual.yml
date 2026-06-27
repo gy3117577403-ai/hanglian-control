@@ -12,6 +12,7 @@ on:
       - feature/v3-18-postgres-foundation
     paths:
       - "apps/api/**"
+      - "apps/tablet/**"
       - "Dockerfile.api"
       - "Dockerfile.migrate"
       - "package.json"
@@ -74,7 +75,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_image=ghcr.io/${owner_lower}/hanglian-control-api" >> "$GITHUB_OUTPUT"
           echo "migrate_image=ghcr.io/${owner_lower}/hanglian-control-api-migrate" >> "$GITHUB_OUTPUT"
-          echo "api_version_tag=v3.18-postgres-upload-archive-filter-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "api_version_tag=v3.18-api-with-tablet-web-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_sha_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           echo "api_candidate_tag=v3.18-postgres-candidate" >> "$GITHUB_OUTPUT"
           echo "migrate_version_tag=v3.18-import-schema-fix-${short_sha}" >> "$GITHUB_OUTPUT"
@@ -149,6 +150,7 @@ jobs:
           set -euo pipefail
           api_image="${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}"
           docker pull "$api_image"
+          docker run --rm "$api_image" test -f /app/apps/tablet/dist/index.html
           smoke_root="${RUNNER_TEMP}/hanglian-api-smoke"
           mkdir -p "${smoke_root}/uploads" "${smoke_root}/metadata" "${smoke_root}/tmp"
           chmod -R 777 "${smoke_root}"
@@ -207,6 +209,17 @@ jobs:
           fi
           curl -fsS http://127.0.0.1:18080/api/storage/status >/tmp/storage.json
           curl -fsS http://127.0.0.1:18080/api/runtime/info >/tmp/runtime.json
+          curl -fsSI http://127.0.0.1:18080/ >/tmp/web-root-head.txt
+          curl -fsSI http://127.0.0.1:18080/tablet >/tmp/web-tablet-head.txt
+          curl -fsS http://127.0.0.1:18080/ >/tmp/web-root.html
+          curl -fsS http://127.0.0.1:18080/tablet >/tmp/web-tablet.html
+          curl -fsS http://127.0.0.1:18080/some/frontend/route >/tmp/web-route.html
+          curl -fsS http://127.0.0.1:18080/runtime-config.js >/tmp/runtime-config.js
+          curl -fsS -o /tmp/api-not-exist.json -w "%{http_code} %{content_type}" \
+            http://127.0.0.1:18080/api/not-exist >/tmp/api-not-exist.meta
+          asset_path="$(grep -oE '/assets/[^"]+\.js' /tmp/web-root.html | head -n 1)"
+          test -n "${asset_path}"
+          curl -fsSI "http://127.0.0.1:18080${asset_path}" >/tmp/web-asset-head.txt
           node - <<'NODE'
           const fs = require('node:fs')
           const health = JSON.parse(fs.readFileSync('/tmp/health.json', 'utf8'))
@@ -219,6 +232,27 @@ jobs:
           if (/DATABASE_URL|S3_SECRET|SEALOS_TOKEN|GITHUB_TOKEN|WECHAT.*SECRET|postgres(?:ql)?:\/\/|password/i.test(text)) {
             throw new Error('runtime smoke leaked sensitive data')
           }
+          const rootHead = fs.readFileSync('/tmp/web-root-head.txt', 'utf8')
+          const tabletHead = fs.readFileSync('/tmp/web-tablet-head.txt', 'utf8')
+          const assetHead = fs.readFileSync('/tmp/web-asset-head.txt', 'utf8')
+          const rootHtml = fs.readFileSync('/tmp/web-root.html', 'utf8')
+          const tabletHtml = fs.readFileSync('/tmp/web-tablet.html', 'utf8')
+          const routeHtml = fs.readFileSync('/tmp/web-route.html', 'utf8')
+          const runtimeConfig = fs.readFileSync('/tmp/runtime-config.js', 'utf8')
+          const apiNotExistMeta = fs.readFileSync('/tmp/api-not-exist.meta', 'utf8')
+          const apiNotExistBody = fs.readFileSync('/tmp/api-not-exist.json', 'utf8')
+          if (!/content-type:\s*text\/html/i.test(rootHead)) throw new Error('root must return text/html')
+          if (!/content-type:\s*text\/html/i.test(tabletHead)) throw new Error('/tablet must return text/html')
+          if (!/content-type:\s*(application|text)\/javascript/i.test(assetHead)) throw new Error('asset must return javascript')
+          if (!/<!doctype html/i.test(rootHtml)) throw new Error('root HTML missing doctype')
+          if (!/<!doctype html/i.test(tabletHtml)) throw new Error('/tablet HTML missing doctype')
+          if (!/<!doctype html/i.test(routeHtml)) throw new Error('SPA fallback route missing HTML')
+          if (!runtimeConfig.includes('API_BASE_URL: "/api"') || /DATABASE_URL|postgres(?:ql)?:\/\/|password|SECRET|TOKEN/i.test(runtimeConfig)) {
+            throw new Error('runtime-config.js must expose only public /api config')
+          }
+          if (!apiNotExistMeta.startsWith('404 ') || !/application\/json/i.test(apiNotExistMeta) || /<!doctype html/i.test(apiNotExistBody)) {
+            throw new Error('/api/not-exist must remain API JSON 404')
+          }
           NODE
 
       - name: Smoke test API image in PostgreSQL mode
@@ -228,6 +262,7 @@ jobs:
           api_image="${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.api_version_tag }}"
           docker pull "$api_image"
           docker run --rm "$api_image" test -f /app/apps/api/generated/prisma/client.ts
+          docker run --rm "$api_image" test -f /app/apps/tablet/dist/index.html
           docker run --rm -w /app "$api_image" node - <<'NODE'
           const { loadGeneratedPrismaClient } = require('./apps/api/dist/src/database/prisma-client-loader.js')
           const { PrismaClient } = loadGeneratedPrismaClient()
@@ -301,6 +336,32 @@ jobs:
           const fs = require('node:fs')
           const health = JSON.parse(fs.readFileSync('/tmp/postgres-health.json', 'utf8'))
           if (health.dataSource !== 'postgres' || health.databaseConnected !== true) throw new Error('PostgreSQL health smoke check failed')
+          NODE
+          curl -fsSI http://127.0.0.1:18081/ >/tmp/postgres-web-root-head.txt
+          curl -fsSI http://127.0.0.1:18081/tablet >/tmp/postgres-web-tablet-head.txt
+          curl -fsS http://127.0.0.1:18081/ >/tmp/postgres-web-root.html
+          curl -fsS http://127.0.0.1:18081/tablet >/tmp/postgres-web-tablet.html
+          curl -fsS http://127.0.0.1:18081/runtime-config.js >/tmp/postgres-runtime-config.js
+          curl -fsS -o /tmp/postgres-api-not-exist.json -w "%{http_code} %{content_type}" \
+            http://127.0.0.1:18081/api/not-exist >/tmp/postgres-api-not-exist.meta
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const rootHead = fs.readFileSync('/tmp/postgres-web-root-head.txt', 'utf8')
+          const tabletHead = fs.readFileSync('/tmp/postgres-web-tablet-head.txt', 'utf8')
+          const rootHtml = fs.readFileSync('/tmp/postgres-web-root.html', 'utf8')
+          const tabletHtml = fs.readFileSync('/tmp/postgres-web-tablet.html', 'utf8')
+          const runtimeConfig = fs.readFileSync('/tmp/postgres-runtime-config.js', 'utf8')
+          const apiNotExistMeta = fs.readFileSync('/tmp/postgres-api-not-exist.meta', 'utf8')
+          const apiNotExistBody = fs.readFileSync('/tmp/postgres-api-not-exist.json', 'utf8')
+          if (!/content-type:\s*text\/html/i.test(rootHead)) throw new Error('PostgreSQL smoke root must return HTML')
+          if (!/content-type:\s*text\/html/i.test(tabletHead)) throw new Error('PostgreSQL smoke /tablet must return HTML')
+          if (!/<!doctype html/i.test(rootHtml) || !/<!doctype html/i.test(tabletHtml)) throw new Error('PostgreSQL smoke HTML missing')
+          if (!runtimeConfig.includes('API_BASE_URL: "/api"') || /DATABASE_URL|postgres(?:ql)?:\/\/|password|SECRET|TOKEN/i.test(runtimeConfig)) {
+            throw new Error('PostgreSQL smoke runtime-config.js must expose only public /api config')
+          }
+          if (!apiNotExistMeta.startsWith('404 ') || !/application\/json/i.test(apiNotExistMeta) || /<!doctype html/i.test(apiNotExistBody)) {
+            throw new Error('PostgreSQL smoke /api/not-exist must remain API JSON 404')
+          }
           NODE
           node - <<'NODE'
           const fs = require('node:fs')
@@ -489,6 +550,8 @@ jobs:
             echo "- API image: \`${{ steps.meta.outputs.api_image }}\`"
             echo "- API tags: \`${{ steps.meta.outputs.api_version_tag }}\`, \`${{ steps.meta.outputs.api_sha_tag }}\`, \`${{ steps.meta.outputs.api_candidate_tag }}\`"
             echo "- API digest: \`${{ steps.build-api.outputs.digest }}\`"
+            echo "- API built-in Tablet Web entry: \`enabled\`"
+            echo "- Runtime API base: \`/api\`"
             echo "- Migration image: \`${{ steps.meta.outputs.migrate_image }}\`"
             echo "- Migration tags: \`${{ steps.meta.outputs.migrate_version_tag }}\`, \`${{ steps.meta.outputs.migrate_sha_tag }}\`, \`${{ steps.meta.outputs.migrate_candidate_tag }}\`"
             echo "- Migration digest: \`${{ steps.build-migrate.outputs.digest }}\`"
