@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { documentStatusLabelMap, legacyDocumentTypeMap } from '../../common/enums/production.enum';
+import {
+  documentStatusLabelMap,
+  legacyDocumentTypeMap,
+} from '../../common/enums/production.enum';
 import { evaluatePlanReadiness } from '../../common/utils/readiness';
 import { supportsSingleEffectiveDocumentType } from '../../common/utils/document-version-rules';
 import { mockStore } from '../../mock/production.mock';
@@ -38,7 +41,12 @@ function labelForDocument(documentType: ProductDocument['documentType']) {
   }
 }
 
-function versionGroupKey(document: Pick<ProductDocument, 'productId' | 'documentType' | 'requiredForProcess'>) {
+function versionGroupKey(
+  document: Pick<
+    ProductDocument,
+    'productId' | 'documentType' | 'requiredForProcess'
+  >,
+) {
   return `${document.productId}::${document.documentType}::${document.requiredForProcess}`;
 }
 
@@ -55,15 +63,30 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
   constructor(private readonly localStorageService: LocalStorageService) {}
 
   findDocuments(query: DocumentQuery = {}): ProductDocument[] {
+    const planId = query.planId ?? query.orderId;
     return this.allDocuments()
-      .filter((doc) => !query.planId || doc.planId === query.planId || this.planProductMatches(query.planId, doc.productId))
+      .filter(
+        (doc) =>
+          !planId ||
+          doc.planId === planId ||
+          this.planProductMatches(planId, doc.productId),
+      )
+      .filter(
+        (doc) =>
+          !query.customerId ||
+          this.productCustomerMatches(query.customerId, doc.productId),
+      )
       .filter((doc) => !query.productId || doc.productId === query.productId)
-      .filter((doc) => !query.documentType || doc.documentType === query.documentType)
+      .filter(
+        (doc) => !query.documentType || doc.documentType === query.documentType,
+      )
       .filter((doc) => !query.status || doc.documentStatus === query.status);
   }
 
   findDocumentById(id: string) {
-    return this.allDocuments().find((doc) => doc.documentId === id || doc.id === id);
+    return this.allDocuments().find(
+      (doc) => doc.documentId === id || doc.id === id,
+    );
   }
 
   findDocumentsByProduct(productId: string): ProductDocument[] {
@@ -73,15 +96,20 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
   findDocumentsByPlan(planId: string): ProductDocument[] {
     const plan = mockStore.findPlanById(planId);
     if (!plan) return [];
-    return this.allDocuments().filter((doc) => doc.planId === planId || doc.productId === plan.productId);
+    return this.allDocuments().filter(
+      (doc) => doc.planId === planId || doc.productId === plan.productId,
+    );
   }
 
   findRequiredDocuments(planId: string): ProductDocument[] {
     const plan = mockStore.findPlanById(planId);
     if (!plan) return [];
-    return this.findDocumentsByPlan(planId).filter((doc) => doc.requiredForProcess === 'common'
-      || (plan.segment !== '后段' && doc.requiredForProcess === 'front')
-      || (plan.segment !== '前段' && doc.requiredForProcess === 'back'));
+    return this.findDocumentsByPlan(planId).filter(
+      (doc) =>
+        doc.requiredForProcess === 'common' ||
+        (plan.segment !== '后段' && doc.requiredForProcess === 'front') ||
+        (plan.segment !== '前段' && doc.requiredForProcess === 'back'),
+    );
   }
 
   createDocument(payload: CreateUploadedDocumentPayload): ProductDocument {
@@ -189,11 +217,19 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
     };
   }
 
-  findProductDocumentVersions(query: DocumentVersionQuery): DocumentVersionGroup[] {
+  findProductDocumentVersions(
+    query: DocumentVersionQuery,
+  ): DocumentVersionGroup[] {
     const documents = this.allDocuments()
       .filter((doc) => doc.productId === query.productId)
-      .filter((doc) => !query.documentType || doc.documentType === query.documentType)
-      .filter((doc) => !query.requiredForProcess || doc.requiredForProcess === query.requiredForProcess);
+      .filter(
+        (doc) => !query.documentType || doc.documentType === query.documentType,
+      )
+      .filter(
+        (doc) =>
+          !query.requiredForProcess ||
+          doc.requiredForProcess === query.requiredForProcess,
+      );
 
     const groups = new Map<string, ProductDocument[]>();
     for (const document of documents) {
@@ -201,10 +237,15 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       groups.set(key, [...(groups.get(key) ?? []), document]);
     }
 
-    return Array.from(groups.entries()).map(([key, versions]) => this.groupFromVersions(key, versions));
+    return Array.from(groups.entries()).map(([key, versions]) =>
+      this.groupFromVersions(key, versions),
+    );
   }
 
-  setEffectiveDocument(id: string, _payload: SetEffectiveDocumentPayload): SetEffectiveDocumentResult | undefined {
+  setEffectiveDocument(
+    id: string,
+    _payload: SetEffectiveDocumentPayload,
+  ): SetEffectiveDocumentResult | undefined {
     const document = this.findDocumentById(id);
     if (!document) return undefined;
 
@@ -262,42 +303,71 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
     return {
       documents,
       fields: fields.map(([field, label]) => {
-        const values = documents.map((document) => document[field] as string | number | string[] | undefined);
+        const values = documents.map(
+          (document) =>
+            document[field] as string | number | string[] | undefined,
+        );
         const different = new Set(values.map(compareValue)).size > 1;
-        return { field, label, values, different } satisfies DocumentCompareField;
+        return {
+          field,
+          label,
+          values,
+          different,
+        } satisfies DocumentCompareField;
       }),
     };
   }
 
   private allDocuments() {
-    const seedDocuments = mockStore.productionPlans.flatMap((plan) => plan.documents);
+    const seedDocuments = mockStore.productionPlans.flatMap(
+      (plan) => plan.documents,
+    );
     const uploadedDocuments = this.localStorageService.readDocumentsSync();
     const byId = new Map<string, ProductDocument>();
-    for (const doc of seedDocuments) byId.set(documentId(doc), this.ensureDocumentMeta(doc));
-    for (const doc of uploadedDocuments) byId.set(documentId(doc), this.ensureDocumentMeta(doc));
+    for (const doc of seedDocuments)
+      byId.set(documentId(doc), this.ensureDocumentMeta(doc));
+    for (const doc of uploadedDocuments)
+      byId.set(documentId(doc), this.ensureDocumentMeta(doc));
     return Array.from(byId.values());
   }
 
   private ensureDocumentMeta(document: ProductDocument) {
-    document.versionGroupKey = document.versionGroupKey ?? versionGroupKey(document);
+    document.versionGroupKey =
+      document.versionGroupKey ?? versionGroupKey(document);
     document.archived = document.archived ?? false;
     return document;
   }
 
   private groupForDocument(document: ProductDocument) {
     const key = document.versionGroupKey ?? versionGroupKey(document);
-    const versions = this.allDocuments().filter((item) => (item.versionGroupKey ?? versionGroupKey(item)) === key);
+    const versions = this.allDocuments().filter(
+      (item) => (item.versionGroupKey ?? versionGroupKey(item)) === key,
+    );
     return this.groupFromVersions(key, versions);
   }
 
-  private groupFromVersions(versionKey: string, versions: ProductDocument[]): DocumentVersionGroup {
+  private groupFromVersions(
+    versionKey: string,
+    versions: ProductDocument[],
+  ): DocumentVersionGroup {
     const sortedVersions = [...versions].sort((a, b) => {
-      const statusRank = (a.documentStatus === 'effective' ? 0 : a.documentStatus === 'pending_review' ? 1 : 2)
-        - (b.documentStatus === 'effective' ? 0 : b.documentStatus === 'pending_review' ? 1 : 2);
+      const statusRank =
+        (a.documentStatus === 'effective'
+          ? 0
+          : a.documentStatus === 'pending_review'
+            ? 1
+            : 2) -
+        (b.documentStatus === 'effective'
+          ? 0
+          : b.documentStatus === 'pending_review'
+            ? 1
+            : 2);
       if (statusRank !== 0) return statusRank;
       return (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');
     });
-    const currentDocument = sortedVersions.find((doc) => doc.documentStatus === 'effective');
+    const currentDocument = sortedVersions.find(
+      (doc) => doc.documentStatus === 'effective',
+    );
     const firstDocument = sortedVersions[0];
     return {
       versionGroupKey: versionKey,
@@ -306,11 +376,19 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       requiredForProcess: firstDocument.requiredForProcess,
       currentDocument,
       versions: sortedVersions,
-      effectiveDocumentId: currentDocument ? documentId(currentDocument) : undefined,
+      effectiveDocumentId: currentDocument
+        ? documentId(currentDocument)
+        : undefined,
       versionCount: sortedVersions.length,
-      hasExpired: sortedVersions.some((doc) => doc.documentStatus === 'expired'),
-      hasPendingReview: sortedVersions.some((doc) => doc.documentStatus === 'pending_review'),
-      hasInconsistent: sortedVersions.some((doc) => doc.documentStatus === 'inconsistent'),
+      hasExpired: sortedVersions.some(
+        (doc) => doc.documentStatus === 'expired',
+      ),
+      hasPendingReview: sortedVersions.some(
+        (doc) => doc.documentStatus === 'pending_review',
+      ),
+      hasInconsistent: sortedVersions.some(
+        (doc) => doc.documentStatus === 'inconsistent',
+      ),
     };
   }
 
@@ -340,7 +418,16 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
     return mockStore.findPlanById(planId)?.productId === productId;
   }
 
+  private productCustomerMatches(customerId: string, productId: string) {
+    return (
+      mockStore.products.find((product) => product.id === productId)
+        ?.customerId === customerId
+    );
+  }
+
   private planIdForProduct(productId: string) {
-    return mockStore.productionPlans.find((plan) => plan.productId === productId)?.id;
+    return mockStore.productionPlans.find(
+      (plan) => plan.productId === productId,
+    )?.id;
   }
 }

@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { AuditService } from '../audit/audit.service';
@@ -16,6 +21,10 @@ import type { SetEffectiveDocumentDto } from './dto/set-effective-document.dto';
 import type { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import type { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
 import type { UploadDocumentDto } from './dto/upload-document.dto';
+import {
+  documentTypeForCategory,
+  withDocumentCategory,
+} from './document-categories';
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
@@ -155,8 +164,17 @@ export class DocumentsService {
   ) {}
 
   async findAll(query: DocumentQueryDto) {
-    const documents = await this.documentRepository.findDocuments(query);
-    return documents.filter((document) => !isDeletedDocument(document));
+    const documentType = query.category
+      ? documentTypeForCategory(query.category)
+      : query.documentType;
+    const documents = await this.documentRepository.findDocuments({
+      ...query,
+      planId: query.planId ?? query.orderId,
+      documentType,
+    });
+    return documents
+      .filter((document) => !isDeletedDocument(document))
+      .map(withDocumentCategory);
   }
 
   async findOne(id: string) {
@@ -450,7 +468,10 @@ export class DocumentsService {
 
   async updateStatus(id: string, dto: UpdateDocumentStatusDto, user?: MockUser) {
     const before = clone(await this.findOne(id));
-    const document = await this.documentRepository.updateDocumentStatus(id, dto);
+    const document = await this.documentRepository.updateDocumentStatus(
+      id,
+      dto,
+    );
     if (!document) throw new NotFoundException(`未找到可更新的资料：${id}`);
     await this.auditService.tryCreate({
       entityType: 'document',
@@ -468,7 +489,10 @@ export class DocumentsService {
 
   async updateVersion(id: string, dto: UpdateDocumentVersionDto, user?: MockUser) {
     const before = clone(await this.findOne(id));
-    const document = await this.documentRepository.updateDocumentVersion(id, dto);
+    const document = await this.documentRepository.updateDocumentVersion(
+      id,
+      dto,
+    );
     if (!document) throw new NotFoundException(`未找到可更新版本的资料：${id}`);
     await this.auditService.tryCreate({
       entityType: 'document',
@@ -487,7 +511,8 @@ export class DocumentsService {
   async setEffective(id: string, dto: SetEffectiveDocumentDto, user?: MockUser) {
     const before = await this.findVersions(id);
     const result = await this.documentRepository.setEffectiveDocument(id, dto);
-    if (!result) throw new NotFoundException(`未找到可设置有效版本的资料：${id}`);
+    if (!result)
+      throw new NotFoundException(`未找到可设置有效版本的资料：${id}`);
     await this.auditService.tryCreate({
       entityType: 'document',
       entityId: docId(result.document),

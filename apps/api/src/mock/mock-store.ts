@@ -118,23 +118,39 @@ function versionStatusFor(
   back: BackProcessPackageSeed,
   documents: ProductDocument[],
 ): ProductionPlanMock['versionStatus'] {
-  const hasDanger = documents.some((doc) => ['expired', 'missing', 'inconsistent'].includes(doc.documentStatus))
-    || front.parameterStatus === '失效'
-    || back.materialStatus === '失效';
-  const hasWarning = documents.some((doc) => doc.documentStatus === 'pending_review')
-    || front.parameterStatus === '待确认'
-    || back.materialStatus === '待确认'
-    || plan.confirmationStatus === '需复核';
+  const hasDanger =
+    documents.some((doc) =>
+      ['expired', 'missing', 'inconsistent'].includes(doc.documentStatus),
+    ) ||
+    front.parameterStatus === '失效' ||
+    back.materialStatus === '失效';
+  const hasWarning =
+    documents.some((doc) => doc.documentStatus === 'pending_review') ||
+    front.parameterStatus === '待确认' ||
+    back.materialStatus === '待确认' ||
+    plan.confirmationStatus === '需复核';
 
   if (hasDanger) {
-    return { status: '失效', message: '存在已失效、缺失或不一致资料，需复核后开工。', redLine: true };
+    return {
+      status: '失效',
+      message: '存在已失效、缺失或不一致资料，需复核后开工。',
+      redLine: true,
+    };
   }
 
   if (hasWarning) {
-    return { status: '待确认', message: '存在待确认资料，需组长复核。', redLine: true };
+    return {
+      status: '待确认',
+      message: '存在待确认资料，需组长复核。',
+      redLine: true,
+    };
   }
 
-  return { status: '有效', message: '资料版本有效，可进入组长确认。', redLine: false };
+  return {
+    status: '有效',
+    message: '资料版本有效，可进入组长确认。',
+    redLine: false,
+  };
 }
 
 function toProductionPlanMock(
@@ -195,11 +211,16 @@ function buildProductionPlans(): ProductionPlanMock[] {
 
   return productionPlans.map((plan) => {
     const product = products.find((item) => item.id === plan.productId);
-    if (!product) throw new Error(`Mock seed missing product: ${plan.productId}`);
+    if (!product)
+      throw new Error(`Mock seed missing product: ${plan.productId}`);
 
     const customer = customers.find((item) => item.id === product.customerId);
-    const front = frontProcessParameters.find((item) => item.productId === product.id);
-    const back = backProcessPackages.find((item) => item.productId === product.id);
+    const front = frontProcessParameters.find(
+      (item) => item.productId === product.id,
+    );
+    const back = backProcessPackages.find(
+      (item) => item.productId === product.id,
+    );
 
     if (!customer || !front || !back) {
       throw new Error(`Mock seed incomplete for product: ${product.id}`);
@@ -233,10 +254,13 @@ export class MockStore {
   }
 
   findPlanByProductCode(productCode: string) {
-    return this.productionPlans.find((plan) => plan.productCode === productCode);
+    return this.productionPlans.find(
+      (plan) => plan.productCode === productCode,
+    );
   }
 
-  findPlansByScope(scope: 'today' | 'week' = 'today') {
+  findPlansByScope(scope: 'all' | 'today' | 'week' = 'today') {
+    if (scope === 'all') return this.productionPlans;
     if (scope === 'week') return this.productionPlans;
     return this.productionPlans.filter((plan) => plan.date === '2026-06-11');
   }
@@ -303,7 +327,11 @@ export const mockStore = new MockStore();
 
 export const productionPlansMock = mockStore.productionPlans;
 export const feedbackRecordsMock = mockStore.feedbackRecords;
-export type { FeedbackRecordMock, ProductDocument, ProductionPlanMock } from '../common/types/production.types';
+export type {
+  FeedbackRecordMock,
+  ProductDocument,
+  ProductionPlanMock,
+} from '../common/types/production.types';
 export type {
   ConfirmationStatus,
   DocumentStatus,
