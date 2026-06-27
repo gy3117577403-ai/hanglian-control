@@ -7,7 +7,9 @@ export class DocumentFileAccessGuard implements CanActivate {
     const expectedToken = process.env.DOCUMENT_FILE_ACCESS_TOKEN || process.env.FILE_ACCESS_TOKEN;
     if (!expectedToken) return true;
 
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<Request & { user?: unknown }>();
+    if (request.user) return true;
+
     const bearerToken = this.bearerToken(request.headers.authorization);
     const headerToken = request.headers['x-document-file-token'];
     const providedToken = bearerToken || (Array.isArray(headerToken) ? headerToken[0] : headerToken);

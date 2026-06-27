@@ -25,6 +25,7 @@ import {
   documentTypeForCategory,
   withDocumentCategory,
 } from './document-categories';
+import { PdfPreviewService } from './pdf-preview.service';
 
 export const PDF_MAX_BYTES = 80 * 1024 * 1024;
 export const IMAGE_MAX_BYTES = 20 * 1024 * 1024;
@@ -279,6 +280,7 @@ export class DocumentsService {
     private readonly documentRepository: DocumentRepositoryInterface,
     private readonly storageService: StorageService,
     private readonly auditService: AuditService,
+    private readonly pdfPreviewService: PdfPreviewService,
   ) {}
 
   async findAll(query: DocumentQueryDto) {
@@ -540,6 +542,7 @@ export class DocumentsService {
       planId: document.planId,
       productId: document.productId,
     });
+    await this.pdfPreviewService.warmPreviewAfterUpload(document);
     return this.withProtectedUrls(withDocumentCategory(document));
   }
 
@@ -583,6 +586,14 @@ export class DocumentsService {
         document.originalFileName ||
         `${docId(document)}${this.extensionForMime(document.mimeType ?? file.mimeType)}`,
     };
+  }
+
+  getPreview(id: string, accessToken?: string) {
+    return this.pdfPreviewService.getPreview(id, accessToken);
+  }
+
+  getPreviewPageFile(id: string, pageNo: number) {
+    return this.pdfPreviewService.getPreviewPageFile(id, pageNo);
   }
 
   async createStoredDocumentMetadata(
@@ -673,6 +684,7 @@ export class DocumentsService {
           productId: document.productId,
         });
       }
+      await this.pdfPreviewService.warmPreviewAfterUpload(document);
       return this.withProtectedUrls(withDocumentCategory(document));
     } catch (error) {
       const deleteResult = await this.storageService.deleteObject(stored.storageKey);

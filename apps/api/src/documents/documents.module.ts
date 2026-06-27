@@ -4,11 +4,18 @@ import { StorageModule } from '../storage/storage.module';
 import { DocumentFileAccessGuard } from './document-file-access.guard';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
+import { PdfPreviewService } from './pdf-preview.service';
+import { PdfPreviewWorker } from './pdf-preview.worker';
 
 @Module({
   imports: [StorageModule, AuditModule],
   controllers: [DocumentsController],
-  providers: [DocumentsService, DocumentFileAccessGuard],
+  providers: [
+    DocumentsService,
+    DocumentFileAccessGuard,
+    PdfPreviewService,
+    PdfPreviewWorker,
+  ],
   exports: [DocumentsService],
 })
 export class DocumentsModule {}

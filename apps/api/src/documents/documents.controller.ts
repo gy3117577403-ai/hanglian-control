@@ -4,17 +4,25 @@ import {
   Get,
   Header,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Request, Response } from 'express';
 import { memoryStorage } from 'multer';
 import {
   CurrentUser,
@@ -121,6 +129,38 @@ export class DocumentsController {
     return this.documentsService.upload(dto, file, user);
   }
 
+  @Get(':id/preview')
+  @ApiOperation({ summary: 'Get document image preview pages for ArkTS rendering.' })
+  preview(
+    @Param('id') id: string,
+    @Query('accessToken') accessToken: string | undefined,
+    @Req() request: Request,
+  ) {
+    return this.documentsService.getPreview(
+      id,
+      accessTokenForPreview(accessToken, request),
+    );
+  }
+
+  @Get(':id/preview-pages/:pageNo')
+  @UseGuards(DocumentFileAccessGuard)
+  @Header('X-Content-Type-Options', 'nosniff')
+  @ApiOperation({ summary: 'Read one generated preview page image.' })
+  async previewPage(
+    @Param('id') id: string,
+    @Param('pageNo', ParseIntPipe) pageNo: number,
+    @Res() response: Response,
+  ) {
+    const page = await this.documentsService.getPreviewPageFile(id, pageNo);
+    response.setHeader('Content-Type', page.mimeType);
+    response.setHeader('Content-Length', String(page.size));
+    response.setHeader(
+      'Content-Disposition',
+      contentDisposition('inline', page.fileName),
+    );
+    page.stream.pipe(response);
+  }
+
   @Get(':id/download')
   @UseGuards(DocumentFileAccessGuard)
   @Header('X-Content-Type-Options', 'nosniff')
@@ -206,6 +246,12 @@ export class DocumentsController {
     );
     file.stream.pipe(response);
   }
+}
+
+function accessTokenForPreview(accessToken: string | undefined, request: Request) {
+  if (accessToken) return accessToken;
+  const match = request.headers.authorization?.match(/^Bearer\s+(.+)$/i);
+  return match?.[1];
 }
 
 function contentDisposition(

@@ -18,9 +18,13 @@ export class JwtAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       headers: { authorization?: string };
+      query?: { accessToken?: string | string[] };
       user?: AuthenticatedRequestUser;
     }>();
-    const token = this.extractBearerToken(request.headers.authorization);
+    const token = this.extractBearerToken(
+      request.headers.authorization,
+      request.query?.accessToken,
+    );
     const payload = await this.authService.verifyAccessToken(token);
     const user = await this.usersService.findActiveById(payload.sub);
     if (!user) {
@@ -34,11 +38,21 @@ export class JwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private extractBearerToken(authorization?: string) {
+  private extractBearerToken(
+    authorization?: string,
+    queryAccessToken?: string | string[],
+  ) {
     const [type, token] = authorization?.split(' ') ?? [];
-    if (type !== 'Bearer' || !token) {
+    if (type === 'Bearer' && token) return token;
+
+    const queryToken = Array.isArray(queryAccessToken)
+      ? queryAccessToken[0]
+      : queryAccessToken;
+    if (queryToken) return queryToken;
+
+    if (!token) {
       throw new UnauthorizedException('Bearer token is required.');
     }
-    return token;
+    throw new UnauthorizedException('Bearer token is required.');
   }
 }
