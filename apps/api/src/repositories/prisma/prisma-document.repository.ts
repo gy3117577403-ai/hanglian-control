@@ -159,7 +159,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
 
   async findDocumentById(id: string): Promise<ProductDocument | undefined> {
     const row = await this.prisma.client.productDocument.findFirst({
-      where: { OR: [{ id }, { storedFileName: id }], deletedAt: null },
+      where: { id, deletedAt: null },
       include: DOCUMENT_INCLUDE,
     });
     return row ? mapPrismaDocument(row) : undefined;
@@ -224,7 +224,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
         downloadUrl: payload.downloadUrl,
         storageProvider: payload.storageProvider ?? 'local',
         storageKey: payload.storageKey ?? payload.storedFileName,
-        checksum: payload.checksumSha256,
+        checksum: payload.checksumSha256 ?? payload.checksum,
         mockPreviewText: payload.remark ?? `本地上传 ${payload.title}`,
         keywords: payload.keywords,
         remark: payload.remark,

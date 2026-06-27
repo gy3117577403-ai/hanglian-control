@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream';
 
 export type FileStorageProviderName = 'local' | 's3';
+export type StorageProviderName = FileStorageProviderName;
 export type StoragePreviewMode = 'proxy' | 'signed-url';
 
 export interface PutObjectInput {
@@ -26,6 +27,8 @@ export interface StoredObjectInfo {
   metadata?: Record<string, string | number | boolean | undefined>;
 }
 
+export type SaveFileResult = StoredObjectInfo;
+
 export interface StorageObjectHead {
   provider: FileStorageProviderName;
   storageKey: string;
@@ -41,6 +44,17 @@ export interface StorageObjectStream {
   mimeType: string;
   fileSize: number;
   stream: Readable;
+}
+
+export type StoredFileStream = StorageObjectStream;
+
+export interface StoredFileReference {
+  provider?: string;
+  storageProvider?: string;
+  storageKey?: string;
+  storedFileName?: string;
+  mimeType?: string;
+  fileSize?: number;
 }
 
 export interface StorageUrlOptions {

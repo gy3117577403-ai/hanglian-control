@@ -3,7 +3,13 @@ import type { ProductDocument } from '../common/types/production.types';
 import { LocalStorageProvider } from './providers/local-storage.provider';
 import { S3StorageProvider } from './providers/s3-storage.provider';
 import { StorageConfigService } from './storage.config';
-import type { PutObjectInput, StorageObjectStream, StorageSafeStatus, StoredObjectInfo } from './storage.types';
+import type {
+  PutObjectInput,
+  StorageObjectStream,
+  StorageSafeStatus,
+  StoredFileReference,
+  StoredObjectInfo,
+} from './storage.types';
 
 @Injectable()
 export class StorageService {
@@ -13,13 +19,32 @@ export class StorageService {
     private readonly s3Provider: S3StorageProvider,
   ) {}
 
+  get activeProvider() {
+    return this.config.provider;
+  }
+
   async putObject(input: PutObjectInput): Promise<StoredObjectInfo> {
     const maxBytes = this.config.maxFileSizeMb * 1024 * 1024;
     const size = input.fileSize ?? input.buffer?.length;
     if (size !== undefined && size > maxBytes) {
-      throw new BadRequestException(`File size exceeds ${this.config.maxFileSizeMb} MB.`);
+      throw new BadRequestException(
+        `File size exceeds ${this.config.maxFileSizeMb} MB.`,
+      );
     }
     return this.provider().putObject(input);
+  }
+
+  saveFile(file: Express.Multer.File, mimeType = file.mimetype) {
+    if (!file.buffer) {
+      throw new BadRequestException('Uploaded file buffer is missing.');
+    }
+    return this.putObject({
+      originalFileName: file.originalname,
+      mimeType,
+      buffer: file.buffer,
+      fileSize: file.size,
+      prefix: 'documents',
+    });
   }
 
   getObjectStream(key: string) {
@@ -43,7 +68,11 @@ export class StorageService {
   }
 
   createDownloadUrl(key: string, documentId?: string, fileName?: string) {
-    return this.providerForKey(key).createDownloadUrl(key, { documentId, fileName, disposition: 'attachment' });
+    return this.providerForKey(key).createDownloadUrl(key, {
+      documentId,
+      fileName,
+      disposition: 'attachment',
+    });
   }
 
   resolveDocumentStorage(document: ProductDocument): {
@@ -59,22 +88,58 @@ export class StorageService {
     };
   }
 
-  async getDocumentStream(document: ProductDocument): Promise<StorageObjectStream | undefined> {
+  async getDocumentStream(
+    document: ProductDocument,
+  ): Promise<StorageObjectStream | undefined> {
     const storage = this.resolveDocumentStorage(document);
     if (!storage.storageKey) return undefined;
-    return (storage.provider === 's3' ? this.s3Provider : this.localProvider).getObjectStream(storage.storageKey);
+    return this.providerByName(storage.provider).getObjectStream(
+      storage.storageKey,
+    );
+  }
+
+  async getFileStream(reference: StoredFileReference) {
+    const storageKey = reference.storageKey ?? reference.storedFileName;
+    if (!storageKey) return undefined;
+    const provider =
+      reference.provider === 's3' || reference.storageProvider === 's3'
+        ? 's3'
+        : 'local';
+    const stream = await this.providerByName(provider).getObjectStream(
+      storageKey,
+    );
+    if (!stream) return undefined;
+    return {
+      ...stream,
+      mimeType: reference.mimeType ?? stream.mimeType,
+      fileSize: reference.fileSize ?? stream.fileSize,
+    };
   }
 
   async documentObjectExists(document: ProductDocument) {
     const storage = this.resolveDocumentStorage(document);
     if (!storage.storageKey) return false;
-    return (storage.provider === 's3' ? this.s3Provider : this.localProvider).objectExists(storage.storageKey);
+    return this.providerByName(storage.provider).objectExists(
+      storage.storageKey,
+    );
   }
 
   async deleteDocumentObject(document: ProductDocument) {
     const storage = this.resolveDocumentStorage(document);
     if (!storage.storageKey) return { deleted: false, reason: 'no_file' };
-    return (storage.provider === 's3' ? this.s3Provider : this.localProvider).deleteObject(storage.storageKey);
+    return this.providerByName(storage.provider).deleteObject(
+      storage.storageKey,
+    );
+  }
+
+  async deleteFile(reference: StoredFileReference) {
+    const storageKey = reference.storageKey ?? reference.storedFileName;
+    if (!storageKey) return { deleted: false, reason: 'missing_storage_key' };
+    const provider =
+      reference.provider === 's3' || reference.storageProvider === 's3'
+        ? 's3'
+        : 'local';
+    return this.providerByName(provider).deleteObject(storageKey);
   }
 
   getSafeStatus(): StorageSafeStatus {
@@ -83,7 +148,11 @@ export class StorageService {
 
   private provider() {
     if (this.config.provider === 's3') {
-      if (!this.config.s3Configured) throw new BadRequestException('S3 storage is selected but not fully configured.');
+      if (!this.config.s3Configured) {
+        throw new BadRequestException(
+          'S3 storage is selected but not fully configured.',
+        );
+      }
       return this.s3Provider;
     }
     return this.localProvider;
@@ -91,5 +160,9 @@ export class StorageService {
 
   private providerForKey(_key: string) {
     return this.config.provider === 's3' ? this.s3Provider : this.localProvider;
+  }
+
+  private providerByName(provider: 'local' | 's3') {
+    return provider === 's3' ? this.s3Provider : this.localProvider;
   }
 }

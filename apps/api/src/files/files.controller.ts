@@ -1,52 +1,80 @@
-import { Controller, Get, Header, Param, Res } from '@nestjs/common';
-import { ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Header, Param, Res, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { DocumentFileAccessGuard } from '../documents/document-file-access.guard';
 import { FilesService } from './files.service';
 
 @ApiTags('files')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Get('documents/:documentId/preview')
+  @UseGuards(DocumentFileAccessGuard)
   @Header('X-Content-Type-Options', 'nosniff')
-  @ApiOperation({ summary: 'Preview an uploaded document through the configured storage provider.' })
-  async previewDocument(@Param('documentId') documentId: string, @Res() response: Response) {
-    const file = await this.filesService.getDocumentFile(documentId, 'document_previewed');
-    const safeFileName = safeResponseFileName(file.fileName);
-    response.setHeader('Content-Type', file.mimeType);
-    response.setHeader('Content-Length', String(file.fileSize));
-    response.setHeader('Content-Disposition', `inline; filename="${safeFileName}"; filename*=UTF-8''${encodeURIComponent(safeFileName)}`);
-    file.stream.pipe(response);
+  @ApiOperation({ summary: 'Preview an uploaded document file.' })
+  async previewDocument(
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    const file = await this.filesService.getDocumentFile(
+      documentId,
+      'document_previewed',
+    );
+    this.writeFileResponse(response, file, 'inline');
   }
 
   @Get('documents/:documentId/download')
+  @UseGuards(DocumentFileAccessGuard)
   @Header('X-Content-Type-Options', 'nosniff')
-  @ApiOperation({ summary: 'Download an uploaded document through the configured storage provider.' })
-  async downloadDocument(@Param('documentId') documentId: string, @Res() response: Response) {
-    const file = await this.filesService.getDocumentFile(documentId, 'document_downloaded');
-    const safeFileName = safeResponseFileName(file.fileName);
-    response.setHeader('Content-Type', file.mimeType);
-    response.setHeader('Content-Length', String(file.fileSize));
-    response.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"; filename*=UTF-8''${encodeURIComponent(safeFileName)}`);
-    file.stream.pipe(response);
+  @ApiOperation({ summary: 'Download an uploaded document file.' })
+  async downloadDocument(
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    const file = await this.filesService.getDocumentFile(
+      documentId,
+      'document_downloaded',
+    );
+    this.writeFileResponse(response, file, 'attachment');
   }
 
-  @Get(':storedFileName')
+  @Get(':documentId')
+  @UseGuards(DocumentFileAccessGuard)
   @Header('X-Content-Type-Options', 'nosniff')
-  @ApiOperation({ summary: '读取本地上传文件流，仅允许 storage/uploads 内的安全文件名。' })
-  @ApiOkResponse({ description: '返回可在线预览或下载的文件流。' })
-  @ApiNotFoundResponse({ description: '文件不存在或文件名非法。' })
-  async getFile(@Param('storedFileName') storedFileName: string, @Res() response: Response) {
-    const file = await this.filesService.getFile(storedFileName);
-    const safeFileName = safeResponseFileName(storedFileName);
+  @ApiOperation({ summary: 'Read a document file by documentId.' })
+  async getFile(
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    const file = await this.filesService.getFile(documentId);
+    this.writeFileResponse(response, file, 'inline');
+  }
+
+  private writeFileResponse(
+    response: Response,
+    file: Awaited<ReturnType<FilesService['getFile']>>,
+    disposition: 'inline' | 'attachment',
+  ) {
     response.setHeader('Content-Type', file.mimeType);
-    response.setHeader('Content-Length', String(file.size));
-    response.setHeader('Content-Disposition', `inline; filename="${safeFileName}"; filename*=UTF-8''${encodeURIComponent(safeFileName)}`);
+    response.setHeader('Content-Length', String(file.fileSize));
+    response.setHeader(
+      'Content-Disposition',
+      contentDisposition(disposition, file.fileName),
+    );
     file.stream.pipe(response);
   }
 }
 
-function safeResponseFileName(value: string) {
-  return (value || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 160) || 'document';
+function contentDisposition(
+  disposition: 'inline' | 'attachment',
+  fileName: string,
+) {
+  const safeAsciiName =
+    fileName.replace(/[^\x20-\x7e]|[\\/"<>|:*?\r\n]/g, '_').slice(0, 180) ||
+    'document';
+  return `${disposition}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

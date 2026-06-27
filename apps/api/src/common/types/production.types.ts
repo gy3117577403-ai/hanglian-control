@@ -142,9 +142,10 @@ export interface ProductDocument {
   localMockLabel: string;
   originalFileName?: string;
   storedFileName?: string;
-  storageProvider?: 'local' | 's3';
+  storageProvider?: 'local' | 's3' | string;
   storageKey?: string;
   checksumSha256?: string;
+  checksum?: string;
   previewMode?: 'proxy' | 'signed-url';
   mimeType?: string;
   fileSize?: number;
@@ -254,15 +255,16 @@ export interface CreateUploadedDocumentPayload {
   remark?: string;
   originalFileName: string;
   storedFileName: string;
-  storageProvider?: 'local' | 's3';
+  storageProvider?: 'local' | 's3' | string;
   storageKey?: string;
   checksumSha256?: string;
   previewMode?: 'proxy' | 'signed-url';
   mimeType: string;
   fileSize: number;
   previewType: PreviewType;
-  previewUrl: string;
-  downloadUrl: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  checksum?: string;
 }
 
 export interface UpdateDocumentStatusPayload {
