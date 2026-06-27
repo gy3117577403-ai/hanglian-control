@@ -112,6 +112,9 @@ export class MockDocumentRepository implements DocumentRepositoryInterface {
       fileSize: payload.fileSize,
       previewUrl: payload.previewUrl,
       downloadUrl: payload.downloadUrl,
+      storageProvider: payload.storageProvider,
+      storageKey: payload.storageKey,
+      checksum: payload.checksum,
       archived: false,
       remark: payload.remark,
       versionGroupKey: versionGroupKey({

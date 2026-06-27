@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 import { CompareDocumentsDto } from './dto/compare-documents.dto';
 import { DocumentQueryDto } from './dto/document-query.dto';
 import { DocumentVersionQueryDto } from './dto/document-version-query.dto';
@@ -9,9 +10,8 @@ import { SetEffectiveDocumentDto } from './dto/set-effective-document.dto';
 import { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
 import { UpdateDocumentVersionDto } from './dto/update-document-version.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
-import { DocumentsService } from './documents.service';
-
-const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+import { DocumentFileAccessGuard } from './document-file-access.guard';
+import { DOCUMENT_UPLOAD_MAX_BYTES, DocumentsService } from './documents.service';
 
 @ApiTags('documents')
 @Controller('documents')
@@ -19,25 +19,25 @@ export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @Get()
-  @ApiOperation({ summary: '查询资料列表，包含 seed 资料和本地上传资料' })
+  @ApiOperation({ summary: 'Query document list.' })
   findAll(@Query() query: DocumentQueryDto) {
     return this.documentsService.findAll(query);
   }
 
   @Get('versions')
-  @ApiOperation({ summary: '查询某产品的资料版本分组列表' })
+  @ApiOperation({ summary: 'Query product document version groups.' })
   findProductVersions(@Query() query: DocumentVersionQueryDto) {
     return this.documentsService.findProductVersions(query);
   }
 
   @Post('compare')
-  @ApiOperation({ summary: '对比两个或多个资料版本的元数据，不比较 PDF 或图片内容' })
+  @ApiOperation({ summary: 'Compare document metadata.' })
   compare(@Body() dto: CompareDocumentsDto) {
     return this.documentsService.compare(dto);
   }
 
   @Post('upload')
-  @ApiOperation({ summary: '上传本地资料文件并绑定产品或计划' })
+  @ApiOperation({ summary: 'Upload a PDF or image document and bind it to a product or plan.' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -59,52 +59,79 @@ export class DocumentsController {
   })
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),
-    limits: { fileSize: 30 * 1024 * 1024 },
-    fileFilter: (_req, file, callback) => {
-      if (!allowedMimeTypes.includes(file.mimetype)) {
-        callback(new BadRequestException('仅允许上传 PDF、JPG、PNG、WEBP 文件。'), false);
-        return;
-      }
-      callback(null, true);
-    },
+    limits: { fileSize: DOCUMENT_UPLOAD_MAX_BYTES },
   }))
   upload(@Body() dto: UploadDocumentDto, @UploadedFile() file?: Express.Multer.File) {
     return this.documentsService.upload(dto, file);
   }
 
+  @Get(':id/download')
+  @UseGuards(DocumentFileAccessGuard)
+  @Header('X-Content-Type-Options', 'nosniff')
+  @ApiOperation({ summary: 'Download the original document file through the backend.' })
+  async download(@Param('id') id: string, @Res() response: Response) {
+    const file = await this.documentsService.getDocumentFileStream(id, 'attachment');
+    this.writeFileResponse(response, file, 'attachment');
+  }
+
+  @Get(':id/file')
+  @UseGuards(DocumentFileAccessGuard)
+  @Header('X-Content-Type-Options', 'nosniff')
+  @ApiOperation({ summary: 'Read the original document file through the backend.' })
+  async file(@Param('id') id: string, @Res() response: Response) {
+    const file = await this.documentsService.getDocumentFileStream(id, 'inline');
+    this.writeFileResponse(response, file, 'inline');
+  }
+
   @Get(':id/versions')
-  @ApiOperation({ summary: '获取当前资料所属分组的所有版本' })
+  @ApiOperation({ summary: 'Get all versions for the selected document group.' })
   findVersions(@Param('id') id: string) {
     return this.documentsService.findVersions(id);
   }
 
   @Post(':id/set-effective')
-  @ApiOperation({ summary: '将某个资料版本设置为当前有效版本，并使同组其他有效版本失效' })
+  @ApiOperation({ summary: 'Set a document version as effective.' })
   setEffective(@Param('id') id: string, @Body() dto: SetEffectiveDocumentDto) {
     return this.documentsService.setEffective(id, dto);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '获取单个资料详情' })
+  @ApiOperation({ summary: 'Get document detail.' })
   findOne(@Param('id') id: string) {
     return this.documentsService.findOne(id);
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: '更新资料状态' })
+  @ApiOperation({ summary: 'Update document status.' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateDocumentStatusDto) {
     return this.documentsService.updateStatus(id, dto);
   }
 
   @Patch(':id/version')
-  @ApiOperation({ summary: '更新资料版本号' })
+  @ApiOperation({ summary: 'Update document version.' })
   updateVersion(@Param('id') id: string, @Body() dto: UpdateDocumentVersionDto) {
     return this.documentsService.updateVersion(id, dto);
   }
 
   @Post(':id/archive')
-  @ApiOperation({ summary: '归档资料，不物理删除文件' })
+  @ApiOperation({ summary: 'Archive a document without deleting the file.' })
   archive(@Param('id') id: string) {
     return this.documentsService.archive(id);
   }
+
+  private writeFileResponse(
+    response: Response,
+    file: Awaited<ReturnType<DocumentsService['getDocumentFileStream']>>,
+    disposition: 'inline' | 'attachment',
+  ) {
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.fileSize));
+    response.setHeader('Content-Disposition', contentDisposition(disposition, file.fileName));
+    file.stream.pipe(response);
+  }
+}
+
+function contentDisposition(disposition: 'inline' | 'attachment', fileName: string) {
+  const safeAsciiName = fileName.replace(/[^\x20-\x7e]|[\\/"<>|:*?\r\n]/g, '_').slice(0, 180) || 'document';
+  return `${disposition}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

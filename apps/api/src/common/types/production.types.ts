@@ -144,6 +144,9 @@ export interface ProductDocument {
   fileSize?: number;
   previewUrl?: string;
   downloadUrl?: string;
+  storageProvider?: 'local' | 's3' | string;
+  storageKey?: string;
+  checksum?: string;
   createdAt?: string;
   archived?: boolean;
   archivedAt?: string;
@@ -243,8 +246,11 @@ export interface CreateUploadedDocumentPayload {
   mimeType: string;
   fileSize: number;
   previewType: PreviewType;
-  previewUrl: string;
-  downloadUrl: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  storageProvider?: 'local' | 's3' | string;
+  storageKey?: string;
+  checksum?: string;
 }
 
 export interface UpdateDocumentStatusPayload {
