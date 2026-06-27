@@ -173,6 +173,7 @@ requireIncludes('Dockerfile.api', '/app/apps/tablet/dist ./apps/tablet/dist', 'A
 requireIncludes('.github/workflows/build-images-manual.yml', 'test -f /app/apps/tablet/dist/index.html', 'Workflow must verify Tablet assets exist in API image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'API_BASE_URL: "/api"', 'Workflow must verify runtime-config.js uses same-origin /api.');
 requireIncludes('.github/workflows/build-images-manual.yml', '/api/not-exist must remain API JSON 404', 'Workflow must verify /api routes do not fall back to the SPA.');
+requireNotMatches('.github/workflows/build-images-manual.yml', /curl\s+-fsS\s+-o\s+\/tmp\/(?:postgres-)?api-not-exist\.json/i, 'Expected 404 API smoke checks must not use curl -f.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker pull "$image"', 'Workflow must pull the pushed Migration Runner image before offline verification.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'apps/api/prisma.config.ts', 'Workflow must verify prisma.config.ts inside the image.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'scripts/document-version-rules.mjs', 'Workflow must verify document version rules helper inside the image.');

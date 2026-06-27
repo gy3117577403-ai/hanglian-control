@@ -215,7 +215,7 @@ jobs:
           curl -fsS http://127.0.0.1:18080/tablet >/tmp/web-tablet.html
           curl -fsS http://127.0.0.1:18080/some/frontend/route >/tmp/web-route.html
           curl -fsS http://127.0.0.1:18080/runtime-config.js >/tmp/runtime-config.js
-          curl -fsS -o /tmp/api-not-exist.json -w "%{http_code} %{content_type}" \
+          curl -sS -o /tmp/api-not-exist.json -w "%{http_code} %{content_type}" \
             http://127.0.0.1:18080/api/not-exist >/tmp/api-not-exist.meta
           asset_path="$(grep -oE '/assets/[^"]+\.js' /tmp/web-root.html | head -n 1)"
           test -n "${asset_path}"
@@ -342,7 +342,7 @@ jobs:
           curl -fsS http://127.0.0.1:18081/ >/tmp/postgres-web-root.html
           curl -fsS http://127.0.0.1:18081/tablet >/tmp/postgres-web-tablet.html
           curl -fsS http://127.0.0.1:18081/runtime-config.js >/tmp/postgres-runtime-config.js
-          curl -fsS -o /tmp/postgres-api-not-exist.json -w "%{http_code} %{content_type}" \
+          curl -sS -o /tmp/postgres-api-not-exist.json -w "%{http_code} %{content_type}" \
             http://127.0.0.1:18081/api/not-exist >/tmp/postgres-api-not-exist.meta
           node - <<'NODE'
           const fs = require('node:fs')
