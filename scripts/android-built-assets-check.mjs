@@ -70,6 +70,9 @@ if (/url:\s*['"]https?:\/\//.test(capacitor)) fail('Capacitor source config must
 if (!mainActivity.includes('setSupportZoom(false)') || !mainActivity.includes('OVER_SCROLL_NEVER')) {
   fail('MainActivity WebSettings zoom lock must exist')
 }
+if (!mainActivity.includes('setDownloadListener') || !mainActivity.includes('DownloadManager.Request')) {
+  fail('MainActivity native download handler must exist')
+}
 if (!/versionCode\s+1603/.test(buildGradle) || !/versionName\s+"0\.16\.3-debug"/.test(buildGradle)) {
   fail('Android debug version must be 1603 / 0.16.3-debug')
 }

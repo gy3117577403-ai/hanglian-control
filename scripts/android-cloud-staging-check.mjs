@@ -96,6 +96,7 @@ assert(buildGradle.includes('staging {') && buildGradle.includes('versionCode 17
 assert(buildGradle.includes('versionName "0.17.0-staging-debug"'), 'Staging flavor must set versionName 0.17.0-staging-debug.')
 assert(buildGradle.includes('applicationId "com.hanglian.control"'), 'applicationId must remain com.hanglian.control.')
 assert(mainActivity.includes('setSupportZoom(false)') && mainActivity.includes('setBuiltInZoomControls(false)') && mainActivity.includes('setDisplayZoomControls(false)'), 'MainActivity must keep WebView zoom disabled.')
+assert(mainActivity.includes('setDownloadListener') && mainActivity.includes('DownloadManager.Request'), 'MainActivity must keep native WebView downloads enabled.')
 assert(nativeViewport.includes('Math.abs(viewportScale() - 1) > 0.02') || nativeViewport.includes('Math.abs(scale - 1) > 0.02'), 'Native viewport scale guard must remain in place.')
 
 for (const content of [viteConfig, capacitor, buildGradle, mainManifest, stagingDebugManifest]) {

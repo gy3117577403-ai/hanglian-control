@@ -67,6 +67,7 @@ const config = read('apps/tablet/capacitor.config.ts')
 const manifest = read('apps/tablet/android/app/src/main/AndroidManifest.xml')
 const debugManifest = read('apps/tablet/android/app/src/debug/AndroidManifest.xml')
 const buildGradle = read('apps/tablet/android/app/build.gradle')
+const mainActivity = read('apps/tablet/android/app/src/main/java/com/hanglian/control/MainActivity.java')
 const strings = read('apps/tablet/android/app/src/main/res/values/strings.xml')
 const gitignore = read('.gitignore')
 
@@ -121,6 +122,7 @@ assert(/HANG_LIAN_RELEASE_KEY_ALIAS/.test(buildGradle), 'Release key alias 只�
 assert(/HANG_LIAN_RELEASE_KEY_PASSWORD/.test(buildGradle), 'Release key 密码只能从 HANG_LIAN_RELEASE_KEY_PASSWORD 读取')
 assert(!/(storePassword|keyPassword)\s+["'][^"']+["']/.test(buildGradle), 'build.gradle 不得硬编码 release 签名密码')
 assert(strings.includes('线束资料工作台'), 'Android app name 必须是线束资料工作台')
+assert(mainActivity.includes('setDownloadListener') && mainActivity.includes('DownloadManager.Request'), 'MainActivity 必须接管 WebView 下载')
 
 for (const scriptName of ['android:check', 'android:sync', 'android:build:debug']) {
   assert(rootPackage.scripts?.[scriptName], `根 package.json 缺少 ${scriptName}`)
