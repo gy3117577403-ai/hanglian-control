@@ -27,11 +27,16 @@ import { UnifiedDocumentsModule } from './unified-documents/unified-documents.mo
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['apps/api/.env.local', 'apps/api/.env', '.env.local', '.env'],
+      envFilePath: [
+        'apps/api/.env.local',
+        'apps/api/.env',
+        '.env.local',
+        '.env',
+      ],
     }),
+    AuthModule,
     DatabaseModule,
     AnalyticsModule,
-    AuthModule,
     HealthModule,
     AuditModule,
     ProductionPlansModule,
