@@ -42,6 +42,7 @@ function requireLockedViewport(label, html) {
 const packageJson = read('package.json')
 const distIndex = read('apps/tablet/dist/index.html')
 const androidIndex = readOptional('apps/tablet/android/app/src/main/assets/public/index.html')
+const androidOffline = readOptional('apps/tablet/android/app/src/main/assets/public/offline.html')
 const generatedCapacitorConfig = readOptional('apps/tablet/android/app/src/main/assets/capacitor.config.json')
 const capacitor = read('apps/tablet/capacitor.config.ts')
 const mainActivity = read('apps/tablet/android/app/src/main/java/com/hanglian/control/MainActivity.java')
@@ -55,6 +56,9 @@ if (androidIndex) {
   if (distIndex !== androidIndex) fail('Android assets index.html must match dist/index.html after cap sync')
 } else if (remoteEntryEnabled) {
   if (!/"cleartext"\s*:\s*false/.test(generatedCapacitorConfig)) fail('Remote Android entry must disable cleartext traffic')
+  if (!/"errorPath"\s*:\s*"offline\.html"/.test(generatedCapacitorConfig)) fail('Remote Android entry must configure offline.html as errorPath')
+  if (!androidOffline) fail('Remote Android entry must package offline.html')
+  if (androidOffline) requireLockedViewport('Android offline.html', androidOffline)
 } else {
   fail('Android assets index.html is missing and no safe remote Tablet entry was generated')
 }
@@ -73,7 +77,7 @@ if (!/production\s*\{[\s\S]*versionCode\s+1800[\s\S]*versionName\s+"0\.18\.0"[\s
   fail('Android production release version must be 1800 / 0.18.0')
 }
 if (!/applicationId\s+"com\.hanglian\.control"/.test(buildGradle)) fail('applicationId must remain com.hanglian.control')
-if (/localhost:5173|192\.168\.\d+\.\d+:5173|DATABASE_URL|postgres:\/\//.test(distIndex + androidIndex + generatedCapacitorConfig)) {
+if (/localhost:5173|192\.168\.\d+\.\d+:5173|DATABASE_URL|postgres:\/\//.test(distIndex + androidIndex + androidOffline + generatedCapacitorConfig)) {
   fail('Built Android assets must not contain dev frontend URLs or database credentials')
 }
 if (/pdfjs-dist|exceljs/i.test(distIndex)) {

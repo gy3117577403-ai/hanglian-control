@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { rmSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 const releaseWebUrl = process.env.CAPACITOR_REMOTE_WEB_URL?.trim() || 'https://fyeboolnlvqv.sealoshzh.site/tablet'
@@ -30,10 +30,17 @@ for (const [command, args] of commands) {
   }
 }
 
-rmSync(path.join(process.cwd(), 'apps/tablet/android/app/src/main/assets/public'), {
+const publicDir = path.join(process.cwd(), 'apps/tablet/android/app/src/main/assets/public')
+rmSync(publicDir, {
   force: true,
   recursive: true,
 })
+mkdirSync(publicDir, { recursive: true })
+const offlineTemplate = readFileSync(path.join(process.cwd(), 'apps/tablet/android/offline/offline.html'), 'utf8')
+writeFileSync(
+  path.join(publicDir, 'offline.html'),
+  offlineTemplate.replaceAll('__HANGLIAN_TABLET_URL__', releaseWebUrl),
+)
 
 for (const args of [
   ['run', 'android:assemble:production-release', '-w', 'tablet'],

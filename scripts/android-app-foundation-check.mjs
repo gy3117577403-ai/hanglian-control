@@ -94,6 +94,7 @@ assert(/CAPACITOR_REMOTE_WEB_URL/.test(config), 'Release 远程入口必须由 C
 assert(/const server = remoteWebUrl\s*\?/.test(config), 'Capacitor server.url 只能通过受控远程入口启用')
 assert(/url:\s*remoteWebUrl/.test(config), 'Capacitor server.url 不得硬编码在源码中')
 assert(/cleartext:\s*false/.test(config), 'Release 远程入口必须禁用明文网络')
+assert(/errorPath:\s*'offline\.html'/.test(config), 'Release 远程入口必须配置本地网络错误页')
 assert(/hostname:\s*'localhost'/.test(config), 'Capacitor hostname 应保持 localhost')
 assert(/androidScheme:\s*'https'/.test(config), 'Android scheme 必须是 https')
 assert(/allowMixedContent:\s*lanDebug/.test(config), 'allowMixedContent 只能由 CAPACITOR_LAN_DEBUG 控制')

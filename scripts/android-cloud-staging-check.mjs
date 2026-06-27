@@ -111,7 +111,7 @@ if (existsSync(apkPath)) {
 const builtAssets = collectTextFiles(builtAssetsDir)
 if (builtAssets.length) {
   const builtText = builtAssets.map((file) => readFileSync(file, 'utf8')).join('\n')
-  if (builtText.includes('android-cloud-staging') || builtText.includes('fyeboolnlvqv.sealoshzh.site')) {
+  if (builtText.includes('android-cloud-staging')) {
     assert(builtText.includes('https://fyeboolnlvqv.sealoshzh.site/api'), 'Built Android staging assets must contain the Sealos HTTPS API URL.')
     assert(!/localhost:3000|http:\/\/(127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)|DATABASE_URL|S3_SECRET|CORPSECRET|VOICE_SECRET/i.test(builtText), 'Built Android staging assets must not contain LAN, localhost API, database, or secret markers.')
   }

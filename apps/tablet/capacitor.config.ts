@@ -7,6 +7,7 @@ const server = remoteWebUrl
   ? {
       url: remoteWebUrl,
       cleartext: false,
+      errorPath: 'offline.html',
     }
   : {
       hostname: 'localhost',
