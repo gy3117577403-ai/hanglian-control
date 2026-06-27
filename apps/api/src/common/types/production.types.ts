@@ -223,6 +223,8 @@ export interface SearchResult {
 
 export interface DocumentQuery {
   planId?: string;
+  orderId?: string;
+  customerId?: string;
   productId?: string;
   documentType?: DocumentTypeV03;
   status?: DocumentStatus;

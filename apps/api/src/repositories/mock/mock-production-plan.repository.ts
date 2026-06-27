@@ -1,16 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import type { PlanStatus } from '../../common/enums/production.enum';
 import { evaluatePlanReadiness } from '../../common/utils/readiness';
 import { mockStore } from '../../mock/production.mock';
-import type { ConfirmationRecordSeed, ProductionPlanMock } from '../../common/types/production.types';
+import type {
+  ConfirmationRecordSeed,
+  ProductionPlanMock,
+} from '../../common/types/production.types';
 import type { ConfirmProductionPlanDto } from '../../production-plans/dto/confirm-production-plan.dto';
-import type { ProductionPlanRepositoryInterface } from '../interfaces/production-plan.repository.interface';
+import type {
+  ProductionPlanRepositoryInterface,
+  ProductionPlanScope,
+} from '../interfaces/production-plan.repository.interface';
 import { MockDocumentRepository } from './mock-document.repository';
 
 @Injectable()
 export class MockProductionPlanRepository implements ProductionPlanRepositoryInterface {
   constructor(private readonly documentRepository: MockDocumentRepository) {}
 
-  findPlans(scope: 'today' | 'week' = 'today') {
+  findPlans(scope: ProductionPlanScope = 'today') {
     return mockStore.findPlansByScope(scope);
   }
 
@@ -39,6 +46,20 @@ export class MockProductionPlanRepository implements ProductionPlanRepositoryInt
       createdAt: new Date().toISOString(),
     } satisfies ConfirmationRecordSeed);
 
+    return this.withReadiness(plan);
+  }
+
+  updatePlanStatus(id: string, status: PlanStatus) {
+    const plan = mockStore.updatePlan(id, { status });
+    return plan ? this.withReadiness(plan) : undefined;
+  }
+
+  completePlan(id: string, completedQuantity?: number) {
+    const plan = mockStore.findPlanById(id);
+    if (!plan) return undefined;
+
+    plan.status = '已完成';
+    plan.completedQuantity = completedQuantity ?? plan.plannedQuantity;
     return this.withReadiness(plan);
   }
 
