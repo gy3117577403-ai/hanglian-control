@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Hanglian Pad entry module",
+  "main": "",
+  "author": "hanglian",
+  "license": "MIT",
+  "dependencies": {}
+}

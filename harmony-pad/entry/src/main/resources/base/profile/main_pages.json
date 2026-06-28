@@ -1,0 +1,8 @@
+{
+  "src": [
+    "pages/SplashPage",
+    "pages/LoginPage",
+    "pages/WorkbenchPage",
+    "pages/DocumentPreviewPage"
+  ]
+}

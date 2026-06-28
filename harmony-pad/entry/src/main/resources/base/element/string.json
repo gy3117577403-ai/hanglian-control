@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "航联平板"
+    },
+    {
+      "name": "module_desc",
+      "value": "航联平板入口模块"
+    },
+    {
+      "name": "entry_desc",
+      "value": "航联平板应用入口"
+    }
+  ]
+}
