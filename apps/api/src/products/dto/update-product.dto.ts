@@ -12,6 +12,21 @@ export class UpdateProductDto {
   @IsString()
   productCode?: string;
 
+  @ApiPropertyOptional({ example: 'HL-EV-4821A' })
+  @IsOptional()
+  @IsString()
+  productModel?: string;
+
+  @ApiPropertyOptional({ example: 'HL-EV-4821A' })
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional({ example: 'HL-EV-4821A' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @ApiPropertyOptional({ example: '电池包高压采样线束' })
   @IsOptional()
   @IsString()

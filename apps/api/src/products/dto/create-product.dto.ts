@@ -12,6 +12,21 @@ export class CreateProductDto {
   @IsNotEmpty()
   productCode: string;
 
+  @ApiPropertyOptional({ example: 'HL-EV-4821A' })
+  @IsOptional()
+  @IsString()
+  productModel?: string;
+
+  @ApiPropertyOptional({ example: 'HL-EV-4821A' })
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional({ example: 'HL-EV-4821A' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @ApiProperty({ example: '电池包高压采样线束' })
   @IsString()
   @IsNotEmpty()

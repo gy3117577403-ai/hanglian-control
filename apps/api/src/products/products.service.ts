@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   DATA_SOURCE_CONFIG,
   REPOSITORY_TOKENS,
@@ -8,6 +13,7 @@ import type { ProductSeed } from '../common/types/production.types';
 import type { DataSourceConfig } from '../config/data-source.config';
 import { assertDatabaseWriteAllowed } from '../database/database-safety';
 import { PrismaService } from '../database/prisma.service';
+import { normalizeProductModel } from '../document-hub/helpers/pdf-name-parser';
 import {
   groupDocumentsForArkTS,
   withDocumentCategory,
@@ -27,6 +33,13 @@ type ProductRow = ProductSeed & {
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+};
+
+type ProductModelInput = {
+  productModel?: string;
+  model?: string;
+  productCode?: string;
+  name?: string;
 };
 
 function nowId(prefix: string) {
@@ -50,6 +63,43 @@ function mapPrismaProduct(row: Record<string, any>): ProductRow {
       ? new Date(row.updatedAt).toISOString()
       : undefined,
   };
+}
+
+function text(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = text(value);
+    if (normalized) return normalized;
+  }
+  return '';
+}
+
+function productModelFromInput(input: ProductModelInput, fallback?: string) {
+  return firstText(
+    input.productModel,
+    input.model,
+    input.productCode,
+    input.name,
+    fallback,
+  );
+}
+
+function normalizeProductModelFromInput(input: ProductModelInput, fallback?: string) {
+  const productModel = productModelFromInput(input, fallback);
+  const normalizedProductModel = normalizeProductModel(productModel);
+  if (!productModel || !normalizedProductModel) {
+    throw new BadRequestException('产品型号不能为空。');
+  }
+  return { productModel, normalizedProductModel };
+}
+
+function hasProductModelInput(input: ProductModelInput) {
+  return ['productModel', 'model', 'productCode', 'name'].some(
+    (key) => Object.prototype.hasOwnProperty.call(input, key),
+  );
 }
 
 @Injectable()
@@ -91,10 +141,14 @@ export class ProductsService {
   async create(dto: CreateProductDto) {
     if (this.dataSourceConfig.dataSource === 'postgres') {
       assertDatabaseWriteAllowed();
+      const { productModel, normalizedProductModel } =
+        normalizeProductModelFromInput(dto);
       const row = await this.prisma.client.product.create({
         data: {
           customerId: dto.customerId,
           productCode: dto.productCode,
+          productModel,
+          normalizedProductModel,
           productName: dto.productName,
           currentVersion: dto.currentVersion,
           processSegment: prismaWriteMaps.process[dto.processSegment ?? '通用'],
@@ -125,6 +179,12 @@ export class ProductsService {
       assertDatabaseWriteAllowed();
       const current = await this.findProductRow(id);
       if (!current) throw new NotFoundException(`未找到产品：${id}`);
+      const productModelPatch = hasProductModelInput(dto)
+        ? normalizeProductModelFromInput(
+            dto,
+            current.productModel ?? current.productCode ?? current.productName,
+          )
+        : undefined;
       const row = await this.prisma.client.product.update({
         where: { id: current.id },
         data: {
@@ -133,6 +193,13 @@ export class ProductsService {
             : {}),
           ...(dto.productCode !== undefined
             ? { productCode: dto.productCode }
+            : {}),
+          ...(productModelPatch
+            ? {
+                productModel: productModelPatch.productModel,
+                normalizedProductModel:
+                  productModelPatch.normalizedProductModel,
+              }
             : {}),
           ...(dto.productName !== undefined
             ? { productName: dto.productName }
