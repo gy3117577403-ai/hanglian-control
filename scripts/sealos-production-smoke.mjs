@@ -51,6 +51,17 @@ function assertProductionUrl() {
 
 function absoluteUrl(pathOrUrl) {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  if (pathOrUrl.startsWith('/')) {
+    try {
+      const base = new URL(apiBaseUrl);
+      const basePath = base.pathname.replace(/\/+$/, '');
+      if (basePath && (pathOrUrl === basePath || pathOrUrl.startsWith(`${basePath}/`))) {
+        return `${base.origin}${pathOrUrl}`;
+      }
+    } catch {
+      // Fall back to the plain string join below for non-standard API_BASE_URL values.
+    }
+  }
   return `${apiBaseUrl}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
 }
 
@@ -95,7 +106,8 @@ function sanitize(value) {
   return String(value ?? '')
     .replaceAll(adminPassword, '[redacted:ADMIN_PASSWORD]')
     .replace(/"accessToken"\s*:\s*"[^"]+"/gi, '"accessToken":"[redacted]"')
-    .replace(/"refreshToken"\s*:\s*"[^"]+"/gi, '"refreshToken":"[redacted]"');
+    .replace(/"refreshToken"\s*:\s*"[^"]+"/gi, '"refreshToken":"[redacted]"')
+    .replace(/([?&]accessToken=)[^"&\s]+/gi, '$1[redacted]');
 }
 
 function step(name) {

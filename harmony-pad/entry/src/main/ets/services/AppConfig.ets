@@ -1,5 +1,5 @@
 export class AppConfig {
-  static readonly API_BASE_URL: string = 'https://sealos-api.example.com/api';
+static readonly API_BASE_URL: string = 'https://fyeboolnlvqv.sealoshzh.site/api';
   static readonly API_PREFIX: string = '';
   static readonly ENABLE_MOCK_FALLBACK: boolean = true;
   static readonly REQUEST_TIMEOUT_MS: number = 15000;
