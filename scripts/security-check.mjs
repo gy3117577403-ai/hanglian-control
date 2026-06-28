@@ -65,6 +65,9 @@ function isIgnored(path) {
 
 function shouldSkipDirectory(relativePath) {
   const normalized = toPosix(relativePath);
+  if (insideGit && isIgnored(normalized)) {
+    return true;
+  }
   if (normalized.startsWith('apps/tablet/android/app/src/main/assets/public')) {
     return true;
   }
@@ -110,6 +113,7 @@ function isPlaceholder(value) {
     lower.includes('form.') ||
     lower.includes('payload.') ||
     lower.includes('dto.') ||
+    lower.includes('this.') ||
     lower.includes('trimmedpassword') ||
     lower.includes('sandboxdeletepassword') ||
     lower.includes('process.env') ||
@@ -183,6 +187,10 @@ function walk(directory) {
     }
 
     if (!entry.isFile()) {
+      continue;
+    }
+
+    if (insideGit && isIgnored(relativePath)) {
       continue;
     }
 

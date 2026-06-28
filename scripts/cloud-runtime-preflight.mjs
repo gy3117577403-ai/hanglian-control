@@ -37,6 +37,7 @@ console.log('This check is local-only. It does not connect to Sealos, databases,
 
 [
   'Dockerfile.api',
+  'Dockerfile.migrate',
   'Dockerfile.tablet',
   'apps/tablet/docker/nginx.conf',
   'apps/tablet/docker/entrypoint.sh',
@@ -48,6 +49,7 @@ console.log('This check is local-only. It does not connect to Sealos, databases,
   'apps/api/src/storage/controllers/storage-status.controller.ts',
   'apps/api/src/storage/storage-mount-check.service.ts',
   'apps/api/scripts/start-cloud.mjs',
+  'scripts/run-prisma-migrate-deploy.mjs',
   'deploy/sealos/api-persistent-volume-env.example',
   'deploy/sealos/tablet-env.example',
   'deploy/sealos/persistent-volume-mount.example.md',
@@ -58,6 +60,7 @@ requireIncludes('Dockerfile.api', 'USER node', 'API Dockerfile must run as a non
 requireIncludes('Dockerfile.api', 'HEALTHCHECK', 'API Dockerfile must include a healthcheck.');
 requireIncludes('Dockerfile.api', 'RUN_PRISMA_MIGRATE_DEPLOY=false', 'API Dockerfile must keep migration deploy disabled by default.');
 requireIncludes('Dockerfile.api', 'STORAGE_ROOT=/data/hanglian', 'API Dockerfile must default STORAGE_ROOT to /data/hanglian.');
+requireIncludes('Dockerfile.api', 'prisma.config.ts ./apps/api/prisma.config.ts', 'API Dockerfile must include prisma.config.ts for explicit migration deploy.');
 requireIncludes('Dockerfile.tablet', 'apps/tablet/docker/nginx.conf', 'Tablet Dockerfile must use the V3.11 Nginx config.');
 requireIncludes('Dockerfile.tablet', 'RUNTIME_API_BASE_URL', 'Tablet Dockerfile must support runtime API configuration.');
 requireIncludes('apps/api/src/config/cors.config.ts', 'CORS_ORIGINS', 'API CORS must support a comma-separated allowlist.');
@@ -70,15 +73,21 @@ requireIncludes('apps/api/src/storage/storage-mount-check.service.ts', 'runProbe
 requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.DATA_SOURCE ??= 'mock'", 'Cloud startup must default DATA_SOURCE to mock.');
 requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.RUN_PRISMA_MIGRATE_DEPLOY ??= 'false'", 'Cloud startup must default migration deploy to false.');
 requireIncludes('apps/api/scripts/start-cloud.mjs', "process.env.DATA_SOURCE !== 'postgres'", 'Cloud startup must refuse migration outside postgres mode.');
+requireIncludes('apps/api/scripts/start-cloud.mjs', 'MIGRATION_CONFIRMATION', 'Cloud startup migration path must require explicit confirmation.');
+requireIncludes('apps/api/scripts/start-cloud.mjs', '--config=prisma.config.ts', 'Cloud startup migration path must use prisma.config.ts.');
 requireIncludes('deploy/sealos/api-persistent-volume-env.example', 'STORAGE_ROOT=/data/hanglian', 'Sealos API env example must include persistent volume storage root.');
 requireIncludes('deploy/sealos/api-persistent-volume-env.example', 'CORS_ORIGINS=https://YOUR_TABLET_DOMAIN', 'Sealos API env example must use placeholder Tablet domain.');
 requireIncludes('deploy/sealos/tablet-env.example', 'RUNTIME_API_BASE_URL=https://YOUR_API_DOMAIN/api', 'Tablet env example must use placeholder API domain.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'workflow_dispatch', 'Image workflow must be manual only.');
 requireIncludes('.github/workflows/build-images-manual.yml', 'docker/build-push-action', 'Image workflow must build container images.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'file: Dockerfile.api', 'Image workflow must build the API image from Dockerfile.api.');
+requireIncludes('.github/workflows/build-images-manual.yml', 'file: Dockerfile.migrate', 'Image workflow must build the migration runner image from Dockerfile.migrate.');
+requireIncludes('scripts/run-prisma-migrate-deploy.mjs', 'MIGRATION_CONFIRMATION', 'Migration runner must require explicit confirmation.');
 requireNotIncludes('deploy/sealos/api-persistent-volume-env.example', 'postgresql://', 'Sealos API env example must not contain a database connection string.');
 requireNotIncludes('deploy/sealos/tablet-env.example', 'fyeboolnlvqv', 'Tablet env example must not contain a real domain.');
 requireNotIncludes('apps/tablet/src/config/api-base.ts', 'fyeboolnlvqv', 'Tablet API base config must not contain the old real Sealos domain.');
-requireNotIncludes('.github/workflows/build-images-manual.yml', 'migrate', 'Manual image workflow must not run migrations.');
+requireNotIncludes('.github/workflows/build-images-manual.yml', 'sealosctl', 'Manual image workflow must not deploy to Sealos.');
+requireNotIncludes('.github/workflows/build-images-manual.yml', 'kubectl', 'Manual image workflow must not apply Kubernetes resources.');
 requireNotIncludes('.github/workflows/build-images-manual.yml', 'seed', 'Manual image workflow must not run seed scripts.');
 
 const envLocalTracked = gitLsFiles('**/.env.local');
