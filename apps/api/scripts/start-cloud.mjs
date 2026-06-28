@@ -6,6 +6,7 @@ import pg from 'pg';
 const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultCloudSchema = process.env.CLOUD_DATABASE_SCHEMA || 'hanglian_control_ready';
 const startupRevision = 'schema-isolation-v7';
+const migrationConfirmation = 'APPLY_V318_MIGRATIONS_TO_STAGING';
 
 console.log(`Hanglian cloud startup revision: ${startupRevision}`);
 
@@ -159,11 +160,11 @@ function run(command, args, options = {}) {
 function assertCloudMigrationAllowed() {
   const checks = [
     ['DATA_SOURCE', process.env.DATA_SOURCE === 'postgres'],
-    ['DEPLOYMENT_STAGE', process.env.DEPLOYMENT_STAGE === 'sealos-test'],
-    ['DB_TARGET', process.env.DB_TARGET === 'test'],
+    ['DB_TARGET', process.env.DB_TARGET === 'staging'],
     ['ALLOW_TEST_DB_CONNECT', isTrue(process.env.ALLOW_TEST_DB_CONNECT)],
     ['ALLOW_PRISMA_WRITE', isTrue(process.env.ALLOW_PRISMA_WRITE)],
     ['ALLOW_DESTRUCTIVE_DB_ACTIONS', !isTrue(process.env.ALLOW_DESTRUCTIVE_DB_ACTIONS)],
+    ['MIGRATION_CONFIRMATION', process.env.MIGRATION_CONFIRMATION === migrationConfirmation],
   ];
 
   const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
@@ -186,7 +187,7 @@ if (isTrue(process.env.RUN_PRISMA_MIGRATE_DEPLOY)) {
   }
   const schemaName = assertCloudMigrationAllowed();
   await ensureSchema(schemaName);
-  const status = run('npx', ['prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma'], { allowFailure: true });
+  const status = run('npx', ['prisma', 'migrate', 'deploy', '--config=prisma.config.ts'], { allowFailure: true });
   if (status !== 0) {
     await printMigrationDiagnostics(schemaName);
     process.exit(status);
