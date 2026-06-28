@@ -23,7 +23,7 @@ Set the Sealos public HTTPS backend URL in:
 static readonly API_BASE_URL: string = 'https://sealos-api.example.com/api';
 ```
 
-Agent S should replace this placeholder with the final HTTPS API base URL.
+For a real Sealos deployment, replace the placeholder with the public HTTPS API base URL including `/api`.
 
 ## Build
 

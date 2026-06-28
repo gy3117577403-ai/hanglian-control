@@ -1,5 +1,16 @@
 # 线束车间生产计划资料管控系统
 
+## Harmony MVP Day 1 发布配置
+
+- 最终发布分支：`release-harmony-mvp-day1`。
+- ArkTS 工程路径：`harmony-pad/`。
+- ArkTS API 配置只保留 `harmony-pad/entry/src/main/ets/services/AppConfig.ets`。
+- `API_BASE_URL` 必须已经包含 `/api`，示例：`https://<sealos-api-domain>/api`。
+- Sealos / MatePad 发布配置写法：`API_BASE_URL=https://<sealos-api-domain>/api`。
+- ArkTS 业务调用只写相对业务路径，例如登录调用 `auth/login` / `/auth/login`，不要写 `/api/auth/login`。
+- Sealos 部署顺序：先运行 migration runner，再执行 admin seed，最后启动 API 服务并跑公网 smoke。
+- 本地存储模式必须给 API 挂载持久化卷 `/data/hanglian`；S3/Object Storage 是可选替代方案，密钥只放部署环境变量。
+
 ## V3.16A Android APP 基础工程
 
 当前新增 Capacitor Android 原生壳：`com.hanglian.control` / `线束资料工作台`，加载 Tablet 生产构建的本地资源，默认横屏，支持 Android 返回键、原生网络状态提示、状态栏/Splash 处理和 Debug LAN API 配置。
