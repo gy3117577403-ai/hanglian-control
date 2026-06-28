@@ -692,6 +692,24 @@ model BackProcessPackage {
   @@index([deletedAt])
 }
 
+model ConnectorProcessParameter {
+  id               String    @id @default(cuid())
+  connectorModel   String
+  insertionLength  Float
+  outerStripLength Float?
+  innerStripLength Float
+  remark           String?
+  status           String    @default("active")
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([connectorModel])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([updatedAt])
+}
+
 model QueryLog {
   id               String          @id @default(cuid())
   productionPlanId String?

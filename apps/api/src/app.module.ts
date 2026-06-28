@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { ConnectorParamsModule } from './connector-params/connector-params.module';
 import { CustomersModule } from './customers/customers.module';
 import { DatabaseModule } from './database/database.module';
 import { DocumentHubModule } from './document-hub/document-hub.module';
@@ -18,6 +19,7 @@ import { MigrationModule } from './migration/migration.module';
 import { OrdersModule } from './orders/orders.module';
 import { ProductionPlansModule } from './production-plans/production-plans.module';
 import { ProductsModule } from './products/products.module';
+import { RecycleBinModule } from './recycle-bin/recycle-bin.module';
 import { RuntimeModule } from './runtime/runtime.module';
 import { SearchModule } from './search/search.module';
 import { SettingsModule } from './settings/settings.module';
@@ -48,6 +50,8 @@ import { UsersModule } from './users/users.module';
     CustomersModule,
     ProductionPlansModule,
     ProductsModule,
+    ConnectorParamsModule,
+    RecycleBinModule,
     DocumentsModule,
     DocumentHubModule,
     ExecutionModule,

@@ -54,6 +54,7 @@ apps/api/storage/uploads/*
 apps/api/storage/tmp/*
 apps/api/storage/metadata/documents.json
 apps/api/storage/metadata/audit-logs.json
+apps/api/storage/metadata/connector-params.json
 apps/api/storage/metadata/import-records.json
 apps/api/storage/metadata/imported-business-data.json
 apps/api/storage/metadata/import-previews.json
