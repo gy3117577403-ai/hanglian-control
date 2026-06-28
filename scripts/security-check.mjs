@@ -64,7 +64,12 @@ function isIgnored(path) {
 }
 
 function shouldSkipDirectory(relativePath) {
-  const parts = toPosix(relativePath).split('/');
+  const normalized = toPosix(relativePath);
+  if (normalized.startsWith('apps/tablet/android/app/src/main/assets/public')) {
+    return true;
+  }
+
+  const parts = normalized.split('/');
   if (parts.some((part) => ignoredDirectories.has(part))) {
     return true;
   }
@@ -88,12 +93,26 @@ function stripValue(value) {
 
 function isPlaceholder(value) {
   const lower = value.toLowerCase();
+  const cleaned = lower.replace(/[;,]$/, '');
   return (
     value === '' ||
+    cleaned === 'string' ||
+    cleaned === 'boolean' ||
+    cleaned === 'number' ||
+    cleaned === 'unknown' ||
     lower.includes('example') ||
     lower.includes('placeholder') ||
     lower.includes('changeme') ||
     lower.includes('your_') ||
+    lower.includes('用户输入') ||
+    lower.includes('请输入') ||
+    lower.includes('删除密码') ||
+    lower.includes('form.') ||
+    lower.includes('payload.') ||
+    lower.includes('dto.') ||
+    lower.includes('trimmedpassword') ||
+    lower.includes('sandboxdeletepassword') ||
+    lower.includes('process.env') ||
     lower.includes('user:password@host') ||
     lower === 'password' ||
     lower === 'secret' ||
@@ -232,6 +251,24 @@ function checkUploadFiles() {
   uploadFiles.forEach((file) => checkLocalOnlyFile(file));
 }
 
+function checkGeneratedRuntimeArtifacts() {
+  const generatedFiles = listFiles(join(rootDir, 'docs/generated')).filter((file) => {
+    return /^docs\/generated\/real-data-.*\.md$/.test(file)
+      || /^docs\/generated\/tablet-production-preview-.*\.png$/.test(file)
+      || /^docs\/generated\/tablet-ui-interaction-.*\.png$/.test(file)
+      || /^docs\/generated\/v3-5-.*\.png$/.test(file)
+      || /^docs\/generated\/tmp-browser-.*\.(json|log)$/.test(file);
+  });
+
+  for (const file of generatedFiles) {
+    if (isTracked(file)) {
+      addBlocker(file, '鐪熷疄娴嬭瘯/鍥炲綊鐢熸垚浜х墿宸茶 Git 璺熻釜');
+    } else if (insideGit && !isIgnored(file)) {
+      addBlocker(file, '鐪熷疄娴嬭瘯/鍥炲綊鐢熸垚浜х墿鏈 .gitignore 蹇界暐');
+    }
+  }
+}
+
 walk(rootDir);
 
 [
@@ -239,11 +276,34 @@ walk(rootDir);
   '.env.local',
   'apps/api/storage/metadata/documents.json',
   'apps/api/storage/metadata/audit-logs.json',
+  'apps/api/storage/metadata/import-records.json',
+  'apps/api/storage/metadata/imported-business-data.json',
+  'apps/api/storage/metadata/import-previews.json',
+  'apps/api/storage/metadata/maintenance-records.json',
+  'apps/api/storage/metadata/knowledge-fixtures.json',
+  'apps/api/storage/metadata/knowledge-abnormal-cases.json',
+  'apps/api/storage/metadata/knowledge-quality-standards.json',
+  'apps/api/storage/metadata/knowledge-records.json',
+  'apps/api/storage/metadata/execution-records.json',
+  'apps/api/storage/metadata/plan-status-events.json',
+  'apps/api/storage/metadata/quantity-reports.json',
+  'apps/api/storage/metadata/shift-handover-records.json',
+  'apps/api/storage/metadata/demo-analytics-snapshot.json',
+  'apps/api/storage/metadata/system-settings.json',
+  'apps/api/storage/metadata/dictionary-settings.json',
+  'apps/api/storage/metadata/station-profiles.json',
+  'apps/api/storage/metadata/display-settings.json',
+  'apps/api/storage/metadata/announcement-records.json',
+  'apps/api/storage/metadata/system-feedback-records.json',
+  'apps/api/storage/metadata/pilot-check-records.json',
+  'apps/api/storage/metadata/settings-records.json',
+  'apps/api/storage/metadata/delete-lock-settings.json',
   'apps/api/storage/metadata/prisma-seed-preview.json',
   'apps/api/storage/metadata/prisma-migration-preview.sql',
 ].forEach((file) => checkLocalOnlyFile(file));
 
 checkUploadFiles();
+checkGeneratedRuntimeArtifacts();
 
 console.log('GitHub 上传前安全检查报告');
 console.log('==========================');

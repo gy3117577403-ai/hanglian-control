@@ -1,0 +1,311 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+
+const root = process.cwd();
+const failures = [];
+
+function assert(condition, message) {
+  if (!condition) failures.push(message);
+}
+
+function read(relativePath) {
+  return readFileSync(join(root, relativePath), 'utf8');
+}
+
+function methodBody(source, methodName) {
+  const patterns = [
+    `async function ${methodName}`,
+    `function ${methodName}`,
+    `export async function ${methodName}`,
+    `export function ${methodName}`,
+  ];
+  const start = patterns
+    .map((pattern) => source.indexOf(pattern))
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0] ?? -1;
+  if (start < 0) return '';
+  const signatureEnd = source.indexOf(') {', start);
+  const braceStart = signatureEnd >= 0 ? signatureEnd + 2 : source.indexOf('{', start);
+  if (braceStart < 0) return '';
+  let depth = 0;
+  for (let index = braceStart; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(braceStart, index + 1);
+    }
+  }
+  return '';
+}
+
+function changedFiles() {
+  const result = spawnSync('git', ['status', '--short'], { cwd: root, encoding: 'utf8' });
+  if (result.error) {
+    failures.push(`无法读取 git status: ${result.error.message}`);
+    return [];
+  }
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.slice(3).trim())
+    .filter(Boolean)
+    .map((line) => line.includes(' -> ') ? line.split(' -> ').pop() ?? line : line)
+    .map((line) => line.replaceAll('\\', '/'));
+}
+
+const files = {
+  api: 'apps/tablet/src/services/api.ts',
+  store: 'apps/tablet/src/stores/document-hub-store.ts',
+  types: 'apps/tablet/src/types/order-management.ts',
+  productionResolution: 'apps/tablet/src/types/product-resolution.ts',
+  card: 'apps/tablet/src/components/orders/WarmOrderCard.vue',
+  sidebar: 'apps/tablet/src/components/orders/WarmOrderSidebar.vue',
+  statusMenu: 'apps/tablet/src/components/orders/WarmOrderStatusMenu.vue',
+  productLink: 'apps/tablet/src/components/orders/WarmOrderProductLinkDialog.vue',
+  unarchivedPanel: 'apps/tablet/src/components/drawing/WarmUnarchivedProductPanel.vue',
+  packageJson: 'package.json',
+};
+
+for (const [label, relativePath] of Object.entries(files)) {
+  assert(existsSync(join(root, relativePath)), `${label} 文件不存在：${relativePath}`);
+}
+
+const api = read(files.api);
+const store = read(files.store);
+const types = read(files.types);
+const sidebar = read(files.sidebar);
+const card = read(files.card);
+const statusMenu = read(files.statusMenu);
+const productLink = read(files.productLink);
+const unarchivedPanel = read(files.unarchivedPanel);
+const packageJson = read(files.packageJson);
+
+const getOrdersBody = methodBody(api, 'getDocumentHubOrders');
+const previewBody = methodBody(api, 'previewOrderImport');
+const applyBody = methodBody(api, 'applyOrderImport');
+const updateBody = methodBody(api, 'updateOrderProductionStatus');
+const completeBody = methodBody(api, 'completeDocumentHubOrder');
+const restoreBody = methodBody(api, 'restoreDocumentHubOrder');
+const linkBody = methodBody(api, 'linkOrderProduct');
+
+assert(types.includes("export type OrderScope = 'today' | 'week'"), 'OrderScope 类型应包含 today/week。');
+assert(types.includes("export type OrderProductionStatus = 'front' | 'back' | 'no_drawing'"), '订单生产状态类型不完整。');
+assert(types.includes('OrderImportPreviewResponse') && types.includes('OrderImportApplyResponse'), '订单导入 Preview/Apply 类型不完整。');
+assert(types.includes('OrderOverviewResponse') && types.includes('ProductionOrder'), '订单总览或订单记录类型不完整。');
+assert(!/metadataRoot|METADATA_ROOT|storageKey|staged|DATABASE_URL/i.test(types), '订单前端类型不能暴露 metadata 路径、staged key 或数据库字段。');
+
+assert(getOrdersBody.includes('/document-hub/orders'), '订单查询 API 未接入真实后端。');
+assert(api.includes('completionStatus') && api.includes('productionStatus') && api.includes('linkedProductId'), '订单查询 API 缺少筛选参数。');
+assert(previewBody.includes('FormData') && previewBody.includes("formData.append('file'") && previewBody.includes("formData.append('scope'"), '订单 Preview 必须使用 FormData 上传 XLSX。');
+assert(previewBody.includes('.xlsx') && !previewBody.includes('Content-Type'), '订单 Preview 应限制 XLSX 且不能手动设置 multipart boundary。');
+assert(applyBody.includes('/document-hub/orders/import/apply'), '订单 Apply API 未接入。');
+assert(updateBody.includes("method: 'PATCH'") && updateBody.includes('/status'), '订单状态更新必须使用 PATCH。');
+assert(completeBody.includes('/complete') && completeBody.includes("method: 'POST'"), '完成订单 API 未接入。');
+assert(restoreBody.includes('/restore') && restoreBody.includes("method: 'POST'"), '恢复订单 API 未接入。');
+assert(linkBody.includes('/product-link') && linkBody.includes('encodeURIComponent(orderId)'), '产品绑定 API 必须使用 product-link 并编码 orderId。');
+assert(!/mock fallback|fake success|fake preview/i.test(api), '订单 API 不允许 mock fallback 或假成功。');
+
+assert(store.includes("const activeOrderScope = ref<OrderScope>('week')"), 'Store 默认应显示本周订单。');
+for (const token of [
+  'todayOrders',
+  'weekOrders',
+  'ordersLoading',
+  'ordersError',
+  'orderImportOpen',
+  'orderImportScope',
+  'orderImportFile',
+  'orderImportPreview',
+  'orderImportItems',
+  'orderImportResult',
+  'orderOverviewOpen',
+  'orderOverview',
+  'orderActionLoadingId',
+  'pendingProductLinkOrder',
+]) {
+  assert(store.includes(token), `Store 缺少状态：${token}`);
+}
+for (const token of [
+  'setActiveOrderScope',
+  'loadOrders',
+  'loadTodayOrders',
+  'loadWeekOrders',
+  'setOrderImportFile',
+  'previewOrderImport',
+  'updateOrderImportItem',
+  'applyOrderImport',
+  'resetOrderImport',
+  'updateOrderStatus',
+  'completeOrder',
+  'restoreOrder',
+  'loadOrderOverview',
+  'openOrderOverview',
+  'closeOrderOverview',
+  'linkOrderToProduct',
+  'refreshOrdersAfterAction',
+]) {
+  assert(store.includes(`function ${token}`) || store.includes(`async function ${token}`), `Store 缺少动作：${token}`);
+}
+
+const completeStoreBody = methodBody(store, 'completeOrder');
+const restoreStoreBody = methodBody(store, 'restoreOrder');
+const statusStoreBody = methodBody(store, 'updateOrderStatus');
+const applyStoreBody = methodBody(store, 'applyOrderImport');
+assert(completeStoreBody.includes('completeDocumentHubOrder') && completeStoreBody.includes('refreshOrdersAfterAction') && !completeStoreBody.includes('patchOrder'), '完成订单必须成功后刷新，不允许本地假完成。');
+assert(restoreStoreBody.includes('restoreDocumentHubOrder') && restoreStoreBody.includes('refreshOrdersAfterAction') && !restoreStoreBody.includes('unshift'), '恢复订单必须成功后刷新，不允许失败时插回本地列表。');
+assert(statusStoreBody.includes('updateOrderProductionStatus') && statusStoreBody.includes('refreshOrdersAfterAction'), '状态切换必须调用真实 PATCH 后刷新。');
+assert(applyStoreBody.includes('applyOrderImportRequest') && applyStoreBody.includes('refreshOrdersAfterAction'), '订单导入 Apply 必须调用真实 API 并刷新订单。');
+assert(!store.includes('mockHubOrders') && !store.includes('localOrders'), '订单 Store 不应再使用本地 mock 订单 fallback。');
+assert(!/localStorage\.setItem[\s\S]{0,120}orderImportFile|orderImportFile[\s\S]{0,120}localStorage\.setItem/.test(store), 'Excel File 对象不得持久化到 localStorage。');
+
+assert(card.includes('quantityProvided') && card.includes('数量未填写'), '订单卡片必须正确展示未填写数量。');
+assert(statusMenu.includes('在前端') && statusMenu.includes('在后端') && statusMenu.includes('未发图'), '三种订单状态中文映射缺失。');
+assert(statusMenu.includes('当前产品尚无原图，不能切换生产状态。'), '无原图状态保护提示缺失。');
+assert(productLink.includes('store.linkOrderToProduct') && productLink.includes('选择客户') && productLink.includes('选择产品资料页'), '同型号多客户绑定弹窗未接入真实 Store。');
+assert(
+  sidebar.includes('store.setActiveOrderScope') &&
+  sidebar.includes('orders-${store.activeOrderScope}') &&
+  store.includes('orders-${scope}'),
+  '今日/本周切换和滚动 key 不完整。',
+);
+assert(unarchivedPanel.includes('数量未填写'), '未建档引导页也应避免把空数量显示成假 0 或假 1。');
+
+const v315PerformanceFiles = [
+  'apps/tablet/src/App.vue',
+  'apps/tablet/src/main.ts',
+  'apps/tablet/src/styles/tablet-performance.css',
+  'apps/tablet/src/composables/use-pdf-cover-queue.ts',
+  'apps/tablet/src/composables/use-progressive-list.ts',
+  'apps/tablet/src/composables/use-tablet-performance.ts',
+  'apps/tablet/src/components/document/WarmImagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingModuleCard.vue',
+  'apps/tablet/src/components/drawing/WarmImageDetailViewer.vue',
+  'apps/tablet/src/components/drawing/WarmModuleCoverPreview.vue',
+  'apps/tablet/src/components/drawing/WarmPdfFirstPagePreview.vue',
+  'apps/tablet/src/components/drawing/WarmProductDrawingHome.vue',
+  'apps/tablet/src/components/hub/WarmFunctionOrb.vue',
+  'apps/tablet/src/components/hub/WarmHubContent.vue',
+  'apps/tablet/src/components/maintenance/WarmCustomerListPanel.vue',
+  'apps/tablet/src/components/maintenance/WarmProductListPanel.vue',
+  'apps/tablet/src/components/trash/WarmDrawingTrashDialog.vue',
+  'apps/tablet/src/components/trash/WarmTrashDocumentCard.vue',
+  'apps/tablet/src/components/upload/WarmCameraCaptureDialog.vue',
+  'apps/tablet/src/components/upload/WarmUploadPreviewGrid.vue',
+  'apps/tablet/src/components/viewer/WarmImageThumbnail.vue',
+  'apps/tablet/src/components/viewer/WarmImageViewer.vue',
+  'scripts/pdf-cover-performance-check.mjs',
+  'scripts/tablet-production-performance-smoke.mjs',
+  'scripts/tablet-scroll-performance-check.mjs',
+  'scripts/tablet-visual-performance-check.mjs',
+];
+const v316NativeViewportFiles = [
+  'apps/tablet/android/app/build.gradle',
+  'apps/tablet/android/app/src/main/java/com/hanglian/control/MainActivity.java',
+  'apps/tablet/src/components/connector/WarmConnectorParameterView.vue',
+  'apps/tablet/src/components/drawing/WarmDrawingLibraryView.vue',
+  'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue',
+  'apps/tablet/src/components/native/WarmNativeHeaderActions.vue',
+  'apps/tablet/src/components/native/WarmNativeMoreMenu.vue',
+  'apps/tablet/src/composables/use-idle-prefetch.ts',
+  'apps/tablet/src/composables/use-native-app-viewport.ts',
+  'apps/tablet/src/composables/use-native-mode-cache.ts',
+  'apps/tablet/src/composables/use-native-viewport.ts',
+  'apps/tablet/src/composables/use-stale-while-revalidate.ts',
+  'apps/tablet/src/native/native-gesture-lock.ts',
+  'apps/tablet/src/native/native-shell.ts',
+  'apps/tablet/src/native/native-viewport-guard.ts',
+  'apps/tablet/src/styles/native-header-layout.css',
+  'apps/tablet/src/styles/native-interaction-lock.css',
+  'apps/tablet/src/styles/native-connector-light.css',
+  'apps/tablet/src/styles/native-fixed-viewport.css',
+  'apps/tablet/src/styles/native-switch-performance.css',
+  'apps/tablet/vite.config.ts',
+  'scripts/android-app-foundation-check.mjs',
+  'scripts/android-built-assets-check.mjs',
+  'scripts/frontend-lazy-loading-check.mjs',
+  'scripts/native-cache-first-check.mjs',
+  'scripts/native-connector-layout-check.mjs',
+  'scripts/native-connector-scroll-check.mjs',
+  'scripts/native-connector-light-check.mjs',
+  'scripts/native-connector-runtime-check.mjs',
+  'scripts/native-fixed-viewport-check.mjs',
+  'scripts/native-header-layout-check.mjs',
+  'scripts/native-interaction-lock-check.mjs',
+  'scripts/native-mode-switch-check.mjs',
+  'scripts/native-viewport-stability-check.mjs',
+  'scripts/native-webview-zoom-check.mjs',
+  'scripts/product-detail-cache-check.mjs',
+];
+
+const allowed = new Set([
+  ...Object.values(files),
+  'apps/api/src/document-hub/document-hub.controller.ts',
+  'apps/api/src/document-hub/document-hub.service.ts',
+  'apps/api/src/document-hub/dto/drawing-search.dto.ts',
+  'apps/api/src/document-hub/order-metadata.store.ts',
+  'apps/tablet/src/app/routes.ts',
+  'apps/tablet/src/components/drawing/WarmPdfImportDialog.vue',
+  'apps/tablet/src/components/hub/WarmDocumentHubDashboard.vue',
+  'apps/tablet/src/components/hub/WarmHubHeader.vue',
+  'apps/tablet/src/components/hub/WarmHubSearchBar.vue',
+  'apps/tablet/src/components/search/WarmDrawingSearchResults.vue',
+  'apps/tablet/src/components/search/WarmDrawingSearchResultItem.vue',
+  'apps/tablet/src/lib/drawing-routes.ts',
+  'apps/tablet/src/stores/drawing-navigation-store.ts',
+  'apps/tablet/src/types/drawing-search.ts',
+  'apps/tablet/src/components/orders/WarmOrderImportDialog.vue',
+  'apps/tablet/src/components/orders/WarmOrderImportFilePanel.vue',
+  'apps/tablet/src/components/orders/WarmOrderImportPreview.vue',
+  'apps/tablet/src/components/orders/WarmOrderImportResult.vue',
+  'apps/tablet/src/components/orders/WarmOrderOverviewDialog.vue',
+  'apps/tablet/src/components/orders/WarmOrderOverviewList.vue',
+  'scripts/order-frontend-state-check.mjs',
+  'scripts/order-import-ui-check.mjs',
+  'scripts/order-overview-ui-check.mjs',
+  'scripts/order-sidebar-layout-check.mjs',
+  'scripts/drawing-service-store-check.mjs',
+  'scripts/camera-upload-check.mjs',
+  'scripts/pdf-import-frontend-state-check.mjs',
+  'scripts/pdf-import-ui-check.mjs',
+  'scripts/document-home-preview-check.mjs',
+  'scripts/document-lifecycle-ui-check.mjs',
+  'scripts/document-viewer-foundation-check.mjs',
+  'scripts/document-viewer-thumbnail-check.mjs',
+  'scripts/drawing-search-backend-check.mjs',
+  'scripts/drawing-search-ui-check.mjs',
+  'scripts/drawing-navigation-check.mjs',
+  'scripts/tablet-ui-smoke-check.mjs',
+  ...v315PerformanceFiles,
+  ...v316NativeViewportFiles,
+]);
+const allowedPrefixes = [
+  'apps/tablet/src/components/search/',
+  'apps/tablet/src/components/connectors/',
+  'apps/tablet/src/components/native/',
+  'apps/tablet/src/native/',
+];
+for (const file of changedFiles()) {
+  const isAllowed = allowed.has(file) || allowedPrefixes.some((prefix) => file.startsWith(prefix));
+  assert(isAllowed, `出现非本轮允许修改文件：${file}`);
+  assert(!file.startsWith('apps/api/') || isAllowed, `不允许修改后端文件：${file}`);
+  assert(!file.includes('prisma/'), `不允许修改 Prisma 文件：${file}`);
+  assert(!file.includes('/connector/') || file === 'apps/tablet/src/components/connector/WarmConnectorParameterView.vue', `不允许修改连接器或治具文件：${file}`);
+  assert(!file.includes('/fixture/') || file === 'apps/tablet/src/components/fixture/WarmFixtureParameterView.vue', `不允许修改连接器或治具文件：${file}`);
+}
+
+if (changedFiles().includes('apps/api/src/document-hub/order-metadata.store.ts')) {
+  const orderMetadataStore = read('apps/api/src/document-hub/order-metadata.store.ts');
+  assert(orderMetadataStore.includes('normalizeOrderProductionStatus'), '订单状态修复必须集中在 metadata 规范化函数。');
+  assert(orderMetadataStore.includes("input.completionStatus === 'pending'"), '未建档状态校正必须只自动影响 pending 订单。');
+  assert(orderMetadataStore.includes("input.productResolutionStatus !== 'found'") && orderMetadataStore.includes('!input.linkedProductId'), '未建档或未绑定订单必须规范化为 no_drawing。');
+  assert(orderMetadataStore.includes("return 'no_drawing'"), '未建档订单必须返回 no_drawing。');
+}
+
+assert(packageJson.includes('"order-frontend-state:check": "node scripts/order-frontend-state-check.mjs"'), 'package.json 缺少 order-frontend-state:check。');
+
+if (failures.length) {
+  console.error('订单前端状态检查失败：');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log('订单前端状态检查通过。');

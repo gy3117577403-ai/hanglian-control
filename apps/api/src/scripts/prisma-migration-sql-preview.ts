@@ -21,7 +21,7 @@ try {
   writeFileSync(outputFile, sql, 'utf8');
   console.log(JSON.stringify({
     success: true,
-    file: outputFile,
+    file: 'apps/api/storage/metadata/prisma-migration-preview.sql',
     message: '该 SQL 仅为预览，尚未执行到数据库。',
     executed: false,
     connectedDatabase: false,

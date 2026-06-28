@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>线束资料工作台</title>
+    <style>
+      :root {
+        color: #2f241a;
+        background: #fff7ed;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        place-items: center;
+        padding: 32px;
+      }
+
+      main {
+        width: min(520px, 100%);
+        border: 1px solid rgba(120, 68, 24, 0.18);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 18px 48px rgba(73, 44, 20, 0.12);
+        padding: 28px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 24px;
+        line-height: 1.25;
+      }
+
+      p {
+        margin: 0 0 20px;
+        color: #6b5b4c;
+        font-size: 16px;
+        line-height: 1.7;
+      }
+
+      button {
+        width: 100%;
+        height: 48px;
+        border: 0;
+        border-radius: 12px;
+        background: #c76f1a;
+        color: #fff;
+        font-size: 17px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>网络暂时不可用</h1>
+      <p>请确认平板已连接网络，并且可以访问线束资料工作台的正式入口。</p>
+      <button type="button" id="retry">重新打开工作台</button>
+    </main>
+    <script>
+      document.getElementById('retry').addEventListener('click', function () {
+        window.location.href = '__HANGLIAN_TABLET_URL__'
+      })
+    </script>
+  </body>
+</html>

@@ -2,8 +2,9 @@
 // Do not run migrations, db push, real seed, or connect to a production Sealos PostgreSQL database in this stage.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
@@ -58,6 +59,10 @@ enum DocumentSource {
   MOCK
   WECOM_DISK
   MANUAL_UPLOAD
+  PDF_IMPORT
+  MANUAL_CREATE
+  FUTURE_WECOM
+  SEED
 }
 
 enum ReadinessStatus {
@@ -76,74 +81,318 @@ enum FeedbackType {
 }
 
 enum AuditEntityType {
+  CUSTOMER
   DOCUMENT
   PLAN
   FEEDBACK
   FILE
   SYSTEM
+  IMPORT
+  KNOWLEDGE
+  PRODUCT
+  PRODUCT_MODULE
+  PDF_IMPORT_BATCH
+  PDF_IMPORT_ITEM
+  DELETE_LOCK
 }
 
 enum AuditAction {
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_MODULE_UPDATED
   DOCUMENT_UPLOADED
   DOCUMENT_STATUS_CHANGED
   DOCUMENT_VERSION_CHANGED
   DOCUMENT_SET_EFFECTIVE
   DOCUMENT_ARCHIVED
+  DOCUMENT_TRASHED
+  DOCUMENT_RESTORED
+  DOCUMENT_PURGED
   DOCUMENT_PREVIEWED
   DOCUMENT_DOWNLOADED
+  PDF_IMPORT_PREVIEWED
+  PDF_IMPORT_APPLIED
+  DELETE_LOCK_UPDATED
   READINESS_RECALCULATED
   MIGRATION_PREVIEW_GENERATED
+  BUSINESS_DATA_IMPORTED
+  MAINTENANCE_RECORDED
+}
+
+enum FixtureStatus {
+  ACTIVE
+  PENDING_REVIEW
+  INACTIVE
+  ABNORMAL
+}
+
+enum AbnormalSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AbnormalCaseStatus {
+  ACTIVE
+  PENDING_REVIEW
+  CLOSED
+}
+
+enum QualityDefectLevel {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum QualityStandardStatus {
+  EFFECTIVE
+  PENDING_REVIEW
+  EXPIRED
+}
+
+enum KnowledgeEntityType {
+  FIXTURE
+  ABNORMAL_CASE
+  QUALITY_STANDARD
+}
+
+enum ExecutionStatus {
+  NOT_STARTED
+  READY_TO_START
+  RUNNING
+  PAUSED
+  EXCEPTION_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ExecutionEventType {
+  PREPARE_START
+  START
+  PROCESS_CONFIRM
+  QUANTITY_REPORT
+  PAUSE
+  RESUME
+  EXCEPTION_HOLD
+  COMPLETE
+  CANCEL
+  HANDOVER
+}
+
+enum ProcessConfirmType {
+  FRONT_PARAMETER_CHECKED
+  BACK_DOCUMENT_CHECKED
+  FIXTURE_CHECKED
+  QUALITY_CHECKED
+  FIRST_PIECE_CHECKED
+  OTHER
+}
+
+enum ProcessConfirmResult {
+  PASS
+  WARNING
+  FAIL
 }
 
 model User {
-  id              String               @id @default(cuid())
-  username        String               @unique
-  displayName     String
-  role            UserRole             @default(VIEWER)
-  teamName        String?
-  isActive        Boolean              @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  queryLogs       QueryLog[]
-  confirmations   ConfirmationRecord[]
-  feedbackRecords FeedbackRecord[]
+  id               String               @id @default(cuid())
+  username         String               @unique
+  displayName      String
+  passwordHash     String?
+  refreshTokenHash String?
+  role             UserRole             @default(VIEWER)
+  teamName         String?
+  isActive         Boolean              @default(true)
+  lastLoginAt      DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  queryLogs        QueryLog[]
+  confirmations    ConfirmationRecord[]
+  feedbackRecords  FeedbackRecord[]
+
+  @@map("users")
 }
 
 model Customer {
-  id         String    @id @default(cuid())
-  name       String    @unique
-  code       String?   @unique
-  salesOwner String?
-  deletedAt  DateTime?
-  products   Product[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                String            @id @default(cuid())
+  name              String
+  code              String?           @unique
+  customerName      String?
+  customerShortName String?
+  customerCode      String?
+  aliases           Json?
+  status            String            @default("active")
+  salesOwner        String?
+  deletedAt         DateTime?
+  products          Product[]
+  productionOrders  ProductionOrder[]
+  pdfImportBatches  PdfImportBatch[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@index([name])
+  @@index([customerName])
+  @@index([customerCode])
+  @@index([status])
   @@index([deletedAt])
 }
 
 model Product {
-  id              String                  @id @default(cuid())
-  customerId      String
-  customer        Customer                @relation(fields: [customerId], references: [id])
-  productCode     String                  @unique
-  productName     String
-  currentVersion  String
-  processSegment  ProcessSegment          @default(COMMON)
-  isActive        Boolean                 @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  plans           ProductionPlan[]
-  documents       ProductDocument[]
-  frontParameters FrontProcessParameter[]
-  backPackages    BackProcessPackage[]
+  id                     String                  @id @default(cuid())
+  customerId             String
+  customer               Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  productCode            String                  @unique
+  productModel           String?
+  normalizedProductModel String
+  productName            String
+  currentVersion         String
+  drawingStatus          String                  @default("no_drawing")
+  source                 String                  @default("seed")
+  remark                 String?
+  searchKeywords         Json?
+  processSegment         ProcessSegment          @default(COMMON)
+  isActive               Boolean                 @default(true)
+  deletedAt              DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  plans                  ProductionPlan[]
+  modules                ProductModule[]
+  documents              ProductDocument[]
+  pdfImportExistingItems PdfImportItem[]         @relation("PdfImportExistingProduct")
+  pdfImportResultItems   PdfImportItem[]         @relation("PdfImportResultProduct")
+  productionOrders       ProductionOrder[]       @relation("ProductionOrderLinkedProduct")
+  frontParameters        FrontProcessParameter[]
+  backPackages           BackProcessPackage[]
+  fixtures               Fixture[]
+  abnormalCases          AbnormalCase[]
+  qualityStandards       QualityStandard[]
 
+  @@unique([customerId, normalizedProductModel])
   @@index([customerId])
+  @@index([normalizedProductModel])
+  @@index([drawingStatus])
   @@index([processSegment])
   @@index([deletedAt])
+  @@index([updatedAt])
+}
+
+model ProductionOrder {
+  orderId                 String            @id
+  scope                   String
+  productModel            String
+  normalizedProductModel  String
+  customerId              String?
+  customer                Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName            String?
+  linkedProductId         String?
+  linkedProduct           Product?          @relation("ProductionOrderLinkedProduct", fields: [linkedProductId], references: [id], onDelete: SetNull)
+  productResolutionStatus String            @default("unknown")
+  quantity                Int?
+  quantityProvided        Boolean           @default(false)
+  productionStatus        String            @default("no_drawing")
+  completionStatus        String            @default("pending")
+  source                  String            @default("manual_create")
+  importBatchId           String?
+  importBatch             OrderImportBatch? @relation(fields: [importBatchId], references: [importBatchId], onDelete: SetNull)
+  importItemId            String?           @unique
+  importItem              OrderImportItem?  @relation(fields: [importItemId], references: [importItemId], onDelete: SetNull)
+  remark                  String?
+  plannedDate             DateTime?
+  completedAt             DateTime?
+  completedBy             String?
+  restoredAt              DateTime?
+  restoredBy              String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  deletedAt               DateTime?
+
+  @@index([scope])
+  @@index([normalizedProductModel])
+  @@index([customerId])
+  @@index([linkedProductId])
+  @@index([productResolutionStatus])
+  @@index([productionStatus])
+  @@index([completionStatus])
+  @@index([source])
+  @@index([importBatchId])
+  @@index([importItemId])
+  @@index([plannedDate])
+  @@index([completedAt])
+  @@index([deletedAt])
+  @@index([scope, completionStatus, deletedAt])
+  @@index([scope, normalizedProductModel, completionStatus, deletedAt])
+}
+
+model OrderImportBatch {
+  importBatchId          String            @id
+  scope                  String
+  fileName               String?
+  status                 String            @default("previewed")
+  totalRows              Int               @default(0)
+  createOrderCount       Int               @default(0)
+  alreadyActiveCount     Int               @default(0)
+  duplicateInFileCount   Int               @default(0)
+  needsConfirmationCount Int               @default(0)
+  productNotFoundCount   Int               @default(0)
+  errorCount             Int               @default(0)
+  createdCount           Int?
+  skippedCount           Int?
+  appliedAt              DateTime?
+  expiresAt              DateTime?
+  operatorId             String?
+  operatorName           String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  items                  OrderImportItem[]
+  orders                 ProductionOrder[]
+
+  @@index([scope])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([appliedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model OrderImportItem {
+  importItemId                String           @id
+  importBatchId               String
+  batch                       OrderImportBatch @relation(fields: [importBatchId], references: [importBatchId], onDelete: Cascade)
+  rowNumber                   Int
+  rawProductModel             String
+  productModel                String
+  normalizedProductModel      String
+  productResolutionStatus     String           @default("unknown")
+  matchedCustomerId           String?
+  matchedCustomerName         String?
+  matchedProductId            String?
+  recommendedProductionStatus String           @default("no_drawing")
+  action                      String           @default("error")
+  message                     String?
+  errorMessage                String?
+  applyResult                 String?
+  applyMessage                String?
+  applyErrorMessage           String?
+  appliedAt                   DateTime?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  order                       ProductionOrder?
+
+  @@index([importBatchId])
+  @@index([rowNumber])
+  @@index([normalizedProductModel])
+  @@index([productResolutionStatus])
+  @@index([matchedCustomerId])
+  @@index([matchedProductId])
+  @@index([recommendedProductionStatus])
+  @@index([action])
+  @@index([applyResult])
+  @@index([appliedAt])
+  @@index([createdAt])
 }
 
 model ProductionPlan {
@@ -181,47 +430,192 @@ model ProductionPlan {
 }
 
 model ProductDocument {
-  id                 String          @id @default(cuid())
-  productId          String
-  product            Product         @relation(fields: [productId], references: [id])
-  productionPlanId   String?
-  productionPlan     ProductionPlan? @relation(fields: [productionPlanId], references: [id])
-  documentType       DocumentType
-  versionGroupKey    String?
-  title              String
-  version            String
-  status             DocumentStatus  @default(PENDING_REVIEW)
-  source             DocumentSource  @default(MOCK)
-  requiredForProcess ProcessSegment  @default(COMMON)
-  previewType        String
-  originalFileName   String?
-  storedFileName     String?
-  mimeType           String?
-  fileSize           Int?
-  previewUrl         String?
-  downloadUrl        String?
-  storageProvider    String?
-  storageKey         String?
-  checksum           String?
-  mockPreviewText    String?
-  keywords           String[]
-  remark             String?
-  effectiveDate      DateTime?
-  archived           Boolean         @default(false)
-  archivedAt         DateTime?
-  archivedBy         String?
-  deletedAt          DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                     String          @id @default(cuid())
+  productId              String
+  product                Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productionPlanId       String?
+  productionPlan         ProductionPlan? @relation(fields: [productionPlanId], references: [id])
+  moduleId               String?
+  module                 ProductModule?  @relation("ProductModuleDocuments", fields: [moduleId], references: [id], onDelete: SetNull)
+  moduleKey              String?
+  documentType           DocumentType
+  versionGroupKey        String?
+  title                  String
+  version                String
+  contentKind            String          @default("document")
+  status                 DocumentStatus  @default(PENDING_REVIEW)
+  documentStatus         String          @default("pending_review")
+  source                 DocumentSource  @default(MOCK)
+  requiredForProcess     ProcessSegment  @default(COMMON)
+  previewType            String
+  previewMode            String?
+  originalFileName       String?
+  storedFileName         String?
+  mimeType               String?
+  fileSize               Int?
+  pageCount              Int?
+  imageWidth             Int?
+  imageHeight            Int?
+  previewUrl             String?
+  downloadUrl            String?
+  storageProvider        String?
+  storageKey             String?
+  checksum               String?
+  checksumSha256         String?
+  mockPreviewText        String?
+  keywords               String[]
+  keywordMeta            Json?
+  description            String?
+  remark                 String?
+  sortOrder              Int             @default(0)
+  isCover                Boolean         @default(false)
+  effectiveDate          DateTime?
+  archived               Boolean         @default(false)
+  archivedAt             DateTime?
+  archivedBy             String?
+  deleted                Boolean         @default(false)
+  deletedAt              DateTime?
+  deletedBy              String?
+  deleteReason           String?
+  restoredAt             DateTime?
+  restoredBy             String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  coverForModules        ProductModule[] @relation("ProductModuleCoverDocument")
+  pdfImportExistingItems PdfImportItem[] @relation("PdfImportExistingDocument")
+  pdfImportResultItems   PdfImportItem[] @relation("PdfImportResultDocument")
 
   @@unique([productId, documentType, requiredForProcess, version])
   @@index([productId, documentType])
   @@index([versionGroupKey])
   @@index([productionPlanId])
+  @@index([moduleId])
+  @@index([moduleKey])
   @@index([status])
+  @@index([documentStatus])
   @@index([source])
+  @@index([checksumSha256])
   @@index([archived])
+  @@index([deleted])
   @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([productId, moduleKey, deleted])
+  @@index([productId, moduleKey, checksumSha256])
+}
+
+model ProductModule {
+  id              String            @id @default(cuid())
+  productId       String
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  moduleKey       String
+  moduleName      String
+  status          String            @default("empty")
+  remark          String?
+  coverDocumentId String?
+  coverDocument   ProductDocument?  @relation("ProductModuleCoverDocument", fields: [coverDocumentId], references: [id], onDelete: SetNull)
+  itemCount       Int               @default(0)
+  documents       ProductDocument[] @relation("ProductModuleDocuments")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([productId, moduleKey])
+  @@index([productId])
+  @@index([moduleKey])
+  @@index([status])
+  @@index([coverDocumentId])
+  @@index([updatedAt])
+}
+
+model PdfImportBatch {
+  id                     String          @id @default(cuid())
+  customerId             String
+  customer               Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status                 String          @default("previewed")
+  totalFiles             Int             @default(0)
+  successCount           Int             @default(0)
+  skippedCount           Int             @default(0)
+  errorCount             Int             @default(0)
+  needsConfirmationCount Int             @default(0)
+  expiresAt              DateTime
+  completedAt            DateTime?
+  appliedAt              DateTime?
+  applyStatus            String?
+  applySummary           Json?
+  remark                 String?
+  operatorId             String?
+  operatorName           String?
+  items                  PdfImportItem[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([appliedAt])
+}
+
+model PdfImportItem {
+  id                    String           @id @default(cuid())
+  importBatchId         String
+  batch                 PdfImportBatch   @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  originalFileName      String
+  stagedFileKey         String
+  mimeType              String
+  fileSize              Int
+  checksumSha256        String
+  parsedProductModel    String?
+  confirmedProductModel String?
+  parsedVersion         String?
+  confirmedVersion      String?
+  confidence            Float?
+  needsConfirmation     Boolean          @default(false)
+  parseWarnings         Json?
+  existingProductId     String?
+  existingProduct       Product?         @relation("PdfImportExistingProduct", fields: [existingProductId], references: [id], onDelete: SetNull)
+  existingDocumentId    String?
+  existingDocument      ProductDocument? @relation("PdfImportExistingDocument", fields: [existingDocumentId], references: [id], onDelete: SetNull)
+  action                String           @default("needs_confirmation")
+  selected              Boolean          @default(true)
+  setAsEffective        Boolean          @default(false)
+  productName           String?
+  result                String           @default("needs_confirmation")
+  resultProductId       String?
+  resultProduct         Product?         @relation("PdfImportResultProduct", fields: [resultProductId], references: [id], onDelete: SetNull)
+  resultDocumentId      String?
+  resultDocument        ProductDocument? @relation("PdfImportResultDocument", fields: [resultDocumentId], references: [id], onDelete: SetNull)
+  message               String?
+  errorMessage          String?
+  appliedAt             DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@unique([importBatchId, id])
+  @@index([importBatchId])
+  @@index([checksumSha256])
+  @@index([action])
+  @@index([result])
+  @@index([existingProductId])
+  @@index([resultProductId])
+  @@index([existingDocumentId])
+  @@index([resultDocumentId])
+  @@index([appliedAt])
+  @@index([createdAt])
+}
+
+model DeleteLockSetting {
+  id             String    @id @default("document-delete-lock")
+  enabled        Boolean   @default(true)
+  passwordHash   String
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  updatedBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([lockedUntil])
 }
 
 model AuditLog {
@@ -236,13 +630,20 @@ model AuditLog {
   operatorName String?
   operatorRole String?
   planId       String?
+  customerId   String?
   productId    String?
+  orderId      String?
   createdAt    DateTime        @default(now())
 
+  @@index([entityType])
   @@index([entityType, entityId])
+  @@index([entityId])
   @@index([action])
   @@index([planId])
+  @@index([customerId])
   @@index([productId])
+  @@index([orderId])
+  @@index([operatorId])
   @@index([createdAt])
 }
 
@@ -305,6 +706,7 @@ model QueryLog {
   createdAt        DateTime        @default(now())
 
   @@index([productionPlanId])
+  @@index([userId])
   @@index([createdAt])
   @@index([deletedAt])
 }
@@ -323,6 +725,7 @@ model ConfirmationRecord {
   createdAt        DateTime       @default(now())
 
   @@index([productionPlanId])
+  @@index([userId])
   @@index([createdAt])
   @@index([deletedAt])
 }
@@ -341,7 +744,349 @@ model FeedbackRecord {
   resolvedAt       DateTime?
 
   @@index([productionPlanId])
+  @@index([userId])
   @@index([feedbackType])
   @@index([createdAt])
   @@index([deletedAt])
+}
+
+model Fixture {
+  id                  String         @id @default(cuid())
+  fixtureCode         String         @unique
+  fixtureName         String
+  fixtureType         String
+  productId           String
+  product             Product        @relation(fields: [productId], references: [id])
+  processSegment      ProcessSegment @default(COMMON)
+  applicableStation   String
+  usageMethod         String
+  checkStandard       String
+  maintenanceCycle    String
+  lastMaintenanceDate DateTime?
+  nextMaintenanceDate DateTime?
+  status              FixtureStatus  @default(PENDING_REVIEW)
+  images              Json?
+  relatedDocumentIds  String[]
+  keywords            String[]
+  remark              String?
+  deletedAt           DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([productId])
+  @@index([productId, processSegment])
+  @@index([productId, status])
+  @@index([processSegment])
+  @@index([status])
+  @@index([nextMaintenanceDate])
+  @@index([deletedAt])
+}
+
+model AbnormalCase {
+  id                 String             @id @default(cuid())
+  abnormalCode       String             @unique
+  title              String
+  productId          String
+  product            Product            @relation(fields: [productId], references: [id])
+  processSegment     ProcessSegment     @default(COMMON)
+  station            String
+  category           String
+  symptom            String
+  cause              String
+  solution           String
+  prevention         String
+  severity           AbnormalSeverity   @default(MEDIUM)
+  status             AbnormalCaseStatus @default(PENDING_REVIEW)
+  relatedDocumentIds String[]
+  relatedFixtureIds  String[]
+  keywords           String[]
+  remark             String?
+  deletedAt          DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([productId])
+  @@index([productId, processSegment])
+  @@index([productId, severity])
+  @@index([processSegment])
+  @@index([severity])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model QualityStandard {
+  id                 String                @id @default(cuid())
+  qualityCode        String                @unique
+  title              String
+  productId          String
+  product            Product               @relation(fields: [productId], references: [id])
+  processSegment     ProcessSegment        @default(COMMON)
+  inspectionItem     String
+  standardValue      String
+  tolerance          String
+  inspectionMethod   String
+  samplingRule       String
+  defectLevel        QualityDefectLevel    @default(MAJOR)
+  status             QualityStandardStatus @default(PENDING_REVIEW)
+  relatedDocumentIds String[]
+  keywords           String[]
+  remark             String?
+  deletedAt          DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([productId])
+  @@index([productId, processSegment])
+  @@index([productId, status])
+  @@index([processSegment])
+  @@index([defectLevel])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model KnowledgeRecord {
+  id           String              @id @default(cuid())
+  entityType   KnowledgeEntityType
+  entityId     String
+  action       String
+  beforeJson   Json?
+  afterJson    Json?
+  reason       String?
+  operatorId   String?
+  operatorName String?
+  operatorRole String?
+  productId    String?
+  planId       String?
+  createdAt    DateTime            @default(now())
+
+  @@index([entityType, entityId])
+  @@index([operatorId])
+  @@index([productId])
+  @@index([planId])
+  @@index([createdAt])
+}
+
+model ExecutionRecord {
+  id              String                @id @default(cuid())
+  planId          String
+  eventType       ExecutionEventType
+  executionStatus ExecutionStatus
+  statusBefore    ExecutionStatus?
+  statusAfter     ExecutionStatus?
+  confirmType     ProcessConfirmType?
+  result          ProcessConfirmResult?
+  remark          String?
+  operatorId      String?
+  operatorName    String?
+  operatorRole    String?
+  createdAt       DateTime              @default(now())
+
+  @@index([planId])
+  @@index([executionStatus])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model PlanStatusEvent {
+  id           String             @id @default(cuid())
+  planId       String
+  eventType    ExecutionEventType
+  fromStatus   ExecutionStatus?
+  toStatus     ExecutionStatus
+  message      String
+  operatorId   String?
+  operatorName String?
+  operatorRole String?
+  createdAt    DateTime           @default(now())
+
+  @@index([planId])
+  @@index([toStatus])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model QuantityReport {
+  id                          String   @id @default(cuid())
+  planId                      String
+  completedQuantity           Int
+  defectQuantity              Int      @default(0)
+  reworkQuantity              Int      @default(0)
+  scrapQuantity               Int      @default(0)
+  cumulativeCompletedQuantity Int
+  planQuantity                Int
+  warning                     String?
+  remark                      String?
+  operatorId                  String?
+  operatorName                String?
+  operatorRole                String?
+  createdAt                   DateTime @default(now())
+
+  @@index([planId])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model ShiftHandoverRecord {
+  id              String   @id @default(cuid())
+  fromTeam        String
+  toTeam          String
+  planIds         String[]
+  summary         String
+  riskItems       String[]
+  unfinishedItems String[]
+  operatorId      String?
+  operatorName    String?
+  operatorRole    String?
+  createdAt       DateTime @default(now())
+
+  @@index([fromTeam])
+  @@index([toTeam])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id           String   @id @default(cuid())
+  settingKey   String   @unique
+  valueJson    Json
+  remark       String?
+  operatorId   String?
+  operatorName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([settingKey])
+  @@index([updatedAt])
+}
+
+model DictionarySetting {
+  id           String   @id @default(cuid())
+  groupKey     String   @unique
+  groupName    String
+  description  String?
+  itemsJson    Json
+  operatorId   String?
+  operatorName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([groupKey])
+  @@index([updatedAt])
+}
+
+model StationProfile {
+  id                  String   @id @default(cuid())
+  stationCode         String   @unique
+  stationName         String
+  processSegment      String
+  defaultRole         String
+  defaultTeam         String
+  defaultPlanScope    String
+  defaultTabs         String[]
+  enabledQuickActions String[]
+  showKnowledgePanel  Boolean  @default(true)
+  showExecutionPanel  Boolean  @default(true)
+  showAnalyticsPanel  Boolean  @default(false)
+  fieldModeDefault    Boolean  @default(true)
+  status              String   @default("active")
+  remark              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([processSegment])
+  @@index([defaultRole])
+  @@index([status])
+}
+
+model DisplaySetting {
+  id                    String   @id @default(cuid())
+  settingKey            String   @unique
+  fontScale             String
+  cardDensity           String
+  defaultFieldMode      Boolean  @default(true)
+  showDemoBadges        Boolean  @default(true)
+  showTechnicalWarnings Boolean  @default(true)
+  enableWarmAnimations  Boolean  @default(true)
+  defaultTheme          String   @default("warm_3d")
+  updatedAt             DateTime @updatedAt
+}
+
+model Announcement {
+  id           String    @id @default(cuid())
+  title        String
+  content      String
+  type         String
+  severity     String
+  active       Boolean   @default(true)
+  pinned       Boolean   @default(false)
+  startAt      DateTime?
+  endAt        DateTime?
+  operatorId   String?
+  operatorName String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([active])
+  @@index([type])
+  @@index([severity])
+  @@index([updatedAt])
+}
+
+model SystemFeedback {
+  id               String    @id @default(cuid())
+  feedbackType     String
+  title            String
+  description      String
+  severity         String
+  currentPage      String?
+  role             String?
+  userId           String?
+  userName         String?
+  screenshotRemark String?
+  expectedResult   String?
+  actualResult     String?
+  status           String    @default("open")
+  resolverName     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([feedbackType])
+  @@index([severity])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PilotCheckRecord {
+  id           String   @id @default(cuid())
+  score        Int
+  status       String
+  summary      String
+  itemsJson    Json
+  operatorId   String?
+  operatorName String?
+  checkedAt    DateTime @default(now())
+
+  @@index([status])
+  @@index([checkedAt])
+}
+
+model SettingsRecord {
+  id           String   @id @default(cuid())
+  entityType   String
+  entityId     String
+  action       String
+  beforeJson   Json?
+  afterJson    Json?
+  reason       String?
+  operatorId   String?
+  operatorName String?
+  operatorRole String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([operatorId])
+  @@index([createdAt])
 }

@@ -1,6 +1,8 @@
 # Environment variables
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
 !.env.local.example
 apps/api/.env
@@ -9,6 +11,8 @@ apps/api/.env.*
 !apps/api/.env.local.example
 apps/api/.env.local
 apps/api/.env.*.local
+apps/tablet/.env.android.local
+apps/tablet/.env.android.staging.local
 
 # Dependencies
 node_modules
@@ -22,19 +26,69 @@ build
 .vite
 coverage
 apps/api/generated
+apps/tablet/android/local.properties
+apps/tablet/android/.gradle
+apps/tablet/android/app/build
+apps/tablet/android/app/src/main/assets/public
+*.apk
+*.aab
+*.jks
+*.keystore
 
 # Local Codex state
 .codex/
+hanglian-agent-*/
+local-backups/
+demo-upload-assets/
+
+# Generated runtime reports, screenshots, and browser helper state
+docs/generated/real-data-*.md
+docs/generated/tablet-production-preview-*.png
+docs/generated/tablet-ui-interaction-*.png
+docs/generated/v3-5-*.png
+docs/generated/tmp-browser-*.json
+docs/generated/tmp-browser-*.log
 
 # Local storage and uploaded documents
 apps/api/storage/uploads/*
+apps/api/storage/tmp/*
 apps/api/storage/metadata/documents.json
 apps/api/storage/metadata/audit-logs.json
+apps/api/storage/metadata/import-records.json
+apps/api/storage/metadata/imported-business-data.json
+apps/api/storage/metadata/import-previews.json
+apps/api/storage/metadata/drawing-customers.json
+apps/api/storage/metadata/drawing-products.json
+apps/api/storage/metadata/drawing-module-settings.json
+apps/api/storage/metadata/drawing-import-records.json
+apps/api/storage/metadata/production-orders.json
+apps/api/storage/metadata/order-import-records.json
+apps/api/storage/metadata/maintenance-records.json
+apps/api/storage/metadata/knowledge-fixtures.json
+apps/api/storage/metadata/knowledge-abnormal-cases.json
+apps/api/storage/metadata/knowledge-quality-standards.json
+apps/api/storage/metadata/knowledge-records.json
+apps/api/storage/metadata/execution-records.json
+apps/api/storage/metadata/plan-status-events.json
+apps/api/storage/metadata/quantity-reports.json
+apps/api/storage/metadata/shift-handover-records.json
+apps/api/storage/metadata/demo-analytics-snapshot.json
+apps/api/storage/metadata/system-settings.json
+apps/api/storage/metadata/dictionary-settings.json
+apps/api/storage/metadata/station-profiles.json
+apps/api/storage/metadata/display-settings.json
+apps/api/storage/metadata/announcement-records.json
+apps/api/storage/metadata/system-feedback-records.json
+apps/api/storage/metadata/pilot-check-records.json
+apps/api/storage/metadata/settings-records.json
+apps/api/storage/metadata/sealos-readonly-report.json
+apps/api/storage/metadata/delete-lock-settings.json
 apps/api/storage/metadata/prisma-seed-preview.json
 apps/api/storage/metadata/prisma-migration-preview.sql
 
 # Keep empty directories
 !apps/api/storage/uploads/.gitkeep
+!apps/api/storage/tmp/.gitkeep
 !apps/api/storage/metadata/.gitkeep
 
 # Logs and temporary files

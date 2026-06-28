@@ -85,6 +85,7 @@ export interface ProductDocumentSeed {
   effectiveDate: string;
   updatedAt: string;
   source: DocumentSource;
+  captureSource?: string;
   requiredForProcess: RequiredProcess;
   previewType: PreviewType;
   mockPreviewText: string;
@@ -132,6 +133,7 @@ export interface ProductDocument {
   effectiveDate: string;
   updatedAt: string;
   source: DocumentSource;
+  captureSource?: string;
   requiredForProcess: RequiredProcess;
   previewType: PreviewType;
   mockPreviewText: string;
@@ -140,6 +142,11 @@ export interface ProductDocument {
   localMockLabel: string;
   originalFileName?: string;
   storedFileName?: string;
+  storageProvider?: 'local' | 's3' | string;
+  storageKey?: string;
+  checksumSha256?: string;
+  checksum?: string;
+  previewMode?: 'proxy' | 'signed-url';
   mimeType?: string;
   fileSize?: number;
   previewUrl?: string;
@@ -150,6 +157,8 @@ export interface ProductDocument {
   archivedBy?: string;
   remark?: string;
   versionGroupKey?: string;
+  duplicateVersionWarning?: string;
+  recommendedAction?: string;
 }
 
 export interface ReadinessCheckItem {
@@ -214,8 +223,9 @@ export interface SearchResult {
   matchedField: string;
   snippet: string;
   version?: string;
-  status?: DocumentStatus;
+  status?: DocumentStatus | string;
   source?: DocumentSource;
+  captureSource?: string;
   isEffective?: boolean;
   isHistorical?: boolean;
   versionGroupKey?: string;
@@ -223,28 +233,38 @@ export interface SearchResult {
 
 export interface DocumentQuery {
   planId?: string;
+  orderId?: string;
+  customerId?: string;
   productId?: string;
   documentType?: DocumentTypeV03;
   status?: DocumentStatus;
 }
 
 export interface CreateUploadedDocumentPayload {
+  documentId?: string;
   productId: string;
   planId?: string;
   documentType: DocumentTypeV03;
   title: string;
   version: string;
   status: DocumentStatus;
+  source?: DocumentSource;
+  captureSource?: string;
   requiredForProcess: RequiredProcess;
   keywords: string[];
   remark?: string;
   originalFileName: string;
   storedFileName: string;
+  storageProvider?: 'local' | 's3' | string;
+  storageKey?: string;
+  checksumSha256?: string;
+  previewMode?: 'proxy' | 'signed-url';
   mimeType: string;
   fileSize: number;
   previewType: PreviewType;
-  previewUrl: string;
-  downloadUrl: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  checksum?: string;
 }
 
 export interface UpdateDocumentStatusPayload {
@@ -322,6 +342,7 @@ export interface AuditLog {
   operatorRole: string;
   planId?: string;
   productId?: string;
+  orderId?: string;
   createdAt: string;
 }
 
@@ -330,6 +351,7 @@ export interface AuditLogQuery {
   entityId?: string;
   planId?: string;
   productId?: string;
+  orderId?: string;
   action?: AuditAction;
   limit?: number;
 }
@@ -346,10 +368,11 @@ export interface CreateAuditLogPayload {
   operatorRole?: string;
   planId?: string;
   productId?: string;
+  orderId?: string;
 }
 
 export interface MigrationPreview {
-  dataSource: 'mock' | 'prisma';
+  dataSource: 'mock' | 'postgres';
   target: 'prisma_postgresql';
   safeToMigrate: boolean;
   summary: {
@@ -378,4 +401,123 @@ export interface MigrationSeedExport {
   feedbackRecords: FeedbackRecordMock[];
   confirmationRecords: ConfirmationRecordSeed[];
   auditLogs: AuditLog[];
+}
+
+export type ImportType =
+  | 'production_plan'
+  | 'customer_product'
+  | 'front_parameter'
+  | 'back_package'
+  | 'fixture'
+  | 'abnormal_case'
+  | 'quality_standard';
+
+export type ImportRowStatus = 'valid' | 'warning' | 'error';
+
+export interface ImportTemplateField {
+  field: string;
+  required: boolean;
+  description: string;
+  example?: string | number;
+}
+
+export interface ImportTemplateDefinition {
+  type: ImportType;
+  label: string;
+  description: string;
+  fields: ImportTemplateField[];
+}
+
+export interface ImportPreviewRow {
+  rowNumber: number;
+  data: Record<string, string | number>;
+  normalized: Record<string, string | number>;
+  status: ImportRowStatus;
+  messages: string[];
+}
+
+export interface ImportPreviewResult {
+  previewId: string;
+  importType: ImportType;
+  importTypeLabel: string;
+  fileName: string;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  columns: string[];
+  rows: ImportPreviewRow[];
+  summary: Record<string, number>;
+  createdAt: string;
+}
+
+export interface ImportApplyPayload {
+  previewId: string;
+  operatorId: string;
+  operatorName: string;
+  remark?: string;
+}
+
+export interface ImportRecord {
+  id: string;
+  importType: ImportType;
+  importTypeLabel: string;
+  fileName: string;
+  status: '成功' | '有警告' | '失败';
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  summary: Record<string, number>;
+  operatorId: string;
+  operatorName: string;
+  remark?: string;
+  createdAt: string;
+  previewId?: string;
+  messages: string[];
+}
+
+export interface ImportRollbackPreview {
+  importRecordId: string;
+  importType: ImportType;
+  affectedPlans: number;
+  affectedProducts: number;
+  affectedCustomers: number;
+  affectedParameters: number;
+  affectedBackPackages: number;
+  canRollback: false;
+  message: string;
+}
+
+export interface ImportedBusinessDataSnapshot {
+  updatedAt: string;
+  customers: CustomerSeed[];
+  products: ProductSeed[];
+  productionPlans: ProductionPlanMock[];
+  frontParameters: FrontProcessParameterSeed[];
+  backPackages: BackProcessPackageSeed[];
+}
+
+export type MaintenanceEntityType =
+  | 'customer'
+  | 'product'
+  | 'production_plan'
+  | 'front_parameter'
+  | 'back_package'
+  | 'document'
+  | 'import_record'
+  | 'review_queue';
+
+export interface MaintenanceRecord {
+  maintenanceId: string;
+  entityType: MaintenanceEntityType;
+  entityId: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+  reason?: string;
+  operatorId: string;
+  operatorName: string;
+  operatorRole: string;
+  createdAt: string;
 }

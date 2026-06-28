@@ -1,0 +1,103 @@
+# Hanglian V3.17 Cloud Staging API template.
+# This file is a review template only. Do not apply it directly without
+# confirming the existing Sealos App Launchpad resource names and PVC name.
+# Reuse the existing 1 GiB persistent volume and mount it at /data/hanglian.
+# App Launchpad updates may overwrite manually added fsGroup settings; after
+# each update, verify the StatefulSet/Deployment pod template still contains
+# fsGroup: 1000.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hanglian-control-api
+  namespace: PLACEHOLDER_NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hanglian-control-api
+  serviceName: hanglian-control-api
+  template:
+    metadata:
+      labels:
+        app: hanglian-control-api
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: api
+          image: ghcr.io/gy3117577403-ai/hanglian-control-api:v3.17-cloud-PLACEHOLDER_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: HOST
+              value: 0.0.0.0
+            - name: PORT
+              value: "3000"
+            - name: API_PREFIX
+              value: api
+            - name: DATA_SOURCE
+              value: mock
+            - name: DEMO_DATA_MODE
+              value: demo
+            - name: DEPLOYMENT_STAGE
+              value: v3.17-cloud-staging
+            - name: DB_TARGET
+              value: local
+            - name: FILE_STORAGE_PROVIDER
+              value: local
+            - name: STORAGE_ROOT
+              value: /data/hanglian
+            - name: METADATA_ROOT
+              value: /data/hanglian/metadata
+            - name: STORAGE_TEMP_ROOT
+              value: /data/hanglian/tmp
+            - name: STORAGE_MAX_FILE_SIZE_MB
+              value: "30"
+            - name: STORAGE_URL_MODE
+              value: proxy
+            - name: CORS_ORIGINS
+              value: https://localhost,https://fqbkxzzolqqq.sealoshzh.site
+            - name: CORS_ALLOW_CREDENTIALS
+              value: "false"
+            - name: RUN_PRISMA_MIGRATE_DEPLOY
+              value: "false"
+            - name: ALLOW_TEST_DB_CONNECT
+              value: "false"
+            - name: ALLOW_PRISMA_WRITE
+              value: "false"
+            - name: ALLOW_DESTRUCTIVE_DB_ACTIONS
+              value: "false"
+            - name: SEED_MODE
+              value: dry-run
+          volumeMounts:
+            - name: existing-hanglian-data
+              mountPath: /data/hanglian
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: existing-hanglian-data
+          persistentVolumeClaim:
+            claimName: EXISTING_1GIB_PVC_NAME

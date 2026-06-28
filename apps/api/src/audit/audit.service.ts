@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { REPOSITORY_TOKENS } from '../common/constants/repository-tokens';
 import type { AuditLogQuery, CreateAuditLogPayload } from '../common/types/production.types';
+import { AUDIT_REPOSITORY } from '../persistence/persistence.tokens';
 import type { AuditRepositoryInterface } from '../repositories/interfaces/audit.repository.interface';
 
 @Injectable()
 export class AuditService {
   constructor(
-    @Inject(REPOSITORY_TOKENS.audit)
+    @Inject(AUDIT_REPOSITORY)
     private readonly auditRepository: AuditRepositoryInterface,
   ) {}
 

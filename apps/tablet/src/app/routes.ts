@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import TabletDashboard from '@/views/TabletDashboard.vue'
+import { useAuthStore } from '@/stores/auth-store'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -11,7 +11,53 @@ export const router = createRouter({
     {
       path: '/tablet',
       name: 'tablet-dashboard',
-      component: TabletDashboard,
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/customers/:customerId',
+      name: 'tablet-drawing-customer',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/products/:productId',
+      name: 'tablet-drawing-product',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/products/:productId/modules/:moduleKey',
+      name: 'tablet-drawing-module',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/tablet/drawings/products/:productId/modules/:moduleKey/items/:itemId',
+      name: 'tablet-drawing-item',
+      component: () => import('@/views/TabletDashboard.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/login',
+      name: 'warm-login',
+      component: () => import('@/views/WarmLoginView.vue'),
+      meta: { public: true },
     },
   ],
+})
+
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  if (auth.token && !auth.currentUser) {
+    await auth.loadMe()
+  }
+
+  if (to.meta.public) {
+    if (auth.loggedIn && to.path === '/login') return '/tablet'
+    return true
+  }
+
+  if (!auth.loggedIn) return to.path === '/tablet' ? true : '/login'
+  return true
 })

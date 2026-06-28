@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { assertDatabaseWriteAllowed } from '../../database/database-safety';
 import { PrismaService } from '../../database/prisma.service';
 import { evaluatePlanReadiness } from '../../common/utils/readiness';
+import { supportsSingleEffectiveDocumentType } from '../../common/utils/document-version-rules';
 import type {
   CreateUploadedDocumentPayload,
   DocumentCompareField,
@@ -36,12 +37,24 @@ const PLAN_INCLUDE = {
   product: {
     include: {
       customer: true,
-      frontParameters: { where: { deletedAt: null }, orderBy: { updatedAt: 'desc' } },
-      backPackages: { where: { deletedAt: null }, orderBy: { updatedAt: 'desc' } },
-      documents: { where: { deletedAt: null, archived: false }, orderBy: { updatedAt: 'desc' } },
+      frontParameters: {
+        where: { deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+      },
+      backPackages: {
+        where: { deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+      },
+      documents: {
+        where: { deletedAt: null, archived: false },
+        orderBy: { updatedAt: 'desc' },
+      },
     },
   },
-  documents: { where: { deletedAt: null, archived: false }, orderBy: { updatedAt: 'desc' } },
+  documents: {
+    where: { deletedAt: null, archived: false },
+    orderBy: { updatedAt: 'desc' },
+  },
 };
 
 function productIdFromDocument(document: ProductDocument) {
@@ -49,16 +62,28 @@ function productIdFromDocument(document: ProductDocument) {
 }
 
 function docGroupKey(document: ProductDocument) {
-  return document.versionGroupKey ?? documentVersionGroupKey({
-    productId: productIdFromDocument(document),
-    documentType: document.documentType ?? 'process_card',
-    requiredForProcess: document.requiredForProcess ?? 'common',
-  });
+  return (
+    document.versionGroupKey ??
+    documentVersionGroupKey({
+      productId: productIdFromDocument(document),
+      documentType: document.documentType ?? 'process_card',
+      requiredForProcess: document.requiredForProcess ?? 'common',
+    })
+  );
 }
 
-function groupFromVersions(key: string, versions: ProductDocument[]): DocumentVersionGroup {
-  const sorted = [...versions].sort((left, right) => String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? '')));
-  const currentDocument = sorted.find((document) => document.documentStatus === 'effective' && !document.archived) ?? sorted[0];
+function groupFromVersions(
+  key: string,
+  versions: ProductDocument[],
+): DocumentVersionGroup {
+  const sorted = [...versions].sort((left, right) =>
+    String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? '')),
+  );
+  const currentDocument =
+    sorted.find(
+      (document) =>
+        document.documentStatus === 'effective' && !document.archived,
+    ) ?? sorted[0];
   return {
     versionGroupKey: key,
     productId: productIdFromDocument(currentDocument),
@@ -66,11 +91,20 @@ function groupFromVersions(key: string, versions: ProductDocument[]): DocumentVe
     requiredForProcess: currentDocument.requiredForProcess ?? 'common',
     currentDocument,
     versions: sorted,
-    effectiveDocumentId: sorted.find((document) => document.documentStatus === 'effective' && !document.archived)?.documentId,
+    effectiveDocumentId: sorted.find(
+      (document) =>
+        document.documentStatus === 'effective' && !document.archived,
+    )?.documentId,
     versionCount: sorted.length,
-    hasExpired: sorted.some((document) => document.documentStatus === 'expired'),
-    hasPendingReview: sorted.some((document) => document.documentStatus === 'pending_review'),
-    hasInconsistent: sorted.some((document) => document.documentStatus === 'inconsistent'),
+    hasExpired: sorted.some(
+      (document) => document.documentStatus === 'expired',
+    ),
+    hasPendingReview: sorted.some(
+      (document) => document.documentStatus === 'pending_review',
+    ),
+    hasInconsistent: sorted.some(
+      (document) => document.documentStatus === 'inconsistent',
+    ),
   };
 }
 
@@ -83,21 +117,38 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
 
   async findDocuments(query: DocumentQuery = {}): Promise<ProductDocument[]> {
-    const plan = query.planId
+    const planId = query.planId ?? query.orderId;
+    const plan = planId
       ? await this.prisma.client.productionPlan.findFirst({
-          where: { id: query.planId, deletedAt: null },
+          where: { id: planId, deletedAt: null },
           select: { productId: true },
         })
       : undefined;
-    if (query.planId && !plan) return [];
+    if (planId && !plan) return [];
 
     const rows = await this.prisma.client.productDocument.findMany({
       where: {
         deletedAt: null,
-        ...(query.productId || plan?.productId ? { productId: query.productId ?? plan?.productId } : {}),
-        ...(query.planId ? { OR: [{ productionPlanId: query.planId }, { productId: plan?.productId }] } : {}),
-        ...(query.documentType ? { documentType: apiDocumentTypeToPrisma(query.documentType) } : {}),
-        ...(query.status ? { status: apiDocumentStatusToPrisma(query.status) } : {}),
+        ...(query.productId || plan?.productId
+          ? { productId: query.productId ?? plan?.productId }
+          : {}),
+        ...(planId
+          ? {
+              OR: [
+                { productionPlanId: planId },
+                { productId: plan?.productId },
+              ],
+            }
+          : {}),
+        ...(query.customerId
+          ? { product: { customerId: query.customerId, deletedAt: null } }
+          : {}),
+        ...(query.documentType
+          ? { documentType: apiDocumentTypeToPrisma(query.documentType) }
+          : {}),
+        ...(query.status
+          ? { status: apiDocumentStatusToPrisma(query.status) }
+          : {}),
       },
       include: DOCUMENT_INCLUDE,
       orderBy: [{ archived: 'asc' }, { updatedAt: 'desc' }],
@@ -108,7 +159,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
 
   async findDocumentById(id: string): Promise<ProductDocument | undefined> {
     const row = await this.prisma.client.productDocument.findFirst({
-      where: { OR: [{ id }, { storedFileName: id }], deletedAt: null },
+      where: { id, deletedAt: null },
       include: DOCUMENT_INCLUDE,
     });
     return row ? mapPrismaDocument(row) : undefined;
@@ -128,16 +179,23 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       select: { productId: true, processSegment: true },
     });
     if (!plan) return [];
-    const rows = await this.findDocuments({ planId, productId: plan.productId });
+    const rows = await this.findDocuments({
+      planId,
+      productId: plan.productId,
+    });
     return rows.filter((document) => {
       if (document.requiredForProcess === 'common') return true;
-      if (plan.processSegment === 'FRONT') return document.requiredForProcess === 'front';
-      if (plan.processSegment === 'BACK') return document.requiredForProcess === 'back';
+      if (plan.processSegment === 'FRONT')
+        return document.requiredForProcess === 'front';
+      if (plan.processSegment === 'BACK')
+        return document.requiredForProcess === 'back';
       return true;
     });
   }
 
-  async createDocument(payload: CreateUploadedDocumentPayload): Promise<ProductDocument> {
+  async createDocument(
+    payload: CreateUploadedDocumentPayload,
+  ): Promise<ProductDocument> {
     assertDatabaseWriteAllowed();
     const now = new Date();
     const versionGroupKey = documentVersionGroupKey({
@@ -147,6 +205,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     });
     const row = await this.prisma.client.productDocument.create({
       data: {
+        ...(payload.documentId ? { id: payload.documentId } : {}),
         productId: payload.productId,
         productionPlanId: payload.planId,
         documentType: apiDocumentTypeToPrisma(payload.documentType),
@@ -154,7 +213,7 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
         title: payload.title,
         version: payload.version,
         status: apiDocumentStatusToPrisma(payload.status),
-        source: apiDocumentSourceToPrisma('manual_upload'),
+        source: apiDocumentSourceToPrisma(payload.source ?? 'manual_upload'),
         requiredForProcess: apiProcessToPrisma(payload.requiredForProcess),
         previewType: payload.previewType,
         originalFileName: payload.originalFileName,
@@ -163,8 +222,9 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
         fileSize: payload.fileSize,
         previewUrl: payload.previewUrl,
         downloadUrl: payload.downloadUrl,
-        storageProvider: 'local',
-        storageKey: payload.storedFileName,
+        storageProvider: payload.storageProvider ?? 'local',
+        storageKey: payload.storageKey ?? payload.storedFileName,
+        checksum: payload.checksumSha256 ?? payload.checksum,
         mockPreviewText: payload.remark ?? `本地上传 ${payload.title}`,
         keywords: payload.keywords,
         remark: payload.remark,
@@ -172,13 +232,16 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       },
     });
 
-    if (payload.status === 'effective') {
+    if (payload.status === 'effective' && supportsSingleEffectiveDocumentType(payload.documentType)) {
       await this.expireOtherEffectiveDocuments(row.id, versionGroupKey);
     }
     return mapPrismaDocument(row);
   }
 
-  async updateDocumentStatus(id: string, payload: UpdateDocumentStatusPayload): Promise<ProductDocument | undefined> {
+  async updateDocumentStatus(
+    id: string,
+    payload: UpdateDocumentStatusPayload,
+  ): Promise<ProductDocument | undefined> {
     assertDatabaseWriteAllowed();
     const current = await this.findDocumentById(id);
     if (!current) return undefined;
@@ -191,13 +254,16 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       },
     });
     const document = mapPrismaDocument(row);
-    if (payload.status === 'effective') {
+    if (payload.status === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       await this.expireOtherEffectiveDocuments(document.id, docGroupKey(document));
     }
     return this.findDocumentById(document.id);
   }
 
-  async updateDocumentVersion(id: string, payload: UpdateDocumentVersionPayload): Promise<ProductDocument | undefined> {
+  async updateDocumentVersion(
+    id: string,
+    payload: UpdateDocumentVersionPayload,
+  ): Promise<ProductDocument | undefined> {
     assertDatabaseWriteAllowed();
     const current = await this.findDocumentById(id);
     if (!current) return undefined;
@@ -205,12 +271,16 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       where: { id: current.id },
       data: {
         version: payload.version,
-        ...(payload.status ? { status: apiDocumentStatusToPrisma(payload.status) } : {}),
-        ...(payload.status === 'effective' ? { effectiveDate: new Date() } : {}),
+        ...(payload.status
+          ? { status: apiDocumentStatusToPrisma(payload.status) }
+          : {}),
+        ...(payload.status === 'effective'
+          ? { effectiveDate: new Date() }
+          : {}),
       },
     });
     const document = mapPrismaDocument(row);
-    if (document.documentStatus === 'effective') {
+    if (document.documentStatus === 'effective' && supportsSingleEffectiveDocumentType(document.documentType)) {
       await this.expireOtherEffectiveDocuments(document.id, docGroupKey(document));
     }
     return this.findDocumentById(document.id);
@@ -231,7 +301,9 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     return mapPrismaDocument(row);
   }
 
-  async findDocumentVersions(id: string): Promise<DocumentVersionsResponse | undefined> {
+  async findDocumentVersions(
+    id: string,
+  ): Promise<DocumentVersionsResponse | undefined> {
     const currentDocument = await this.findDocumentById(id);
     if (!currentDocument) return undefined;
     const versions = await this.findProductDocumentVersions({
@@ -239,29 +311,44 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
       documentType: currentDocument.documentType,
       requiredForProcess: currentDocument.requiredForProcess,
     });
-    const group = versions.find((item) => item.versionGroupKey === docGroupKey(currentDocument));
+    const group = versions.find(
+      (item) => item.versionGroupKey === docGroupKey(currentDocument),
+    );
     return group ? { ...group, currentDocument } : undefined;
   }
 
-  async findProductDocumentVersions(query: DocumentVersionQuery): Promise<DocumentVersionGroup[]> {
+  async findProductDocumentVersions(
+    query: DocumentVersionQuery,
+  ): Promise<DocumentVersionGroup[]> {
     const documents = await this.findDocuments({
       productId: query.productId,
       documentType: query.documentType,
     });
-    const filtered = documents.filter((document) => !query.requiredForProcess || document.requiredForProcess === query.requiredForProcess);
+    const filtered = documents.filter(
+      (document) =>
+        !query.requiredForProcess ||
+        document.requiredForProcess === query.requiredForProcess,
+    );
     const groups = new Map<string, ProductDocument[]>();
     for (const document of filtered) {
       const key = docGroupKey(document);
       groups.set(key, [...(groups.get(key) ?? []), document]);
     }
-    return Array.from(groups.entries()).map(([key, versions]) => groupFromVersions(key, versions));
+    return Array.from(groups.entries()).map(([key, versions]) =>
+      groupFromVersions(key, versions),
+    );
   }
 
-  async setEffectiveDocument(id: string, _payload: SetEffectiveDocumentPayload): Promise<SetEffectiveDocumentResult | undefined> {
+  async setEffectiveDocument(
+    id: string,
+    _payload: SetEffectiveDocumentPayload,
+  ): Promise<SetEffectiveDocumentResult | undefined> {
     assertDatabaseWriteAllowed();
     const current = await this.findDocumentById(id);
     if (!current) return undefined;
-    await this.expireOtherEffectiveDocuments(current.id, docGroupKey(current));
+    if (supportsSingleEffectiveDocumentType(current.documentType)) {
+      await this.expireOtherEffectiveDocuments(current.id, docGroupKey(current));
+    }
     await this.prisma.client.productDocument.update({
       where: { id: current.id },
       data: {
@@ -274,7 +361,9 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     const document = await this.findDocumentById(current.id);
     if (!document) return undefined;
     const versions = await this.findDocumentVersions(document.id);
-    const planId = document.planId ?? (await this.planIdForProduct(productIdFromDocument(document)));
+    const planId =
+      document.planId ??
+      (await this.planIdForProduct(productIdFromDocument(document)));
     const planRow = planId
       ? await this.prisma.client.productionPlan.findFirst({
           where: { id: planId, deletedAt: null },
@@ -290,9 +379,12 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     };
   }
 
-  async compareDocuments(documentIds: string[]): Promise<DocumentCompareResult> {
-    const documents = (await Promise.all(documentIds.map((id) => this.findDocumentById(id))))
-      .filter((document): document is ProductDocument => Boolean(document));
+  async compareDocuments(
+    documentIds: string[],
+  ): Promise<DocumentCompareResult> {
+    const documents = (
+      await Promise.all(documentIds.map((id) => this.findDocumentById(id)))
+    ).filter((document): document is ProductDocument => Boolean(document));
     const fields: Array<[keyof ProductDocument, string]> = [
       ['title', '资料标题'],
       ['documentType', '资料类型'],
@@ -309,7 +401,10 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     return {
       documents,
       fields: fields.map(([field, label]): DocumentCompareField => {
-        const values = documents.map((document) => document[field] as string | number | string[] | undefined);
+        const values = documents.map(
+          (document) =>
+            document[field] as string | number | string[] | undefined,
+        );
         return {
           field,
           label,
@@ -320,7 +415,10 @@ export class PrismaDocumentRepository implements DocumentRepositoryInterface {
     };
   }
 
-  private async expireOtherEffectiveDocuments(documentId: string, versionGroupKey: string) {
+  private async expireOtherEffectiveDocuments(
+    documentId: string,
+    versionGroupKey: string,
+  ) {
     await this.prisma.client.productDocument.updateMany({
       where: {
         id: { not: documentId },

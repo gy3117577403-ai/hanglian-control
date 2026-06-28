@@ -1,0 +1,106 @@
+apply plugin: 'com.android.application'
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { stream -> localProperties.load(stream) }
+}
+
+def releaseSigningValue = { name ->
+    def value = localProperties.getProperty(name)
+    if (value == null || value.trim().isEmpty()) value = System.getenv(name)
+    return value == null ? '' : value.trim()
+}
+
+def releaseStoreFilePath = releaseSigningValue('HANG_LIAN_RELEASE_STORE_FILE')
+def releaseStorePassword = releaseSigningValue('HANG_LIAN_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = releaseSigningValue('HANG_LIAN_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = releaseSigningValue('HANG_LIAN_RELEASE_KEY_PASSWORD')
+def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def isReleaseBuildTask = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains('release') || taskName.toLowerCase().contains('bundle')
+}
+
+android {
+    namespace = "com.hanglian.control"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.hanglian.control"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1603
+        versionName "0.16.3-debug"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    flavorDimensions "environment"
+    productFlavors {
+        local {
+            dimension "environment"
+        }
+        staging {
+            dimension "environment"
+            versionCode 1700
+            versionName "0.17.0-staging-debug"
+        }
+        production {
+            dimension "environment"
+            versionCode 1801
+            versionName "0.18.1"
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else if (isReleaseBuildTask) {
+                throw new GradleException('Release signing is missing. Configure HANG_LIAN_RELEASE_* in ignored apps/tablet/android/local.properties or environment variables.')
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

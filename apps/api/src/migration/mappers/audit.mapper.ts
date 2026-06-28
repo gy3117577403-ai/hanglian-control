@@ -7,10 +7,15 @@ const entityToPrisma: Record<AuditEntityType, string> = {
   feedback: 'FEEDBACK',
   file: 'FILE',
   system: 'SYSTEM',
+  import: 'IMPORT',
+  knowledge: 'KNOWLEDGE',
+  product: 'IMPORT',
 };
 
 const actionToPrisma: Record<AuditAction, string> = {
   document_uploaded: 'DOCUMENT_UPLOADED',
+  pdf_drawing_imported: 'DOCUMENT_UPLOADED',
+  pdf_import_product_created: 'BUSINESS_DATA_IMPORTED',
   document_status_changed: 'DOCUMENT_STATUS_CHANGED',
   document_version_changed: 'DOCUMENT_VERSION_CHANGED',
   document_set_effective: 'DOCUMENT_SET_EFFECTIVE',
@@ -19,6 +24,8 @@ const actionToPrisma: Record<AuditAction, string> = {
   document_downloaded: 'DOCUMENT_DOWNLOADED',
   readiness_recalculated: 'READINESS_RECALCULATED',
   migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
+  business_data_imported: 'BUSINESS_DATA_IMPORTED',
+  maintenance_recorded: 'MAINTENANCE_RECORDED',
 };
 
 export function mapAuditLogToPrisma(log: AuditLog) {

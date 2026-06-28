@@ -21,6 +21,7 @@ export class MockAuditRepository implements AuditRepositoryInterface {
       .filter((log) => !query.entityId || log.entityId === query.entityId)
       .filter((log) => !query.planId || log.planId === query.planId)
       .filter((log) => !query.productId || log.productId === query.productId)
+      .filter((log) => !query.orderId || log.orderId === query.orderId)
       .filter((log) => !query.action || log.action === query.action)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit);
@@ -40,6 +41,7 @@ export class MockAuditRepository implements AuditRepositoryInterface {
       operatorRole: payload.operatorRole ?? defaultOperator.operatorRole,
       planId: payload.planId,
       productId: payload.productId,
+      orderId: payload.orderId,
       createdAt: new Date().toISOString(),
     };
     const logs = this.localStorageService.readAuditLogsSync();

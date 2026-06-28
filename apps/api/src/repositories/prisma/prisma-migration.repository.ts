@@ -38,7 +38,7 @@ export class PrismaMigrationRepository implements MigrationRepositoryInterface {
     ]);
 
     return {
-      dataSource: 'prisma',
+      dataSource: 'postgres',
       target: 'prisma_postgresql',
       safeToMigrate: false,
       summary: {

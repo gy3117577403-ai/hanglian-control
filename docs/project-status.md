@@ -1,31 +1,198 @@
 # 项目状态
 
-当前版本：V0.9 准备中。
+## V3.16A Android APP 基础工程
 
-## 已完成能力概览
+- 当前分支：`feature/v3-16-android-app-foundation`。
+- 新增 Capacitor 8 Android 工程，APP ID 为 `com.hanglian.control`，APP 名称为 `线束资料工作台`。
+- Android App 加载本地打包资源，不依赖远程 Web 页面，正式配置不包含 `server.url`。
+- 默认横屏为 `sensorLandscape`，Debug 版本为 `0.16.0-debug` / `1600`。
+- 原生 API 地址从 `VITE_NATIVE_API_BASE_URL` 读取；缺失时显示 `APP 尚未配置服务器地址。` 并阻止请求。
+- Debug LAN API 通过本机忽略文件 `apps/tablet/.env.android.local` 配置，不提交 Git。
+- Debug 明文 HTTP 仅在 `app/src/debug/AndroidManifest.xml` 开启；Release 方向保持 HTTPS 和 mixed content 默认关闭。
+- 新增 Android 返回键、原生网络检测、离线/恢复提示、状态栏/Splash 处理和 Native safe-area 适配。
+- 已预备摄像头权限，尚未申请录音权限，未接入真实语音。
+- 当前仍未连接 PostgreSQL，未执行 migrate/db push/seed，未修改 Sealos，未创建正式签名。
+- 新增检查：`android:check`、`native-api-config:check`、`android-back:check`、`native-network:check`。
 
-- V0.1：完成平板端深色工业中控风原型、生产计划资料包展示、Mock 数据和基础后端 Mock API。
-- V0.2：前端改为优先通过后端 Mock API 获取数据，保留离线演示 fallback。
-- V0.3：完善资料上传、预览、查询留痕和异常反馈基础流程。
-- V0.4：整理数据库接入准备结构，但未连接真实数据库。
-- V0.5：实现本地文件资料管理和资料预览占位能力。
-- V0.6：实现资料版本管理、版本红线、审计记录和本地 metadata。
-- V0.7：补充 Prisma Repository 草稿、迁移预演和 seed dry-run 准备。
-- V0.8A：完成 Sealos PostgreSQL 测试库只读验证准备，但当前仍未连接真实数据库。
+## V3.4 主界面细节打磨 + 图纸详情体验优化
 
-## 当前状态
+- 当前分支：`feature/v3-4-document-hub-polish`。
+- `/tablet` 顶部进一步收敛为资料库圆形入口、当前功能搜索、上传资料和订单总览。
+- 左侧订单区改为今日订单与本周订单同时显示，订单卡片更紧凑，完成订单后保持资料不变。
+- 订单总览改为本周订单、待完成、已完成页签，并支持已完成订单重新加入待完成（前端 Mock）。
+- 图纸库客户层、产品型号层和图纸详情层补充状态、齐套、更新时间和空状态说明。
+- 图纸详情六大模块固定布局，多图详情和大图查看支持逐级返回、上一张/下一张和放大查看。
+- 模块内上传自动绑定客户、产品型号和模块类型；顶部上传仍可手动选择。
+- 连接器参数与治具参数改为独立固定表头参数表，不展示客户/产品层级。
+- 删除密码默认 `123` 的文案已优化；后端仍只保存 bcrypt hash，前端不保存密码。
+- 当前仍是 Mock / 本地演示状态，未接 Sealos、企业微信微盘、企业微信真实登录或真实语音识别。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何数据库写库操作。
 
-- 当前仍使用 Mock 数据。
-- 当前不连接数据库。
-- 当前不接企业微信微盘。
-- 当前不接真实语音识别平台。
-- 当前不保存真实密钥、真实客户资料或真实生产图纸。
-- 当前重点转为 GitHub 上传前工程整理、安全检查和 CI 准备。
+## V3.3 手游式资料库入口 + 订单驱动图纸库
 
-## 下一阶段建议
+- 当前分支：`feature/v3-3-game-doc-hub-orders`。
+- `/tablet` 主页面已改为现场资料调用工作台，不做登录权限、职位专属 UI、复杂后台筛选、生产执行闭环或统计看板。
+- 新增圆形“资料库”功能入口，展开图纸库、连接器参数、治具参数三项功能。
+- 新增今日/本周订单侧栏，点击产品型号直接打开对应图纸详情；完成订单后从待办列表移除，并进入订单总览已完成列表。
+- 新增图纸库客户 -> 产品型号 -> 图纸详情 -> 模块详情 -> 大图查看层级。
+- 图纸详情固定六大模块：原图、SOP 指导书、成品图、辅料规格、注意事项、配套工装。
+- 新增连接器参数和治具参数独立搜索模块。
+- 上传资料保留，并支持从图纸模块内上传时自动绑定客户、产品型号和模块类型。
+- 当前本地默认删除密码为 `123`，后端只保存 bcrypt hash，不保存明文密码。
+- 当前仍是 Mock / 本地演示状态，未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何数据库写库操作。
 
-- 先完成 GitHub 仓库创建和首次提交。
-- 使用 CI 验证安全检查与构建流程。
-- 继续优化平板端 UI 和现场操作流程。
-- 在测试库连接串准备好后，再恢复 Sealos 只读验证线。
-- 数据库写入、企业微信微盘同步和真实语音识别应作为独立阶段推进。
+## V3.3 主界面二次精简
+
+- 当前分支：`feature/v3-3-custom-main-document-layout`。
+- `/tablet` 主页面已改为三栏统一资料中心：左侧筛选与回收站，中间查询/上传/资料列表，右侧预览/详情/版本操作。
+- 主页面已隐藏生产计划、登录权限、职位专属 UI、演示工具、现场模式、现场执行闭环和统计看板。
+- 上传资料入口、资料预览、资料编辑、设为当前有效、回收站、恢复、彻底删除和删除密码锁保留。
+- 本阶段只做前端主界面布局收敛、文档和只读检查脚本，不接 Sealos、不接企业微信微盘、不接真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何数据库写库操作。
+
+## V3.2 统一资料查询上传中心
+
+- 当前分支：`feature/v3-2-unified-query-upload-delete-lock`。
+- 主页面改为统一资料查询上传中心，不再要求登录。
+- 暂时取消主页面角色、职位专属入口、演示工具、现场模式、执行闭环和统计看板主流程展示。
+- 新增统一资料搜索、上传、预览、编辑、版本历史、设为当前有效。
+- 新增回收站、软删除、恢复、彻底删除和批量删除。
+- 新增删除密码锁，后端保存 bcrypt hash，前端不保存明文密码。
+- 删除锁 metadata 已加入 `.gitignore`。
+- 当前仍未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何数据库写库操作。
+
+## V3.1 定制开发基线
+
+- 当前分支：`feature/v3-1-clean-custom-baseline`。
+- 已暂停现场试运行配置方向。
+- 已暂停 Sealos 数据库接入线。
+- 已清理演示数据、演示生成目录、本地上传演示文件和 metadata 运行数据。
+- 已进入定制开发基线，等待用户提供真实界面和功能修改需求。
+- 默认 `DEMO_DATA_MODE=empty`，不加载业务演示 seed。
+- 保留全部功能代码、API 模块、脚本、Prisma schema 和文档能力。
+- 当前仍未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何写库操作。
+
+## V3.1 系统配置能力（历史保留）
+
+- 当前分支：`feature/v3-1-system-settings-field-pilot`。
+- 新增系统配置中心。
+- 新增字典配置、工位配置、显示配置。
+- 新增公告通知和使用反馈闭环。
+- 新增现场试运行检查。
+- 新增本地配置审计记录。
+- 新增 `settings-flow:check` 和 `field-pilot:check`。
+- 当前仍未接 Sealos、企业微信微盘、企业微信真实登录或真实语音。
+- 禁止执行 migrate、db push、db seed、db:readonly-check 和任何写库操作。
+
+## V3.0A 进展
+
+- 当前分支：`feature/v3-0a-sealos-readonly-check`。
+- 目标：准备 Sealos PostgreSQL 测试库只读验证。
+- 当前仍为 Mock / 本地 metadata 数据源。
+- `.env.local` 仅本机使用，不提交 Git。
+- 只读验证命令：`npm run db:readonly-check -w api`。
+- 本地预览命令：`npm run prisma:migration:sql-preview -w api`、`npm run prisma:seed:dry-run -w api`。
+- 新增检查命令：`npm run sealos:readonly-check`、`npm run sealos:readonly-report`。
+- 禁止执行 migrate、db push、db seed、真实 seed 和任何写库操作。
+
+下一步：用户在本机 `apps/api/.env.local` 填写 Sealos PostgreSQL 测试库连接串后，可重新执行 V3.0A 只读验证；只读验证通过后再进入 V3.0B。
+
+当前版本：V2.7 全流程回归候选版。
+
+## 已完成
+
+- V0.1：平板端生产计划资料管控原型。
+- V0.2：前端优先走后端 Mock API。
+- V0.3：上传、预览、查询留痕、异常反馈基础流程。
+- V0.4：数据库接入准备，不连接真实数据库。
+- V0.5：本地文件资料管理。
+- V0.6：资料版本管理、审计、metadata。
+- V0.7：Prisma Repository 草稿、迁移预览、seed dry-run。
+- V0.8A：Sealos PostgreSQL 测试库只读验证准备。
+- V0.9：本地安全基线提交。
+- V1.0-V1.8：暖色立体工业平板 UI、演示流程、冻结检查和现场 QA。
+- V1.9：PWA 配置、平板安装提示、横屏提示和诊断。
+- V2.0：数据导入中心、Excel/CSV 预览校验、模板下载、导入历史。
+- V2.1：资料维护中心、复核队列、维护历史。
+- V2.2：本地 Mock 角色与权限。
+- V2.3：治具库、异常库、质量标准库、现场知识页签和搜索联动。
+- V2.4：知识库现场验证、开工检查联动、知识库批量维护、复核队列知识问题、导入预览增强。
+- V2.5：生产执行闭环、班组交接和现场日报。
+- V2.6：现场统计看板、统计摘要和 analytics Mock API。
+- V2.7：全流程回归、数据一致性校验、演示版总验收和 Sealos 差距清单。
+
+## V2.7 完成内容
+
+- 新增后端 `system-qa` 只读总验收 API。
+- 新增前端“全流程总验收”面板。
+- 新增数据一致性、业务链路、权限回归、演示准备和验收报告聚合。
+- 新增 `full-regression:check`、`data-consistency:check`、`acceptance:report`。
+- 新增 V2.7 Release Notes 与 Sealos 接入前差距清单。
+- 当前仍未连接 Sealos、企业微信微盘、企业微信登录或真实语音。
+
+## 当前仍为 Mock
+
+- 后端业务数据仍为 Mock seed / 本地 metadata。
+- 文件存储仍为本机 `apps/api/storage/uploads`。
+- 企业微信微盘未接入。
+- 企业微信登录未接入。
+- 真实语音识别未接入。
+- Sealos PostgreSQL 未连接，未执行写库。
+- 网络诊断只做 API / 文件服务只读检查，不做数据库连接。
+
+## 安全状态
+
+- `.env.local` 不提交。
+- 本地上传文件不提交。
+- metadata JSON 不提交。
+- 真实 DATABASE_URL 不写入代码、文档或日志。
+- 本阶段禁止执行 `db:readonly-check`、`prisma migrate`、`prisma db push`、`prisma db seed`、`prisma:seed:test-db`。
+
+## 下一步建议
+
+完成全流程总验收后，可选择路线 A 创建 PR / 合并 main / 打演示 tag，或路线 B 进入 Sealos PostgreSQL 测试库只读接入准备。
+## V3.10 storage cloud alignment
+
+- Current branch: `feature/v3-10-storage-cloud-alignment`.
+- Purpose: add a storage adapter layer and align local file paths with a future Sealos persistent volume.
+- Active storage provider remains `local`.
+- Future volume mount target: `/data/hanglian`.
+- Prepared but disabled: S3/Object Storage adapter.
+- Still paused: Sealos PostgreSQL, database writes, WeCom Drive, real voice.
+- New checks: `storage-flow:check`, `cloud-alignment:check`, `storage:legacy-scan`.
+- Do not run `db:readonly-check`, `prisma migrate`, `prisma db push`, `prisma db seed`, or `prisma:seed:test-db` in this stage.
+# V3.12 image build validation and deployment dry run
+
+- Current branch: `feature/v3-12-image-build-validation`.
+- Purpose: validate API and Tablet image build configuration before any Sealos deployment.
+- V3.11 branch has been pushed as a backup before this branch.
+- Workflow `.github/workflows/build-images-manual.yml` now keeps manual dispatch and only auto-runs on this V3.12 branch.
+- Image tags are SHA-based: `v3.12-<short-sha>`, `sha-<short-sha>`, and optional `v3.12-candidate`.
+- Forbidden image tags: `latest`, `production`, `stable`.
+- Added deployment parameter sheet and existing app diff template for manual Sealos review.
+- Added local compose smoke template, but it is not started in this stage.
+- Added local-only checks: `image-build:check` and `sealos:deploy-dry-run`.
+- Still paused: Sealos app modification, Sealos deployment, PostgreSQL connection, Prisma migration, db push, seed, S3 connection, and WeCom Drive.
+
+# V3.11 Sealos persistent runtime preparation
+
+- Current branch: `feature/v3-11-sealos-persistent-runtime`.
+- Purpose: prepare API and Tablet split container deployment with runtime configuration.
+- API default data source remains `mock`.
+- API local storage is aligned to the future Sealos persistent volume path `/data/hanglian`.
+- Tablet reads `RUNTIME_API_BASE_URL` at container startup through `runtime-config.js`.
+- Added safe runtime endpoints: `/api/health`, `/api/runtime/info`, `/api/storage/status`, `/api/storage/mount-readiness`.
+- Added local-only checks: `cloud:runtime-preflight`, `runtime-config:check`, `storage:mount-check -w api`.
+- Added manual-only GitHub image workflow. It is not triggered automatically by this commit.
+- Still paused: Sealos PostgreSQL, S3/Object Storage, WeCom Drive, real voice, Sealos app deployment changes.
+- Forbidden in this stage: `db:readonly-check`, Prisma migrate, Prisma db push, seed, and any database write.
+
+# V3.14 图纸 Prisma 数据模型草案
+
+- 当前分支：`feature/v3-14-drawing-product-workflow`。
+- 已定稿图纸业务 Prisma schema 草案，覆盖 `Customer`、`Product`、`ProductModule`、`ProductDocument`、`PdfImportBatch`、`PdfImportItem`、`AuditLog` 和 `DeleteLockSetting`。
+- 已补充 JSON metadata 到 Prisma 的字段映射文档，以及 V3.15 测试库迁移路径的 PostgreSQL readiness 说明。
+- 运行时仍使用 Mock / JSON metadata 和本地持久化文件索引。本阶段没有连接 PostgreSQL、没有执行迁移、没有建表、没有 seed、没有修改 Sealos。

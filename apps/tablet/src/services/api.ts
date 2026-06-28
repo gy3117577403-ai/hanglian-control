@@ -1,40 +1,307 @@
 import { ofetch } from 'ofetch'
+import { getApiBaseUrl, getApiRuntimeConfig } from '@/config/api-base'
+import { NATIVE_API_MISSING_MESSAGE } from '@/native/native-platform'
 import type {
   ConfirmProductionPlanPayload,
   AuditLog,
   AuditLogQuery,
+  AuthSession,
+  CompletePlanPayload,
   DatabaseSafetyStatus,
   DataSourceStatus,
+  DailyReport,
   DocumentCompareResult,
+  DocumentFileHealthQuery,
+  DocumentFileHealthResponse,
   DocumentQuery,
   DocumentVersionGroup,
   DocumentVersionQuery,
   DocumentVersionsResponse,
+  ExecutionPlanDetail,
+  ExecutionPlanListItem,
+  ExecutionReasonPayload,
+  ExecutionSummary,
+  ExecutionTimelineItem,
   FeedbackRecord,
   HealthResponse,
+  ImportApplyPayload,
+  ImportApplyResult,
+  ImportPreviewResult,
+  ImportRecord,
+  ImportRollbackPreview,
+  ImportTemplateDefinition,
+  ImportType,
+  AbnormalCaseKnowledge,
+  AbnormalStatus,
+  AnalyticsDocuments,
+  AnalyticsExceptions,
+  AnalyticsKnowledge,
+  AnalyticsOverview,
+  AnalyticsProduction,
+  AnalyticsQuantity,
+  AnalyticsQuery,
+  AnalyticsRankings,
+  AnalyticsTrends,
+  FixtureKnowledge,
+  KnowledgeProcessSegment,
+  KnowledgeRecord,
+  KnowledgeBulkUpdatePayload,
+  KnowledgeBulkUpdateResult,
+  KnowledgePlanRecommendations,
+  KnowledgeSearchResult,
+  KnowledgeStatus,
+  KnowledgeSummary,
+  KnowledgeValidationResult,
+  QualityStandardKnowledge,
+  QualityStatus,
+  MaintenanceBackPackage,
+  MaintenanceCustomer,
+  MaintenanceDocument,
+  MaintenanceEntityType,
+  MaintenanceFrontParameter,
+  MaintenanceMutationResult,
+  MaintenanceProduct,
+  MaintenanceProductionPlan,
+  MaintenanceQuery,
+  MaintenanceRecord,
+  MaintenanceReviewItem,
+  MaintenanceSummary,
   MigrationPreview,
   MigrationValidation,
+  MockUser,
+  PermissionMatrixResponse,
   PlanReadiness,
   PlanScope,
+  ProcessConfirmationPayload,
   PrismaSeedPreview,
   ProductionPlan,
   ProductDocument,
+  QuantityReport,
+  QuantityReportPayload,
   SearchHit,
   SetEffectiveDocumentPayload,
   SetEffectiveDocumentResult,
+  SettingsRecord,
+  SettingsSummary,
+  ShiftHandoverPayload,
+  ShiftHandoverRecord,
+  StartPlanPayload,
+  StartPreparationResult,
+  StationProfile,
+  SystemFeedbackRecord,
+  SystemSettings,
   SubmitFeedbackPayload,
+  SystemQaAcceptanceReport,
+  SystemQaListReport,
+  SystemQaOverview,
+  SystemQaPermissionRegression,
+  AnnouncementRecord,
+  DictionaryGroup,
+  DisplaySettings,
+  PilotCheckResult,
   UpdateDocumentStatusPayload,
   UpdateDocumentVersionPayload,
+  BulkActionResult,
+  BulkDeletePayload,
+  BulkPurgePayload,
+  BulkRestorePayload,
+  DeleteLockChangePayload,
+  DeleteLockSetupPayload,
+  DeletePasswordPayload,
+  ConnectorImportResult,
+  ConnectorParameter,
+  ConnectorParameterPayload,
+  DocumentHubUploadPayload,
+  DocumentHubUploadResponse,
+  DrawingModule,
+  DrawingModuleKey,
+  FixtureParameter,
+  HubCustomer,
+  HubMode,
+  HubProductModel,
+  ProductDrawingDetail,
+  PurgePayload,
+  UnifiedDocumentItem,
+  UnifiedSearchQuery,
+  UnifiedSearchResponse,
+  UnifiedUpdatePayload,
 } from '@/types/production'
+import type {
+  PdfImportApplyRequest,
+  PdfImportApplyResponse,
+  PdfImportPreviewResponse,
+} from '@/types/pdf-import'
+import type {
+  CreateDrawingCustomerPayload,
+  CreateDrawingProductArchivePayload,
+  DrawingProductResolution,
+  ResolveDrawingProductQuery,
+} from '@/types/product-resolution'
+import type {
+  UpdateDrawingCustomerPayload,
+  UpdateDrawingProductPayload,
+} from '@/types/customer-product-maintenance'
+import type {
+  DeleteLockStatus,
+  DrawingLifecycleResponse,
+  DrawingTrashListResponse,
+  PurgeDocumentPayload,
+  RestoreDocumentPayload,
+  TrashDocumentPayload,
+  TrashQuery,
+} from '@/types/document-lifecycle'
+import type {
+  OrderImportApplyRequest,
+  OrderImportApplyResponse,
+  OrderImportPreviewResponse,
+  OrderListQuery,
+  OrderOperatorPayload,
+  OrderOverviewResponse,
+  OrderProductLinkPayload,
+  OrderProductionStatus,
+  OrderQueryScope,
+  ProductionOrder,
+} from '@/types/order-management'
+import type {
+  DrawingDocumentMetadataPayload,
+  DrawingDocumentOperatorPayload,
+  DrawingDocumentVersionResponse,
+} from '@/types/document-version'
+import type { DrawingSearchResponse, ScopedHubSearchResponse } from '@/types/drawing-search'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api'
+const API_RUNTIME_CONFIG = getApiRuntimeConfig()
+const API_BASE = getApiBaseUrl()
+
+const AUTH_STORAGE_KEYS = {
+  token: 'hanglian.auth.token',
+  currentUser: 'hanglian.auth.currentUser',
+}
+
+function readAuthHeaders(): Record<string, string> {
+  if (typeof localStorage === 'undefined') return {}
+  const token = localStorage.getItem(AUTH_STORAGE_KEYS.token)
+  const currentUserRaw = localStorage.getItem(AUTH_STORAGE_KEYS.currentUser)
+  let currentUser: Pick<MockUser, 'userId'> | null = null
+  try {
+    currentUser = currentUserRaw ? JSON.parse(currentUserRaw) as MockUser : null
+  } catch {
+    currentUser = null
+  }
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(currentUser?.userId ? { 'x-mock-user-id': currentUser.userId } : {}),
+  }
+}
 
 export const api = ofetch.create({
   baseURL: API_BASE,
   timeout: 5000,
+  onRequest({ options }) {
+    if (API_RUNTIME_CONFIG.source === 'native-missing') {
+      throw new Error(NATIVE_API_MISSING_MESSAGE)
+    }
+    const headers = new Headers(options.headers as HeadersInit | undefined)
+    for (const [key, value] of Object.entries(readAuthHeaders())) {
+      headers.set(key, value)
+    }
+    options.headers = headers
+  },
 })
 
 export const apiBaseUrl = API_BASE
+
+function readApiErrorMessage(error: unknown) {
+  const value = error as {
+    data?: { message?: string | string[]; error?: string; statusCode?: number }
+    response?: { _data?: { message?: string | string[]; error?: string; statusCode?: number } }
+    message?: string
+  }
+  const raw = value?.data?.message
+    ?? value?.response?._data?.message
+    ?? value?.data?.error
+    ?? value?.response?._data?.error
+    ?? value?.message
+  return Array.isArray(raw) ? raw.join('；') : String(raw ?? '').trim()
+}
+
+function toPdfImportRequestError(error: unknown) {
+  const message = readApiErrorMessage(error)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
+    return new Error('PDF 导入请求失败，请检查网络连接。')
+  }
+  return new Error(message)
+}
+
+function toLifecycleRequestError(error: unknown) {
+  const message = readApiErrorMessage(error)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
+    return new Error('网络连接失败，请检查网络。')
+  }
+  return new Error(message)
+}
+
+function toOrderRequestError(error: unknown) {
+  const message = readApiErrorMessage(error)
+  if (!message || /Failed to fetch|NetworkError|timeout|fetch/i.test(message)) {
+    return new Error('网络连接失败，请检查网络。')
+  }
+  return new Error(message)
+}
+
+function encodedDrawingItemPath(productId: string, moduleKey: string, itemId: string) {
+  return [
+    '/document-hub/drawings/products',
+    encodeURIComponent(productId),
+    'modules',
+    encodeURIComponent(moduleKey),
+    'items',
+    encodeURIComponent(itemId),
+  ].join('/')
+}
+
+function toFileArray(files: readonly File[] | FileList) {
+  return Array.isArray(files) ? [...files] : Array.from(files)
+}
+
+export function pingApi() {
+  return api<{ ok: boolean; timestamp: string; service: string }>('/system/ping')
+}
+
+export async function measureApiLatency() {
+  const startedAt = Date.now()
+  try {
+    const response = await pingApi()
+    return {
+      ok: response.ok,
+      latencyMs: Date.now() - startedAt,
+      checkedAt: response.timestamp,
+    }
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      checkedAt: new Date().toISOString(),
+    }
+  }
+}
+
+export async function checkFileService(query?: DocumentFileHealthQuery) {
+  const startedAt = Date.now()
+  try {
+    await api<DocumentFileHealthResponse>('/documents/file-health', { query })
+    return {
+      ok: true,
+      latencyMs: Date.now() - startedAt,
+      message: '文件健康接口正常',
+    }
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      message: '文件健康接口异常',
+    }
+  }
+}
 
 export function getHealth() {
   return api<HealthResponse>('/health')
@@ -46,6 +313,115 @@ export function getDataSourceStatus() {
 
 export function getDatabaseSafety() {
   return api<DatabaseSafetyStatus>('/system/database-safety')
+}
+
+export function getMockUsers() {
+  return api<MockUser[]>('/auth/mock-users')
+}
+
+export function mockLogin(userId: string) {
+  return api<AuthSession>('/auth/mock-login', {
+    method: 'POST',
+    body: { userId },
+  })
+}
+
+export function getCurrentAuthUser() {
+  return api<AuthSession>('/auth/me')
+}
+
+export function logoutMockUser() {
+  return api<{ success: boolean; message: string }>('/auth/logout', {
+    method: 'POST',
+  })
+}
+
+export function getPermissionMatrix() {
+  return api<PermissionMatrixResponse>('/auth/permissions')
+}
+
+export function getSettingsSummary() {
+  return api<SettingsSummary>('/settings/summary')
+}
+
+export function getSystemSettings() {
+  return api<SystemSettings>('/settings/system')
+}
+
+export function updateSystemSettings(payload: Partial<SystemSettings>) {
+  return api<SystemSettings>('/settings/system', { method: 'PATCH', body: payload })
+}
+
+export function getDictionaries() {
+  return api<DictionaryGroup[]>('/settings/dictionaries')
+}
+
+export function updateDictionary(groupKey: string, payload: { items: DictionaryGroup['items'] }) {
+  return api<DictionaryGroup>(`/settings/dictionaries/${groupKey}`, { method: 'PATCH', body: payload })
+}
+
+export function getStationProfiles() {
+  return api<StationProfile[]>('/settings/station-profiles')
+}
+
+export function createStationProfile(payload: Partial<StationProfile>) {
+  return api<StationProfile>('/settings/station-profiles', { method: 'POST', body: payload })
+}
+
+export function updateStationProfile(id: string, payload: Partial<StationProfile>) {
+  return api<StationProfile>(`/settings/station-profiles/${id}`, { method: 'PATCH', body: payload })
+}
+
+export function updateStationProfileStatus(id: string, payload: { status: StationProfile['status'] }) {
+  return api<StationProfile>(`/settings/station-profiles/${id}/status`, { method: 'PATCH', body: payload })
+}
+
+export function getDisplaySettings() {
+  return api<DisplaySettings>('/settings/display')
+}
+
+export function updateDisplaySettings(payload: Partial<DisplaySettings>) {
+  return api<DisplaySettings>('/settings/display', { method: 'PATCH', body: payload })
+}
+
+export function getAnnouncements(query?: Record<string, string | boolean | undefined>) {
+  return api<AnnouncementRecord[]>('/settings/announcements', { query })
+}
+
+export function createAnnouncement(payload: Partial<AnnouncementRecord>) {
+  return api<AnnouncementRecord>('/settings/announcements', { method: 'POST', body: payload })
+}
+
+export function updateAnnouncement(id: string, payload: Partial<AnnouncementRecord>) {
+  return api<AnnouncementRecord>(`/settings/announcements/${id}`, { method: 'PATCH', body: payload })
+}
+
+export function updateAnnouncementStatus(id: string, payload: { active: boolean }) {
+  return api<AnnouncementRecord>(`/settings/announcements/${id}/status`, { method: 'PATCH', body: payload })
+}
+
+export function getSystemFeedback(query?: Record<string, string | undefined>) {
+  return api<SystemFeedbackRecord[]>('/settings/feedback', { query })
+}
+
+export function createSystemFeedback(payload: Partial<SystemFeedbackRecord>) {
+  return api<SystemFeedbackRecord>('/settings/feedback', { method: 'POST', body: payload })
+}
+
+export function updateSystemFeedbackStatus(id: string, payload: { status: SystemFeedbackRecord['status'] }) {
+  return api<SystemFeedbackRecord>(`/settings/feedback/${id}/status`, { method: 'PATCH', body: payload })
+}
+
+export function getPilotCheck() {
+  return api<PilotCheckResult>('/settings/pilot-check')
+}
+
+export function runPilotCheck() {
+  return api<PilotCheckResult>('/settings/pilot-check/run', { method: 'POST', body: {} })
+}
+
+export function getSettingsHistory(query?: Record<string, string | number | undefined>) {
+  return api<SettingsRecord[]>('/settings/history', { query })
 }
 
 export function getProductionPlans(scope: PlanScope) {
@@ -93,6 +469,12 @@ export function getFeedback(planId?: string) {
 
 export function getDocuments(query?: DocumentQuery) {
   return api<ProductDocument[]>('/documents', {
+    query,
+  })
+}
+
+export function getDocumentFileHealth(query?: DocumentFileHealthQuery) {
+  return api<DocumentFileHealthResponse>('/documents/file-health', {
     query,
   })
 }
@@ -152,6 +534,115 @@ export function archiveDocument(id: string) {
   })
 }
 
+export function searchUnifiedDocuments(query?: UnifiedSearchQuery) {
+  return api<UnifiedSearchResponse>('/unified-documents/search', {
+    query: {
+      ...query,
+      includeDeleted: query?.includeDeleted ? 'true' : undefined,
+    },
+  })
+}
+
+export function getUnifiedDocument(id: string) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}`)
+}
+
+export function uploadUnifiedDocument(formData: FormData) {
+  return api<UnifiedDocumentItem>('/unified-documents/upload', {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export function updateUnifiedDocument(id: string, payload: UnifiedUpdatePayload) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getUnifiedDocumentVersions(id: string) {
+  return api(`/unified-documents/${id}/versions`)
+}
+
+export function setUnifiedDocumentEffective(id: string) {
+  return api(`/unified-documents/${id}/set-effective`, {
+    method: 'POST',
+  })
+}
+
+export function getUnifiedTrash() {
+  return api<UnifiedDocumentItem[]>('/unified-documents/trash')
+}
+
+export function deleteUnifiedDocument(id: string, payload: DeletePasswordPayload) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}/delete`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function restoreUnifiedDocument(id: string, payload?: { reason?: string }) {
+  return api<UnifiedDocumentItem>(`/unified-documents/${id}/restore`, {
+    method: 'POST',
+    body: payload ?? {},
+  })
+}
+
+export function purgeUnifiedDocument(id: string, payload: PurgePayload) {
+  return api<{ success: boolean; id: string; message: string; fileResult?: unknown }>(`/unified-documents/${id}/purge`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkDeleteUnifiedDocuments(payload: BulkDeletePayload) {
+  return api<BulkActionResult>('/unified-documents/bulk-delete', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkRestoreUnifiedDocuments(payload: BulkRestorePayload) {
+  return api<BulkActionResult>('/unified-documents/bulk-restore', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkPurgeUnifiedDocuments(payload: BulkPurgePayload) {
+  return api<BulkActionResult>('/unified-documents/bulk-purge', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getDeleteLockStatus() {
+  return api<DeleteLockStatus>('/delete-lock/status')
+}
+
+export function setupDeleteLock(payload: DeleteLockSetupPayload) {
+  return api<DeleteLockStatus>('/delete-lock/setup', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function verifyDeleteLock(password: string) {
+  return api<{ valid: boolean }>('/delete-lock/verify', {
+    method: 'POST',
+    body: { password },
+  })
+}
+
+export function changeDeleteLock(payload: DeleteLockChangePayload) {
+  return api<DeleteLockStatus>('/delete-lock/change', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export function getAuditLogs(query?: AuditLogQuery) {
   return api<AuditLog[]>('/audit-logs', {
     query,
@@ -172,4 +663,917 @@ export function getPrismaSeedPreview() {
 
 export function exportMigrationSeed() {
   return api('/migration/export-seed')
+}
+
+export function getImportTemplates() {
+  return api<ImportTemplateDefinition[]>('/imports/templates')
+}
+
+export async function downloadImportTemplate(type: ImportType) {
+  const response = await fetch(`${apiBaseUrl}/imports/templates/${type}/download`)
+  if (!response.ok) throw new Error('模板下载失败')
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${type}-template.xlsx`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+export function previewImport(type: ImportType, formData: FormData) {
+  return api<ImportPreviewResult>(`/imports/${type}/preview`, {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export function applyImport(type: ImportType, payload: ImportApplyPayload) {
+  return api<ImportApplyResult>(`/imports/${type}/apply`, {
+    method: 'POST',
+    body: payload,
+    timeout: 15000,
+  })
+}
+
+export function getImportHistory() {
+  return api<ImportRecord[]>('/imports/history')
+}
+
+export function getImportHistoryDetail(id: string) {
+  return api<ImportRecord>(`/imports/history/${id}`)
+}
+
+export function previewImportRollback(id: string) {
+  return api<ImportRollbackPreview>(`/imports/history/${id}/rollback-preview`, {
+    method: 'POST',
+  })
+}
+
+export function getMaintenanceSummary() {
+  return api<MaintenanceSummary>('/maintenance/summary')
+}
+
+export function getMaintenanceCustomers(query?: MaintenanceQuery) {
+  return api<MaintenanceCustomer[]>('/maintenance/customers', { query })
+}
+
+export function updateMaintenanceCustomer(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/customers/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceProducts(query?: MaintenanceQuery) {
+  return api<MaintenanceProduct[]>('/maintenance/products', { query })
+}
+
+export function updateMaintenanceProduct(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/products/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceProductionPlans(query?: MaintenanceQuery) {
+  return api<MaintenanceProductionPlan[]>('/maintenance/production-plans', { query })
+}
+
+export function updateMaintenanceProductionPlan(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/production-plans/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceFrontParameters(query?: MaintenanceQuery) {
+  return api<MaintenanceFrontParameter[]>('/maintenance/front-parameters', { query })
+}
+
+export function updateMaintenanceFrontParameter(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/front-parameters/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceBackPackages(query?: MaintenanceQuery) {
+  return api<MaintenanceBackPackage[]>('/maintenance/back-packages', { query })
+}
+
+export function updateMaintenanceBackPackage(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/back-packages/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function getMaintenanceDocuments(query?: MaintenanceQuery) {
+  return api<MaintenanceDocument[]>('/maintenance/documents', { query })
+}
+
+export function updateMaintenanceDocument(id: string, payload: Record<string, unknown>) {
+  return api<MaintenanceRecord>(`/maintenance/documents/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function setMaintenanceDocumentEffective(id: string, payload: { reason?: string }) {
+  return api<MaintenanceRecord>(`/maintenance/documents/${id}/set-effective`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function bulkUpdateMaintenanceStatus(payload: { entityType: MaintenanceEntityType; ids: string[]; status: string; reason?: string }) {
+  return api<MaintenanceMutationResult>('/maintenance/bulk-status', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getMaintenanceReviewQueue(query?: MaintenanceQuery) {
+  return api<MaintenanceReviewItem[]>('/maintenance/review-queue', { query })
+}
+
+export function resolveMaintenanceReviewItem(id: string, payload: { action: 'mark_reviewed' | 'mark_pending' | 'mark_inconsistent'; remark?: string }) {
+  return api<MaintenanceMutationResult | MaintenanceRecord>(`/maintenance/review-queue/${encodeURIComponent(id)}/resolve`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getMaintenanceHistory(query?: MaintenanceQuery) {
+  return api<MaintenanceRecord[]>('/maintenance/history', { query })
+}
+
+export function getMaintenanceHistoryDetail(id: string) {
+  return api<MaintenanceRecord>(`/maintenance/history/${id}`)
+}
+
+export interface KnowledgeQuery {
+  keyword?: string
+  customerId?: string
+  productId?: string
+  processSegment?: KnowledgeProcessSegment
+  status?: string
+  limit?: string | number
+}
+
+export function getFixtures(query?: KnowledgeQuery) {
+  return api<FixtureKnowledge[]>('/knowledge/fixtures', { query })
+}
+
+export function createFixture(payload: Partial<FixtureKnowledge>) {
+  return api<FixtureKnowledge>('/knowledge/fixtures', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateFixture(id: string, payload: Partial<FixtureKnowledge>) {
+  return api<FixtureKnowledge>(`/knowledge/fixtures/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateFixtureStatus(id: string, status: KnowledgeStatus, reason?: string) {
+  return api<FixtureKnowledge>(`/knowledge/fixtures/${id}/status`, {
+    method: 'PATCH',
+    body: { status, reason },
+  })
+}
+
+export function bulkUpdateFixtures(payload: KnowledgeBulkUpdatePayload) {
+  return api<KnowledgeBulkUpdateResult<FixtureKnowledge>>('/knowledge/fixtures/bulk-update', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getAbnormalCases(query?: KnowledgeQuery & { severity?: string }) {
+  return api<AbnormalCaseKnowledge[]>('/knowledge/abnormal-cases', { query })
+}
+
+export function createAbnormalCase(payload: Partial<AbnormalCaseKnowledge>) {
+  return api<AbnormalCaseKnowledge>('/knowledge/abnormal-cases', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateAbnormalCase(id: string, payload: Partial<AbnormalCaseKnowledge>) {
+  return api<AbnormalCaseKnowledge>(`/knowledge/abnormal-cases/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateAbnormalStatus(id: string, status: AbnormalStatus, reason?: string) {
+  return api<AbnormalCaseKnowledge>(`/knowledge/abnormal-cases/${id}/status`, {
+    method: 'PATCH',
+    body: { status, reason },
+  })
+}
+
+export function bulkUpdateAbnormalCases(payload: KnowledgeBulkUpdatePayload) {
+  return api<KnowledgeBulkUpdateResult<AbnormalCaseKnowledge>>('/knowledge/abnormal-cases/bulk-update', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getQualityStandards(query?: KnowledgeQuery & { defectLevel?: string }) {
+  return api<QualityStandardKnowledge[]>('/knowledge/quality-standards', { query })
+}
+
+export function createQualityStandard(payload: Partial<QualityStandardKnowledge>) {
+  return api<QualityStandardKnowledge>('/knowledge/quality-standards', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateQualityStandard(id: string, payload: Partial<QualityStandardKnowledge>) {
+  return api<QualityStandardKnowledge>(`/knowledge/quality-standards/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateQualityStatus(id: string, status: QualityStatus, reason?: string) {
+  return api<QualityStandardKnowledge>(`/knowledge/quality-standards/${id}/status`, {
+    method: 'PATCH',
+    body: { status, reason },
+  })
+}
+
+export function bulkUpdateQualityStandards(payload: KnowledgeBulkUpdatePayload) {
+  return api<KnowledgeBulkUpdateResult<QualityStandardKnowledge>>('/knowledge/quality-standards/bulk-update', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getProductKnowledgeSummary(productId: string, processSegment?: KnowledgeProcessSegment) {
+  return api<KnowledgeSummary>(`/knowledge/product/${productId}/summary`, {
+    query: processSegment ? { processSegment } : undefined,
+  })
+}
+
+export function getPlanKnowledgeSummary(planId: string, processSegment?: KnowledgeProcessSegment) {
+  return api<KnowledgeSummary>(`/knowledge/plan/${planId}/summary`, {
+    query: processSegment ? { processSegment } : undefined,
+  })
+}
+
+export function getPlanKnowledgeValidation(planId: string) {
+  return api<KnowledgeValidationResult>(`/knowledge/plan/${planId}/validation`)
+}
+
+export function getProductKnowledgeValidation(productId: string, processSegment?: KnowledgeProcessSegment) {
+  return api<KnowledgeValidationResult>(`/knowledge/product/${productId}/validation`, {
+    query: processSegment ? { processSegment } : undefined,
+  })
+}
+
+export function getPlanKnowledgeRecommendations(planId: string) {
+  return api<KnowledgePlanRecommendations>(`/knowledge/plan/${planId}/recommendations`)
+}
+
+export function searchKnowledge(q: string, planId?: string, productId?: string) {
+  return api<KnowledgeSearchResult[]>('/knowledge/search', {
+    query: {
+      q,
+      ...(planId ? { planId } : {}),
+      ...(productId ? { productId } : {}),
+    },
+  })
+}
+
+export function getKnowledgeHistory(query?: { entityType?: string; entityId?: string; operatorId?: string; keyword?: string; limit?: string | number }) {
+  return api<KnowledgeRecord[]>('/knowledge/history', { query })
+}
+
+export function getExecutionSummary() {
+  return api<ExecutionSummary>('/execution/summary')
+}
+
+export function getExecutionPlans(query?: {
+  scope?: 'today' | 'week' | 'all'
+  status?: string
+  processSegment?: string
+  customerId?: string
+  productId?: string
+  leaderId?: string
+  keyword?: string
+}) {
+  return api<ExecutionPlanListItem[]>('/execution/plans', { query })
+}
+
+export function getExecutionPlanDetail(planId: string) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}`)
+}
+
+export function preparePlanStart(planId: string) {
+  return api<StartPreparationResult>(`/execution/plans/${planId}/prepare-start`, {
+    method: 'POST',
+  })
+}
+
+export function startPlanExecution(planId: string, payload: StartPlanPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/start`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function processConfirm(planId: string, payload: ProcessConfirmationPayload) {
+  return api(`/execution/plans/${planId}/process-confirm`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function reportQuantity(planId: string, payload: QuantityReportPayload) {
+  return api<QuantityReport>(`/execution/plans/${planId}/quantity-report`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function pausePlan(planId: string, payload: ExecutionReasonPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/pause`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function resumePlan(planId: string, payload: ExecutionReasonPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/resume`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function exceptionHoldPlan(planId: string, payload: ExecutionReasonPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/exception-hold`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function completePlan(planId: string, payload: CompletePlanPayload) {
+  return api<ExecutionPlanDetail>(`/execution/plans/${planId}/complete`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getExecutionTimeline(planId: string) {
+  return api<ExecutionTimelineItem[]>(`/execution/plans/${planId}/timeline`)
+}
+
+export function createShiftHandover(payload: ShiftHandoverPayload) {
+  return api<ShiftHandoverRecord>('/execution/shift-handover', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function getShiftHandover(query?: { planId?: string }) {
+  return api<ShiftHandoverRecord[]>('/execution/shift-handover', { query })
+}
+
+export function getDailyReport(query?: { date?: string; team?: string; processSegment?: string }) {
+  return api<DailyReport>('/execution/daily-report', { query })
+}
+
+export function getDailyReportText(query?: { date?: string; team?: string; processSegment?: string }) {
+  return api<string>('/execution/daily-report/text', { query })
+}
+
+export function getAnalyticsOverview(query?: AnalyticsQuery) {
+  return api<AnalyticsOverview>('/analytics/overview', { query })
+}
+
+export function getAnalyticsProduction(query?: AnalyticsQuery) {
+  return api<AnalyticsProduction>('/analytics/production', { query })
+}
+
+export function getAnalyticsQuantity(query?: AnalyticsQuery) {
+  return api<AnalyticsQuantity>('/analytics/quantity', { query })
+}
+
+export function getAnalyticsExceptions(query?: AnalyticsQuery) {
+  return api<AnalyticsExceptions>('/analytics/exceptions', { query })
+}
+
+export function getAnalyticsDocuments(query?: AnalyticsQuery) {
+  return api<AnalyticsDocuments>('/analytics/documents', { query })
+}
+
+export function getAnalyticsKnowledge(query?: AnalyticsQuery) {
+  return api<AnalyticsKnowledge>('/analytics/knowledge', { query })
+}
+
+export function getAnalyticsTrends(query?: AnalyticsQuery) {
+  return api<AnalyticsTrends>('/analytics/trends', { query })
+}
+
+export function getAnalyticsRankings(query?: AnalyticsQuery) {
+  return api<AnalyticsRankings>('/analytics/rankings', { query })
+}
+
+export function getAnalyticsSummaryText(query?: AnalyticsQuery) {
+  return api<string>('/analytics/summary-text', { query })
+}
+
+export function getSystemQaOverview() {
+  return api<SystemQaOverview>('/system-qa/overview')
+}
+
+export function getSystemQaDataConsistency() {
+  return api<SystemQaListReport>('/system-qa/data-consistency')
+}
+
+export function getSystemQaBusinessFlow() {
+  return api<SystemQaListReport>('/system-qa/business-flow')
+}
+
+export function getSystemQaPermissionRegression() {
+  return api<SystemQaPermissionRegression>('/system-qa/permission-regression')
+}
+
+export function getSystemQaDemoReadiness() {
+  return api<SystemQaListReport>('/system-qa/demo-readiness')
+}
+
+export function getSystemQaAcceptanceReport() {
+  return api<SystemQaAcceptanceReport>('/system-qa/acceptance-report')
+}
+
+export function getSystemQaAcceptanceReportText() {
+  return api<string>('/system-qa/acceptance-report/text')
+}
+
+function orderQueryParams(query: OrderListQuery = {}) {
+  return {
+    scope: query.scope,
+    completionStatus: query.completionStatus,
+    productionStatus: query.productionStatus,
+    keyword: query.keyword,
+    customerId: query.customerId,
+    linkedProductId: query.linkedProductId,
+  }
+}
+
+export async function getDocumentHubOrders(query: OrderListQuery = {}) {
+  try {
+    return await api<ProductionOrder[]>('/document-hub/orders', {
+      query: orderQueryParams(query),
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export function getHubOrders(scope: OrderQueryScope = 'today', includeCompleted = false) {
+  return getDocumentHubOrders({
+    scope,
+    completionStatus: includeCompleted ? 'all' : 'pending',
+  })
+}
+
+export async function previewOrderImport(scope: OrderQueryScope, file: File) {
+  if (scope !== 'today' && scope !== 'week') {
+    throw new Error('请选择今日订单或本周订单。')
+  }
+  if (!file) throw new Error('请选择 XLSX 订单文件。')
+  if (!/\.xlsx$/i.test(file.name)) throw new Error('仅支持 XLSX 订单文件。')
+
+  const formData = new FormData()
+  formData.append('scope', scope)
+  formData.append('file', file)
+
+  try {
+    return await api<OrderImportPreviewResponse>('/document-hub/orders/import/preview', {
+      method: 'POST',
+      body: formData,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function applyOrderImport(payload: OrderImportApplyRequest) {
+  try {
+    return await api<OrderImportApplyResponse>('/document-hub/orders/import/apply', {
+      method: 'POST',
+      body: payload,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function updateOrderProductionStatus(
+  orderId: string,
+  productionStatus: OrderProductionStatus,
+  operator: OrderOperatorPayload = {},
+) {
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/status`, {
+      method: 'PATCH',
+      body: {
+        productionStatus,
+        ...operator,
+      },
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function completeDocumentHubOrder(orderId: string, operator: OrderOperatorPayload = {}) {
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/complete`, {
+      method: 'POST',
+      body: { completedBy: operator.operatorName ?? 'local-tablet' },
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export function completeHubOrder(orderId: string) {
+  return completeDocumentHubOrder(orderId)
+}
+
+export async function restoreDocumentHubOrder(orderId: string, operator: OrderOperatorPayload = {}) {
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/restore`, {
+      method: 'POST',
+      body: operator,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export async function getOrderOverview(query?: OrderListQuery) {
+  try {
+    return await api<OrderOverviewResponse>('/document-hub/orders/overview', {
+      query: query ? orderQueryParams(query) : undefined,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export function getHubOrderOverview() {
+  return getOrderOverview()
+}
+
+export async function linkOrderProduct(
+  orderId: string,
+  customerId: string,
+  productId: string,
+  operator: OrderOperatorPayload = {},
+) {
+  const payload: OrderProductLinkPayload = {
+    customerId,
+    productId,
+    ...operator,
+  }
+  try {
+    return await api<ProductionOrder>(`/document-hub/orders/${encodeURIComponent(orderId)}/product-link`, {
+      method: 'PATCH',
+      body: payload,
+    })
+  } catch (error) {
+    throw toOrderRequestError(error)
+  }
+}
+
+export function getHubCustomers(q?: string) {
+  return api<HubCustomer[]>('/document-hub/drawings/customers', { query: q ? { q } : undefined })
+}
+
+export function getHubProducts(customerId: string, q?: string) {
+  return api<HubProductModel[]>(`/document-hub/drawings/customers/${customerId}/products`, {
+    query: q ? { q } : undefined,
+  })
+}
+
+export function createHubDrawingCustomer(payload: CreateDrawingCustomerPayload) {
+  return api<HubCustomer>('/document-hub/drawings/customers', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateHubDrawingCustomer(customerId: string, payload: UpdateDrawingCustomerPayload) {
+  return api<HubCustomer>(`/document-hub/drawings/customers/${encodeURIComponent(customerId)}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function createHubDrawingProduct(payload: CreateDrawingProductArchivePayload) {
+  return api<HubProductModel>('/document-hub/drawings/products', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateHubDrawingProduct(productId: string, payload: UpdateDrawingProductPayload) {
+  return api<HubProductModel>(`/document-hub/drawings/products/${encodeURIComponent(productId)}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function resolveHubDrawingProduct(query: ResolveDrawingProductQuery) {
+  return api<DrawingProductResolution>('/document-hub/drawings/products/resolve', {
+    query,
+  })
+}
+
+export function getHubProductDetail(productId: string) {
+  return api<ProductDrawingDetail>(`/document-hub/drawings/products/${encodeURIComponent(productId)}`)
+}
+
+export const getDrawingCustomers = getHubCustomers
+export const createDrawingCustomer = createHubDrawingCustomer
+export const updateDrawingCustomer = updateHubDrawingCustomer
+export const getDrawingProducts = getHubProducts
+export const createDrawingProduct = createHubDrawingProduct
+export const updateDrawingProduct = updateHubDrawingProduct
+export const getDrawingProductDetail = getHubProductDetail
+
+export function getHubProductByModel(productModel: string) {
+  return api<ProductDrawingDetail | null>(`/document-hub/drawings/products/by-model/${encodeURIComponent(productModel)}`)
+}
+
+export function getHubDrawingModule(productId: string, moduleKey: DrawingModuleKey) {
+  return api<{ product: HubProductModel; customer?: HubCustomer; module: DrawingModule }>(
+    `/document-hub/drawings/products/${productId}/modules/${moduleKey}`,
+  )
+}
+
+function assertRealDrawingProductId(productId: string) {
+  const value = productId.trim()
+  if (!value || value.startsWith('missing-') || value.startsWith('mock-')) {
+    throw new Error('请先建立产品资料页，再上传资料。')
+  }
+}
+
+export function uploadHubDrawingItem(productId: string, moduleKey: DrawingModuleKey, payload: DocumentHubUploadPayload) {
+  assertRealDrawingProductId(productId)
+  const formData = new FormData()
+  if (payload.file) formData.append('file', payload.file)
+  formData.append('title', payload.title)
+  formData.append('version', payload.version)
+  if (payload.customerId) formData.append('customerId', payload.customerId)
+  if (payload.productId) formData.append('productId', payload.productId)
+  if (payload.moduleKey) formData.append('moduleKey', payload.moduleKey)
+  if (payload.remark) formData.append('remark', payload.remark)
+  if (payload.keywords) formData.append('keywords', payload.keywords)
+  if (payload.source) formData.append('source', payload.source)
+  if (payload.captureSource) formData.append('captureSource', payload.captureSource)
+  return api<DocumentHubUploadResponse>(`/document-hub/drawings/products/${productId}/modules/${moduleKey}/upload`, {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export async function updateDrawingDocumentMetadata(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: DrawingDocumentMetadataPayload,
+) {
+  try {
+    return await api<DrawingDocumentVersionResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}`, {
+      method: 'PATCH',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function setDrawingDocumentEffective(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: DrawingDocumentOperatorPayload = {},
+) {
+  try {
+    return await api<DrawingDocumentVersionResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/set-effective`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function setDrawingDocumentCover(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: DrawingDocumentOperatorPayload = {},
+) {
+  try {
+    return await api<DrawingDocumentVersionResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/set-cover`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function getDrawingTrash(query?: TrashQuery) {
+  try {
+    return await api<DrawingTrashListResponse>('/document-hub/trash', {
+      query: {
+        ...query,
+        limit: query?.limit ?? undefined,
+        offset: query?.offset ?? undefined,
+      },
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function trashDrawingDocument(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: TrashDocumentPayload,
+) {
+  try {
+    return await api<DrawingLifecycleResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/trash`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function restoreDrawingDocument(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: RestoreDocumentPayload,
+) {
+  try {
+    return await api<DrawingLifecycleResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/restore`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function purgeDrawingDocument(
+  productId: string,
+  moduleKey: DrawingModuleKey,
+  itemId: string,
+  payload: PurgeDocumentPayload,
+) {
+  try {
+    return await api<DrawingLifecycleResponse>(`${encodedDrawingItemPath(productId, moduleKey, itemId)}/purge`, {
+      method: 'POST',
+      body: payload,
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toLifecycleRequestError(error)
+  }
+}
+
+export async function previewDrawingPdfImport(customerId: string, files: readonly File[] | FileList) {
+  const formData = new FormData()
+  formData.append('customerId', customerId)
+  for (const file of toFileArray(files)) {
+    formData.append('files', file)
+  }
+  try {
+    return await api<PdfImportPreviewResponse>('/document-hub/drawings/pdf-import/preview', {
+      method: 'POST',
+      body: formData,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toPdfImportRequestError(error)
+  }
+}
+
+export async function getDrawingPdfImportBatch(importBatchId: string) {
+  try {
+    return await api<PdfImportPreviewResponse>(`/document-hub/drawings/pdf-import/${encodeURIComponent(importBatchId)}`, {
+      timeout: 15000,
+    })
+  } catch (error) {
+    throw toPdfImportRequestError(error)
+  }
+}
+
+export async function applyDrawingPdfImport(payload: PdfImportApplyRequest) {
+  try {
+    return await api<PdfImportApplyResponse>('/document-hub/drawings/pdf-import/apply', {
+      method: 'POST',
+      body: payload,
+      timeout: 30000,
+    })
+  } catch (error) {
+    throw toPdfImportRequestError(error)
+  }
+}
+
+export function getHubConnectors(q?: string) {
+  return api<ConnectorParameter[]>('/document-hub/connectors', { query: q ? { q } : undefined })
+}
+
+export function getHubConnector(id: string) {
+  return api<ConnectorParameter>(`/document-hub/connectors/${id}`)
+}
+
+export function createHubConnector(payload: ConnectorParameterPayload) {
+  return api<ConnectorParameter>('/document-hub/connectors', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateHubConnector(
+  id: string,
+  payload: Partial<ConnectorParameterPayload>,
+) {
+  return api<ConnectorParameter>(`/document-hub/connectors/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function deleteHubConnector(id: string) {
+  return api<{ success: boolean; deletedId: string; connector: ConnectorParameter }>(`/document-hub/connectors/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function importHubConnectors(
+  file: File,
+  duplicateStrategy: 'review' | 'skip' | 'overwrite' = 'review',
+) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('duplicateStrategy', duplicateStrategy)
+  formData.append('overwrite', String(duplicateStrategy === 'overwrite'))
+  return api<ConnectorImportResult>('/document-hub/connectors/import', {
+    method: 'POST',
+    body: formData,
+    timeout: 15000,
+  })
+}
+
+export function getHubFixtures(q?: string) {
+  return api<FixtureParameter[]>('/document-hub/fixtures', { query: q ? { q } : undefined })
+}
+
+export function getHubFixture(id: string) {
+  return api<FixtureParameter>(`/document-hub/fixtures/${id}`)
+}
+
+export function searchDocumentHub(mode: HubMode, query: string, options: { limit?: number } = {}) {
+  const params = new URLSearchParams()
+  params.set('mode', mode)
+  if (query) params.set('q', query)
+  if (options.limit) params.set('limit', String(options.limit))
+  return api<DrawingSearchResponse | ScopedHubSearchResponse>(`/document-hub/search?${params.toString()}`)
+}
+
+export function searchHub(mode: HubMode, q: string) {
+  return searchDocumentHub(mode, q)
 }

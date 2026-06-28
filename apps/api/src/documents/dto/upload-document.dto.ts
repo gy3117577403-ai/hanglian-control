@@ -27,7 +27,6 @@ export class UploadDocumentDto {
 
   @ApiProperty({ example: 'Rev.A', description: '版本号' })
   @IsString()
-  @IsNotEmpty()
   version: string;
 
   @ApiPropertyOptional({
@@ -52,4 +51,22 @@ export class UploadDocumentDto {
   @IsOptional()
   @IsString()
   remark?: string;
+
+  @ApiPropertyOptional({
+    example: 'manual_upload',
+    enum: ['manual_upload', 'camera_capture'],
+    description: '上传来源',
+  })
+  @IsOptional()
+  @IsIn(['manual_upload', 'camera_capture'])
+  source?: 'manual_upload' | 'camera_capture';
+
+  @ApiPropertyOptional({
+    example: 'environment_camera',
+    enum: ['environment_camera'],
+    description: '拍照来源',
+  })
+  @IsOptional()
+  @IsIn(['environment_camera'])
+  captureSource?: 'environment_camera';
 }

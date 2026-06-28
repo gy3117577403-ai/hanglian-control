@@ -1,0 +1,51 @@
+FROM node:22-alpine AS deps
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/tablet/package.json apps/tablet/package.json
+RUN npm ci
+
+FROM deps AS build
+
+COPY . .
+RUN npm run prisma:generate
+RUN npm run build:api
+
+FROM node:22-alpine AS migration-runner
+
+ARG OCI_SOURCE="https://github.com/gy3117577403-ai/hanglian-control"
+ARG OCI_REVISION="unknown"
+ARG OCI_VERSION="dev"
+
+LABEL org.opencontainers.image.source=$OCI_SOURCE
+LABEL org.opencontainers.image.revision=$OCI_REVISION
+LABEL org.opencontainers.image.version=$OCI_VERSION
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PRISMA_CLI_VERSION=7.8.0
+
+COPY --from=deps --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node apps/api/package.json ./apps/api/package.json
+COPY --chown=node:node apps/api/prisma.config.ts ./apps/api/prisma.config.ts
+COPY --chown=node:node apps/api/prisma ./apps/api/prisma
+COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=node:node /app/apps/api/generated ./apps/api/generated
+COPY --chown=node:node scripts/run-prisma-migrate-deploy.mjs ./scripts/run-prisma-migrate-deploy.mjs
+COPY --chown=node:node scripts/document-version-rules.mjs ./scripts/document-version-rules.mjs
+COPY --chown=node:node scripts/json-migration-plan.mjs ./scripts/json-migration-plan.mjs
+COPY --chown=node:node scripts/json-migration-dry-run.mjs ./scripts/json-migration-dry-run.mjs
+COPY --chown=node:node scripts/prisma-pg-schema-route.mjs ./scripts/prisma-pg-schema-route.mjs
+COPY --chown=node:node scripts/json-postgres-migration-core.mjs ./scripts/json-postgres-migration-core.mjs
+COPY --chown=node:node scripts/json-to-postgres-import.mjs ./scripts/json-to-postgres-import.mjs
+COPY --chown=node:node scripts/postgres-parity-check.mjs ./scripts/postgres-parity-check.mjs
+
+RUN chown -R node:node /app
+
+USER node
+
+CMD ["npx", "prisma", "--version"]

@@ -1,0 +1,272 @@
+html[data-native-app="true"] .native-connector-view {
+  display: grid;
+  grid-template-rows: 84px minmax(0, 1fr);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-native-app="true"] .native-connector-view .view-head {
+  max-height: 84px;
+  min-height: 76px;
+  margin-bottom: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 250, 241, 0.9);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-native-app="true"] .native-connector-view .title-block i {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+}
+
+html[data-native-app="true"] .native-connector-view h2 {
+  font-size: 20px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+html[data-native-app="true"] .native-connector-view small {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-native-app="true"] .native-connector-view .head-tools {
+  grid-template-columns: repeat(4, max-content);
+  grid-auto-rows: 38px;
+  gap: 6px;
+  align-content: center;
+  justify-content: end;
+}
+
+html[data-native-app="true"] .native-connector-view :is(.metric-pill, .tool-button) {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+  transition-property: opacity, background-color, border-color;
+  transition-duration: 90ms;
+}
+
+html[data-native-app="true"] .native-connector-view .tool-button.ghost {
+  width: 40px;
+  height: 40px;
+}
+
+html[data-native-app="true"] .native-connector-view .tool-button:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+html[data-native-app="true"] .native-connector-view .tool-button span {
+  display: none;
+}
+
+html[data-native-app="true"] .native-connector-table {
+  --native-connector-grid-columns:
+    minmax(220px, 1.55fr)
+    minmax(108px, 0.72fr)
+    minmax(118px, 0.78fr)
+    minmax(118px, 0.78fr)
+    minmax(150px, 1fr)
+    112px;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-native-app="true"] .native-connector-header,
+html[data-native-app="true"] .native-connector-row {
+  display: grid;
+  grid-template-columns: var(--native-connector-grid-columns);
+  align-items: center;
+  min-width: 0;
+}
+
+html[data-native-app="true"] .native-connector-header {
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid rgba(139, 90, 42, 0.18);
+  border-radius: 10px;
+  background: rgba(104, 69, 38, 0.92);
+  color: #fff7eb;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+html[data-native-app="true"] .native-connector-list {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 6px 0 12px;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-native-app="true"] .native-connector-spacer {
+  position: relative;
+  min-width: 0;
+}
+
+html[data-native-app="true"] .native-connector-window {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+html[data-native-app="true"] .native-connector-row {
+  height: 72px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid rgba(139, 90, 42, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 252, 246, 0.86);
+  color: #342112;
+  box-shadow: none;
+  transition-property: background-color, border-color, opacity;
+  transition-duration: 90ms;
+}
+
+html[data-native-app="true"] .native-connector-row:hover {
+  transform: none;
+}
+
+html[data-native-app="true"] .native-connector-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-native-app="true"] .native-connector-cell.metric {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  font-weight: 900;
+}
+
+html[data-native-app="true"] .native-connector-cell.metric em {
+  color: rgba(105, 70, 38, 0.66);
+  font-size: 12px;
+  font-style: normal;
+}
+
+html[data-native-app="true"] .native-connector-model {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+html[data-native-app="true"] .native-connector-model b {
+  overflow: hidden;
+  color: #2f1d0f;
+  font-size: 16px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-native-app="true"] .native-connector-model small {
+  width: max-content;
+  max-width: 100%;
+  overflow: hidden;
+  color: #4f7b38;
+  font-size: 11px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-native-app="true"] .native-connector-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+html[data-native-app="true"] .native-connector-action {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(139, 90, 42, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #8f4a22;
+  box-shadow: none;
+  transition-property: opacity, background-color, border-color;
+  transition-duration: 90ms;
+}
+
+html[data-native-app="true"] .native-connector-action.danger {
+  color: #b94435;
+}
+
+html[data-native-app="true"] .native-connector-empty {
+  display: grid;
+  height: 100%;
+  min-height: 180px;
+  place-items: center;
+  color: #7b5530;
+  font-weight: 900;
+}
+
+html[data-native-app="true"] :is(.native-connector-row, .native-connector-action, .native-connector-cell) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  will-change: auto !important;
+}
+
+html[data-native-app="true"] .native-connector-row :is(.p-ink, .p-ripple) {
+  display: none !important;
+}
+
+@media (max-width: 1023px) {
+  html[data-native-app="true"] .native-connector-table {
+    --native-connector-grid-columns: minmax(0, 1fr) auto;
+  }
+
+  html[data-native-app="true"] .native-connector-header {
+    display: none;
+  }
+
+  html[data-native-app="true"] .native-connector-table {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  html[data-native-app="true"] .native-connector-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 28px 22px 22px;
+    height: 86px;
+    row-gap: 2px;
+  }
+
+  html[data-native-app="true"] .native-connector-cell.metric {
+    font-size: 13px;
+  }
+
+  html[data-native-app="true"] .native-connector-cell.remark {
+    grid-column: 1 / -1;
+  }
+}

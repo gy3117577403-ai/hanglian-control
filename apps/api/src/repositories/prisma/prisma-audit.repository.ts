@@ -20,6 +20,7 @@ export class PrismaAuditRepository implements AuditRepositoryInterface {
         ...(query.entityId ? { entityId: query.entityId } : {}),
         ...(query.planId ? { planId: query.planId } : {}),
         ...(query.productId ? { productId: query.productId } : {}),
+        ...(query.orderId ? { orderId: query.orderId } : {}),
         ...(query.action ? { action: apiAuditActionToPrisma(query.action) } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -43,6 +44,7 @@ export class PrismaAuditRepository implements AuditRepositoryInterface {
         operatorRole: payload.operatorRole,
         planId: payload.planId,
         productId: payload.productId,
+        orderId: payload.orderId,
       },
     });
     return mapPrismaAuditLog(row);

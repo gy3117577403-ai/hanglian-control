@@ -2,6 +2,9 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import dayjs from 'dayjs'
 import { toast } from 'vue-sonner'
+import { shouldUseFrontendDemoData } from '@/config/demo-data-mode'
+import { errorMessages, friendlyErrorMessage } from '@/lib/error-message'
+import { tabForDocument } from '@/lib/format'
 import { productionPlans } from '@/mock/production-data'
 import {
   confirmProductionPlan,
@@ -11,6 +14,7 @@ import {
   getDatabaseSafety,
   getDataSourceStatus,
   getAuditLogs,
+  getDocumentFileHealth,
   getDocuments,
   getDocumentDetail,
   getDocumentVersions,
@@ -29,12 +33,15 @@ import {
   updateDocumentVersion as updateDocumentVersionApi,
   uploadDocument as uploadDocumentApi,
 } from '@/services/api'
+import { useAuthStore } from '@/stores/auth-store'
 import type {
   ActiveProcess,
   AuditLog,
   AuditLogQuery,
   DatabaseSafetyStatus,
   DataSourceStatus,
+  DocumentFileHealthResponse,
+  DocumentFileHealthItem,
   DocumentCompareResult,
   DocumentTab,
   DocumentVersionsResponse,
@@ -58,10 +65,59 @@ const STORAGE_KEYS = {
   scope: 'hanglian.scope',
   selectedPlanId: 'hanglian.selectedPlanId',
   activeProcess: 'hanglian.activeProcess',
+  activeDocumentTab: 'hanglian.activeDocumentTab',
   queryLogs: 'hanglian.queryLogs',
 }
 
-const clonePlans = (): ProductionPlan[] => JSON.parse(JSON.stringify(productionPlans))
+const EMPTY_PLAN: ProductionPlan = {
+  id: '',
+  date: dayjs().format('YYYY-MM-DD'),
+  weekPlanNo: '待导入周计划',
+  sales: '待补充',
+  customer: '暂无客户资料',
+  customerId: '',
+  productId: '',
+  productCode: '待导入产品',
+  productName: '暂无产品资料',
+  productVersion: '待补充',
+  segment: '通用',
+  plannedQuantity: 0,
+  completedQuantity: 0,
+  status: '待生产',
+  owner: '待分配',
+  materialCompleteness: 0,
+  confirmationStatus: '未确认',
+  versionStatus: {
+    status: '待确认',
+    message: '当前为定制开发模式，尚未接入真实数据库。',
+    redLine: false,
+  },
+  querySuggestions: [],
+  front: {
+    wireLength: '暂无前段参数，请导入或在资料维护中心补充。',
+    strippingLength: '暂无前段参数',
+    terminalModel: '暂无端子型号',
+    pullForceStandard: '暂无拉力标准',
+    crimpHeight: '暂无压接高度',
+    drawingVersion: '待补充',
+    parameterStatus: '待确认',
+  },
+  back: {
+    connectorModel: '暂无连接器型号',
+    assemblyManual: '暂无连接器装配说明书',
+    pinMap: '暂无插接孔位图',
+    sop: '暂无作业流程 SOP',
+    finishedImageCount: 0,
+    drawingVersion: '待补充',
+    sopVersion: '待补充',
+    materialStatus: '待确认',
+  },
+  documents: [],
+}
+
+const clonePlans = (): ProductionPlan[] => shouldUseFrontendDemoData()
+  ? JSON.parse(JSON.stringify(productionPlans)) as ProductionPlan[]
+  : []
 
 function readStorage(key: string) {
   if (typeof localStorage === 'undefined') return null
@@ -202,24 +258,82 @@ function localReadiness(plan: ProductionPlan): PlanReadiness {
   }
 }
 
+function localFileHealth(plan: ProductionPlan): DocumentFileHealthResponse {
+  const items: DocumentFileHealthItem[] = plan.documents.map((document) => {
+    const isDemoOnly = document.source !== 'manual_upload'
+    const canPreview = !isDemoOnly && Boolean(document.previewUrl || document.downloadUrl)
+    const healthStatus = isDemoOnly ? 'demo' : canPreview ? 'ok' : 'broken'
+    return {
+      documentId: document.documentId ?? document.id,
+      title: document.title,
+      documentType: document.documentType ?? 'drawing_pdf',
+      version: document.version,
+      versionGroupKey: document.versionGroupKey,
+      source: document.source ?? 'mock',
+      previewType: document.previewType,
+      hasStoredFile: Boolean(document.storedFileName),
+      fileExists: canPreview,
+      canPreview,
+      isDemoOnly,
+      isEffective: document.documentStatus === 'effective',
+      isHistorical: document.documentStatus === 'expired',
+      isPendingReview: document.documentStatus === 'pending_review',
+      largeFileWarning: (document.fileSize ?? 0) > 30 * 1024 * 1024,
+      duplicateVersionWarning: document.duplicateVersionWarning,
+      healthStatus,
+      message: healthStatus === 'demo'
+        ? '当前为离线演示资料'
+        : healthStatus === 'ok'
+          ? '文件可预览'
+          : '预览地址异常',
+    }
+  })
+
+  return {
+    scope: {
+      planId: plan.id,
+      productId: plan.productId,
+    },
+    summary: {
+      totalDocuments: items.length,
+      uploadedDocuments: items.filter((item) => item.source === 'manual_upload').length,
+      mockDocuments: items.filter((item) => item.source === 'mock').length,
+      previewableDocuments: items.filter((item) => item.canPreview).length,
+      missingFiles: items.filter((item) => item.healthStatus === 'missing_file').length,
+      brokenPreview: items.filter((item) => item.healthStatus === 'broken').length,
+      demoOnly: items.filter((item) => item.healthStatus === 'demo').length,
+      effectiveUploadedDocuments: items.filter((item) => item.source === 'manual_upload' && item.isEffective).length,
+      pendingReviewDocuments: items.filter((item) => item.isPendingReview).length,
+      expiredDocuments: items.filter((item) => item.isHistorical).length,
+      unsupportedDocuments: items.filter((item) => item.healthStatus === 'unsupported').length,
+      largeFileWarnings: items.filter((item) => item.largeFileWarning).length,
+      duplicateVersionGroups: items.filter((item) => item.duplicateVersionWarning).length,
+    },
+    items,
+  }
+}
+
 export const useProductionStore = defineStore('production', () => {
+  const auth = useAuthStore()
   const persistedScope = readStorage(STORAGE_KEYS.scope) as PlanScope | null
   const persistedProcess = readStorage(STORAGE_KEYS.activeProcess) as ActiveProcess | null
+  const persistedDocumentTab = readStorage(STORAGE_KEYS.activeDocumentTab) as DocumentTab | null
   const persistedPlanId = readStorage(STORAGE_KEYS.selectedPlanId)
   const persistedLogs = readStorage(STORAGE_KEYS.queryLogs)
 
   const fallbackPlans = clonePlans().map(normalizePlan)
   const plans = ref<ProductionPlan[]>(fallbackPlans.filter((plan) => plan.date === '2026-06-11'))
-  const selectedPlanId = ref(persistedPlanId || plans.value[0]?.id || fallbackPlans[0].id)
-  const selectedPlanDetail = ref<ProductionPlan | null>(plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? fallbackPlans[0])
+  const selectedPlanId = ref(persistedPlanId || plans.value[0]?.id || fallbackPlans[0]?.id || '')
+  const selectedPlanDetail = ref<ProductionPlan | null>(plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? null)
   const scope = ref<PlanScope>(persistedScope === 'week' ? 'week' : 'today')
   const activeProcess = ref<ActiveProcess>(persistedProcess === 'back' ? 'back' : 'front')
-  const activeDocumentTab = ref<DocumentTab>('drawing')
+  const activeDocumentTab = ref<DocumentTab>(persistedDocumentTab && ['drawing', 'sop', 'pin-map', 'finish'].includes(persistedDocumentTab) ? persistedDocumentTab : 'drawing')
   const searchKeyword = ref('')
   const searchResults = ref<SearchHit[]>([])
   const documents = ref<ProductDocument[]>([])
   const uploadDialogOpen = ref(false)
   const uploadLoading = ref(false)
+  const highlightedDocumentId = ref('')
   const selectedDocument = ref<ProductDocument | null>(null)
   const previewDocument = ref<ProductDocument | null>(null)
   const documentVersions = ref<DocumentVersionsResponse | null>(null)
@@ -232,9 +346,9 @@ export const useProductionStore = defineStore('production', () => {
   const compareDialogOpen = ref(false)
   const auditDialogOpen = ref(false)
   const migrationDialogOpen = ref(false)
-  const readiness = ref<PlanReadiness>(localReadiness(selectedPlanDetail.value ?? fallbackPlans[0]))
+  const readiness = ref<PlanReadiness>(localReadiness(selectedPlanDetail.value ?? EMPTY_PLAN))
   const readinessLoading = ref(false)
-  const queryLogs = ref<QueryRecord[]>(persistedLogs ? JSON.parse(persistedLogs) as QueryRecord[] : [
+  const queryLogDemoSeed: QueryRecord[] = [
     {
       id: 'Q-001',
       text: '查看 HL-EV-4821A 后段 SOP',
@@ -242,9 +356,13 @@ export const useProductionStore = defineStore('production', () => {
       planId: 'PLN-20260611-001',
       source: '搜索',
     },
-  ])
+  ]
+  void queryLogDemoSeed
+  const queryLogs = ref<QueryRecord[]>(persistedLogs ? JSON.parse(persistedLogs) as QueryRecord[] : [])
   const feedbackRecords = ref<FeedbackRecord[]>([])
   const loading = ref(false)
+  const fileHealth = ref<DocumentFileHealthResponse | null>(null)
+  const fileHealthLoading = ref(false)
   const apiOnline = ref(false)
   const offlineDemoMode = ref(false)
   const errorMessage = ref('')
@@ -259,7 +377,7 @@ export const useProductionStore = defineStore('production', () => {
     return selectedPlanDetail.value
       ?? plans.value.find((plan) => plan.id === selectedPlanId.value)
       ?? plans.value[0]
-      ?? fallbackPlans[0]
+      ?? EMPTY_PLAN
   })
 
   const visiblePlans = computed(() => plans.value)
@@ -268,6 +386,7 @@ export const useProductionStore = defineStore('production', () => {
 
   const searchHits = computed<SearchHit[]>(() => {
     if (searchResults.value.length > 0) return searchResults.value
+    if (!selectedPlan.value.id) return []
     return [
       {
         id: 'SUGGESTION-LOCKED',
@@ -285,9 +404,28 @@ export const useProductionStore = defineStore('production', () => {
     return feedbackRecords.value.filter((record) => record.planId === selectedPlan.value.id)
   })
 
+  const fileHealthByDocumentId = computed(() => {
+    return new Map((fileHealth.value?.items ?? []).map((item) => [item.documentId, item]))
+  })
+
+  function fileHealthForDocument(document: ProductDocument) {
+    return fileHealthByDocumentId.value.get(document.documentId ?? document.id) ?? null
+  }
+
+  function resetEmptySelection() {
+    selectedPlanId.value = ''
+    selectedPlanDetail.value = null
+    readiness.value = localReadiness(EMPTY_PLAN)
+    documents.value = []
+    fileHealth.value = localFileHealth(EMPTY_PLAN)
+    feedbackRecords.value = []
+    searchResults.value = []
+  }
+
   watch(scope, (value) => writeStorage(STORAGE_KEYS.scope, value))
   watch(selectedPlanId, (value) => writeStorage(STORAGE_KEYS.selectedPlanId, value))
   watch(activeProcess, (value) => writeStorage(STORAGE_KEYS.activeProcess, value))
+  watch(activeDocumentTab, (value) => writeStorage(STORAGE_KEYS.activeDocumentTab, value))
   watch(queryLogs, (value) => writeStorage(STORAGE_KEYS.queryLogs, JSON.stringify(value.slice(0, 8))), { deep: true })
 
   async function checkApiHealth() {
@@ -336,8 +474,12 @@ export const useProductionStore = defineStore('production', () => {
       plans.value = fallbackPlans.filter((plan) => nextScope === 'week' || plan.date === '2026-06-11')
       errorMessage.value = '计划数据请求失败，已使用本地 Mock fallback。'
     } finally {
-      const nextPlan = plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0] ?? fallbackPlans[0]
-      await selectPlan(nextPlan.id, false)
+      const nextPlan = plans.value.find((plan) => plan.id === selectedPlanId.value) ?? plans.value[0]
+      if (nextPlan) {
+        await selectPlan(nextPlan.id, false)
+      } else {
+        resetEmptySelection()
+      }
       loading.value = false
     }
   }
@@ -372,7 +514,25 @@ export const useProductionStore = defineStore('production', () => {
     }
   }
 
+  async function loadFileHealth(plan = selectedPlan.value) {
+    fileHealthLoading.value = true
+    try {
+      fileHealth.value = apiOnline.value
+        ? await getDocumentFileHealth({ planId: plan.id, productId: plan.productId })
+        : localFileHealth(plan)
+    } catch {
+      fileHealth.value = localFileHealth(plan)
+      errorMessage.value = '文件健康检查请求失败，已使用本地演示检查结果。'
+    } finally {
+      fileHealthLoading.value = false
+    }
+  }
+
   async function selectPlan(planId: string, shouldLog = true) {
+    if (!planId) {
+      resetEmptySelection()
+      return
+    }
     selectedPlanId.value = planId
     loading.value = true
     try {
@@ -380,17 +540,31 @@ export const useProductionStore = defineStore('production', () => {
         selectedPlanDetail.value = normalizePlan(await getProductionPlanDetail(planId))
         await syncReadiness(selectedPlanDetail.value)
         await loadDocuments(selectedPlanDetail.value)
+        await loadFileHealth(selectedPlanDetail.value)
         feedbackRecords.value = await getFeedback(planId)
       } else {
-        selectedPlanDetail.value = normalizePlan(fallbackPlans.find((plan) => plan.id === planId) ?? fallbackPlans[0])
+        const localPlan = fallbackPlans.find((plan) => plan.id === planId)
+        if (!localPlan) {
+          resetEmptySelection()
+          return
+        }
+        selectedPlanDetail.value = normalizePlan(localPlan)
         await syncReadiness(selectedPlanDetail.value)
         await loadDocuments(selectedPlanDetail.value)
+        await loadFileHealth(selectedPlanDetail.value)
       }
       if (shouldLog) addQueryLog(`切换到生产计划 ${planId}`, '切换', planId)
     } catch {
-      selectedPlanDetail.value = normalizePlan(fallbackPlans.find((plan) => plan.id === planId) ?? fallbackPlans[0])
+      const localPlan = fallbackPlans.find((plan) => plan.id === planId)
+      if (!localPlan) {
+        resetEmptySelection()
+        errorMessage.value = '暂无生产计划，请通过数据导入中心导入周计划。'
+        return
+      }
+      selectedPlanDetail.value = normalizePlan(localPlan)
       readiness.value = localReadiness(selectedPlanDetail.value)
       documents.value = selectedPlanDetail.value.documents
+      fileHealth.value = localFileHealth(selectedPlanDetail.value)
       offlineDemoMode.value = true
       apiOnline.value = false
       errorMessage.value = '计划详情请求失败，已使用本地资料包。'
@@ -453,6 +627,10 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function simulateVoiceQuery() {
+    if (!selectedPlan.value.id) {
+      toast.info('暂无生产计划', { description: '请通过数据导入中心导入周计划后再进行查询。' })
+      return
+    }
     const text = '查询当前产品后段孔位图'
     activeProcess.value = 'back'
     activeDocumentTab.value = 'pin-map'
@@ -463,12 +641,17 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function confirmCurrentPlan() {
+    if (!selectedPlan.value.id) {
+      toast.info('暂无生产计划', { description: '请先导入生产计划，再进行组长确认。' })
+      return
+    }
     loading.value = true
     try {
+      const user = auth.currentUser
       const confirmed = apiOnline.value
         ? await confirmProductionPlan(selectedPlan.value.id, {
-            userId: 'demo-leader',
-            userName: '组长演示账号',
+            userId: user?.userId ?? 'mock-front-leader',
+            userName: user?.name ?? '前段组长演示',
             role: activeProcess.value === 'front' ? '前段组长' : '后段组长',
           })
         : { ...selectedPlan.value, confirmationStatus: '已确认' as const }
@@ -490,14 +673,18 @@ export const useProductionStore = defineStore('production', () => {
   }
 
   async function submitFeedback(type: FeedbackType = '资料缺失', description = '现场发现资料异常，等待工艺复核。') {
+    if (!selectedPlan.value.id) {
+      toast.info('暂无生产计划', { description: '请先导入生产计划，再提交异常反馈。' })
+      return
+    }
     loading.value = true
     try {
       const payload = {
         planId: selectedPlan.value.id,
         type,
         description,
-        userId: 'demo-leader',
-        userName: '组长演示账号',
+        userId: auth.currentUser?.userId ?? 'mock-front-leader',
+        userName: auth.currentUser?.name ?? '前段组长演示',
       }
       const response = apiOnline.value
         ? await submitFeedbackApi(payload)
@@ -531,22 +718,48 @@ export const useProductionStore = defineStore('production', () => {
 
   async function uploadCurrentDocument(formData: FormData) {
     if (!apiOnline.value) {
-      toast.error('离线演示模式暂不支持上传文件')
-      return
+      errorMessage.value = errorMessages.offlineDemo
+      toast.error('离线演示模式暂不支持上传文件', { description: errorMessage.value })
+      throw new Error(errorMessage.value)
     }
 
     uploadLoading.value = true
     try {
+      if (!selectedPlan.value?.id || !(selectedPlan.value.productId ?? selectedPlan.value.productCode)) {
+        throw new Error(errorMessages.selectPlanFirst)
+      }
       formData.set('planId', selectedPlan.value.id)
       formData.set('productId', selectedPlan.value.productId ?? selectedPlan.value.productCode)
+      if (auth.currentUser) {
+        formData.set('operatorId', auth.currentUser.userId)
+        formData.set('operatorName', auth.currentUser.name)
+        formData.set('operatorRole', auth.currentUser.roleLabel)
+      }
       const document = await uploadDocumentApi(formData)
-      selectedDocument.value = document
-      previewDocument.value = document
+      const documentId = document.documentId ?? document.id
+      activeDocumentTab.value = tabForDocument(document) as DocumentTab
+      highlightedDocumentId.value = documentId
       uploadDialogOpen.value = false
       await selectPlan(selectedPlan.value.id, false)
-      toast.success('资料上传成功', { description: `${document.title} ${document.version}` })
-    } catch {
-      toast.error('资料上传失败', { description: '请确认文件类型、大小和后端 API 状态。' })
+      const refreshedDocument = documents.value.find((item) => (item.documentId ?? item.id) === documentId) ?? document
+      selectedDocument.value = refreshedDocument
+      previewDocument.value = refreshedDocument
+      await loadFileHealth(selectedPlan.value)
+      if (searchKeyword.value.trim()) {
+        await search(searchKeyword.value.trim()).catch(() => undefined)
+      }
+      window.setTimeout(() => {
+        if (highlightedDocumentId.value === documentId) highlightedDocumentId.value = ''
+      }, 3000)
+      toast.success('资料上传成功，已加入当前产品资料包。', {
+        description: `${document.title} ${document.version}。如需用于生产，请确认版本状态为当前有效。`,
+      })
+      if (document.duplicateVersionWarning) toast.warning(document.duplicateVersionWarning)
+      return refreshedDocument
+    } catch (error) {
+      errorMessage.value = friendlyErrorMessage(error, errorMessages.uploadFailed)
+      toast.error('资料上传失败', { description: errorMessage.value })
+      throw error
     } finally {
       uploadLoading.value = false
     }
@@ -618,9 +831,9 @@ export const useProductionStore = defineStore('production', () => {
     if (!apiOnline.value) return
     try {
       const result = await setDocumentEffective(id, {
-        operatorId: 'demo-leader',
-        operatorName: '组长演示账号',
-        operatorRole: '组长',
+        operatorId: auth.currentUser?.userId ?? 'mock-front-leader',
+        operatorName: auth.currentUser?.name ?? '前段组长演示',
+        operatorRole: auth.currentUser?.roleLabel ?? '前段组长',
         ...payload,
       })
       selectedDocument.value = result.document
@@ -628,7 +841,12 @@ export const useProductionStore = defineStore('production', () => {
       documentVersions.value = result.versions
       if (result.readiness) readiness.value = result.readiness
       await selectPlan(selectedPlan.value.id, false)
-      toast.success('已设置为当前有效版本', { description: `${result.document.title} ${result.document.version}` })
+      await loadFileHealth(selectedPlan.value)
+      if (documentVersions.value?.currentDocument) {
+        selectedDocument.value = documentVersions.value.currentDocument
+        previewDocument.value = documentVersions.value.currentDocument
+      }
+      toast.success('当前有效版本已更新。', { description: `${result.document.title} ${result.document.version}` })
       return result
     } catch (error) {
       errorMessage.value = '设置当前有效版本失败。'
@@ -723,9 +941,14 @@ export const useProductionStore = defineStore('production', () => {
     queryRecords: queryLogs,
     feedbackRecords,
     selectedFeedbackRecords,
+    fileHealth,
+    fileHealthLoading,
+    fileHealthByDocumentId,
+    fileHealthForDocument,
     documents,
     uploadDialogOpen,
     uploadLoading,
+    highlightedDocumentId,
     selectedDocument,
     previewDocument,
     documentVersions,
@@ -761,6 +984,7 @@ export const useProductionStore = defineStore('production', () => {
     confirmSelectedPlan: confirmCurrentPlan,
     submitFeedback,
     loadDocuments,
+    loadFileHealth,
     uploadCurrentDocument,
     refreshDocumentDetail,
     updateCurrentDocumentStatus,

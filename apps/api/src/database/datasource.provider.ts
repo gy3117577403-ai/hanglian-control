@@ -20,7 +20,7 @@ const selectRepository = <TMock, TPrisma>(
   config: DataSourceConfig,
   mockRepository: TMock,
   prismaRepository: TPrisma,
-) => (config.dataSource === 'prisma' ? prismaRepository : mockRepository);
+) => (config.dataSource === 'postgres' ? prismaRepository : mockRepository);
 
 export const dataSourceProviders = [
   {

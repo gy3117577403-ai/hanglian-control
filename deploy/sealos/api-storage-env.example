@@ -1,0 +1,44 @@
+# Sealos API storage alignment example for V3.10.
+# Copy variable names into the Sealos app UI only. Do not commit real secret values.
+
+NODE_ENV=production
+HOST=0.0.0.0
+PORT=3000
+API_PREFIX=api
+CORS_ORIGINS=https://YOUR_TABLET_DOMAIN
+CORS_ALLOW_CREDENTIALS=false
+
+# Keep mock repositories until the database line is resumed.
+DATA_SOURCE=mock
+DEMO_DATA_MODE=empty
+DEPLOYMENT_STAGE=sealos-app
+
+# Database placeholders. Keep migrate disabled until a deliberate database cutover.
+DATABASE_URL=
+DB_TARGET=test
+DATABASE_SSL_MODE=require
+DATABASE_CONNECT_TIMEOUT_SECONDS=10
+ALLOW_TEST_DB_CONNECT=false
+ALLOW_PRISMA_WRITE=false
+ALLOW_DESTRUCTIVE_DB_ACTIONS=false
+RUN_PRISMA_MIGRATE_DEPLOY=false
+SEED_MODE=dry-run
+
+# Local persistent volume mode.
+FILE_STORAGE_PROVIDER=local
+STORAGE_ROOT=/data/hanglian
+METADATA_ROOT=/data/hanglian/metadata
+STORAGE_TEMP_ROOT=/data/hanglian/tmp
+STORAGE_MAX_FILE_SIZE_MB=30
+STORAGE_URL_MODE=proxy
+
+# Optional future S3/Object Storage mode. Keep empty unless switching provider.
+S3_ENDPOINT=
+S3_EXTERNAL_ENDPOINT=
+S3_REGION=us-east-1
+S3_BUCKET=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_FORCE_PATH_STYLE=true
+S3_OBJECT_PREFIX=hanglian
+S3_SIGNED_URL_TTL_SECONDS=900

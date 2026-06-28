@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   backProcessPackages,
   confirmationRecords,
@@ -14,11 +16,13 @@ import {
   documentStatusLabelMap,
   legacyDocumentTypeMap,
 } from '../common/enums/production.enum';
+import { shouldLoadDemoBusinessData } from '../config/mock-data-mode';
 import type {
   BackProcessPackageSeed,
   CustomerSeed,
   FeedbackRecordMock,
   FrontProcessParameterSeed,
+  ImportedBusinessDataSnapshot,
   ProductDocument,
   ProductDocumentSeed,
   ProductSeed,
@@ -28,6 +32,43 @@ import type {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function importedBusinessDataPath() {
+  const metadataRoot = process.env.METADATA_ROOT?.trim();
+  if (metadataRoot) {
+    const configured = resolve(process.cwd(), metadataRoot, 'imported-business-data.json');
+    if (existsSync(configured)) return configured;
+  }
+  const storageRoot = process.env.STORAGE_ROOT?.trim();
+  if (storageRoot) {
+    const configured = resolve(process.cwd(), storageRoot, 'metadata', 'imported-business-data.json');
+    if (existsSync(configured)) return configured;
+  }
+  const cwdStorage = resolve(process.cwd(), 'storage', 'metadata', 'imported-business-data.json');
+  if (existsSync(cwdStorage)) return cwdStorage;
+  return resolve(process.cwd(), 'apps', 'api', 'storage', 'metadata', 'imported-business-data.json');
+}
+
+function readImportedBusinessData(): ImportedBusinessDataSnapshot | undefined {
+  const file = importedBusinessDataPath();
+  if (!existsSync(file)) return undefined;
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as ImportedBusinessDataSnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+function upsertById<T extends { id: string }>(target: T[], rows: T[]) {
+  for (const row of rows) {
+    const index = target.findIndex((item) => item.id === row.id);
+    if (index >= 0) {
+      target[index] = clone(row);
+    } else {
+      target.push(clone(row));
+    }
+  }
 }
 
 function labelForDocumentType(documentType: ProductDocumentSeed['documentType']) {
@@ -77,23 +118,39 @@ function versionStatusFor(
   back: BackProcessPackageSeed,
   documents: ProductDocument[],
 ): ProductionPlanMock['versionStatus'] {
-  const hasDanger = documents.some((doc) => ['expired', 'missing', 'inconsistent'].includes(doc.documentStatus))
-    || front.parameterStatus === '失效'
-    || back.materialStatus === '失效';
-  const hasWarning = documents.some((doc) => doc.documentStatus === 'pending_review')
-    || front.parameterStatus === '待确认'
-    || back.materialStatus === '待确认'
-    || plan.confirmationStatus === '需复核';
+  const hasDanger =
+    documents.some((doc) =>
+      ['expired', 'missing', 'inconsistent'].includes(doc.documentStatus),
+    ) ||
+    front.parameterStatus === '失效' ||
+    back.materialStatus === '失效';
+  const hasWarning =
+    documents.some((doc) => doc.documentStatus === 'pending_review') ||
+    front.parameterStatus === '待确认' ||
+    back.materialStatus === '待确认' ||
+    plan.confirmationStatus === '需复核';
 
   if (hasDanger) {
-    return { status: '失效', message: '存在已失效、缺失或不一致资料，需复核后开工。', redLine: true };
+    return {
+      status: '失效',
+      message: '存在已失效、缺失或不一致资料，需复核后开工。',
+      redLine: true,
+    };
   }
 
   if (hasWarning) {
-    return { status: '待确认', message: '存在待确认资料，需组长复核。', redLine: true };
+    return {
+      status: '待确认',
+      message: '存在待确认资料，需组长复核。',
+      redLine: true,
+    };
   }
 
-  return { status: '有效', message: '资料版本有效，可进入组长确认。', redLine: false };
+  return {
+    status: '有效',
+    message: '资料版本有效，可进入组长确认。',
+    redLine: false,
+  };
 }
 
 function toProductionPlanMock(
@@ -150,13 +207,20 @@ function toProductionPlanMock(
 }
 
 function buildProductionPlans(): ProductionPlanMock[] {
+  if (!shouldLoadDemoBusinessData()) return [];
+
   return productionPlans.map((plan) => {
     const product = products.find((item) => item.id === plan.productId);
-    if (!product) throw new Error(`Mock seed missing product: ${plan.productId}`);
+    if (!product)
+      throw new Error(`Mock seed missing product: ${plan.productId}`);
 
     const customer = customers.find((item) => item.id === product.customerId);
-    const front = frontProcessParameters.find((item) => item.productId === product.id);
-    const back = backProcessPackages.find((item) => item.productId === product.id);
+    const front = frontProcessParameters.find(
+      (item) => item.productId === product.id,
+    );
+    const back = backProcessPackages.find(
+      (item) => item.productId === product.id,
+    );
 
     if (!customer || !front || !back) {
       throw new Error(`Mock seed incomplete for product: ${product.id}`);
@@ -174,22 +238,29 @@ function buildProductionPlans(): ProductionPlanMock[] {
 }
 
 export class MockStore {
-  readonly customers = clone(customers);
-  readonly products = clone(products);
-  readonly queryLogs = clone(queryLogs);
-  readonly confirmationRecords = clone(confirmationRecords);
+  readonly customers = shouldLoadDemoBusinessData() ? clone(customers) : [];
+  readonly products = shouldLoadDemoBusinessData() ? clone(products) : [];
+  readonly queryLogs = shouldLoadDemoBusinessData() ? clone(queryLogs) : [];
+  readonly confirmationRecords = shouldLoadDemoBusinessData() ? clone(confirmationRecords) : [];
   readonly productionPlans = buildProductionPlans();
-  readonly feedbackRecords: FeedbackRecordMock[] = clone(feedbackRecords);
+  readonly feedbackRecords: FeedbackRecordMock[] = shouldLoadDemoBusinessData() ? clone(feedbackRecords) : [];
+
+  constructor() {
+    this.mergeImportedBusinessData(readImportedBusinessData());
+  }
 
   findPlanById(planId: string) {
     return this.productionPlans.find((plan) => plan.id === planId);
   }
 
   findPlanByProductCode(productCode: string) {
-    return this.productionPlans.find((plan) => plan.productCode === productCode);
+    return this.productionPlans.find(
+      (plan) => plan.productCode === productCode,
+    );
   }
 
-  findPlansByScope(scope: 'today' | 'week' = 'today') {
+  findPlansByScope(scope: 'all' | 'today' | 'week' = 'today') {
+    if (scope === 'all') return this.productionPlans;
     if (scope === 'week') return this.productionPlans;
     return this.productionPlans.filter((plan) => plan.date === '2026-06-11');
   }
@@ -205,13 +276,62 @@ export class MockStore {
     this.feedbackRecords.unshift(record);
     return record;
   }
+
+  mergeImportedBusinessData(snapshot?: ImportedBusinessDataSnapshot) {
+    if (!snapshot) return;
+    upsertById(this.customers, snapshot.customers ?? []);
+    upsertById(this.products, snapshot.products ?? []);
+    upsertById(this.productionPlans, snapshot.productionPlans ?? []);
+    for (const front of snapshot.frontParameters ?? []) {
+      for (const plan of this.productionPlans.filter((item) => item.productId === front.productId)) {
+        plan.front = {
+          wireLength: front.wireLength,
+          strippingLength: front.strippingLength,
+          terminalModel: front.terminalModel,
+          pullForceStandard: front.pullForceStandard,
+          crimpHeight: front.crimpHeight,
+          drawingVersion: front.drawingVersion,
+          parameterStatus: front.parameterStatus,
+        };
+      }
+    }
+    for (const back of snapshot.backPackages ?? []) {
+      for (const plan of this.productionPlans.filter((item) => item.productId === back.productId)) {
+        plan.back = {
+          connectorModel: back.connectorModel,
+          assemblyManual: back.assemblyManual,
+          pinMap: back.pinMap,
+          sop: back.sop,
+          finishedImageCount: back.finishedImageCount,
+          drawingVersion: back.drawingVersion,
+          sopVersion: back.sopVersion,
+          materialStatus: back.materialStatus,
+        };
+      }
+    }
+  }
+
+  importedSnapshotBase(): ImportedBusinessDataSnapshot {
+    return readImportedBusinessData() ?? {
+      updatedAt: new Date(0).toISOString(),
+      customers: [],
+      products: [],
+      productionPlans: [],
+      frontParameters: [],
+      backPackages: [],
+    };
+  }
 }
 
 export const mockStore = new MockStore();
 
 export const productionPlansMock = mockStore.productionPlans;
 export const feedbackRecordsMock = mockStore.feedbackRecords;
-export type { FeedbackRecordMock, ProductDocument, ProductionPlanMock } from '../common/types/production.types';
+export type {
+  FeedbackRecordMock,
+  ProductDocument,
+  ProductionPlanMock,
+} from '../common/types/production.types';
 export type {
   ConfirmationStatus,
   DocumentStatus,

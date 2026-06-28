@@ -1,270 +1,271 @@
-# V0.6 Mock API
+# API 文档
 
-后端默认地址 `http://localhost:3000`，全局前缀 `/api`，Swagger 地址 `/api/docs`。当前默认数据源仍为 `DATA_SOURCE=mock`。
+后端默认地址为 `http://localhost:3000`，全局前缀为 `/api`，Swagger 地址为 `/api/docs`。当前仍是本地 Mock / metadata 演示版，不连接 Sealos PostgreSQL，不执行 migrate、db push、seed 或任何真实写库操作。
 
-## 健康检查
+## Health
 
-### `GET /api/health`
+- `GET /api/health`
+- `GET /api/system/ping`
+- `GET /api/system/data-source`
+- `GET /api/system/database-safety`
 
-```json
-{
-  "status": "ok",
-  "service": "线束车间生产计划资料管控系统 API",
-  "version": "0.6.0",
-  "dataSource": "mock"
-}
-```
+这些接口只返回服务、环境和安全闸门状态，不主动连接数据库。
 
-### `GET /api/system/data-source`
-
-返回当前数据源状态，不连接真实数据库。
-
-## 生产计划
+## Production Plans
 
 - `GET /api/production-plans?scope=today|week`
 - `GET /api/production-plans/:id`
 - `GET /api/production-plans/:id/readiness`
 - `POST /api/production-plans/:id/confirm`
 
-V0.6 会在资料状态或有效版本变化后，通过刷新计划详情重新得到最新 readiness。
+V2.4 中，计划详情和 readiness 会联动现场知识验证，追加：
 
-## 资料文件
+- `field_knowledge_validation`
+- `field_fixture_ready`
+- `field_quality_ready`
 
-### `GET /api/documents`
+如果现场知识验证为 `blocked`，开工检查同步阻塞；如果为 `need_review`，原本 ready 的计划会降级为需复核。
 
-查询 seed Mock 资料和本地上传资料。
+## Documents And Files
 
-可选参数：`planId`、`productId`、`documentType`、`status`。
+- `GET /api/documents`
+- `POST /api/documents/upload`
+- `GET /api/documents/file-health`
+- `GET /api/documents/:id`
+- `GET /api/documents/:id/versions`
+- `GET /api/documents/versions`
+- `PATCH /api/documents/:id/status`
+- `PATCH /api/documents/:id/version`
+- `POST /api/documents/:id/set-effective`
+- `POST /api/documents/:id/archive`
+- `POST /api/documents/compare`
+- `GET /api/files/:storedFileName`
 
-### `POST /api/documents/upload`
+文件仍保存在本地开发目录，真实客户资料和本地上传文件不提交 Git。
 
-上传本地 PDF/JPG/PNG/WEBP 文件并绑定产品或计划。成功后写入 `document_uploaded` 审计记录。
+## Search
 
-### `GET /api/documents/:id`
+- `GET /api/search?q=关键词&planId=可选`
 
-获取单个资料详情。
+搜索结果包含计划、资料、文件、治具、异常案例和质量标准等 Mock 结果。
 
-### `PATCH /api/documents/:id/status`
+## Feedback
 
-更新资料状态。成功后写入 `document_status_changed` 审计记录。
+- `POST /api/feedback`
+- `GET /api/feedback?planId=可选`
 
-```json
-{
-  "status": "pending_review",
-  "reason": "现场要求复核"
-}
-```
+异常反馈仍写入内存或本地 Mock 数据，不连接真实数据库。
 
-### `PATCH /api/documents/:id/version`
+## Imports
 
-更新资料版本号。成功后写入 `document_version_changed` 审计记录。
+- `GET /api/imports/templates`
+- `GET /api/imports/templates/:type/download`
+- `POST /api/imports/:type/preview`
+- `POST /api/imports/:type/apply`
+- `GET /api/imports/history`
+- `GET /api/imports/history/:id`
+- `POST /api/imports/history/:id/rollback-preview`
 
-```json
-{
-  "version": "Rev.C",
-  "status": "pending_review"
-}
-```
+支持导入类型：
 
-### `POST /api/documents/:id/archive`
+- `production_plan`
+- `customer_product`
+- `front_parameter`
+- `back_package`
+- `fixture`
+- `abnormal_case`
+- `quality_standard`
 
-归档资料，不物理删除文件。成功后写入 `document_archived` 审计记录。
+预览接口只解析和校验，应用接口只写本地 Mock / metadata。
 
-### `GET /api/documents/:id/versions`
+## Maintenance
 
-返回当前资料所属版本分组。
+- `GET /api/maintenance/summary`
+- `GET /api/maintenance/customers`
+- `GET /api/maintenance/products`
+- `GET /api/maintenance/production-plans`
+- `GET /api/maintenance/front-parameters`
+- `GET /api/maintenance/back-packages`
+- `GET /api/maintenance/documents`
+- `PATCH /api/maintenance/customers/:id`
+- `PATCH /api/maintenance/products/:id`
+- `PATCH /api/maintenance/production-plans/:id`
+- `PATCH /api/maintenance/front-parameters/:id`
+- `PATCH /api/maintenance/back-packages/:id`
+- `PATCH /api/maintenance/documents/:id`
+- `POST /api/maintenance/documents/:id/set-effective`
+- `POST /api/maintenance/bulk-status`
+- `GET /api/maintenance/review-queue`
+- `POST /api/maintenance/review-queue/:id/resolve`
+- `GET /api/maintenance/history`
+- `GET /api/maintenance/history/:id`
 
-分组规则：
+V2.4 复核队列会追加现场知识库阻塞和待复核问题。
 
-```text
-productId + documentType + requiredForProcess
-```
+## Auth / Mock RBAC
 
-返回字段包括：
+- `GET /api/auth/mock-users`
+- `POST /api/auth/mock-login`
+- `GET /api/auth/me`
 
-- `currentDocument`
-- `versions`
-- `effectiveDocumentId`
-- `versionCount`
-- `hasExpired`
-- `hasPendingReview`
-- `hasInconsistent`
+当前只提供本地 Mock 角色，不接企业微信登录，不保存真实账号。
 
-### `GET /api/documents/versions`
+## Knowledge
 
-查询某产品的资料版本分组列表。
+V2.4 知识库仍使用 Mock seed 与本地 metadata。
 
-参数：
+### 治具库
 
-- `productId` 必填
-- `documentType` 可选
-- `requiredForProcess` 可选
+- `GET /api/knowledge/fixtures`
+- `POST /api/knowledge/fixtures`
+- `PATCH /api/knowledge/fixtures/:id`
+- `PATCH /api/knowledge/fixtures/:id/status`
+- `POST /api/knowledge/fixtures/bulk-update`
 
-### `POST /api/documents/:id/set-effective`
+### 异常库
 
-将某个资料设为当前有效版本。同组其他 `effective` 自动改为 `expired`。
+- `GET /api/knowledge/abnormal-cases`
+- `POST /api/knowledge/abnormal-cases`
+- `PATCH /api/knowledge/abnormal-cases/:id`
+- `PATCH /api/knowledge/abnormal-cases/:id/status`
+- `POST /api/knowledge/abnormal-cases/bulk-update`
 
-```json
-{
-  "reason": "确认 Rev.C 为当前有效版本",
-  "operatorId": "demo-leader",
-  "operatorName": "组长演示账号",
-  "operatorRole": "组长"
-}
-```
+### 质量标准库
 
-返回：
+- `GET /api/knowledge/quality-standards`
+- `POST /api/knowledge/quality-standards`
+- `PATCH /api/knowledge/quality-standards/:id`
+- `PATCH /api/knowledge/quality-standards/:id/status`
+- `POST /api/knowledge/quality-standards/bulk-update`
 
-- `document`
-- `versions`
-- `readiness`
+### 计划 / 产品关联
 
-### `POST /api/documents/compare`
+- `GET /api/knowledge/product/:productId/summary`
+- `GET /api/knowledge/product/:productId/validation`
+- `GET /api/knowledge/plan/:planId/summary`
+- `GET /api/knowledge/plan/:planId/validation`
+- `GET /api/knowledge/plan/:planId/recommendations`
+- `GET /api/knowledge/search?q=关键词&planId=可选&productId=可选`
+- `GET /api/knowledge/history`
 
-只对比资料元数据，不比较 PDF 或图片内容。
+## V2.4 Knowledge Field Validation API
 
-```json
-{
-  "documentIds": ["doc-001", "doc-002"]
-}
-```
+### `GET /api/knowledge/plan/:planId/validation`
 
-对比字段包括标题、资料类型、版本、状态、来源、适用工序、原始文件名、文件大小、生效日期、更新时间、关键词和备注。
+按生产计划返回现场知识验证结果，包含计划与产品信息、验证状态、验证分数、治具汇总、异常汇总、质量标准汇总、检查项列表和推荐处理动作。
 
-## 文件流
+### `GET /api/knowledge/product/:productId/validation`
 
-### `GET /api/files/:storedFileName`
+按产品返回现场知识验证结果。可选查询参数：`processSegment=front|back|common`。
 
-读取 `apps/api/storage/uploads` 内的本地文件流。会尝试写入 `document_previewed` 审计记录，但审计失败不会影响文件返回。
+### `GET /api/knowledge/plan/:planId/recommendations`
 
-## 搜索
+返回当前计划的现场知识推荐动作，用于班前走查、开工提醒和复核队列联动。
 
-### `GET /api/search?q=关键词&planId=可选`
+### `POST /api/knowledge/fixtures/bulk-update`
 
-搜索结果中的资料类结果新增：
+批量维护治具库记录。请求体包含 `ids`、`patch`、`reason`、`operatorId`、`operatorName`、`operatorRole`。
 
-- `version`
-- `status`
-- `source`
-- `isEffective`
-- `isHistorical`
-- `versionGroupKey`
-- `scope`
+### `POST /api/knowledge/abnormal-cases/bulk-update`
 
-关键词覆盖版本号、当前有效、待确认、已失效、历史版本、文件标题、关键词和原始文件名。
+批量维护异常库记录，允许维护状态、工序、严重度、关键词、备注等白名单字段。
 
-## 审计
+### `POST /api/knowledge/quality-standards/bulk-update`
 
-### `GET /api/audit-logs`
+批量维护质量标准库记录，允许维护状态、工序、缺陷等级、关键词、备注等白名单字段。
 
-查询本地审计记录，按 `createdAt` 倒序。
+## Safety
 
-参数：
-
-- `entityType`
-- `entityId`
-- `planId`
-- `productId`
-- `action`
-- `limit`，默认 50
-
-## 迁移
-
-### `GET /api/migration/preview`
-
-返回本地 Mock/metadata 迁移到 Prisma PostgreSQL 的预览统计，不连接数据库。
-
-### `GET /api/migration/export-seed`
-
-返回后续 Prisma seed 可用的 JSON 结构，不写数据库，不连接数据库，不包含真实密钥。
-
-包含 `customers`、`products`、`productionPlans`、`documents`、`frontParameters`、`backPackages`、`feedbackRecords`、`confirmationRecords`、`auditLogs`。
-
-## 当前限制
-
-- 不连接真实 Sealos PostgreSQL。
-- 不执行 `prisma migrate`、`prisma db push`、真实 seed。
-- 不连接企业微信微盘。
+- 不提交 `.env.local`。
+- 不提交真实客户资料。
+- 不提交本地上传文件。
+- 不提交 metadata JSON。
+- 不写入真实 DATABASE_URL。
+- 不连接 Sealos PostgreSQL。
+- 不接企业微信微盘。
 - 不接真实语音识别。
-- 文件本体仍在本地 `storage/uploads`。
-# V0.7 Mock 迁移与数据库安全接口
 
-## System
+## V2.6 Analytics API
 
-### GET `/api/system/database-safety`
+当前 analytics API 只读取 Mock / 本地 metadata，不连接数据库，不执行 migrate、db push、seed 或写库操作。
 
-V0.8A 返回数据库安全闸门状态。该接口不会连接数据库。
+- `GET /api/analytics/overview`：现场总览，包含生产、数量、资料、知识和风险摘要。
+- `GET /api/analytics/production`：生产执行统计，包含计划状态、工序分布、班组分布和活跃计划。
+- `GET /api/analytics/quantity`：数量质量统计，包含完成数量、不良、返工、报废、完成率和趋势。
+- `GET /api/analytics/exceptions`：异常统计，包含异常反馈、异常停线、类别排行和严重异常列表。
+- `GET /api/analytics/documents`：资料问题统计，包含待确认、失效、缺失、重复版本和资料问题排行。
+- `GET /api/analytics/knowledge`：知识库统计，包含治具、异常、质量标准和待复核知识项。
+- `GET /api/analytics/trends`：趋势数据，包含完成率、不良率、异常次数、资料待复核、文件缺失和知识待复核。
+- `GET /api/analytics/rankings`：排行数据，包含资料问题、异常、待复核、文件缺失和高风险异常类别 Top 5。
+- `GET /api/analytics/summary-text`：返回可复制的统计摘要文本。
 
-新增/重点字段：
+通用查询参数：
 
-- `dataSource`：当前业务数据源，默认 `mock`。
-- `dbTarget`：数据库目标，只有测试库只读验证时应为 `test`。
-- `databaseConfigured`：是否配置了非示例 `DATABASE_URL`。
-- `databaseUrlMasked`：脱敏连接串，只显示 host、port、database 和脱敏 username。
-- `databaseUrlLooksExample`：连接串是否仍为示例值。
-- `databaseUrlLooksProduction`：连接串是否包含 `prod`、`production`、`生产`、`正式` 等高风险关键词。
-- `envLocalExists`：是否检测到 `apps/api/.env.local`。
-- `allowTestDbConnect`：是否允许测试库只读连接检查。
-- `allowPrismaWrite`：是否允许 Prisma 写入，V0.8A 应保持 `false`。
-- `allowDestructiveDbActions`：是否允许危险操作，V0.8A 应保持 `false`。
-- `canReadDatabase`：是否满足 Sealos 测试库只读验证条件。
-- `canWriteDatabase`：V0.8A 固定为 `false`。
-- `destructiveActionsAllowed`：V0.8A 固定为 `false`。
-- `stage`：`V0.8A_READONLY_CHECK`。
-- `warnings`：中文安全提醒。
-- `nextSteps`：下一步建议。
+- `range=today|week|month|all`
+- `dateFrom=YYYY-MM-DD`
+- `dateTo=YYYY-MM-DD`
+- `team=班组或负责人`
+- `processSegment=front|back|common|all`
+- `customerId=客户ID`
+- `productId=产品ID`
+- `role=角色`
 
-### GET `/api/system/data-source`
+## V2.7 System QA API
 
-返回当前数据源和 Prisma 接入准备状态。
+当前 system-qa API 只读取 Mock / 本地 metadata，不连接数据库，不执行 migrate、db push、seed 或写库操作。
 
-关键字段：
+- `GET /api/system-qa/overview`：返回 V2.7 总验收概览、模块状态和 pass / warning / fail 汇总。
+- `GET /api/system-qa/data-consistency`：检查生产计划、产品、资料、知识库、执行记录、报工、审计、维护和导入记录之间的数据一致性。
+- `GET /api/system-qa/business-flow`：检查生产计划到资料包、上传到审计、导入到维护、知识库到开工验证、执行闭环到统计看板等业务链路。
+- `GET /api/system-qa/permission-regression`：按 Mock 角色输出可见菜单、允许操作、应禁止操作、缺失权限提醒和过度授权提醒。
+- `GET /api/system-qa/demo-readiness`：检查演示资产、导入文件、知识库文件、LAN / PWA 配置、文档、安全忽略和 Mock 提示。
+- `GET /api/system-qa/acceptance-report`：返回总验收报告 JSON。
+- `GET /api/system-qa/acceptance-report/text`：返回可复制的中文验收报告文本。
 
-- `dataSource`：`mock` 或 `prisma`
-- `databaseConfigured`：`DATABASE_URL` 是否已配置且不是示例值
-- `dbTarget`：当前数据库目标，例如 `local`、`test`
-- `allowTestDbConnect`：是否允许测试库连接
-- `allowPrismaWrite`：是否允许 Prisma 写入
-- `allowDestructiveDbActions`：是否允许危险数据库操作
-- `prismaAvailable`：当前是否满足 Prisma 读取条件
+## V2.5 Production Execution API
 
-### GET `/api/system/database-safety`
+当前执行闭环 API 使用本地 Mock / metadata，不连接数据库，不执行写库操作。
 
-返回数据库安全闸门完整状态，包含：
+- `GET /api/execution/summary`：返回生产执行总览。
+- `GET /api/execution/plans`：返回执行计划列表。
+- `GET /api/execution/plans/:planId`：返回单个计划执行详情。
+- `POST /api/execution/plans/:planId/prepare-start`：生成开工检查结果。
+- `POST /api/execution/plans/:planId/start`：模拟开始生产。
+- `POST /api/execution/plans/:planId/process-confirm`：提交首件、巡检、资料复核或异常确认。
+- `POST /api/execution/plans/:planId/quantity-report`：提交数量报工。
+- `POST /api/execution/plans/:planId/pause`：暂停生产。
+- `POST /api/execution/plans/:planId/resume`：恢复生产。
+- `POST /api/execution/plans/:planId/exception-hold`：异常停线。
+- `POST /api/execution/plans/:planId/complete`：完工确认。
+- `GET /api/execution/plans/:planId/timeline`：返回执行时间线。
+- `POST /api/execution/shift-handover`：提交班组交接。
+- `GET /api/execution/shift-handover`：查询班组交接记录。
+- `GET /api/execution/daily-report`：返回现场日报结构化数据。
+- `GET /api/execution/daily-report/text`：返回现场日报文本。
+# V3.1 Settings API
 
-- `canReadDatabase`
-- `canWriteDatabase`
-- `destructiveActionsAllowed`
-- `warnings`
-- `nextSteps`
-- `message`
+当前 settings API 使用 Mock / 本地 metadata，不连接 Sealos，不执行数据库写入。
 
-默认状态下 `canReadDatabase=false`、`canWriteDatabase=false`。
+- `GET /api/settings/summary`：系统配置概览。
+- `GET /api/settings/system`：系统基础配置。
+- `PATCH /api/settings/system`：更新系统基础配置。
+- `GET /api/settings/dictionaries`：获取字典配置。
+- `PATCH /api/settings/dictionaries/:groupKey`：更新某组字典。
+- `GET /api/settings/station-profiles`：获取工位配置。
+- `POST /api/settings/station-profiles`：新增工位配置。
+- `PATCH /api/settings/station-profiles/:id`：更新工位配置。
+- `PATCH /api/settings/station-profiles/:id/status`：启用 / 停用工位。
+- `GET /api/settings/display`：获取显示配置。
+- `PATCH /api/settings/display`：更新显示配置。
+- `GET /api/settings/announcements`：获取公告。
+- `POST /api/settings/announcements`：新增公告。
+- `PATCH /api/settings/announcements/:id`：更新公告。
+- `PATCH /api/settings/announcements/:id/status`：启用 / 关闭公告。
+- `GET /api/settings/feedback`：获取系统使用反馈。
+- `POST /api/settings/feedback`：提交系统使用反馈。
+- `PATCH /api/settings/feedback/:id/status`：更新反馈状态。
+- `GET /api/settings/pilot-check`：获取最近一次试运行检查。
+- `POST /api/settings/pilot-check/run`：运行试运行检查。
+- `GET /api/settings/history`：获取配置变更历史。
 
-## Migration
-
-### GET `/api/migration/validate`
-
-校验当前 Mock seed、本地上传资料 metadata、审计 metadata 是否可转换为 Prisma seed 结构。
-
-不会连接数据库，不会写入数据库。
-
-### GET `/api/migration/prisma-seed-preview`
-
-生成 Prisma seed dry-run JSON 结构预览，包含：
-
-- `summary`
-- `errors`
-- `warnings`
-- `safety`
-- `seed`
-
-该接口只返回预览数据，不执行真实 seed。
-
-### GET `/api/migration/preview`
-
-保留 V0.6 迁移统计预览。V0.7 中继续用于前端迁移弹窗概要展示。
-
-### GET `/api/migration/export-seed`
-
-导出 Mock seed JSON 预览，不写入数据库。
+安全边界：不打印真实连接串，不接企业微信微盘，不接真实语音，不执行 migrate / db push / seed。

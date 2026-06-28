@@ -1,0 +1,1849 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { Workbook } from 'exceljs';
+import type { DocumentTypeV03, RequiredProcess } from '../common/enums/production.enum';
+import type { ProductDocument } from '../common/types/production.types';
+import { AuditService } from '../audit/audit.service';
+import { DocumentsService } from '../documents/documents.service';
+import { LocalStorageService } from '../storage/local-storage.service';
+import { StorageService } from '../storage/storage.service';
+import type { DeleteItemDto } from '../unified-documents/dto/delete-item.dto';
+import { DeleteLockService } from '../unified-documents/helpers/delete-lock.service';
+import { DocumentLifecycleService } from './document-lifecycle.service';
+import { CreateConnectorParameterDto } from './dto/create-connector-parameter.dto';
+import { CreateDrawingCustomerDto } from './dto/create-drawing-customer.dto';
+import { CreateDrawingProductDto } from './dto/create-drawing-product.dto';
+import { ConnectorQueryDto } from './dto/connector-query.dto';
+import { DrawingQueryDto } from './dto/drawing-query.dto';
+import { FixtureQueryDto } from './dto/fixture-query.dto';
+import { OrderImportApplyDto, OrderImportPreviewFormDto } from './dto/order-import.dto';
+import { LinkOrderProductDto, RestoreOrderDto, UpdateOrderStatusDto } from './dto/order-maintenance.dto';
+import { OrderQueryDto } from './dto/order-query.dto';
+import { ResolveDrawingProductDto } from './dto/resolve-drawing-product.dto';
+import { DrawingSearchQueryDto } from './dto/drawing-search.dto';
+import { UpdateConnectorParameterDto } from './dto/update-connector-parameter.dto';
+import { UpdateDrawingCustomerDto } from './dto/update-drawing-customer.dto';
+import { UpdateDrawingProductDto } from './dto/update-drawing-product.dto';
+import { UploadDrawingItemDto } from './dto/upload-drawing-item.dto';
+import { createDefaultDrawingModules } from './drawing-metadata.store';
+import { DRAWING_REPOSITORY, ORDER_REPOSITORY } from '../persistence/persistence.tokens';
+import type { DrawingRepository, OrderRepository } from '../persistence/persistence.types';
+import { PdfImportApplyDto, PdfImportPreviewFormDto } from './dto/pdf-import.dto';
+import { normalizeProductModel } from './helpers/pdf-name-parser';
+import {
+  ConnectorParameter,
+  DrawingItem,
+  DrawingModuleKey,
+  FixtureParameter,
+  HubCustomer,
+  HubOrder,
+  HubProductModel,
+  ProductDrawingDetail,
+  connectorParameters,
+  fixtureParameters,
+  hubOrders,
+} from './mock/document-hub.seed';
+import { PdfImportPreviewService } from './pdf-import-preview.service';
+import { PdfImportApplyService } from './pdf-import-apply.service';
+import { isDocumentDeleted } from './helpers/document-lifecycle-validator';
+import { DocumentVersionService } from './document-version.service';
+import { DrawingDocumentOperatorDto, UpdateDrawingDocumentMetadataDto } from './dto/document-metadata.dto';
+import { OrderImportService } from './order-import.service';
+import {
+  normalizeOrderProductModel,
+  ProductionOrderRecord,
+} from './order-metadata.store';
+import { OrderStatusSyncService } from './order-status-sync.service';
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function includes(value: unknown, q: string) {
+  return String(value ?? '').toLowerCase().includes(q);
+}
+
+function normalizeSearchQuery(value: unknown) {
+  return cleanText(String(value ?? '')).toLowerCase();
+}
+
+function normalizeSearchProductModel(value: unknown) {
+  return cleanText(String(value ?? '')).toUpperCase().replace(/\s+/g, '');
+}
+
+const drawingModuleKeySet = new Set<DrawingModuleKey>([
+  'original_drawing',
+  'sop',
+  'finished_images',
+  'accessory_specs',
+  'notes',
+  'tooling',
+]);
+
+function isSoftDeletedEntity(value: unknown) {
+  const item = value as { deleted?: boolean; deletedAt?: string | null } | null | undefined;
+  return Boolean(item?.deleted || item?.deletedAt);
+}
+
+function isDocumentArchived(document: ProductDocument) {
+  return document.archived === true || Boolean(document.archivedAt);
+}
+
+function parseBoolean(value?: string) {
+  return value === 'true' || value === '1';
+}
+
+function normalizeDuplicateKey(value: string) {
+  return value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+}
+
+function cleanText(value?: string) {
+  return value?.normalize('NFKC').trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function cleanOptionalText(value?: string) {
+  const text = cleanText(value);
+  return text || undefined;
+}
+
+function normalizeResolveLookup(value?: string) {
+  return cleanText(value).toLowerCase();
+}
+
+function uniqueAliases(values: Array<string | undefined>) {
+  return [...new Set(values.map(cleanText).filter(Boolean))];
+}
+
+function makeEntityId(prefix: string, value: string) {
+  const slug = value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return `${prefix}-${slug || 'item'}-${randomUUID().slice(0, 8)}`;
+}
+
+function cellText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'object') {
+    const rich = value as { text?: string; result?: unknown; formula?: string; hyperlink?: string };
+    if (rich.text) return rich.text;
+    if (rich.result !== undefined) return cellText(rich.result);
+    if (rich.hyperlink) return rich.hyperlink;
+    if (rich.formula) return rich.formula;
+  }
+  return String(value).replace(/^\uFEFF/, '').trim();
+}
+
+function normalizeHeader(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^\uFEFF/, '')
+    .replace(/\s+/g, '')
+    .replace(/[()（）:：_\-]/g, '')
+    .replace(/毫米/g, 'mm');
+}
+
+function connectorImportValue(row: Map<string, string>, aliases: string[]) {
+  const normalizedAliases = aliases.map(normalizeHeader);
+  for (const [key, value] of row.entries()) {
+    if (normalizedAliases.includes(normalizeHeader(key))) return value;
+  }
+  return '';
+}
+
+type ConnectorImportStrategy = 'review' | 'skip' | 'overwrite';
+type ConnectorImportAction = 'created' | 'updated' | 'skipped' | 'conflict' | 'error';
+
+type DrawingSearchResultType = 'customer' | 'product' | 'document';
+
+interface DrawingSearchResultBase {
+  resultType: DrawingSearchResultType;
+  title: string;
+  subtitle: string;
+  matchedText: string;
+  score: number;
+}
+
+interface DrawingCustomerSearchResult extends DrawingSearchResultBase {
+  resultType: 'customer';
+  customerId: string;
+  customerName: string;
+  customerShortName: string;
+  productCount: number;
+}
+
+interface DrawingProductSearchResult extends DrawingSearchResultBase {
+  resultType: 'product';
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productModel: string;
+  productName: string;
+  drawingStatus: HubProductModel['drawingStatus'];
+  uploadedModuleCount: number;
+  moduleCount: number;
+}
+
+interface DrawingDocumentSearchResult extends DrawingSearchResultBase {
+  resultType: 'document';
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productModel: string;
+  moduleKey: DrawingModuleKey;
+  moduleName: string;
+  documentId: string;
+  itemId: string;
+  documentTitle: string;
+  version: string;
+  contentKind: DrawingItem['contentKind'] | DrawingItem['fileType'];
+  previewAvailable: boolean;
+}
+
+type DrawingSearchResult = DrawingCustomerSearchResult | DrawingProductSearchResult | DrawingDocumentSearchResult;
+
+interface ConnectorImportIssue {
+  field: string;
+  message: string;
+  resolution: string;
+}
+
+interface ParsedConnectorImportRow {
+  rowNumber: number;
+  connectorModel: string;
+  specification: string;
+  insertionLengthMm: number;
+  outerStripLengthMm: number | null;
+  innerStripLengthMm: number;
+  status: string;
+  remark: string;
+}
+
+interface ConnectorImportRowResult {
+  rowNumber: number;
+  connectorModel: string;
+  specification?: string;
+  action: ConnectorImportAction;
+  valid: boolean;
+  message: string;
+  resolution?: string;
+  issues?: ConnectorImportIssue[];
+}
+
+const connectorImportAliases = {
+  connectorModel: ['连接器型号', '型号', '产品型号', '规格型号', 'connectorModel', 'connector_model', 'model'],
+  specification: ['规格', '规格描述', '规格参数', 'specification', 'spec'],
+  insertionLengthMm: ['入长', '入长mm', '入长(mm)', '入长毫米', '入线长度', 'insertionLengthMm', 'insertion_length_mm'],
+  outerStripLengthMm: ['外剥长度', '外剥长度mm', '外剥长度(mm)', '外剥皮', '外剥皮mm', '外剥皮(mm)', '外剥', 'outerStripLengthMm', 'outer_strip_length_mm'],
+  innerStripLengthMm: ['内剥长度', '内剥长度mm', '内剥长度(mm)', '内剥皮', '内剥皮mm', '内剥皮(mm)', '内剥', 'innerStripLengthMm', 'inner_strip_length_mm'],
+  status: ['状态', 'status'],
+  remark: ['备注', '注意事项', '备注注意事项', 'remark', 'note'],
+};
+
+function parseLengthCell(
+  value: unknown,
+  field: string,
+  options: { allowBlank?: boolean } = {},
+): { value?: number | null; issue?: ConnectorImportIssue } {
+  const raw = cellText(value);
+  const text = raw
+    .replace(/[，,]/g, '.')
+    .replace(/\s+/g, '')
+    .replace(/毫米|mm/gi, '')
+    .trim();
+
+  if (!text) {
+    if (options.allowBlank) return { value: null };
+    return {
+      issue: {
+        field,
+        message: `${field}为空`,
+        resolution: `请填写 ${field} 数字，例如 26.5。`,
+      },
+    };
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(text)) {
+    return {
+      issue: {
+        field,
+        message: `${field}格式不是数字`,
+        resolution: `请改成纯数字或小数，例如 26.5，不要填写文字或多个数值。`,
+      },
+    };
+  }
+
+  const numberValue = Number(text);
+  if (!Number.isFinite(numberValue) || numberValue < 0) {
+    return {
+      issue: {
+        field,
+        message: `${field}不是有效数值`,
+        resolution: '请填写大于等于 0 的数字。',
+      },
+    };
+  }
+
+  return { value: numberValue };
+}
+
+function connectorsOverlap(leftModel: string, rightModel: string) {
+  return leftModel.trim().toLowerCase() === rightModel.trim().toLowerCase();
+}
+
+const connectorStatusRank: Record<string, number> = {
+  '\u542f\u7528': 0,
+  '\u590d\u6838\u4e2d': 1,
+  '\u505c\u7528': 2,
+};
+
+function compareConnectors(left: ConnectorParameter, right: ConnectorParameter) {
+  const statusDiff = (connectorStatusRank[left.status ?? ''] ?? 9) - (connectorStatusRank[right.status ?? ''] ?? 9);
+  if (statusDiff) return statusDiff;
+  return left.connectorModel.localeCompare(right.connectorModel, 'zh-Hans-CN', { numeric: true });
+}
+
+function connectorFieldSearch(item: ConnectorParameter, normalizedKeyword: string) {
+  const fieldSearches = [
+    { aliases: ['\u5165\u957f', '\u5165\u957fmm', '\u5165\u957f\u6beb\u7c73'], value: item.insertionLengthMm },
+    { aliases: ['\u5916\u5265', '\u5916\u5265\u76ae', '\u5916\u5265\u957f\u5ea6', '\u5916\u5265mm', '\u5916\u5265\u76aemm'], value: item.outerStripLengthMm },
+    { aliases: ['\u5185\u5265', '\u5185\u5265\u76ae', '\u5185\u5265\u957f\u5ea6', '\u5185\u5265mm', '\u5185\u5265\u76aemm'], value: item.innerStripLengthMm },
+  ];
+  return fieldSearches.some(({ aliases, value }) => aliases.some((alias) => {
+    if (!normalizedKeyword.startsWith(alias)) return false;
+    const numericText = normalizedKeyword
+      .replace(alias, '')
+      .replace(/mm|\u6beb\u7c73/g, '')
+      .trim();
+    return numericText ? String(value ?? '').includes(numericText) : value !== null && value !== undefined;
+  }));
+}
+
+function connectorMatchesKeyword(item: ConnectorParameter, q: string) {
+  if (!q) return true;
+  const normalizedKeyword = q.replace(/\s+/g, '').toLowerCase();
+  const outerBlankWords = ['\u5916\u5265\u7a7a', '\u5916\u5265\u4e3a\u7a7a', '\u672a\u586b\u5916\u5265', '\u65e0\u5916\u5265', '\u7a7a\u5916\u5265', '\u5916\u5265\u7559\u7a7a'];
+  if (outerBlankWords.some((word) => normalizedKeyword.includes(word))) {
+    return item.outerStripLengthMm === null || item.outerStripLengthMm === undefined;
+  }
+  if (connectorFieldSearch(item, normalizedKeyword)) return true;
+  return [
+    item.connectorModel,
+    item.insertionLengthMm,
+    item.outerStripLengthMm,
+    item.innerStripLengthMm,
+    item.remark,
+    item.status,
+  ].some((value) => includes(value, q));
+}
+
+function makeImportRowResult(
+  row: Pick<ParsedConnectorImportRow, 'rowNumber' | 'connectorModel' | 'specification'>,
+  action: ConnectorImportAction,
+  valid: boolean,
+  message: string,
+  resolution?: string,
+  issues?: ConnectorImportIssue[],
+): ConnectorImportRowResult {
+  return {
+    rowNumber: row.rowNumber,
+    connectorModel: row.connectorModel || '-',
+    specification: row.specification,
+    action,
+    valid,
+    message,
+    resolution,
+    issues,
+  };
+}
+
+function hasConnectorImportHeader(headers: string[], aliases: string[]) {
+  const normalizedAliases = aliases.map(normalizeHeader);
+  return headers.some((header) => normalizedAliases.includes(normalizeHeader(header)));
+}
+
+@Injectable()
+export class DocumentHubService implements OnModuleInit {
+  private readonly logger = new Logger(DocumentHubService.name);
+  private readonly orders: HubOrder[] = clone(hubOrders);
+  private readonly connectors: ConnectorParameter[] = clone(connectorParameters);
+  private readonly fixtures: FixtureParameter[] = clone(fixtureParameters);
+
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly localStorageService: LocalStorageService,
+    private readonly storageService: StorageService,
+    private readonly deleteLockService: DeleteLockService,
+    @Inject(DRAWING_REPOSITORY) private readonly drawingRepository: DrawingRepository,
+    @Optional() private readonly pdfImportPreviewService?: PdfImportPreviewService,
+    @Optional() private readonly pdfImportApplyService?: PdfImportApplyService,
+    @Optional() private readonly documentLifecycleService?: DocumentLifecycleService,
+    @Optional() @Inject(ORDER_REPOSITORY) private readonly orderRepository?: OrderRepository,
+    @Optional() private readonly orderImportService?: OrderImportService,
+    @Optional() private readonly orderStatusSyncService?: OrderStatusSyncService,
+    @Optional() private readonly auditService?: AuditService,
+    @Optional() private readonly documentVersionService?: DocumentVersionService,
+  ) {}
+
+  async onModuleInit() {
+    await this.initializeDrawingRepository();
+    await this.initializeOrderRepository();
+  }
+
+  private async initializeDrawingRepository() {
+    const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
+    const store = this.drawingRepository as DrawingRepository & {
+      initializeFromSeedIfEmpty?: () => unknown | Promise<unknown>;
+    };
+
+    if (mode === 'demo' && typeof store.initializeFromSeedIfEmpty === 'function') {
+      await store.initializeFromSeedIfEmpty();
+      return;
+    }
+
+    await this.drawingRepository.ensureInitialized();
+  }
+
+  private async initializeOrderRepository() {
+    if (!this.orderRepository) return;
+    const mode = process.env.DEMO_DATA_MODE === 'empty' ? 'empty' : 'demo';
+    if (mode === 'demo') {
+      await this.orderRepository.initializeFromSeedIfEmpty();
+      return;
+    }
+    await this.orderRepository.ensureInitialized();
+  }
+
+
+  async getOrders(queryOrScope: OrderQueryDto | 'today' | 'week' | 'all' = 'week', includeCompleted?: string) {
+    if (!this.orderRepository) {
+      const scope = typeof queryOrScope === 'string' ? queryOrScope : queryOrScope.scope ?? 'week';
+      const shouldIncludeCompleted = parseBoolean(typeof queryOrScope === 'string' ? includeCompleted : queryOrScope.includeCompleted);
+      return this.orders.filter((order) => {
+        const scopeMatched = scope === 'all' || order.scope === scope;
+        const completedMatched = shouldIncludeCompleted || !order.completed;
+        return scopeMatched && completedMatched;
+      });
+    }
+
+    const query = typeof queryOrScope === 'string'
+      ? { scope: queryOrScope, includeCompleted }
+      : queryOrScope;
+    const includeAllCompleted = parseBoolean(query.includeCompleted);
+    const completionStatus = query.completionStatus ?? (includeAllCompleted ? 'all' : 'pending');
+    const scope = query.scope ?? 'week';
+    const orders = await this.orderRepository.listOrders({
+      scope,
+      completionStatus,
+      productionStatus: query.productionStatus,
+      keyword: query.keyword,
+      customerId: query.customerId,
+      linkedProductId: query.linkedProductId,
+    });
+    return orders.map((order) => this.toOrderResponse(order));
+  }
+
+  async completeOrder(orderId: string, completedBy = 'local-operator') {
+    if (this.orderRepository) {
+      const current = await this.orderRepository.getOrderById(orderId);
+      if (!current) throw new NotFoundException('订单不存在。');
+      const completed = current.completionStatus === 'completed'
+        ? current
+        : await this.orderRepository.completeOrder(orderId, completedBy);
+      if (!completed) throw new NotFoundException('订单不存在。');
+      void this.writeOrderAudit('order_completed', completed, {
+        previousStatus: current.productionStatus,
+        nextStatus: completed.productionStatus,
+        operatorName: completedBy,
+      });
+      return this.toOrderResponse(completed);
+    }
+
+    const order = this.orders.find((item) => item.orderId === orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    order.completed = true;
+    order.completedAt = new Date().toISOString();
+    order.remark = order.remark ? `${order.remark} / ${completedBy} 已完成` : `${completedBy} 已完成`;
+    return order;
+  }
+
+  async getOrderOverview() {
+    if (this.orderRepository) {
+      const today = await this.orderRepository.listOrders({ scope: 'today', completionStatus: 'all' });
+      const week = await this.orderRepository.listOrders({ scope: 'week', completionStatus: 'all' });
+      const pending = await this.orderRepository.listOrders({ scope: 'all', completionStatus: 'pending' });
+      const completed = await this.orderRepository.listOrders({ scope: 'all', completionStatus: 'completed' });
+      return {
+        today: this.makeOrderScopeOverview(today),
+        week: this.makeOrderScopeOverview(week),
+        completed: {
+          todayCompleted: today.filter((order) => order.completionStatus === 'completed').length,
+          weekCompleted: week.filter((order) => order.completionStatus === 'completed').length,
+          recentItems: completed
+            .sort((left, right) => String(right.completedAt ?? '').localeCompare(String(left.completedAt ?? '')))
+            .slice(0, 20)
+            .map((order) => this.toOrderResponse(order)),
+        },
+        weekOrders: week.map((order) => this.toOrderResponse(order)),
+        pendingOrders: pending.map((order) => this.toOrderResponse(order)),
+        completedOrders: completed.map((order) => this.toOrderResponse(order)),
+        summary: {
+          weekTotal: week.length,
+          pendingTotal: pending.length,
+          completedTotal: completed.length,
+        },
+      };
+    }
+
+    const weekOrders = this.orders.filter((order) => order.scope === 'week');
+    return {
+      weekOrders,
+      pendingOrders: this.orders.filter((order) => !order.completed),
+      completedOrders: this.orders.filter((order) => order.completed),
+      summary: {
+        weekTotal: weekOrders.length,
+        pendingTotal: this.orders.filter((order) => !order.completed).length,
+        completedTotal: this.orders.filter((order) => order.completed).length,
+      },
+    };
+  }
+
+  async previewOrderImport(dto: OrderImportPreviewFormDto, file?: Express.Multer.File) {
+    if (!this.orderImportService) throw new InternalServerErrorException('Order import service is not available.');
+    return this.orderImportService.preview(dto, file);
+  }
+
+  async applyOrderImport(dto: OrderImportApplyDto) {
+    if (!this.orderImportService) throw new InternalServerErrorException('Order import service is not available.');
+    return this.orderImportService.apply(dto);
+  }
+
+  async updateOrderStatus(orderId: string, dto: UpdateOrderStatusDto) {
+    const store = this.requireOrderStore();
+    const order = await store.getOrderById(orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    if (order.completionStatus === 'completed') {
+      throw new BadRequestException('已完成订单不能直接修改状态，请先恢复订单。');
+    }
+    await this.orderStatusSyncService?.assertCanSetProductionStatus(order, dto.productionStatus);
+    const updated = await store.updateOrder(orderId, { productionStatus: dto.productionStatus });
+    if (!updated) throw new NotFoundException('订单不存在。');
+    await this.writeOrderAudit('order_status_changed', updated, {
+      previousStatus: order.productionStatus,
+      nextStatus: updated.productionStatus,
+      operatorId: dto.operatorId,
+      operatorName: dto.operatorName,
+    });
+    return this.toOrderResponse(updated);
+  }
+
+  async restoreOrder(orderId: string, dto: RestoreOrderDto = {}) {
+    const store = this.requireOrderStore();
+    const order = await store.getOrderById(orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    const productionStatus = await this.orderStatusSyncService?.deriveProductionStatus({
+      linkedProductId: order.linkedProductId,
+      previousStatus: order.productionStatus,
+      preserveBack: true,
+    }) ?? 'no_drawing';
+    const operatorName = cleanText(dto.operatorName) || 'local-operator';
+    const restored = order.completionStatus === 'pending'
+      ? order
+      : await store.restoreOrder(orderId, operatorName, productionStatus);
+    if (!restored) throw new NotFoundException('订单不存在。');
+    await this.writeOrderAudit('order_restored', restored, {
+      previousStatus: order.productionStatus,
+      nextStatus: restored.productionStatus,
+      operatorId: dto.operatorId,
+      operatorName: dto.operatorName,
+    });
+    return this.toOrderResponse(restored);
+  }
+
+  async linkOrderProduct(orderId: string, dto: LinkOrderProductDto) {
+    const store = this.requireOrderStore();
+    const order = await store.getOrderById(orderId);
+    if (!order) throw new NotFoundException('订单不存在。');
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === cleanText(dto.customerId));
+    if (!customer) throw new NotFoundException('客户不存在。');
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === cleanText(dto.productId));
+    if (!product || product.customerId !== customer.customerId) throw new NotFoundException('产品不存在。');
+    const normalizedProductModel = product.normalizedProductModel ?? normalizeOrderProductModel(product.productModel);
+    if (normalizedProductModel !== order.normalizedProductModel) {
+      throw new BadRequestException('所选产品型号与订单型号不一致。');
+    }
+    const productionStatus = await this.orderStatusSyncService?.deriveProductionStatus({
+      linkedProductId: product.productId,
+      previousStatus: order.productionStatus,
+      preserveBack: true,
+    }) ?? 'no_drawing';
+    const updated = await store.updateOrder(orderId, {
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      linkedProductId: product.productId,
+      productResolutionStatus: 'found',
+      productionStatus,
+    });
+    if (!updated) throw new NotFoundException('订单不存在。');
+    await this.writeOrderAudit('order_product_linked', updated, {
+      previousStatus: order.productionStatus,
+      nextStatus: updated.productionStatus,
+      operatorId: dto.operatorId,
+      operatorName: dto.operatorName,
+    });
+    return this.toOrderResponse(updated);
+  }
+
+  async syncOrdersForProduct(productId: string) {
+    if (!this.orderStatusSyncService) throw new InternalServerErrorException('Order status sync service is not available.');
+    return this.orderStatusSyncService.syncOrdersForProduct(productId, {
+      operatorId: 'local-user',
+      operatorName: '本地操作员',
+      reason: '手动同步产品图纸状态。',
+    });
+  }
+
+  async getCustomers(query?: DrawingQueryDto) {
+    const q = query?.q?.trim().toLowerCase();
+    const customers = await this.drawingRepository.readCustomers();
+    if (!q) return customers;
+    return customers.filter((customer) => [
+      customer.customerName,
+      customer.customerShortName,
+      customer.customerCode,
+      ...(customer.aliases ?? []),
+    ].some((value) => includes(value, q)));
+  }
+
+  async getProducts(customerId: string, query?: DrawingQueryDto) {
+    const q = query?.q?.trim().toLowerCase();
+    return (await this.drawingRepository.readProducts()).filter((product) => {
+      const customerMatched = product.customerId === customerId;
+      const queryMatched = !q || [
+        product.productModel,
+        product.normalizedProductModel,
+        product.productName,
+        product.remark,
+        ...(product.searchKeywords ?? []),
+      ].some((value) => includes(value, q));
+      return customerMatched && queryMatched;
+    });
+  }
+
+  async createDrawingCustomer(dto: CreateDrawingCustomerDto) {
+    const customerName = normalizeDuplicateKey(dto.customerName ?? '');
+    if (!customerName) throw new BadRequestException('客户名称不能为空。');
+
+    const customers = await this.drawingRepository.readCustomers();
+    this.assertUniqueCustomerName(customers, customerName);
+
+    const timestamp = new Date().toISOString();
+    const customer: HubCustomer = {
+      customerId: makeEntityId('cust', customerName),
+      customerName,
+      customerShortName: cleanText(dto.customerShortName) || customerName,
+      customerCode: cleanOptionalText(dto.customerCode),
+      aliases: uniqueAliases([...(dto.aliases ?? []), customerName, dto.customerShortName]),
+      status: dto.status ?? 'active',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    await this.drawingRepository.writeCustomers([...customers, customer]);
+    return (await this.drawingRepository.readCustomers()).find((item) => item.customerId === customer.customerId) ?? customer;
+  }
+
+  async updateDrawingCustomer(customerId: string, dto: UpdateDrawingCustomerDto) {
+    const customers = await this.drawingRepository.readCustomers();
+    const current = customers.find((customer) => customer.customerId === customerId);
+    if (!current) throw new NotFoundException('客户不存在。');
+
+    const nextName = dto.customerName !== undefined ? normalizeDuplicateKey(dto.customerName) : current.customerName;
+    if (!nextName) throw new BadRequestException('客户名称不能为空。');
+    this.assertUniqueCustomerName(customers, nextName, customerId);
+
+    const nextCustomer: HubCustomer = {
+      ...current,
+      customerName: nextName,
+      customerShortName: dto.customerShortName !== undefined
+        ? (cleanText(dto.customerShortName) || nextName)
+        : current.customerShortName,
+      customerCode: dto.customerCode !== undefined ? cleanOptionalText(dto.customerCode) : current.customerCode,
+      aliases: dto.aliases !== undefined
+        ? uniqueAliases([...dto.aliases, nextName, dto.customerShortName ?? current.customerShortName])
+        : uniqueAliases([...(current.aliases ?? []), nextName, current.customerShortName]),
+      status: dto.status ?? current.status ?? 'active',
+      updatedAt: new Date().toISOString(),
+    };
+
+    await this.drawingRepository.writeCustomers(customers.map((customer) => (
+      customer.customerId === customerId ? nextCustomer : customer
+    )));
+    await this.syncCustomerIntoDetails(nextCustomer);
+
+    return (await this.drawingRepository.readCustomers()).find((customer) => customer.customerId === customerId) ?? nextCustomer;
+  }
+
+  async createDrawingProduct(dto: CreateDrawingProductDto) {
+    const customerId = cleanText(dto.customerId);
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === customerId);
+    if (customer?.status === 'disabled') throw new ConflictException('当前客户已停用，不能新增产品。');
+    if (!customer) throw new NotFoundException('客户不存在。');
+
+    const productModel = cleanText(dto.productModel);
+    const normalizedProductModel = normalizeProductModel(productModel);
+    if (!productModel || !normalizedProductModel) throw new BadRequestException('产品型号不能为空。');
+
+    const products = await this.drawingRepository.readProducts();
+    this.assertUniqueProductModel(products, customerId, normalizedProductModel);
+
+    const timestamp = new Date().toISOString();
+    const product: HubProductModel = {
+      productId: this.drawingRepository.makeProductId(customerId, normalizedProductModel),
+      customerId,
+      productModel,
+      normalizedProductModel,
+      productName: cleanText(dto.productName) || productModel,
+      drawingStatus: 'no_drawing',
+      source: 'manual_create',
+      searchKeywords: uniqueAliases([...(dto.searchKeywords ?? []), productModel, dto.productName]),
+      remark: cleanOptionalText(dto.remark),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    await this.drawingRepository.writeProducts([...products, product]);
+    const savedProduct = (await this.drawingRepository.readProducts()).find((item) => item.productId === product.productId) ?? product;
+    await this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, savedProduct));
+    return savedProduct;
+  }
+
+  async updateDrawingProduct(productId: string, dto: UpdateDrawingProductDto) {
+    const products = await this.drawingRepository.readProducts();
+    const current = products.find((product) => product.productId === productId);
+    if (!current) throw new NotFoundException('产品不存在。');
+
+    const productModel = dto.productModel !== undefined ? cleanText(dto.productModel) : current.productModel;
+    const normalizedProductModel = normalizeProductModel(productModel);
+    if (!productModel || !normalizedProductModel) throw new BadRequestException('产品型号不能为空。');
+
+    this.assertUniqueProductModel(products, current.customerId, normalizedProductModel, productId);
+
+    const nextProduct: HubProductModel = {
+      ...current,
+      productModel,
+      normalizedProductModel,
+      productName: dto.productName !== undefined ? (cleanText(dto.productName) || productModel) : current.productName,
+      searchKeywords: dto.searchKeywords !== undefined
+        ? uniqueAliases([...dto.searchKeywords, productModel, dto.productName ?? current.productName])
+        : current.searchKeywords,
+      remark: dto.remark !== undefined ? cleanOptionalText(dto.remark) : current.remark,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await this.drawingRepository.writeProducts(products.map((product) => (
+      product.productId === productId ? nextProduct : product
+    )));
+
+    const savedProduct = (await this.drawingRepository.readProducts()).find((product) => product.productId === productId) ?? nextProduct;
+    await this.syncProductIntoDetail(savedProduct);
+    return savedProduct;
+  }
+
+  async getProduct(productId: string) {
+    const detail = await this.findDrawingDetail(productId);
+    if (!detail) throw new NotFoundException('产品图纸资料不存在。');
+    return this.withUploadedDocuments(detail);
+  }
+
+  async getProductByModel(productModel: string) {
+    const normalizedProductModel = normalizeProductModel(productModel);
+    const product = (await this.drawingRepository.readProducts()).find((item) => (
+      item.productModel === productModel ||
+      item.normalizedProductModel === normalizedProductModel ||
+      normalizeProductModel(item.productModel) === normalizedProductModel
+    ));
+    if (!product) return null;
+    return this.getProduct(product.productId);
+  }
+
+  async resolveDrawingProduct(query: ResolveDrawingProductDto) {
+    const requestedProductModel = cleanText(query.productModel);
+    const normalizedProductModel = normalizeProductModel(requestedProductModel);
+    if (!requestedProductModel || !normalizedProductModel) {
+      throw new BadRequestException('产品型号不能为空。');
+    }
+
+    const customer = this.findResolveCustomer(await this.drawingRepository.readCustomers(), query);
+    if (!customer) {
+      return {
+        status: 'customer_not_found' as const,
+        requestedCustomerName: cleanText(query.customerName),
+        requestedCustomerShortName: cleanText(query.customerShortName),
+        requestedProductModel,
+        normalizedProductModel,
+        message: '订单客户尚未建立客户资料。',
+      };
+    }
+
+    const product = (await this.drawingRepository.readProducts()).find((item) => (
+      item.customerId === customer.customerId &&
+      (item.normalizedProductModel ?? normalizeProductModel(item.productModel)) === normalizedProductModel
+    ));
+
+    if (!product) {
+      return {
+        status: 'product_not_found' as const,
+        customer: this.safeResolveCustomer(customer),
+        requestedProductModel,
+        normalizedProductModel,
+        message: '当前型号尚未建立产品资料页。',
+      };
+    }
+
+    const detail = await this.withUploadedDocuments(
+      await this.findDrawingDetail(product.productId) ?? this.drawingRepository.makeProductDetail(customer, product),
+    );
+
+    return {
+      status: 'found' as const,
+      customer: this.safeResolveCustomer(customer),
+      product: this.safeResolveProduct(detail.product),
+      modules: this.safeResolveModules(detail.modules),
+    };
+  }
+
+  async getModule(productId: string, moduleKey: DrawingModuleKey) {
+    const detail = this.safeDocumentVersionDetail(await this.getProduct(productId));
+    const module = detail.modules.find((item) => item.moduleKey === moduleKey);
+    if (!module) throw new NotFoundException('图纸模块不存在。');
+    return {
+      product: detail.product,
+      customer: detail.customer,
+      module,
+    };
+  }
+
+  async previewPdfImport(dto: PdfImportPreviewFormDto, files: Express.Multer.File[]) {
+    if (!this.pdfImportPreviewService) {
+      throw new InternalServerErrorException('PDF 导入预览服务未初始化。');
+    }
+    return this.pdfImportPreviewService.preview(dto, files);
+  }
+
+  getPdfImportPreview(importBatchId: string) {
+    if (!this.pdfImportPreviewService) {
+      throw new InternalServerErrorException('PDF 导入预览服务未初始化。');
+    }
+    return this.pdfImportPreviewService.getPreview(importBatchId);
+  }
+
+  async applyPdfImport(dto: PdfImportApplyDto) {
+    if (!this.pdfImportApplyService) {
+      throw new InternalServerErrorException('PDF 导入应用服务未初始化。');
+    }
+    const response = await this.pdfImportApplyService.apply(dto);
+    const productIds = [...new Set((response.items ?? []).map((item) => item.productId).filter(Boolean) as string[])];
+    const warnings = await this.syncOrdersForOriginalDrawingProducts(productIds, 'PDF 导入原图后同步订单状态。');
+    return warnings.length ? { ...response, warning: warnings.join('；') } : response;
+  }
+
+  async uploadDrawingItem(productId: string, moduleKey: DrawingModuleKey, dto: UploadDrawingItemDto, file?: Express.Multer.File) {
+    const detail = await this.getProduct(productId);
+    const module = detail.modules.find((item) => item.moduleKey === moduleKey);
+    if (!module) throw new NotFoundException('图纸模块不存在。');
+
+    const document = await this.documentsService.upload({
+      productId,
+      documentType: this.documentTypeForModule(moduleKey),
+      title: dto.title,
+      version: dto.version,
+      status: 'effective',
+      requiredForProcess: this.requiredProcessForModule(moduleKey),
+      keywords: dto.keywords,
+      source: dto.source ?? 'manual_upload',
+      captureSource: dto.captureSource,
+      remark: dto.remark || '主页面资料库上传到本地沙盒存储。',
+    }, file);
+
+    const nextItem = this.documentToDrawingItem(document);
+    const mergedDetail = await this.getProduct(productId);
+    const mergedModule = mergedDetail.modules.find((item) => item.moduleKey === moduleKey) ?? module;
+    const syncWarning = await this.syncOrdersAfterOriginalDrawingChange(productId, moduleKey, '上传原图后同步订单状态。');
+    return {
+      success: true,
+      item: nextItem,
+      module: mergedModule,
+      product: mergedDetail.product,
+      detail: mergedDetail,
+      warning: syncWarning,
+    };
+  }
+
+  async deleteDrawingItem(productId: string, moduleKey: DrawingModuleKey, itemId: string, dto: DeleteItemDto) {
+    if (!this.documentLifecycleService) {
+      throw new InternalServerErrorException('Document lifecycle service is not available.');
+    }
+    return this.documentLifecycleService.trash(productId, moduleKey, itemId, dto);
+  }
+
+  async updateDrawingDocumentMetadata(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    itemId: string,
+    dto: UpdateDrawingDocumentMetadataDto,
+  ) {
+    const mutation = await this.requireDocumentVersionService().updateMetadata(productId, moduleKey, itemId, dto);
+    return this.toDocumentVersionResponse(productId, moduleKey, mutation.documentId, mutation);
+  }
+
+  async setDrawingDocumentEffective(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    itemId: string,
+    dto: DrawingDocumentOperatorDto = {},
+  ) {
+    const mutation = await this.requireDocumentVersionService().setEffective(productId, moduleKey, itemId, dto);
+    return this.toDocumentVersionResponse(productId, moduleKey, mutation.documentId, mutation);
+  }
+
+  async setDrawingDocumentCover(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    itemId: string,
+    dto: DrawingDocumentOperatorDto = {},
+  ) {
+    const mutation = await this.requireDocumentVersionService().setCover(productId, moduleKey, itemId, dto);
+    return this.toDocumentVersionResponse(productId, moduleKey, mutation.documentId, mutation);
+  }
+
+  getConnectors(query?: ConnectorQueryDto) {
+    const q = query?.q?.trim().toLowerCase();
+    return this.connectors
+      .filter((item) => connectorMatchesKeyword(item, q ?? ''))
+      .sort(compareConnectors);
+  }
+
+  getConnector(id: string) {
+    const connector = this.connectors.find((item) => item.connectorId === id);
+    if (!connector) throw new NotFoundException('Connector parameter not found.');
+    return connector;
+  }
+
+  createConnector(dto: CreateConnectorParameterDto) {
+    const connectorModel = dto.connectorModel.trim();
+    if (!connectorModel) throw new BadRequestException('Connector model is required.');
+    const specification = '';
+    if (this.connectors.some((item) => connectorsOverlap(item.connectorModel, connectorModel))) {
+      throw new BadRequestException('Connector model already exists.');
+    }
+    const connector: ConnectorParameter = {
+      connectorId: `conn-${randomUUID().slice(0, 8)}`,
+      connectorModel,
+      specification,
+      insertionLengthMm: dto.insertionLengthMm,
+      outerStripLengthMm: dto.outerStripLengthMm ?? null,
+      innerStripLengthMm: dto.innerStripLengthMm,
+      status: dto.status?.trim() || '\u542f\u7528',
+      remark: dto.remark?.trim() ?? '',
+    };
+    this.connectors.unshift(connector);
+    this.connectors.sort(compareConnectors);
+    return connector;
+  }
+
+  updateConnector(id: string, dto: UpdateConnectorParameterDto) {
+    const connector = this.connectors.find((item) => item.connectorId === id);
+    if (!connector) throw new NotFoundException('Connector parameter not found.');
+    if (dto.connectorModel !== undefined || dto.specification !== undefined) {
+      const connectorModel = dto.connectorModel?.trim() ?? connector.connectorModel;
+      const specification = '';
+      if (!connectorModel) throw new BadRequestException('Connector model is required.');
+      const duplicate = this.connectors.find((item) => item.connectorId !== id && connectorsOverlap(item.connectorModel, connectorModel));
+      if (duplicate) throw new BadRequestException('Connector model already exists.');
+      connector.connectorModel = connectorModel;
+      connector.specification = specification;
+    }
+    if (dto.insertionLengthMm !== undefined) connector.insertionLengthMm = dto.insertionLengthMm;
+    if (dto.outerStripLengthMm !== undefined) connector.outerStripLengthMm = dto.outerStripLengthMm;
+    if (dto.innerStripLengthMm !== undefined) connector.innerStripLengthMm = dto.innerStripLengthMm;
+    if (dto.remark !== undefined) connector.remark = dto.remark.trim();
+    if (dto.status !== undefined) connector.status = dto.status.trim() || '\u542f\u7528';
+    this.connectors.sort(compareConnectors);
+    return connector;
+  }
+
+  deleteConnector(id: string) {
+    const index = this.connectors.findIndex((item) => item.connectorId === id);
+    if (index < 0) throw new NotFoundException('Connector parameter not found.');
+    const [deleted] = this.connectors.splice(index, 1);
+    return { success: true, deletedId: id, connector: deleted };
+  }
+
+  async importConnectors(file?: Express.Multer.File, duplicateStrategy: ConnectorImportStrategy = 'review') {
+    if (!file) throw new BadRequestException('Excel file is required.');
+    const workbook = new Workbook();
+    await workbook.xlsx.load(file.buffer as unknown as ArrayBuffer);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) throw new BadRequestException('No readable worksheet found.');
+
+    const headers: string[] = [];
+    sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      headers[colNumber - 1] = cellText(cell.value);
+    });
+
+    const requiredHeaders = [
+      { label: '型号', aliases: connectorImportAliases.connectorModel },
+      { label: '入长mm', aliases: connectorImportAliases.insertionLengthMm },
+      { label: '内剥皮mm', aliases: connectorImportAliases.innerStripLengthMm },
+    ];
+    const missingHeaders = requiredHeaders.filter((item) => !hasConnectorImportHeader(headers, item.aliases));
+    if (missingHeaders.length) {
+      throw new BadRequestException(`Excel 表头缺少：${missingHeaders.map((item) => item.label).join('、')}。必填表头：型号、入长mm、内剥皮mm；可选表头：外剥皮mm、备注。`);
+    }
+
+    const parsedRows: ParsedConnectorImportRow[] = [];
+    const rows: ConnectorImportRowResult[] = [];
+
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+      const excelRow = sheet.getRow(rowNumber);
+      const data = new Map<string, string>();
+      headers.forEach((header, index) => {
+        if (header) data.set(header, cellText(excelRow.getCell(index + 1).value));
+      });
+      if (![...data.values()].some((value) => value.trim())) continue;
+
+      const connectorModel = connectorImportValue(data, connectorImportAliases.connectorModel).trim();
+      const specification = '';
+      const insertionLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.insertionLengthMm), '入长');
+      const outerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.outerStripLengthMm), '外剥皮', { allowBlank: true });
+      const innerStripLength = parseLengthCell(connectorImportValue(data, connectorImportAliases.innerStripLengthMm), '内剥皮');
+      const status = connectorImportValue(data, connectorImportAliases.status).trim() || '启用';
+      const remark = connectorImportValue(data, connectorImportAliases.remark).trim();
+      const issues: ConnectorImportIssue[] = [];
+
+      if (!connectorModel) {
+        issues.push({
+          field: '型号',
+          message: '型号为空',
+          resolution: '请在型号列填写连接器型号，例如 PL182X-301-50。',
+        });
+      }
+      if (insertionLength.issue) issues.push(insertionLength.issue);
+      if (outerStripLength.issue) issues.push(outerStripLength.issue);
+      if (innerStripLength.issue) issues.push(innerStripLength.issue);
+
+      if (issues.length) {
+        rows.push(makeImportRowResult(
+          { rowNumber, connectorModel: connectorModel || '-', specification },
+          'error',
+          false,
+          issues.map((issue) => issue.message).join('；'),
+          issues.map((issue) => issue.resolution).join(' '),
+          issues,
+        ));
+        continue;
+      }
+
+      parsedRows.push({
+        rowNumber,
+        connectorModel,
+        specification,
+        insertionLengthMm: insertionLength.value ?? 0,
+        outerStripLengthMm: outerStripLength.value ?? null,
+        innerStripLengthMm: innerStripLength.value ?? 0,
+        status,
+        remark,
+      });
+    }
+
+    const previousRows: ParsedConnectorImportRow[] = [];
+    const duplicateRows: ConnectorImportRowResult[] = [];
+
+    for (const row of parsedRows) {
+      const previous = previousRows.find((item) => connectorsOverlap(item.connectorModel, row.connectorModel));
+      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, row.connectorModel));
+      if (previous || existing) {
+        duplicateRows.push(makeImportRowResult(
+          row,
+          'conflict',
+          false,
+          previous ? `Excel 内第 ${previous.rowNumber} 行已有相同型号。` : '参数库中已存在相同型号。',
+          duplicateStrategy === 'review'
+            ? '请选择“跳过重复并导入”或“覆盖重复并导入”。'
+            : '已按当前导入策略处理。',
+        ));
+      }
+      previousRows.push(row);
+    }
+
+    if (duplicateRows.length && duplicateStrategy === 'review') {
+      return {
+        requiresDecision: true,
+        requiresOverwrite: true,
+        duplicateStrategy,
+        totalRows: rows.length + parsedRows.length,
+        validRows: parsedRows.length,
+        importedRows: 0,
+        createdRows: 0,
+        updatedRows: 0,
+        skippedRows: rows.length,
+        errorRows: rows.length,
+        duplicateRows,
+        rows: [...rows, ...duplicateRows],
+        connectors: this.connectors,
+      };
+    }
+
+    let createdRows = 0;
+    let updatedRows = 0;
+    let skippedDuplicateRows = 0;
+
+    for (const row of parsedRows) {
+      const duplicate = duplicateRows.find((item) => item.rowNumber === row.rowNumber);
+      const existing = this.connectors.find((item) => connectorsOverlap(item.connectorModel, row.connectorModel));
+
+      if (duplicate && duplicateStrategy === 'skip') {
+        skippedDuplicateRows += 1;
+        rows.push(makeImportRowResult(
+          row,
+          'skipped',
+          false,
+          '重复型号已跳过。',
+          '如需更新已有参数，请重新导入并选择覆盖重复。',
+        ));
+        continue;
+      }
+
+      if (existing) {
+        Object.assign(existing, {
+          specification: row.specification,
+          insertionLengthMm: row.insertionLengthMm,
+          outerStripLengthMm: row.outerStripLengthMm,
+          innerStripLengthMm: row.innerStripLengthMm,
+          status: row.status,
+          remark: row.remark,
+        });
+        updatedRows += 1;
+        rows.push(makeImportRowResult(row, 'updated', true, '已更新已有连接器参数。'));
+      } else {
+        this.connectors.unshift({
+          connectorId: `conn-${randomUUID().slice(0, 8)}`,
+          connectorModel: row.connectorModel,
+          specification: row.specification,
+          insertionLengthMm: row.insertionLengthMm,
+          outerStripLengthMm: row.outerStripLengthMm,
+          innerStripLengthMm: row.innerStripLengthMm,
+          status: row.status,
+          remark: row.remark,
+        });
+        createdRows += 1;
+        rows.push(makeImportRowResult(row, 'created', true, '已新增连接器参数。'));
+      }
+    }
+
+    this.connectors.sort(compareConnectors);
+
+    const errorRows = rows.filter((row) => row.action === 'error').length;
+    return {
+      requiresDecision: false,
+      requiresOverwrite: false,
+      duplicateStrategy,
+      totalRows: rows.length,
+      validRows: parsedRows.length,
+      importedRows: createdRows + updatedRows,
+      createdRows,
+      updatedRows,
+      skippedRows: errorRows + skippedDuplicateRows,
+      errorRows,
+      duplicateRows,
+      rows,
+      connectors: this.connectors,
+    };
+  }
+
+  getFixtures(query?: FixtureQueryDto) {
+    const q = query?.q?.trim().toLowerCase();
+    if (!q) return this.fixtures;
+    return this.fixtures.filter((item) => [
+      item.fixtureCode,
+      item.fixtureName,
+      item.fixtureType,
+      item.applicableProduct,
+      item.station,
+      item.processSegment,
+      item.storageLocation,
+      item.status,
+    ].some((value) => includes(value, q)));
+  }
+
+  getFixture(id: string) {
+    const fixture = this.fixtures.find((item) => item.fixtureId === id);
+    if (!fixture) throw new NotFoundException('治具参数不存在。');
+    return fixture;
+  }
+
+  async search(query: DrawingSearchQueryDto): Promise<unknown> {
+    const mode = query.mode ?? 'drawing';
+    const q = normalizeSearchQuery(query.q);
+    if (mode === 'connector') return { mode, items: this.getConnectors({ q }) };
+    if (mode === 'fixture') return { mode, items: this.getFixtures({ q }) };
+    return this.searchDrawings(q, query.limit);
+  }
+
+  private async searchDrawings(q: string, rawLimit?: string) {
+    const limit = this.normalizeSearchLimit(rawLimit);
+    const emptyGroups = { customers: [], products: [], documents: [] } as {
+      customers: DrawingCustomerSearchResult[];
+      products: DrawingProductSearchResult[];
+      documents: DrawingDocumentSearchResult[];
+    };
+    if (!q) {
+      return { mode: 'drawing', query: '', total: 0, groups: emptyGroups, results: [] };
+    }
+
+    const activeCustomers = (await this.drawingRepository
+      .readCustomers())
+      .filter((customer) => !isSoftDeletedEntity(customer));
+    const activeProducts = (await this.drawingRepository
+      .readProducts())
+      .filter((product) => !isSoftDeletedEntity(product));
+    const customerById = new Map(activeCustomers.map((customer) => [customer.customerId, customer]));
+    const productsByCustomer = activeProducts.reduce<Map<string, HubProductModel[]>>((acc, product) => {
+      const rows = acc.get(product.customerId) ?? [];
+      rows.push(product);
+      acc.set(product.customerId, rows);
+      return acc;
+    }, new Map());
+    const details = await Promise.all(activeProducts.map(async (product) => {
+      const detail = await this.findDrawingDetail(product.productId);
+      if (!detail) return undefined;
+      return this.withUploadedDocuments(await this.withCurrentDrawingMetadata(detail));
+    }));
+
+    const results: DrawingSearchResult[] = [];
+    const seenCustomers = new Set<string>();
+    const seenProducts = new Set<string>();
+    const seenDocuments = new Set<string>();
+
+    for (const customer of activeCustomers) {
+      const score = this.scoreCustomerSearch(customer, q);
+      if (!score || seenCustomers.has(customer.customerId)) continue;
+      seenCustomers.add(customer.customerId);
+      results.push({
+        resultType: 'customer',
+        title: customer.customerName,
+        subtitle: customer.customerShortName,
+        matchedText: score.matchedText,
+        score: score.score,
+        customerId: customer.customerId,
+        customerName: customer.customerName,
+        customerShortName: customer.customerShortName,
+        productCount: productsByCustomer.get(customer.customerId)?.length ?? 0,
+      });
+    }
+
+    for (const detail of details.filter((item): item is ProductDrawingDetail => Boolean(item))) {
+      const product = detail.product;
+      const customer = detail.customer ?? customerById.get(product.customerId);
+      if (!customer || isSoftDeletedEntity(customer) || isSoftDeletedEntity(product)) continue;
+      const productScore = this.scoreProductSearch(product, q);
+      if (productScore && !seenProducts.has(product.productId)) {
+        seenProducts.add(product.productId);
+        const uploadedModuleCount = detail.modules.filter((module) => module.status === 'uploaded' && module.items.some((item) => !isSoftDeletedEntity(item))).length;
+        results.push({
+          resultType: 'product',
+          title: product.productModel,
+          subtitle: `${customer.customerName} / ${product.productName}`,
+          matchedText: productScore.matchedText,
+          score: productScore.score,
+          customerId: customer.customerId,
+          customerName: customer.customerName,
+          productId: product.productId,
+          productModel: product.productModel,
+          productName: product.productName,
+          drawingStatus: product.drawingStatus,
+          uploadedModuleCount,
+          moduleCount: detail.modules.length,
+        });
+      }
+
+      for (const module of detail.modules) {
+        for (const item of module.items) {
+          if (isSoftDeletedEntity(item)) continue;
+          const documentId = item.documentId ?? item.itemId;
+          if (!documentId || seenDocuments.has(documentId)) continue;
+          const documentScore = this.scoreDocumentSearch(item, module.moduleName, q);
+          if (!documentScore) continue;
+          seenDocuments.add(documentId);
+          results.push({
+            resultType: 'document',
+            title: item.title,
+            subtitle: `${product.productModel} / ${module.moduleName}`,
+            matchedText: documentScore.matchedText,
+            score: documentScore.score,
+            customerId: customer.customerId,
+            customerName: customer.customerName,
+            productId: product.productId,
+            productModel: product.productModel,
+            moduleKey: module.moduleKey,
+            moduleName: module.moduleName,
+            documentId,
+            itemId: item.itemId,
+            documentTitle: item.title,
+            version: item.version,
+            contentKind: item.contentKind ?? item.fileType,
+            previewAvailable: Boolean(item.previewUrl),
+          });
+        }
+      }
+    }
+
+    const sorted = results
+      .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title, 'zh-Hans-CN', { numeric: true }))
+      .slice(0, limit);
+    const groups = {
+      customers: sorted.filter((item): item is DrawingCustomerSearchResult => item.resultType === 'customer'),
+      products: sorted.filter((item): item is DrawingProductSearchResult => item.resultType === 'product'),
+      documents: sorted.filter((item): item is DrawingDocumentSearchResult => item.resultType === 'document'),
+    };
+    return { mode: 'drawing', query: q, total: sorted.length, groups, results: sorted };
+  }
+
+  private normalizeSearchLimit(rawLimit?: string) {
+    const parsed = Number(rawLimit ?? 30);
+    if (!Number.isFinite(parsed)) return 30;
+    return Math.min(100, Math.max(1, Math.floor(parsed)));
+  }
+
+  private scoreCustomerSearch(customer: HubCustomer, q: string) {
+    return this.bestFieldScore(q, [
+      { value: customer.customerName, exact: 800, prefix: 760, contains: 520 },
+      { value: customer.customerShortName, exact: 760, prefix: 700, contains: 500 },
+      { value: customer.customerCode, exact: 720, prefix: 660, contains: 460 },
+      ...(customer.aliases ?? []).map((value) => ({ value, exact: 700, prefix: 640, contains: 440 })),
+    ]);
+  }
+
+  private scoreProductSearch(product: HubProductModel, q: string) {
+    const qModel = normalizeSearchProductModel(q);
+    const productModel = normalizeSearchProductModel(product.normalizedProductModel ?? product.productModel);
+    if (qModel && productModel === qModel) {
+      return { score: 1000, matchedText: product.productModel };
+    }
+    if (qModel && productModel.startsWith(qModel)) {
+      return { score: 900, matchedText: product.productModel };
+    }
+    return this.bestFieldScore(q, [
+      { value: product.productModel, exact: 880, prefix: 820, contains: 620 },
+      { value: product.normalizedProductModel, exact: 860, prefix: 800, contains: 600 },
+      { value: product.productName, exact: 700, prefix: 620, contains: 560 },
+      ...(product.searchKeywords ?? []).map((value) => ({ value, exact: 600, prefix: 540, contains: 480 })),
+      { value: product.remark, exact: 420, prefix: 360, contains: 300 },
+    ]);
+  }
+
+  private scoreDocumentSearch(item: DrawingItem, moduleName: string, q: string) {
+    return this.bestFieldScore(q, [
+      { value: item.title, exact: 650, prefix: 600, contains: 540 },
+      { value: item.fileName, exact: 560, prefix: 520, contains: 480 },
+      { value: item.version, exact: 540, prefix: 500, contains: 460 },
+      ...(item.keywords ?? []).map((value) => ({ value, exact: 520, prefix: 480, contains: 440 })),
+      { value: item.remark, exact: 360, prefix: 320, contains: 260 },
+      { value: moduleName, exact: 340, prefix: 300, contains: 240 },
+    ]);
+  }
+
+  private bestFieldScore(
+    q: string,
+    fields: Array<{ value: unknown; exact: number; prefix: number; contains: number }>,
+  ) {
+    let best: { score: number; matchedText: string } | undefined;
+    for (const field of fields) {
+      const text = cleanText(String(field.value ?? ''));
+      if (!text) continue;
+      const normalized = normalizeSearchQuery(text);
+      let score = 0;
+      if (normalized === q) score = field.exact;
+      else if (normalized.startsWith(q)) score = field.prefix;
+      else if (normalized.includes(q)) score = field.contains;
+      if (score && (!best || score > best.score)) {
+        best = { score, matchedText: text };
+      }
+    }
+    return best;
+  }
+
+  private requireOrderStore() {
+    if (!this.orderRepository) {
+      throw new InternalServerErrorException('Order metadata store is not available.');
+    }
+    return this.orderRepository;
+  }
+
+  private requireDocumentVersionService() {
+    if (!this.documentVersionService) {
+      throw new InternalServerErrorException('Document version service is not available.');
+    }
+    return this.documentVersionService;
+  }
+
+  private async toDocumentVersionResponse(
+    productId: string,
+    moduleKey: DrawingModuleKey,
+    documentId: string,
+    mutation: {
+      changedDocumentIds?: string[];
+      downgradedDocumentIds?: string[];
+      auditWritten?: boolean;
+      idempotent?: boolean;
+    },
+  ) {
+    const detail = await this.getProduct(productId);
+    const module = detail.modules.find((item) => item.moduleKey === moduleKey);
+    if (!module) throw new NotFoundException('Drawing module not found.');
+    const item = module.items.find((entry) => entry.itemId === documentId || entry.documentId === documentId);
+    if (!item) throw new NotFoundException('Drawing document not found.');
+    return {
+      success: true,
+      documentId,
+      item,
+      module,
+      product: detail.product,
+      detail,
+      changedDocumentIds: mutation.changedDocumentIds ?? [documentId],
+      downgradedDocumentIds: mutation.downgradedDocumentIds ?? [],
+      auditWritten: mutation.auditWritten === true,
+      idempotent: mutation.idempotent === true || undefined,
+    };
+  }
+
+  private safeDocumentVersionDetail(detail: ProductDrawingDetail): ProductDrawingDetail {
+    const next = clone(detail);
+    next.modules = next.modules.map((module) => ({
+      ...module,
+      items: module.items.map((item) => {
+        const {
+          storageKey: _storageKey,
+          checksumSha256: _checksumSha256,
+          mimeType: _mimeType,
+          fileSize: _fileSize,
+          storageProvider: _storageProvider,
+          ...safeItem
+        } = item as DrawingItem & {
+          storageKey?: string;
+          checksumSha256?: string;
+          mimeType?: string;
+          fileSize?: number;
+          storageProvider?: string;
+        };
+        return safeItem as DrawingItem;
+      }),
+    }));
+    return next;
+  }
+
+  private toOrderResponse(order: ProductionOrderRecord) {
+    return {
+      ...order,
+      productId: order.linkedProductId ?? undefined,
+      status: order.productionStatus,
+      completed: order.completionStatus === 'completed',
+      completedAt: order.completedAt ?? undefined,
+      customerName: order.customerName ?? '',
+      quantity: order.quantity ?? null,
+      linkedProductId: order.linkedProductId ?? null,
+      productResolutionStatus: order.productResolutionStatus,
+      quantityProvided: order.quantityProvided,
+      completionStatus: order.completionStatus,
+    };
+  }
+
+  private makeOrderScopeOverview(orders: ProductionOrderRecord[]) {
+    const pending = orders.filter((order) => order.completionStatus === 'pending');
+    return {
+      total: orders.length,
+      pending: pending.length,
+      completed: orders.filter((order) => order.completionStatus === 'completed').length,
+      front: pending.filter((order) => order.productionStatus === 'front').length,
+      back: pending.filter((order) => order.productionStatus === 'back').length,
+      noDrawing: pending.filter((order) => order.productionStatus === 'no_drawing').length,
+      items: pending.map((order) => this.toOrderResponse(order)),
+    };
+  }
+
+  private async writeOrderAudit(action: string, order: ProductionOrderRecord, input: {
+    previousStatus?: string;
+    nextStatus?: string;
+    operatorId?: string;
+    operatorName?: string;
+  }) {
+    await this.auditService?.tryCreate({
+      entityType: 'plan' as any,
+      entityId: order.orderId,
+      action: action as any,
+      after: {
+        orderId: order.orderId,
+        productModel: order.productModel,
+        linkedProductId: order.linkedProductId,
+        customerId: order.customerId,
+        previousStatus: input.previousStatus,
+        nextStatus: input.nextStatus ?? order.productionStatus,
+        importBatchId: order.importBatchId,
+        operatorId: input.operatorId,
+        operatorName: input.operatorName,
+        createdAt: new Date().toISOString(),
+      },
+      operatorId: input.operatorId,
+      operatorName: input.operatorName,
+      operatorRole: 'local',
+      productId: order.linkedProductId ?? undefined,
+      message: action,
+    });
+  }
+
+  private async syncOrdersAfterOriginalDrawingChange(productId: string, moduleKey: DrawingModuleKey, reason: string) {
+    if (moduleKey !== 'original_drawing') return undefined;
+    const warnings = await this.syncOrdersForOriginalDrawingProducts([productId], reason);
+    return warnings[0];
+  }
+
+  private async syncOrdersForOriginalDrawingProducts(productIds: string[], reason: string) {
+    if (!this.orderStatusSyncService) return [];
+    const warnings: string[] = [];
+    for (const productId of productIds) {
+      try {
+        await this.orderStatusSyncService.syncOrdersForProduct(productId, {
+          operatorId: 'system',
+          operatorName: '系统同步',
+          reason,
+        });
+      } catch (error) {
+        const message = `订单状态同步失败：${productId}`;
+        this.logger.warn(error instanceof Error ? `${message} ${error.message}` : message);
+        warnings.push(message);
+      }
+    }
+    return warnings;
+  }
+
+  private assertUniqueCustomerName(customers: HubCustomer[], customerName: string, currentCustomerId?: string) {
+    const duplicateKey = normalizeDuplicateKey(customerName);
+    const duplicate = customers.find((customer) => (
+      customer.customerId !== currentCustomerId &&
+      normalizeDuplicateKey(customer.customerName) === duplicateKey
+    ));
+    if (duplicate) throw new ConflictException('同名客户已存在。');
+  }
+
+  private assertUniqueProductModel(
+    products: HubProductModel[],
+    customerId: string,
+    normalizedProductModel: string,
+    currentProductId?: string,
+  ) {
+    const duplicate = products.find((product) => (
+      product.productId !== currentProductId &&
+      product.customerId === customerId &&
+      (product.normalizedProductModel ?? normalizeProductModel(product.productModel)) === normalizedProductModel
+    ));
+    if (duplicate) throw new ConflictException('同客户下产品型号已存在。');
+  }
+
+  private async syncCustomerIntoDetails(customer: HubCustomer) {
+    const details = await this.drawingRepository.readDetails();
+    let changed = false;
+    const nextDetails = details.map((detail) => {
+      if (detail.product.customerId !== customer.customerId && detail.customer?.customerId !== customer.customerId) {
+        return detail;
+      }
+      changed = true;
+      return {
+        ...detail,
+        customer,
+      };
+    });
+    if (changed) await this.drawingRepository.writeDetails(nextDetails);
+  }
+
+  private async syncProductIntoDetail(product: HubProductModel) {
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId);
+    const details = await this.drawingRepository.readDetails();
+    const detail = details.find((item) => item.product.productId === product.productId);
+
+    if (detail) {
+      await this.drawingRepository.upsertDetail({
+        ...detail,
+        product,
+        customer: customer ?? detail.customer,
+      });
+      return;
+    }
+
+    if (customer) {
+      await this.drawingRepository.upsertDetail(this.drawingRepository.makeProductDetail(customer, product));
+    }
+  }
+
+  private findResolveCustomer(customers: HubCustomer[], query: ResolveDrawingProductDto) {
+    const customerId = cleanText(query.customerId);
+    if (customerId) return customers.find((customer) => customer.customerId === customerId);
+
+    const requestedKeys = [
+      normalizeResolveLookup(query.customerName),
+      normalizeResolveLookup(query.customerShortName),
+    ].filter(Boolean);
+    if (!requestedKeys.length) return undefined;
+
+    return customers.find((customer) => {
+      const customerKeys = [
+        customer.customerName,
+        customer.customerShortName,
+        ...(customer.aliases ?? []),
+      ].map(normalizeResolveLookup).filter(Boolean);
+      return requestedKeys.some((key) => customerKeys.includes(key));
+    });
+  }
+
+  private safeResolveCustomer(customer: HubCustomer) {
+    return {
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      customerShortName: customer.customerShortName,
+      customerCode: customer.customerCode,
+      aliases: customer.aliases,
+      status: customer.status,
+    };
+  }
+
+  private safeResolveProduct(product: HubProductModel) {
+    return {
+      productId: product.productId,
+      customerId: product.customerId,
+      productModel: product.productModel,
+      normalizedProductModel: product.normalizedProductModel ?? normalizeProductModel(product.productModel),
+      productName: product.productName,
+      drawingStatus: product.drawingStatus,
+      source: product.source,
+      remark: product.remark,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    };
+  }
+
+  private safeResolveModules(modules: ProductDrawingDetail['modules']) {
+    return modules.map((module) => ({
+      moduleKey: module.moduleKey,
+      moduleName: module.moduleName,
+      status: module.status,
+      itemCount: module.itemCount ?? module.items.length,
+      coverDocumentId: module.coverDocumentId,
+      remark: module.remark,
+      updatedAt: module.updatedAt,
+      items: module.items.map((item) => ({
+        itemId: item.itemId,
+        documentId: item.documentId,
+        title: item.title,
+        fileType: item.fileType,
+        contentKind: item.contentKind,
+        previewUrl: item.previewUrl,
+        downloadUrl: item.downloadUrl,
+        fileName: item.fileName,
+        version: item.version,
+        remark: item.remark,
+        description: item.description,
+        uploadedAt: item.uploadedAt,
+        source: item.source,
+        fileSize: item.fileSize,
+        mimeType: item.mimeType,
+        keywords: item.keywords,
+        effectiveDate: item.effectiveDate,
+        versionGroupKey: item.versionGroupKey,
+        pageCount: item.pageCount,
+        isCover: item.isCover,
+        documentStatus: item.documentStatus,
+      })),
+    }));
+  }
+
+  private async findDrawingDetail(productId: string): Promise<ProductDrawingDetail | undefined> {
+    const detail = (await this.drawingRepository.readDetails()).find((item) => item.product.productId === productId);
+    if (detail) return this.withCurrentDrawingMetadata(detail);
+
+    const product = (await this.drawingRepository.readProducts()).find((item) => item.productId === productId);
+    if (!product) return undefined;
+
+    const customer = (await this.drawingRepository.readCustomers()).find((item) => item.customerId === product.customerId);
+    return {
+      product: clone(product),
+      customer: customer ? clone(customer) : undefined,
+      modules: createDefaultDrawingModules(),
+    };
+  }
+
+  private async withCurrentDrawingMetadata(detail: ProductDrawingDetail): Promise<ProductDrawingDetail> {
+    const product = (await this.drawingRepository
+      .readProducts())
+      .find((item) => item.productId === detail.product.productId) ?? detail.product;
+    const customer = (await this.drawingRepository
+      .readCustomers())
+      .find((item) => item.customerId === product.customerId) ?? detail.customer;
+
+    return {
+      ...clone(detail),
+      product: clone(product),
+      customer: customer ? clone(customer) : undefined,
+    };
+  }
+
+  private resolveFileType(mimeType?: string): DrawingItem['fileType'] {
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType?.startsWith('image/')) return 'image';
+    return 'card';
+  }
+
+  private async withUploadedDocuments(detail: ProductDrawingDetail): Promise<ProductDrawingDetail> {
+    const next = clone(detail);
+    for (const module of next.modules) {
+      module.items = module.items.filter((item) => !item.deletedAt);
+      module.itemCount = module.items.length;
+      if (!module.items.length && module.status === 'uploaded') {
+        module.status = module.moduleKey === 'original_drawing' ? 'no_drawing' : 'pending';
+      }
+    }
+    const uploaded = await this.documentsService.findAll({ productId: next.product.productId }) as ProductDocument[];
+    const uploadedItems = uploaded
+      .filter((document) => (
+        document.source === 'manual_upload'
+        || document.source === 'pdf_import'
+        || document.source === 'camera_capture'
+      ) && !isDocumentArchived(document) && !isDocumentDeleted(document))
+      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+
+    for (const document of uploadedItems) {
+      const moduleKey = this.moduleForUploadedDocument(document);
+      const module = next.modules.find((item) => item.moduleKey === moduleKey);
+      if (!module) continue;
+      const item = this.documentToDrawingItem(document);
+      const existingIndex = module.items.findIndex((entry) => entry.itemId === item.itemId || entry.documentId === item.itemId);
+      if (existingIndex >= 0) {
+        module.items[existingIndex] = {
+          ...module.items[existingIndex],
+          ...item,
+          isCover: module.items[existingIndex].isCover,
+        };
+      } else {
+        module.items.unshift(item);
+      }
+      module.status = 'uploaded';
+      module.itemCount = module.items.length;
+      if (!module.coverDocumentId) module.coverDocumentId = item.itemId;
+      module.updatedAt = document.updatedAt ?? module.updatedAt;
+    }
+
+    for (const module of next.modules) {
+      const activeIds = new Set(module.items.filter((item) => !item.deletedAt).map((item) => item.itemId));
+      if (module.coverDocumentId && !activeIds.has(module.coverDocumentId)) {
+        module.coverDocumentId = module.items.find((item) => item.documentStatus === 'effective')?.itemId ?? module.items[0]?.itemId;
+      }
+      module.items = module.items.map((item) => ({
+        ...item,
+        isCover: module.coverDocumentId ? item.itemId === module.coverDocumentId : undefined,
+      }));
+      module.itemCount = module.items.length;
+    }
+
+    const original = next.modules.find((module) => module.moduleKey === 'original_drawing');
+    const totalItems = next.modules.reduce((sum, module) => sum + module.items.length, 0);
+    if (original?.items.length) {
+      next.product.drawingStatus = 'available';
+    } else if (totalItems > 0) {
+      next.product.drawingStatus = 'partial';
+    } else {
+      next.product.drawingStatus = 'no_drawing';
+    }
+    return next;
+  }
+
+  private documentToDrawingItem(document: ProductDocument): DrawingItem {
+    const itemId = document.documentId ?? document.id;
+    return {
+      itemId,
+      documentId: itemId,
+      title: document.title,
+      fileType: document.previewType ?? this.resolveFileType(document.mimeType),
+      contentKind: document.previewType ?? this.resolveFileType(document.mimeType),
+      previewUrl: document.previewUrl,
+      downloadUrl: document.downloadUrl,
+      fileName: document.originalFileName ?? document.title,
+      version: document.version,
+      remark: document.remark ?? document.description ?? document.mockPreviewText,
+      description: document.description,
+      uploadedAt: document.updatedAt ?? document.createdAt ?? new Date().toISOString(),
+      source: document.source === 'pdf_import'
+        ? 'pdf_import'
+        : document.source === 'camera_capture'
+          ? 'camera_capture'
+          : 'manual_upload',
+      storageProvider: document.storageProvider,
+      storageKey: document.storageKey,
+      checksumSha256: document.checksumSha256,
+      fileSize: document.fileSize,
+      mimeType: document.mimeType,
+      keywords: document.keywords,
+      effectiveDate: document.effectiveDate,
+      versionGroupKey: document.versionGroupKey,
+      documentStatus: document.documentStatus,
+    };
+  }
+
+  private documentTypeForModule(moduleKey: DrawingModuleKey): DocumentTypeV03 {
+    const map: Record<DrawingModuleKey, DocumentTypeV03> = {
+      original_drawing: 'drawing_pdf',
+      sop: 'sop_image',
+      finished_images: 'finished_detail_image',
+      accessory_specs: 'process_card',
+      notes: 'process_card',
+      tooling: 'process_card',
+    };
+    return map[moduleKey];
+  }
+
+  private moduleForDocumentType(documentType: DocumentTypeV03): DrawingModuleKey {
+    const map: Record<DocumentTypeV03, DrawingModuleKey> = {
+      drawing_pdf: 'original_drawing',
+      sop_image: 'sop',
+      connector_manual: 'sop',
+      pinout_diagram: 'notes',
+      finished_detail_image: 'finished_images',
+      process_card: 'accessory_specs',
+    };
+    return map[documentType];
+  }
+
+  private moduleForUploadedDocument(document: ProductDocument): DrawingModuleKey {
+    const moduleKey = (document as ProductDocument & { moduleKey?: unknown }).moduleKey;
+    if (typeof moduleKey === 'string' && drawingModuleKeySet.has(moduleKey as DrawingModuleKey)) {
+      return moduleKey as DrawingModuleKey;
+    }
+    return this.moduleForDocumentType(document.documentType);
+  }
+
+  private requiredProcessForModule(moduleKey: DrawingModuleKey): RequiredProcess {
+    if (moduleKey === 'sop' || moduleKey === 'finished_images') return 'back';
+    return 'common';
+  }
+}

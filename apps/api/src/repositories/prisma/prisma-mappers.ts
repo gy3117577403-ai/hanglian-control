@@ -103,12 +103,18 @@ const DOCUMENT_SOURCE_FROM_PRISMA: Record<string, DocumentSource> = {
   MOCK: 'mock',
   WECOM_DISK: 'wecom_disk',
   MANUAL_UPLOAD: 'manual_upload',
+  PDF_IMPORT: 'pdf_import',
+  MANUAL_CREATE: 'manual_upload',
+  FUTURE_WECOM: 'wecom_disk',
+  SEED: 'mock',
 };
 
 const DOCUMENT_SOURCE_TO_PRISMA: Record<DocumentSource, string> = {
   mock: 'MOCK',
   wecom_disk: 'WECOM_DISK',
   manual_upload: 'MANUAL_UPLOAD',
+  pdf_import: 'PDF_IMPORT',
+  camera_capture: 'MANUAL_UPLOAD',
 };
 
 const FEEDBACK_TO_PRISMA: Record<string, string> = {
@@ -135,6 +141,9 @@ const AUDIT_ENTITY_TO_PRISMA: Record<AuditEntityType, string> = {
   feedback: 'FEEDBACK',
   file: 'FILE',
   system: 'SYSTEM',
+  import: 'IMPORT',
+  knowledge: 'KNOWLEDGE',
+  product: 'IMPORT',
 };
 
 const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
@@ -143,10 +152,14 @@ const AUDIT_ENTITY_FROM_PRISMA: Record<string, AuditEntityType> = {
   FEEDBACK: 'feedback',
   FILE: 'file',
   SYSTEM: 'system',
+  IMPORT: 'import',
+  KNOWLEDGE: 'knowledge',
 };
 
 const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {
   document_uploaded: 'DOCUMENT_UPLOADED',
+  pdf_drawing_imported: 'DOCUMENT_UPLOADED',
+  pdf_import_product_created: 'BUSINESS_DATA_IMPORTED',
   document_status_changed: 'DOCUMENT_STATUS_CHANGED',
   document_version_changed: 'DOCUMENT_VERSION_CHANGED',
   document_set_effective: 'DOCUMENT_SET_EFFECTIVE',
@@ -155,6 +168,8 @@ const AUDIT_ACTION_TO_PRISMA: Record<AuditAction, string> = {
   document_downloaded: 'DOCUMENT_DOWNLOADED',
   readiness_recalculated: 'READINESS_RECALCULATED',
   migration_preview_generated: 'MIGRATION_PREVIEW_GENERATED',
+  business_data_imported: 'BUSINESS_DATA_IMPORTED',
+  maintenance_recorded: 'MAINTENANCE_RECORDED',
 };
 
 const AUDIT_ACTION_FROM_PRISMA: Record<string, AuditAction> = {
@@ -167,6 +182,8 @@ const AUDIT_ACTION_FROM_PRISMA: Record<string, AuditAction> = {
   DOCUMENT_DOWNLOADED: 'document_downloaded',
   READINESS_RECALCULATED: 'readiness_recalculated',
   MIGRATION_PREVIEW_GENERATED: 'migration_preview_generated',
+  BUSINESS_DATA_IMPORTED: 'business_data_imported',
+  MAINTENANCE_RECORDED: 'maintenance_recorded',
 };
 
 export function prismaProcessToApi(value?: string): ProcessSegment {
@@ -279,10 +296,11 @@ export function mapPrismaDocument(row: AnyRecord): ProductDocument {
       ? 'back'
       : 'common';
 
-  return {
+  const document = {
     id: row.id,
     documentId: row.id,
     productId,
+    moduleKey: row.moduleKey ?? undefined,
     planId: row.productionPlanId ?? undefined,
     type: legacyDocumentTypeMap[documentType],
     documentType,
@@ -301,6 +319,11 @@ export function mapPrismaDocument(row: AnyRecord): ProductDocument {
     localMockLabel: labelForDocument(documentType),
     originalFileName: row.originalFileName ?? undefined,
     storedFileName: row.storedFileName ?? undefined,
+    storageProvider: row.storageProvider ?? undefined,
+    storageKey: row.storageKey ?? undefined,
+    checksumSha256: row.checksum ?? undefined,
+    checksum: row.checksum ?? undefined,
+    previewMode: row.storageProvider === 's3' ? 'signed-url' : row.storageProvider === 'local' ? 'proxy' : undefined,
     mimeType: row.mimeType ?? undefined,
     fileSize: row.fileSize ?? undefined,
     previewUrl: row.previewUrl ?? undefined,
@@ -311,7 +334,8 @@ export function mapPrismaDocument(row: AnyRecord): ProductDocument {
     archivedBy: row.archivedBy ?? undefined,
     remark: row.remark ?? undefined,
     versionGroupKey: row.versionGroupKey ?? documentVersionGroupKey({ productId, documentType, requiredForProcess }),
-  };
+  } as ProductDocument & { moduleKey?: string };
+  return document;
 }
 
 function mapFront(row?: AnyRecord): FrontProcessParameterSeed {
@@ -425,6 +449,7 @@ export function mapPrismaAuditLog(row: AnyRecord): AuditLog {
     operatorRole: row.operatorRole ?? 'system',
     planId: row.planId ?? undefined,
     productId: row.productId ?? undefined,
+    orderId: row.orderId ?? undefined,
     createdAt: dateTime(row.createdAt),
   };
 }

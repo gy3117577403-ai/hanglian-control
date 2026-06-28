@@ -15,7 +15,9 @@ async function main() {
     console.log(JSON.stringify({
       success: false,
       skipped: true,
-      message: '未满足 Sealos PostgreSQL 测试库只读检查条件，已安全退出；未连接数据库。',
+      message: safety.databaseUrlLooksExample
+        ? 'DATABASE_URL 仍为示例值，已安全退出；请用户在本机 apps/api/.env.local 填写 Sealos PostgreSQL 测试库连接串。不要把连接串发到聊天窗口。'
+        : '未满足 Sealos PostgreSQL 测试库只读检查条件，已安全退出；未连接数据库。',
       safety,
     }, null, 2));
     return;
@@ -40,13 +42,13 @@ async function main() {
 
     console.log(JSON.stringify({
       success: ok.rows[0]?.ok === 1,
-      message: 'Sealos PostgreSQL 测试库只读连接检查成功；未执行任何写入 SQL。',
+      message: 'Sealos PostgreSQL 测试库只读连接检查成功；仅执行 SELECT 检查，未执行任何写入 SQL。',
       databaseUrlMasked: safety.databaseUrlMasked,
       currentDatabase: database.rows[0]?.current_database,
       currentSchema: schema.rows[0]?.current_schema,
       postgresqlVersion: versionSummary(version.rows[0]?.version),
-      canWriteDatabase: false,
-      destructiveActionsAllowed: false,
+      writePermission: '禁用',
+      destructiveActions: '禁用',
       executedSql: [
         'SELECT 1 AS ok',
         'SELECT current_database()',

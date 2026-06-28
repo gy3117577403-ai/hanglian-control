@@ -1,12 +1,21 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { StorageModule } from '../storage/storage.module';
+import { DocumentFileAccessGuard } from './document-file-access.guard';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
-import { StorageModule } from '../storage/storage.module';
+import { PdfPreviewService } from './pdf-preview.service';
+import { PdfPreviewWorker } from './pdf-preview.worker';
 
 @Module({
   imports: [StorageModule, AuditModule],
   controllers: [DocumentsController],
-  providers: [DocumentsService],
+  providers: [
+    DocumentsService,
+    DocumentFileAccessGuard,
+    PdfPreviewService,
+    PdfPreviewWorker,
+  ],
+  exports: [DocumentsService],
 })
 export class DocumentsModule {}
