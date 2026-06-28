@@ -1,0 +1,11 @@
+oh_modules/
+**/oh_modules/
+.hvigor/
+**/.hvigor/
+.idea/
+.deveco/
+build/
+**/build/
+*.hap
+*.hsp
+*.app
