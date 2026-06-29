@@ -11,6 +11,10 @@ struct LoginPage {
   @State errorText: string = '';
   @State isSubmitting: boolean = false;
 
+  aboutToAppear(): void {
+    console.info('[HanglianPad] LoginPage aboutToAppear');
+  }
+
   private canSubmit(): boolean {
     return this.username.trim().length > 0 && this.password.length > 0 && !this.isSubmitting;
   }

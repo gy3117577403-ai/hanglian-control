@@ -11,11 +11,13 @@ const TAG: string = 'HanglianEntryAbility';
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    console.info('[HanglianPad] EntryAbility onCreate');
     TokenStorageService.init(this.context);
     hilog.info(DOMAIN, TAG, 'EntryAbility created.');
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
+    console.info('[HanglianPad] EntryAbility onWindowStageCreate');
     try {
       const mainWindow = windowStage.getMainWindowSync();
       mainWindow.setPreferredOrientation(window.Orientation.LANDSCAPE).catch((error: BusinessError) => {
@@ -25,13 +27,15 @@ export default class EntryAbility extends UIAbility {
       hilog.warn(DOMAIN, TAG, 'Landscape orientation setup skipped.');
     }
 
-    windowStage.loadContent('pages/SplashPage', (error: BusinessError) => {
+    windowStage.loadContent('pages/LoginPage', (error: BusinessError) => {
       if (error.code) {
+        console.error('[HanglianPad] startup failed', error);
         hilog.error(DOMAIN, TAG, 'Failed to load content: %{public}d %{public}s', error.code, error.message);
         return;
       }
 
-      hilog.info(DOMAIN, TAG, 'SplashPage loaded.');
+      console.info('[HanglianPad] loadContent success');
+      hilog.info(DOMAIN, TAG, 'LoginPage loaded.');
     });
   }
 }

@@ -7,7 +7,10 @@ struct SplashPage {
   @State loadingText: string = '正在检查登录状态...';
 
   aboutToAppear(): void {
-    this.bootstrap();
+    console.info('[HanglianPad] SplashPage aboutToAppear');
+    setTimeout(() => {
+      void this.bootstrap();
+    }, 0);
   }
 
   private async bootstrap(): Promise<void> {
@@ -17,10 +20,16 @@ struct SplashPage {
         url: hasSession ? 'pages/WorkbenchPage' : 'pages/LoginPage'
       });
     } catch (error) {
-      await TokenStorageService.clear();
-      router.replaceUrl({
-        url: 'pages/LoginPage'
-      });
+      console.error('[HanglianPad] startup failed', error);
+      try {
+        await TokenStorageService.clear();
+      } catch (clearError) {
+        console.error('[HanglianPad] startup failed', clearError);
+      } finally {
+        router.replaceUrl({
+          url: 'pages/LoginPage'
+        });
+      }
     }
   }
 
