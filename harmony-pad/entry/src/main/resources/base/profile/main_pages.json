@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/LoginSmokePage",
     "pages/LoginPage",
-    "pages/SplashPage"
+    "pages/SplashPage",
+    "pages/WorkbenchPage"
   ]
 }

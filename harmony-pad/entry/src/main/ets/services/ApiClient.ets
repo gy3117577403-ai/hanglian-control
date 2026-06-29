@@ -7,18 +7,30 @@ import { RefreshResponse } from '../models/AuthModels';
 export interface ApiRequestOptions {
   skipAuth?: boolean;
   skipRefresh?: boolean;
-  headers?: Record<string, string>;
+  headers?: ApiHeaders;
+}
+
+export interface ApiHeaders {
+  'Accept'?: string;
+  'Content-Type'?: string;
+  Authorization?: string;
+}
+
+interface RefreshRequest {
+  refreshToken: string;
 }
 
 export class ApiError extends Error {
   statusCode: number;
   responseBody: string;
+  requestUrl: string;
 
-  constructor(statusCode: number, message: string, responseBody: string = '') {
+  constructor(statusCode: number, message: string, responseBody: string = '', requestUrl: string = '') {
     super(message);
     this.name = 'ApiError';
     this.statusCode = statusCode;
     this.responseBody = responseBody;
+    this.requestUrl = requestUrl;
   }
 }
 
@@ -41,7 +53,7 @@ export class ApiClient {
     return `${url}${divider}accessToken=${encodeURIComponent(token)}`;
   }
 
-  static authHeaders(): Record<string, string> {
+  static authHeaders(): ApiHeaders {
     const accessToken = TokenStorageService.getCachedAccessToken();
     if (!accessToken) {
       return {};
@@ -95,11 +107,11 @@ export class ApiClient {
           return await ApiClient.rawRequest<T>(method, path, body, options);
         } catch (refreshError) {
           await ApiClient.handleUnauthorized();
-          throw refreshError;
+          throw ApiClient.toThrowable(refreshError, 'Token refresh failed.');
         }
       }
 
-      throw error;
+      throw ApiClient.toThrowable(error, 'API request failed.');
     }
   }
 
@@ -110,11 +122,11 @@ export class ApiClient {
     options?: ApiRequestOptions
   ): Promise<T> {
     const request = http.createHttp();
-    const headers: Record<string, string> = {
+    const headers: ApiHeaders = {
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      ...(options?.headers ?? {})
+      'Content-Type': 'application/json'
     };
+    ApiClient.applyHeaders(headers, options?.headers);
 
     if (!options?.skipAuth) {
       const accessToken = await TokenStorageService.getAccessToken();
@@ -136,19 +148,20 @@ export class ApiClient {
     }
 
     try {
-      const response = await request.request(ApiClient.buildUrl(path), requestOptions);
+      const requestUrl = ApiClient.buildUrl(path);
+      const response = await request.request(requestUrl, requestOptions);
       const statusCode = response.responseCode;
       const responseBody = ApiClient.responseToString(response.result);
 
       if (statusCode >= 200 && statusCode < 300) {
         if (!responseBody) {
-          return {} as T;
+          return ApiClient.emptyResponse<T>();
         }
 
         return JSON.parse(responseBody) as T;
       }
 
-      throw new ApiError(statusCode, `HTTP ${statusCode}`, responseBody);
+      throw new ApiError(statusCode, `HTTP ${statusCode}`, responseBody, requestUrl);
     } finally {
       request.destroy();
     }
@@ -157,13 +170,17 @@ export class ApiClient {
   private static async refreshAccessToken(): Promise<void> {
     const refreshToken = await TokenStorageService.getRefreshToken();
     if (!refreshToken) {
-      throw new ApiError(401, 'Missing refresh token.');
+      throw new ApiError(401, 'Missing refresh token.', '', ApiClient.buildUrl('/auth/refresh'));
     }
+
+    const refreshRequest: RefreshRequest = {
+      refreshToken: refreshToken
+    };
 
     const response = await ApiClient.rawRequest<RefreshResponse>(
       'POST',
       '/auth/refresh',
-      { refreshToken },
+      refreshRequest,
       {
         skipAuth: true,
         skipRefresh: true
@@ -174,7 +191,7 @@ export class ApiClient {
     const nextRefreshToken = response.refreshToken ?? response.data?.refreshToken ?? refreshToken;
 
     if (!nextAccessToken) {
-      throw new ApiError(401, 'Refresh response did not include accessToken.');
+      throw new ApiError(401, 'Refresh response did not include accessToken.', '', ApiClient.buildUrl('/auth/refresh'));
     }
 
     await TokenStorageService.updateTokens(nextAccessToken, nextRefreshToken);
@@ -193,6 +210,30 @@ export class ApiClient {
     }
 
     return ApiClient.resolveApiUrl(path);
+  }
+
+  private static applyHeaders(target: ApiHeaders, source?: ApiHeaders): void {
+    if (!source) {
+      return;
+    }
+
+    if (source.Accept) {
+      target.Accept = source.Accept;
+    }
+    if (source.Authorization) {
+      target.Authorization = source.Authorization;
+    }
+  }
+
+  private static emptyResponse<T>(): T {
+    return JSON.parse('{}') as T;
+  }
+
+  private static toThrowable(error: Object, fallbackMessage: string): Error {
+    if (error instanceof Error) {
+      return error;
+    }
+    return new Error(fallbackMessage);
   }
 
   private static toHttpMethod(method: string): http.RequestMethod {

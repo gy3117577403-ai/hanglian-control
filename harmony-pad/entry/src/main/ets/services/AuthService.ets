@@ -43,7 +43,7 @@ export class AuthService {
     try {
       await ApiClient.post<object>(
         '/auth/logout',
-        {},
+        undefined,
         {
           skipRefresh: true
         }
@@ -57,9 +57,10 @@ export class AuthService {
     const data = response.data ?? response;
     const accessToken = data.accessToken ?? '';
     const refreshToken = data.refreshToken ?? '';
-    const userInfo = data.userInfo ?? data.user ?? {
-      username
+    const fallbackUserInfo: UserInfo = {
+      username: username
     };
+    const userInfo = data.userInfo ?? data.user ?? fallbackUserInfo;
 
     if (!accessToken || !refreshToken) {
       throw new Error('Login response did not include accessToken or refreshToken.');

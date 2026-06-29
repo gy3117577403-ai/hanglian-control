@@ -1,9 +1,15 @@
+import router from '@ohos.router';
+import { ApiError } from '../services/ApiClient';
+import { AuthService } from '../services/AuthService';
+
 @Entry
 @Component
 struct LoginPage {
-  @State username: string = '';
-  @State password: string = '';
+  @State username: string = 'admin';
+  @State password: string = '123';
   @State errorText: string = '';
+  @State statusText: string = '请输入账号密码后点击登录';
+  @State isSubmitting: boolean = false;
 
   aboutToAppear(): void {
     console.info('[HanglianPad] LoginPage aboutToAppear');
@@ -14,8 +20,51 @@ struct LoginPage {
     return '登录页已加载';
   }
 
-  private submit(): void {
-    this.errorText = '登录页首屏渲染正常，登录链路待恢复。';
+  private canSubmit(): boolean {
+    return this.username.trim().length > 0 && this.password.length > 0 && !this.isSubmitting;
+  }
+
+  private async submit(): Promise<void> {
+    if (!this.canSubmit()) {
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.errorText = '';
+    this.statusText = '正在登录...';
+
+    try {
+      await AuthService.login(this.username.trim(), this.password);
+      this.statusText = '登录成功，正在进入工作台...';
+      await router.replaceUrl({
+        url: 'pages/WorkbenchPage'
+      });
+    } catch (error) {
+      this.errorText = this.formatError(error);
+      this.statusText = '登录失败，请检查错误信息。';
+      console.error('[HanglianPad] LoginPage login failed', error);
+    } finally {
+      this.isSubmitting = false;
+    }
+  }
+
+  private formatError(error: Object): string {
+    if (error instanceof ApiError) {
+      let message = `HTTP ${error.statusCode}: ${error.message}`;
+      if (error.requestUrl.length > 0) {
+        message += `\nURL: ${error.requestUrl}`;
+      }
+      if (error.responseBody.length > 0) {
+        message += `\n响应: ${error.responseBody}`;
+      }
+      return message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return '登录失败：未知错误';
   }
 
   build() {
@@ -54,6 +103,12 @@ struct LoginPage {
           .textAlign(TextAlign.Start)
 
         Column({ space: 16 }) {
+          Text(this.statusText)
+            .fontSize(16)
+            .fontColor(this.errorText.length > 0 ? '#DC2626' : '#2563EB')
+            .lineHeight(22)
+            .width('100%')
+
           Text('账号')
             .fontSize(16)
             .fontColor('#475569')
@@ -102,16 +157,17 @@ struct LoginPage {
         }
 
         Button({ type: ButtonType.Capsule, stateEffect: true }) {
-          Text('登录诊断')
+          Text(this.isSubmitting ? '登录中...' : '登录')
             .fontSize(22)
             .fontWeight(FontWeight.Medium)
             .fontColor(Color.White)
         }
         .height(64)
         .width('100%')
-        .backgroundColor('#2563EB')
+        .backgroundColor(this.canSubmit() ? '#2563EB' : '#CBD5E1')
+        .enabled(this.canSubmit())
         .onClick(() => {
-          this.submit();
+          void this.submit();
         })
       }
       .width(460)
