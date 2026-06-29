@@ -31,7 +31,7 @@ function attachCustomerName(product: Product): Product {
 }
 
 function refreshCustomerProductCount(): void {
-  MockStore.customers = MockStore.customers.map((customer: Customer) => {
+  MockStore.customers = MockStore.customers.map((customer: Customer): Customer => {
     const count = MockStore.products.filter((product: Product) => product.customerId === customer.id && product.isActive !== false).length;
     return {
       id: customer.id,

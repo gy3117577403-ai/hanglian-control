@@ -1,6 +1,7 @@
 import { RecycleBinFilter, RecycleBinService } from '../services/RecycleBinService';
 import { RecycleBinItem, RecycleEntityType } from '../services/DomainModels';
 
+@Entry
 @Component
 export struct RecycleBinPage {
   @State rows: RecycleBinItem[] = [];
@@ -25,7 +26,9 @@ export struct RecycleBinPage {
       .width('100%');
     }
     .width('100%')
-    .layoutWeight(1);
+    .height('100%')
+    .padding(12)
+    .backgroundColor('#F7F2EA');
   }
 
   @Builder

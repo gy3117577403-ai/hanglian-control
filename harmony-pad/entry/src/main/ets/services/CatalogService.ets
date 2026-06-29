@@ -10,7 +10,7 @@ export class CatalogService {
       return await ApiClient.getJson<CustomerOption[]>('/customers');
     } catch (error) {
       if (!AppConfig.ENABLE_MOCK_FALLBACK) {
-        throw error;
+        throw CatalogService.toThrowable(error, '客户列表加载失败');
       }
       return MockStore.customers.map((customer: Customer): CustomerOption => ({
         id: customer.id,
@@ -26,7 +26,7 @@ export class CatalogService {
       return await ApiClient.getJson<ProductOption[]>('/products');
     } catch (error) {
       if (!AppConfig.ENABLE_MOCK_FALLBACK) {
-        throw error;
+        throw CatalogService.toThrowable(error, '产品列表加载失败');
       }
       return MockStore.products
         .filter((product: Product) => product.isActive !== false)
@@ -43,5 +43,12 @@ export class CatalogService {
 
   static async getProductDocuments(productId: string): Promise<ProductDocumentsResponse> {
     return ApiClient.getJson<ProductDocumentsResponse>(`/products/${encodeURIComponent(productId)}/documents`);
+  }
+
+  private static toThrowable(error: Object, fallbackMessage: string): Error {
+    if (error instanceof Error) {
+      return error;
+    }
+    return new Error(fallbackMessage);
   }
 }

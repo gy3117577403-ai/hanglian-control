@@ -39,6 +39,7 @@ export struct UploadDocumentDialog {
   @State private loadingCatalogs: boolean = false;
   @State private uploading: boolean = false;
   @State private uploadPercent: number = 0;
+  @State private statusMessage: string = '请选择文件后上传资料。';
 
   aboutToAppear(): void {
     this.category = this.initialCategory;
@@ -65,8 +66,10 @@ export struct UploadDocumentDialog {
         const firstProduct = this.filteredProducts()[0];
         if (firstProduct) this.selectedProductId = firstProduct.id;
       }
+      this.statusMessage = products.length > 0 ? '客户/产品已加载。' : '暂无产品，请先进入客户与产品创建产品。';
     } catch (error) {
-      promptAction.showToast({ message: `客户/产品加载失败：${this.errorMessage(error)}` });
+      this.statusMessage = `客户/产品加载失败：${this.errorMessage(error)}`;
+      promptAction.showToast({ message: this.statusMessage });
     } finally {
       this.loadingCatalogs = false;
     }
@@ -78,26 +81,37 @@ export struct UploadDocumentDialog {
   }
 
   private customerSelectOptions(): Array<SelectOption> {
-    if (this.customers.length === 0) return [{ value: '暂无客户' }];
-    return this.customers.map((item: CustomerOption) => ({ value: item.name || item.code || item.id }));
+    if (this.customers.length === 0) {
+      const emptyOption: SelectOption = { value: '暂无客户' };
+      return [emptyOption];
+    }
+    return this.customers.map((item: CustomerOption): SelectOption => {
+      return { value: item.name || item.code || item.id };
+    });
   }
 
   private productSelectOptions(): Array<SelectOption> {
     const products = this.filteredProducts();
-    if (products.length === 0) return [{ value: '暂无产品' }];
-    return products.map((item: ProductOption) => ({ value: `${item.productCode} ${item.productName}`.trim() }));
+    if (products.length === 0) {
+      const emptyOption: SelectOption = { value: '暂无产品' };
+      return [emptyOption];
+    }
+    return products.map((item: ProductOption): SelectOption => {
+      return { value: `${item.productCode} ${item.productName}`.trim() };
+    });
   }
 
   private categorySelectOptions(): Array<SelectOption> {
-    return DOCUMENT_CATEGORY_OPTIONS.map((item) => ({ value: item.label }));
+    return DOCUMENT_CATEGORY_OPTIONS.map((item): SelectOption => {
+      return { value: item.label };
+    });
   }
 
   private processSelectOptions(): Array<SelectOption> {
-    return [
-      { value: '通用' },
-      { value: '前段' },
-      { value: '后段' }
-    ];
+    const commonOption: SelectOption = { value: '通用' };
+    const frontOption: SelectOption = { value: '前段' };
+    const backOption: SelectOption = { value: '后段' };
+    return [commonOption, frontOption, backOption];
   }
 
   private customerIndex(): number {
@@ -154,8 +168,10 @@ export struct UploadDocumentDialog {
       if (!file) return;
       this.selectedFile = file;
       this.fillTitleFromFile();
+      this.statusMessage = `已选择文件：${file.name}`;
     } catch (error) {
-      promptAction.showToast({ message: `选择文件失败：${this.errorMessage(error)}` });
+      this.statusMessage = `选择文件失败：${this.errorMessage(error)}`;
+      promptAction.showToast({ message: this.statusMessage });
     }
   }
 
@@ -166,8 +182,10 @@ export struct UploadDocumentDialog {
       if (!file) return;
       this.selectedFile = file;
       this.fillTitleFromFile();
+      this.statusMessage = `已拍照：${file.name}`;
     } catch (error) {
-      promptAction.showToast({ message: `拍照失败：${this.errorMessage(error)}` });
+      this.statusMessage = `拍照失败：${this.errorMessage(error)}`;
+      promptAction.showToast({ message: this.statusMessage });
     }
   }
 
@@ -189,6 +207,7 @@ export struct UploadDocumentDialog {
   private async submit(): Promise<void> {
     const validation = this.validate();
     if (validation) {
+      this.statusMessage = validation;
       promptAction.showToast({ message: validation });
       return;
     }
@@ -197,6 +216,7 @@ export struct UploadDocumentDialog {
     const context = getContext(this) as common.UIAbilityContext;
     this.uploading = true;
     this.uploadPercent = 0;
+    this.statusMessage = '正在上传资料...';
     try {
       const documentId = await UploadService.uploadDocument(context, {
         productId: this.selectedProductId,
@@ -219,10 +239,13 @@ export struct UploadDocumentDialog {
           documentId
         });
       }
+      console.info('[HanglianPad] upload success');
+      this.statusMessage = '上传成功';
       promptAction.showToast({ message: '上传成功' });
       this.controller?.close();
     } catch (error) {
-      promptAction.showToast({ message: `上传失败：${this.errorMessage(error)}` });
+      this.statusMessage = `上传失败：${this.errorMessage(error)}`;
+      promptAction.showToast({ message: this.statusMessage });
     } finally {
       this.uploading = false;
     }
@@ -239,6 +262,12 @@ export struct UploadDocumentDialog {
         .fontSize(22)
         .fontWeight(FontWeight.Bold)
         .fontColor('#111827')
+        .width('100%')
+
+      Text(this.statusMessage)
+        .fontSize(13)
+        .fontColor(this.statusMessage.indexOf('失败') >= 0 || this.statusMessage.indexOf('暂无产品') >= 0 ? '#B91C1C' : '#2563EB')
+        .lineHeight(20)
         .width('100%')
 
       Scroll() {

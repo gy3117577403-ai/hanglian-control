@@ -4,6 +4,11 @@
     "pages/LoginSmokePage",
     "pages/LoginPage",
     "pages/SplashPage",
-    "pages/WorkbenchPage"
+    "pages/WorkbenchPage",
+    "pages/DocumentPreviewPage",
+    "pages/OrderOverviewPage",
+    "pages/CustomerProductPage",
+    "pages/ConnectorParamPage",
+    "pages/RecycleBinPage"
   ]
 }

@@ -1,6 +1,7 @@
 import { ConnectorParamPayload, ConnectorParamService } from '../services/ConnectorParamService';
 import { ConnectorParam, ConnectorParamStatus, StatusCount } from '../services/DomainModels';
 
+@Entry
 @Component
 export struct ConnectorParamPage {
   @State rows: ConnectorParam[] = [];
@@ -36,7 +37,9 @@ export struct ConnectorParamPage {
       .width('100%');
     }
     .width('100%')
-    .layoutWeight(1);
+    .height('100%')
+    .padding(12)
+    .backgroundColor('#F7F2EA');
   }
 
   @Builder

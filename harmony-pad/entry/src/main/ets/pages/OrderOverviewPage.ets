@@ -1,6 +1,7 @@
 import { OrderService } from '../services/OrderService';
 import { ProductionOrder, StatusCount } from '../services/DomainModels';
 
+@Entry
 @Component
 export struct OrderOverviewPage {
   @State todayOrders: ProductionOrder[] = [];
@@ -44,7 +45,9 @@ export struct OrderOverviewPage {
       .width('100%');
     }
     .width('100%')
-    .layoutWeight(1);
+    .height('100%')
+    .padding(12)
+    .backgroundColor('#F7F2EA');
   }
 
   @Builder

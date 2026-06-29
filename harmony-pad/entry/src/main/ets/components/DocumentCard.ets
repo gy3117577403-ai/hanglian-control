@@ -29,7 +29,7 @@ export struct DocumentCard {
   }
 
   build() {
-    Column({ space: 13 }) {
+    Column({ space: 9 }) {
       Row() {
         Text(displayUploadStatus(this.category.uploadStatus))
           .fontSize(13)
@@ -52,10 +52,10 @@ export struct DocumentCard {
         .fontColor('#28211a')
         .maxLines(2)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .height(58)
+        .height(46)
         .width('100%')
 
-      Column({ space: 8 }) {
+      Column({ space: 5 }) {
         Row() {
           Text('版本').fontSize(12).fontColor('#8b7b6c')
           Text(this.category.version).fontSize(14).fontWeight(FontWeight.Bold).fontColor('#43382f')
@@ -81,7 +81,7 @@ export struct DocumentCard {
         .justifyContent(FlexAlign.SpaceBetween)
       }
       .width('100%')
-      .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+      .padding({ left: 12, right: 12, top: 8, bottom: 8 })
       .backgroundColor('#f7f6f1')
       .borderRadius(14)
 
@@ -122,8 +122,8 @@ export struct DocumentCard {
       }
       .width('100%')
     }
-    .height(244)
-    .padding(16)
+    .height(220)
+    .padding(14)
     .backgroundColor('#ffffff')
     .border({ width: 1, color: this.hasDocument() ? '#d8e5df' : '#e6e4dd' })
     .borderRadius(20)

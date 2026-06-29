@@ -6,6 +6,10 @@ import { TokenStorageService } from './TokenStorageService';
 
 export type DownloadProgressHandler = (progress: UploadProgress) => void;
 
+interface DownloadHeaders {
+  Authorization?: string;
+}
+
 export class DownloadService {
   static async downloadOriginal(
     context: common.UIAbilityContext,
@@ -16,7 +20,10 @@ export class DownloadService {
     const fileName = `${DownloadService.safeName(title || documentId)}-${Date.now()}`;
     const filePath = `${context.filesDir}/${fileName}`;
     const token = TokenStorageService.getCachedAccessToken();
-    const header: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const header: DownloadHeaders = {};
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
     const config: request.DownloadConfig = {
       url: ApiClient.resolveApiUrl(`/documents/${encodeURIComponent(documentId)}/download`),
       filePath,
@@ -32,8 +39,8 @@ export class DownloadService {
           if (onProgress) onProgress({ loaded: receivedSize, total: totalSize, percent });
         });
         task.on('complete', () => resolve(filePath));
-        task.on('fail', (states: request.TaskState[]) => {
-          reject(new Error(DownloadService.taskStateMessage(states) || '原文件下载失败。'));
+        task.on('fail', (err: number) => {
+          reject(new Error(`原文件下载失败：${err}`));
         });
       }).catch((error: Error) => reject(error));
     });

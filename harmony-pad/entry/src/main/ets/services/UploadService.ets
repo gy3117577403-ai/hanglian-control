@@ -15,6 +15,10 @@ import { WorkbenchRefreshBus } from './WorkbenchRefreshBus';
 
 export type UploadProgressHandler = (progress: UploadProgress) => void;
 
+interface UploadHeaders {
+  Authorization?: string;
+}
+
 export class UploadService {
   static async uploadDocument(
     context: common.UIAbilityContext,
@@ -22,8 +26,10 @@ export class UploadService {
     onProgress?: UploadProgressHandler
   ): Promise<string> {
     const token = TokenStorageService.getCachedAccessToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers: UploadHeaders = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
     const data: request.RequestData[] = [
       { name: 'productId', value: input.productId },

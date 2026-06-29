@@ -1,10 +1,14 @@
 import router from '@ohos.router';
-import { TopSearchBar } from '../components/TopSearchBar';
-import { OrderSidebar } from '../components/OrderSidebar';
+import { BusinessError } from '@ohos.base';
 import { DocumentCategoryGrid } from '../components/DocumentCategoryGrid';
+import { OrderSidebar } from '../components/OrderSidebar';
+import { UploadDocumentDialog } from '../components/UploadDocumentDialog';
 import { AuthService } from '../services/AuthService';
+import { CatalogService } from '../services/CatalogService';
 import { TokenStorageService } from '../services/TokenStorageService';
 import { WorkbenchApiClient } from '../services/WorkbenchApi';
+import { WorkbenchRefreshBus } from '../services/WorkbenchRefreshBus';
+import { DocumentCategory, ProductOption, WorkbenchRefreshEvent } from '../models/DocumentModels';
 import { UserInfo } from '../models/AuthModels';
 import {
   DocumentCategoryDefinition,
@@ -20,6 +24,8 @@ import {
 @Component
 struct WorkbenchPage {
   private api: WorkbenchApiClient = new WorkbenchApiClient();
+  private uploadDialog: CustomDialogController | undefined = undefined;
+  private unsubscribeRefresh: (() => void) | undefined = undefined;
 
   @State private displayName: string = '已登录用户';
   @State private userSubtitle: string = '登录态已保存';
@@ -33,16 +39,40 @@ struct WorkbenchPage {
   @State private documentsLoading: boolean = false;
   @State private errorMessage: string = '';
   @State private actionMessage: string = '工作台正在加载...';
+  @State private tapCount: number = 0;
+  @State private lastAction: string = '等待操作';
+  @State private selectedProductId: string = '';
+  @State private selectedProductModel: string = '';
+  @State private selectedCustomerId: string = '';
 
   aboutToAppear(): void {
     console.info('[HanglianPad] WorkbenchPage aboutToAppear');
+    this.unsubscribeRefresh = WorkbenchRefreshBus.subscribe((event: WorkbenchRefreshEvent) => {
+      if (this.selectedProductId.length === 0 || this.selectedProductId === event.productId) {
+        console.info('[HanglianPad] upload success');
+        this.lastAction = `上传成功：${event.category}`;
+        void this.refreshSelectedDocuments();
+      }
+    });
     void this.loadUserInfo();
     void this.refreshOrders(this.scope);
+  }
+
+  aboutToDisappear(): void {
+    if (this.unsubscribeRefresh) {
+      this.unsubscribeRefresh();
+      this.unsubscribeRefresh = undefined;
+    }
   }
 
   private renderTitle(): string {
     console.info('[HanglianPad] WorkbenchPage render');
     return '航联资料工作台';
+  }
+
+  private bump(action: string): void {
+    this.tapCount += 1;
+    this.lastAction = action;
   }
 
   private async loadUserInfo(): Promise<void> {
@@ -69,6 +99,7 @@ struct WorkbenchPage {
       return;
     }
 
+    this.bump('退出登录');
     this.isLoggingOut = true;
     try {
       await AuthService.logout();
@@ -106,10 +137,7 @@ struct WorkbenchPage {
   }
 
   private currentProductText(): string {
-    if (!this.selectedOrder) {
-      return '未选择产品型号';
-    }
-    return this.selectedOrder.productModel || this.selectedOrder.productName || '型号待确认';
+    return this.selectedProductModel.length > 0 ? this.selectedProductModel : '未选择产品型号';
   }
 
   private modeText(): string {
@@ -134,27 +162,103 @@ struct WorkbenchPage {
       const rows = await this.api.loadOrders(scope);
       this.orders = rows;
       const visible = this.filteredOrders();
-      if (visible.length > 0) {
-        await this.openOrder(visible[0]);
+      const firstWithProduct = visible.find((order: WorkbenchOrder) => order.productId.length > 0);
+      const selected = firstWithProduct ?? (visible.length > 0 ? visible[0] : null);
+      if (selected) {
+        await this.openOrder(selected);
       } else {
         this.selectedOrder = null;
         this.categories = emptyDocumentCategories();
+        await this.ensureProductFromCatalog();
+        this.errorMessage = '暂无订单，已从产品列表选择测试产品。';
       }
       this.actionMessage = `订单已刷新：${scope === 'today' ? '今日订单' : '本周订单'} / ${this.modeText()}`;
     } catch (error) {
       console.error('[HanglianPad] WorkbenchPage load data failed', error);
       this.errorMessage = this.errorText(error, '订单接口失败');
-      this.actionMessage = '订单接口失败，页面已保留首屏，可点击重试。';
+      this.actionMessage = '订单接口失败，正在尝试从产品列表选择测试产品。';
       this.orders = [];
       this.selectedOrder = null;
       this.categories = emptyDocumentCategories();
+      await this.ensureProductFromCatalog();
     } finally {
       this.ordersLoading = false;
     }
   }
 
+  private async ensureProductFromCatalog(): Promise<boolean> {
+    if (this.selectedProductId.length > 0) {
+      return true;
+    }
+
+    try {
+      const products = await CatalogService.getProducts();
+      if (products.length === 0) {
+        this.selectedProductId = '';
+        this.selectedProductModel = '';
+        this.selectedCustomerId = '';
+        this.actionMessage = '暂无产品，请先进入客户与产品创建产品。';
+        return false;
+      }
+
+      const product = products[0];
+      const order = this.orderFromProduct(product);
+      this.selectedOrder = order;
+      this.applyProductSelection(order);
+      await this.refreshSelectedDocuments();
+      this.actionMessage = `已从产品列表选择测试产品：${this.selectedProductModel}`;
+      return true;
+    } catch (error) {
+      console.error('[HanglianPad] WorkbenchPage load data failed', error);
+      this.errorMessage = this.errorText(error, '产品列表加载失败');
+      this.actionMessage = '产品列表加载失败，请进入客户与产品页面检查。';
+      return false;
+    }
+  }
+
+  private orderFromProduct(product: ProductOption): WorkbenchOrder {
+    const model = this.productModelOf(product);
+    return {
+      id: `product-${product.id}`,
+      orderId: `product-${product.id}`,
+      date: '',
+      weekPlanNo: '产品列表',
+      customerId: product.customerId,
+      customerName: product.customerName ?? '客户待确认',
+      productId: product.id,
+      productModel: model,
+      productName: product.productName ?? '',
+      quantity: 0,
+      completedQuantity: 0,
+      productionStatus: 'pending',
+      status: 'pending',
+      completed: false
+    };
+  }
+
+  private productModelOf(product: ProductOption): string {
+    if (product.productCode && product.productCode.length > 0) {
+      return product.productCode;
+    }
+    if (product.productName && product.productName.length > 0) {
+      return product.productName;
+    }
+    return product.id;
+  }
+
+  private applyProductSelection(order: WorkbenchOrder): void {
+    this.selectedProductId = order.productId;
+    this.selectedProductModel = order.productModel || order.productName || order.productId;
+    this.selectedCustomerId = order.customerId;
+  }
+
   private async openOrder(order: WorkbenchOrder): Promise<void> {
     this.selectedOrder = order;
+    this.applyProductSelection(order);
+    if (this.selectedProductId.length === 0) {
+      await this.ensureProductFromCatalog();
+      return;
+    }
     await this.refreshSelectedDocuments();
   }
 
@@ -163,8 +267,8 @@ struct WorkbenchPage {
     this.errorMessage = '';
     try {
       this.categories = await this.api.loadDocumentCategories(this.selectedOrder);
-      if (this.selectedOrder) {
-        this.actionMessage = `${this.selectedOrder.customerName} / ${this.selectedOrder.productModel} 资料已刷新`;
+      if (this.selectedProductId.length > 0) {
+        this.actionMessage = `${this.currentProductText()} 资料已刷新`;
       }
     } catch (error) {
       console.error('[HanglianPad] WorkbenchPage load data failed', error);
@@ -177,6 +281,7 @@ struct WorkbenchPage {
   }
 
   private completeOrder(order: WorkbenchOrder): void {
+    this.bump(`完成订单：${order.productModel}`);
     this.orders = this.orders.map((item: WorkbenchOrder): WorkbenchOrder => {
       if (item.orderId !== order.orderId) {
         return item;
@@ -206,16 +311,24 @@ struct WorkbenchPage {
   }
 
   private search(keyword: string): void {
+    this.bump(`搜索：${keyword}`);
     this.searchKeyword = keyword;
     const visible = this.filteredOrders();
     if (visible.length > 0) {
       void this.openOrder(visible[0]);
       this.actionMessage = `已按 "${keyword}" 筛选订单`;
     } else {
-      this.selectedOrder = null;
-      this.categories = emptyDocumentCategories();
       this.actionMessage = keyword.trim().length > 0 ? `未找到 "${keyword}" 相关订单` : '已清空搜索';
     }
+  }
+
+  private async openImportPdf(): Promise<void> {
+    console.info('[HanglianPad] click import pdf');
+    this.bump('导入 PDF 图纸');
+    if (this.selectedProductId.length === 0) {
+      await this.ensureProductFromCatalog();
+    }
+    this.openUploadByKey('original_drawing');
   }
 
   private openUploadByKey(category: DocumentCategoryKey): void {
@@ -241,73 +354,80 @@ struct WorkbenchPage {
   }
 
   private openUpload(category: DocumentCategoryState): void {
+    console.info(`[HanglianPad] click upload category ${category.category}`);
+    this.bump(`上传 ${category.label}`);
+    if (this.selectedProductId.length === 0) {
+      this.actionMessage = '未选择产品，无法上传。请进入客户与产品创建或选择产品。';
+      this.errorMessage = 'selectedProductId 为空';
+      return;
+    }
+
     const definition: DocumentCategoryDefinition = documentCategoryByKey(category.category);
-    if (!this.selectedOrder) {
-      this.actionMessage = `请先选择订单，再上传${definition.label}。`;
-      return;
-    }
-
-    if (this.selectedOrder.productId.length === 0) {
-      this.actionMessage = '当前订单缺少产品 ID，暂不能上传资料。';
-      return;
-    }
-
-    this.actionMessage = `上传入口已打开：${this.selectedOrder.productModel} / ${definition.label}`;
+    console.info('[HanglianPad] upload dialog open');
+    this.uploadDialog = new CustomDialogController({
+      builder: UploadDocumentDialog({
+        initialCustomerId: this.selectedCustomerId,
+        initialProductId: this.selectedProductId,
+        initialPlanId: this.selectedOrder ? this.selectedOrder.orderId : undefined,
+        initialCategory: definition.category as DocumentCategory,
+        onUploaded: (event: WorkbenchRefreshEvent) => {
+          console.info('[HanglianPad] upload success');
+          this.actionMessage = `上传成功：${event.documentId}`;
+          void this.refreshSelectedDocuments();
+        }
+      }),
+      autoCancel: false,
+      alignment: DialogAlignment.Center
+    });
+    this.uploadDialog.open();
   }
 
   private openPreview(category: DocumentCategoryState): void {
+    this.bump(`预览 ${category.label}`);
     if (category.documents.length === 0) {
-      this.actionMessage = `${category.label} 暂无可预览资料。`;
+      this.actionMessage = '当前分类暂无资料，请先上传。';
       return;
     }
-    this.actionMessage = `预览入口已选择：${category.title}`;
+
+    const document = category.documents[0];
+    if (document.documentId.length === 0) {
+      this.actionMessage = '当前资料缺少 documentId，无法预览。';
+      return;
+    }
+
+    console.info('[HanglianPad] preview document');
+    router.pushUrl({
+      url: 'pages/DocumentPreviewPage',
+      params: {
+        documentId: document.documentId,
+        title: document.title
+      }
+    });
   }
 
   private deleteDocument(category: DocumentCategoryState): void {
-    this.categories = this.categories.map((item: DocumentCategoryState): DocumentCategoryState => {
-      if (item.category !== category.category) {
-        return item;
-      }
-      return {
-        category: item.category,
-        label: item.label,
-        documentType: item.documentType,
-        uploadStatus: 'missing',
-        title: item.label,
-        version: '-',
-        pageCount: 0,
-        date: '-',
-        documents: []
-      };
-    });
-    this.actionMessage = `${category.label} 已从本地视图移除`;
+    this.bump(`删除 ${category.label}`);
+    this.actionMessage = '删除功能待确认';
+  }
+
+  private routeTo(label: string, url: string): void {
+    this.bump(label);
+    router.pushUrl({ url: url })
+      .then(() => {
+        this.lastAction = `${label} 已打开`;
+      })
+      .catch((error: BusinessError) => {
+        this.lastAction = `${label} 跳转失败：${error.code} / ${error.message}`;
+        this.actionMessage = this.lastAction;
+      });
   }
 
   build() {
-    Column({ space: 12 }) {
+    Column({ space: 10 }) {
       this.TopBar();
-      TopSearchBar({
-        onSearch: (keyword: string) => {
-          this.search(keyword);
-        },
-        onImportPdf: () => {
-          this.openUploadByKey('original_drawing');
-        },
-        onOpenCustomerProduct: () => {
-          this.actionMessage = '客户与产品入口已保留，后续恢复完整页面。';
-        },
-        onOpenConnectorParam: () => {
-          this.actionMessage = '连接器参数入口已保留，后续恢复完整页面。';
-        },
-        onOpenTrash: () => {
-          this.actionMessage = '回收站入口已保留，后续恢复完整页面。';
-        },
-        onOpenOrderOverview: () => {
-          this.actionMessage = '订单总览入口已保留，后续恢复完整页面。';
-        }
-      });
+      this.NavBar();
 
-      Row({ space: 14 }) {
+      Row({ space: 12 }) {
         OrderSidebar({
           orders: this.filteredOrders(),
           selectedOrderId: this.selectedOrderId(),
@@ -315,9 +435,11 @@ struct WorkbenchPage {
           isLoading: this.ordersLoading,
           errorMessage: this.errorMessage,
           onScopeChange: (nextScope: OrderScope) => {
+            this.bump(nextScope === 'today' ? '今日订单' : '本周订单');
             void this.refreshOrders(nextScope);
           },
           onOrderSelect: (order: WorkbenchOrder) => {
+            this.bump(`选择订单：${order.productModel}`);
             void this.openOrder(order);
           },
           onCompleteOrder: (order: WorkbenchOrder) => {
@@ -325,62 +447,8 @@ struct WorkbenchPage {
           }
         });
 
-        Column({ space: 14 }) {
-          Row() {
-            Column({ space: 6 }) {
-              Text('当前客户')
-                .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#7b6755')
-              Text(this.currentCustomerText())
-                .fontSize(23)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#2c231b')
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-            }
-            .layoutWeight(1)
-            .alignItems(HorizontalAlign.Start)
-
-            Column({ space: 6 }) {
-              Text('当前产品型号')
-                .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#7b6755')
-              Text(this.currentProductText())
-                .fontSize(23)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#2f6f66')
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-            }
-            .layoutWeight(1)
-            .alignItems(HorizontalAlign.Start)
-
-            Button('重试')
-              .height(42)
-              .padding({ left: 18, right: 18 })
-              .fontSize(15)
-              .fontWeight(FontWeight.Bold)
-              .backgroundColor('#2f6f66')
-              .fontColor(Color.White)
-              .onClick(() => {
-                void this.refreshOrders(this.scope);
-              })
-
-            Text(this.modeText())
-              .fontSize(13)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(this.api.isMockMode() ? '#9b5a25' : '#2f6f66')
-              .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-              .backgroundColor(this.api.isMockMode() ? '#fff3e4' : '#e8f3ee')
-              .borderRadius(999)
-          }
-          .width('100%')
-          .padding(18)
-          .backgroundColor('#ffffff')
-          .border({ width: 1, color: '#e1e8e2' })
-          .borderRadius(18)
+        Column({ space: 12 }) {
+          this.SelectionPanel();
 
           DocumentCategoryGrid({
             categories: this.categories,
@@ -395,64 +463,52 @@ struct WorkbenchPage {
               this.deleteDocument(category);
             }
           })
-          .layoutWeight(1)
+          .layoutWeight(1);
 
-          Text(this.actionMessage)
-            .fontSize(13)
-            .fontColor(this.errorMessage.length > 0 ? '#a33f34' : '#6f5845')
-            .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-            .backgroundColor(this.errorMessage.length > 0 ? '#fff1ef' : '#fff8ec')
-            .borderRadius(999)
-            .alignSelf(ItemAlign.Start)
+          this.Diagnostics();
         }
         .layoutWeight(1)
         .height('100%')
-        .padding(16)
-        .backgroundColor('#f7faf6')
-        .border({ width: 1, color: '#e0e9e3' })
-        .borderRadius(20)
       }
-      .width('100%')
       .layoutWeight(1)
+      .width('100%')
     }
     .width('100%')
     .height('100%')
     .padding(12)
-    .backgroundColor('#edf3ee')
+    .backgroundColor('#F7F2EA')
   }
 
   @Builder
   private TopBar() {
     Row({ space: 14 }) {
-      Column() {
-        Text('HL')
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#FFF8EA')
-      }
-      .width(56)
-      .height(56)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .border({ width: 1, color: '#815123', radius: 8 })
-      .backgroundColor('#9C5725')
+      Text('HL')
+        .fontSize(22)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#FFF8EA')
+        .width(54)
+        .height(54)
+        .textAlign(TextAlign.Center)
+        .backgroundColor('#9C5725')
+        .borderRadius(8)
 
       Column({ space: 4 }) {
-        Text('HANG LIAN CONTROL / HARMONYOS PAD')
-          .fontSize(12)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#7A4A23')
         Text(this.renderTitle())
-          .fontSize(26)
+          .fontSize(28)
           .fontWeight(FontWeight.Bold)
           .fontColor('#342316')
+        Text(this.actionMessage)
+          .fontSize(13)
+          .fontColor(this.errorMessage.length > 0 ? '#A33F34' : '#76512A')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
 
-      Column({ space: 5 }) {
+      Column({ space: 4 }) {
         Text(this.displayName)
-          .fontSize(15)
+          .fontSize(16)
           .fontWeight(FontWeight.Bold)
           .fontColor('#342316')
         Text(this.userSubtitle)
@@ -472,9 +528,163 @@ struct WorkbenchPage {
         })
     }
     .width('100%')
-    .height(76)
+    .height(72)
     .padding({ left: 16, right: 16 })
-    .border({ width: 1, color: '#70482347', radius: 8 })
     .backgroundColor('#FFF4DE')
+    .border({ width: 1, color: '#70482347', radius: 8 })
+  }
+
+  @Builder
+  private NavBar() {
+    Row({ space: 10 }) {
+      Button('导入 PDF 图纸')
+        .layoutWeight(1)
+        .height(48)
+        .backgroundColor('#C87934')
+        .fontColor(Color.White)
+        .onClick(() => {
+          void this.openImportPdf();
+        })
+
+      Button('客户与产品')
+        .layoutWeight(1)
+        .height(48)
+        .backgroundColor('#2F6B4F')
+        .fontColor(Color.White)
+        .onClick(() => {
+          console.info('[HanglianPad] click customer product');
+          this.routeTo('客户与产品', 'pages/CustomerProductPage');
+        })
+
+      Button('连接器参数')
+        .layoutWeight(1)
+        .height(48)
+        .backgroundColor('#2F6B4F')
+        .fontColor(Color.White)
+        .onClick(() => {
+          console.info('[HanglianPad] click connector params');
+          this.routeTo('连接器参数', 'pages/ConnectorParamPage');
+        })
+
+      Button('回收站')
+        .layoutWeight(1)
+        .height(48)
+        .backgroundColor('#8F3F1D')
+        .fontColor(Color.White)
+        .onClick(() => {
+          console.info('[HanglianPad] click recycle bin');
+          this.routeTo('回收站', 'pages/RecycleBinPage');
+        })
+
+      Button('订单总览')
+        .layoutWeight(1)
+        .height(48)
+        .backgroundColor('#614C8A')
+        .fontColor(Color.White)
+        .onClick(() => {
+          console.info('[HanglianPad] click order overview');
+          this.routeTo('订单总览', 'pages/OrderOverviewPage');
+        })
+    }
+    .width('100%')
+    .height(58)
+    .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+    .backgroundColor('#FFF8EA')
+    .border({ width: 1, color: '#70482324', radius: 8 })
+  }
+
+  @Builder
+  private SelectionPanel() {
+    Row({ space: 12 }) {
+      Column({ space: 5 }) {
+        Text('当前客户')
+          .fontSize(13)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#7B6755')
+        Text(this.currentCustomerText())
+          .fontSize(22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#2C231B')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Column({ space: 5 }) {
+        Text('当前产品型号')
+          .fontSize(13)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#7B6755')
+        Text(this.currentProductText())
+          .fontSize(22)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#2F6F66')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      TextInput({ placeholder: '搜索订单、客户、产品型号', text: this.searchKeyword })
+        .height(44)
+        .width(280)
+        .backgroundColor('#FFFCF4')
+        .onChange((value: string) => {
+          this.searchKeyword = value;
+        })
+
+      Button('搜索')
+        .height(44)
+        .width(88)
+        .backgroundColor('#2F6B4F')
+        .fontColor(Color.White)
+        .onClick(() => {
+          this.search(this.searchKeyword);
+        })
+
+      Button('重试')
+        .height(44)
+        .width(88)
+        .backgroundColor('#9C5725')
+        .fontColor(Color.White)
+        .onClick(() => {
+          this.bump('重试加载');
+          void this.refreshOrders(this.scope);
+        })
+
+      Text(this.modeText())
+        .fontSize(13)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.api.isMockMode() ? '#9B5A25' : '#2F6F66')
+        .padding({ left: 12, right: 12, top: 7, bottom: 7 })
+        .backgroundColor(this.api.isMockMode() ? '#FFF3E4' : '#E8F3EE')
+        .borderRadius(999)
+    }
+    .width('100%')
+    .height(82)
+    .padding({ left: 16, right: 16 })
+    .backgroundColor('#FFFFFF')
+    .border({ width: 1, color: '#E1E8E2', radius: 8 })
+  }
+
+  @Builder
+  private Diagnostics() {
+    Column({ space: 4 }) {
+      Text(`tapCount: ${this.tapCount}    lastAction: ${this.lastAction}`)
+        .fontSize(12)
+        .fontColor('#6F5845')
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+      Text(`selectedProductId: ${this.selectedProductId || '-'}    selectedProductModel: ${this.selectedProductModel || '-'}`)
+        .fontSize(12)
+        .fontColor('#6F5845')
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+    .backgroundColor('#FFF8EC')
+    .borderRadius(8)
   }
 }

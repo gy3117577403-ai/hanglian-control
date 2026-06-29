@@ -35,7 +35,7 @@ export class RecycleBinService {
 
   static async restore(id: string): Promise<ServiceResult<string>> {
     try {
-      await ApiClient.patch<object>(`/recycle-bin/${encodeURIComponent(id)}/restore`, {});
+      await ApiClient.patch<object>(`/recycle-bin/${encodeURIComponent(id)}/restore`, undefined);
       return { data: id, source: 'api', message: '已调用 PATCH /recycle-bin/:id/restore' };
     } catch (error) {
       MockStore.recycleItems = MockStore.recycleItems.filter((item: RecycleBinItem) => item.id !== id);

@@ -1,6 +1,7 @@
-import { CustomerProductService } from '../services/CustomerProductService';
+import { CustomerPayload, CustomerProductService, ProductPayload } from '../services/CustomerProductService';
 import { Customer, ProcessSegment, Product } from '../services/DomainModels';
 
+@Entry
 @Component
 export struct CustomerProductPage {
   @State customers: Customer[] = [];
@@ -41,7 +42,9 @@ export struct CustomerProductPage {
       .height('100%');
     }
     .width('100%')
-    .layoutWeight(1);
+    .height('100%')
+    .padding(12)
+    .backgroundColor('#F7F2EA');
   }
 
   @Builder
@@ -344,7 +347,7 @@ export struct CustomerProductPage {
       this.message = '请先填写客户名称';
       return;
     }
-    const payload = {
+    const payload: CustomerPayload = {
       name: this.customerName.trim(),
       code: this.customerCode.trim(),
       salesOwner: this.salesOwner.trim()
@@ -376,7 +379,7 @@ export struct CustomerProductPage {
       this.message = '请填写产品编码和产品名称';
       return;
     }
-    const payload = {
+    const payload: ProductPayload = {
       customerId: this.selectedCustomerId,
       productCode: this.productCode.trim(),
       productName: this.productName.trim(),
