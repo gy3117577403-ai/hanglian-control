@@ -1,8 +1,10 @@
 import common from '@ohos.app.ability.common';
 import fs from '@ohos.file.fs';
+import fileUri from '@ohos.file.fileuri';
 import router from '@ohos.router';
 import { BusinessError } from '@ohos.base';
 import { ApiClient } from '../services/ApiClient';
+import { BuildInfo } from '../services/BuildInfo';
 import { CatalogService } from '../services/CatalogService';
 import { TokenStorageService } from '../services/TokenStorageService';
 import { UploadService } from '../services/UploadService';
@@ -47,6 +49,16 @@ interface FieldQaResult {
   tests: TestItem[];
 }
 
+interface UploadQaResult {
+  success: boolean;
+  pngUpload: boolean;
+  pngPreview: boolean;
+  pdfUpload: boolean;
+  pdfPreview: boolean;
+  uploadUriScheme: string;
+  message: string;
+}
+
 interface CustomerCreatePayload {
   name: string;
   code: string;
@@ -79,6 +91,11 @@ struct TestLabPage {
   @State private currentUser: string = '-';
   @State private currentProduct: string = '-';
   @State private running: boolean = false;
+  @State private uploadQaStatus: string = '上传自测未运行';
+  @State private buildCommit: string = BuildInfo.COMMIT;
+  @State private buildTime: string = BuildInfo.BUILD_TIME;
+  @State private appVersion: string = BuildInfo.APP_VERSION;
+  @State private apiBaseUrl: string = BuildInfo.snapshot().apiBaseUrl;
   @State private statusText: string = '点击一键真机自检开始。';
   @State private tests: TestItem[] = [
     { name: '登录状态', status: '未测试', message: '' },
@@ -108,6 +125,7 @@ struct TestLabPage {
   private pdfDocumentId: string = '';
 
   aboutToAppear(): void {
+    BuildInfo.log();
     void this.loadEnvironment();
   }
 
@@ -193,6 +211,11 @@ struct TestLabPage {
     const stamp = `${Date.now()}`;
     let pngFile: SelectedUploadFile | undefined = undefined;
     let pdfFile: SelectedUploadFile | undefined = undefined;
+    let pngUpload = false;
+    let pngPreview = false;
+    let pdfUpload = false;
+    let pdfPreview = false;
+    let uploadUriScheme = 'none';
 
     await this.runCheck('登录状态', async () => {
       const hasSession = await TokenStorageService.hasSession();
@@ -274,22 +297,34 @@ struct TestLabPage {
     });
     await this.runCheck('上传图片资料', async () => {
       if (!pngFile) throw new Error('png missing');
+      uploadUriScheme = this.uriScheme(pngFile.uploadUri);
+
       this.imageDocumentId = await this.uploadFile(pngFile, 'finished_detail_image', `现场图片资料-${stamp}`);
+
+      pngUpload = this.imageDocumentId.length > 0;
     });
     await this.runCheck('图片预览', async () => {
       if (this.imageDocumentId.length === 0) throw new Error('image document missing');
       await this.waitForPreview(this.imageDocumentId);
+
+      pngPreview = true;
     });
     await this.runCheck('创建PDF文件', async () => {
       pdfFile = this.createPdfFile(`field-pdf-${stamp}.pdf`);
     });
     await this.runCheck('上传PDF资料', async () => {
       if (!pdfFile) throw new Error('pdf missing');
+      uploadUriScheme = this.uriScheme(pdfFile.uploadUri);
+
       this.pdfDocumentId = await this.uploadFile(pdfFile, 'drawing_pdf', `现场PDF资料-${stamp}`);
+
+      pdfUpload = this.pdfDocumentId.length > 0;
     });
     await this.runCheck('PDF预览', async () => {
       if (this.pdfDocumentId.length === 0) throw new Error('pdf document missing');
       await this.waitForPreview(this.pdfDocumentId);
+
+      pdfPreview = true;
     });
 
     const success = this.tests.filter((item: TestItem) => item.status === '失败').length === 0;
@@ -300,6 +335,15 @@ struct TestLabPage {
       tests: this.tests
     };
     console.info('[HanglianPad] FIELD_QA_RESULT ' + JSON.stringify(result));
+    this.emitUploadQaResult({
+      success: pngUpload && pngPreview && pdfUpload && pdfPreview,
+      pngUpload,
+      pngPreview,
+      pdfUpload,
+      pdfPreview,
+      uploadUriScheme,
+      message: pngUpload && pngPreview && pdfUpload && pdfPreview ? '全部通过' : '存在失败项'
+    });
   }
 
   private async uploadFile(file: SelectedUploadFile, documentType: DocumentType, title: string): Promise<string> {
@@ -307,6 +351,7 @@ struct TestLabPage {
     const process: RequiredProcess = 'common';
     const input: UploadDocumentInput = {
       productId: this.qaProductId,
+      productModel: this.currentProduct,
       category: documentType === 'drawing_pdf' ? 'original_drawing' : 'finished_image',
       documentType,
       title,
@@ -317,6 +362,94 @@ struct TestLabPage {
       file
     };
     return UploadService.uploadDocument(this.uiContext(), input);
+  }
+
+  private emitUploadQaResult(result: UploadQaResult): void {
+    this.uploadQaStatus = result.success ? '上传自测通过' : '上传自测失败';
+    console.info('[HanglianPad] FIELD_UPLOAD_QA_RESULT ' + JSON.stringify(result));
+  }
+
+  private uriScheme(value: string): string {
+    const index = value.indexOf(':');
+    if (index <= 0) return 'path';
+    return value.substring(0, index);
+  }
+
+  private async ensureUploadProduct(stamp: string): Promise<void> {
+    if (this.qaProductId.length > 0) return;
+
+    const products = await CatalogService.getProducts();
+    if (products.length > 0) {
+      this.qaProductId = products[0].id;
+      this.currentProduct = this.productModel(products[0]);
+      return;
+    }
+
+    const customerPayload: CustomerCreatePayload = {
+      name: `FIELD-UPLOAD-CUSTOMER-${stamp}`,
+      code: `FIELD-UPLOAD-CUS-${stamp}`,
+      salesOwner: 'FIELD-QA'
+    };
+    const customer = await ApiClient.post<IdResponse>('/customers', customerPayload);
+    this.qaCustomerId = this.idOf(customer);
+    if (this.qaCustomerId.length === 0) throw new Error('customer id missing');
+
+    const model = `FIELD-UPLOAD-${stamp}`;
+    const productPayload: ProductCreatePayload = {
+      customerId: this.qaCustomerId,
+      productCode: model,
+      productModel: model,
+      productName: `FIELD-UPLOAD-PRODUCT-${stamp}`,
+      currentVersion: 'V1.0',
+      processSegment: 'common'
+    };
+    const product = await ApiClient.post<IdResponse>('/products', productPayload);
+    this.qaProductId = this.idOf(product);
+    this.currentProduct = model;
+    if (this.qaProductId.length === 0) throw new Error('product id missing');
+  }
+
+  private async runUploadSelfTest(kind: string): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    this.uploadQaStatus = kind === 'png' ? '图片上传自测中...' : 'PDF 上传自测中...';
+    const stamp = `${Date.now()}`;
+    const result: UploadQaResult = {
+      success: false,
+      pngUpload: false,
+      pngPreview: false,
+      pdfUpload: false,
+      pdfPreview: false,
+      uploadUriScheme: 'none',
+      message: ''
+    };
+
+    try {
+      await this.ensureUploadProduct(stamp);
+      if (kind === 'png') {
+        const file = this.createPngFile(`field-single-image-${stamp}.png`);
+        result.uploadUriScheme = this.uriScheme(file.uploadUri);
+        const documentId = await this.uploadFile(file, 'finished_detail_image', `FIELD-UPLOAD-IMAGE-${stamp}`);
+        result.pngUpload = documentId.length > 0;
+        await this.waitForPreview(documentId);
+        result.pngPreview = true;
+      } else {
+        const file = this.createPdfFile(`field-single-pdf-${stamp}.pdf`);
+        result.uploadUriScheme = this.uriScheme(file.uploadUri);
+        const documentId = await this.uploadFile(file, 'drawing_pdf', `FIELD-UPLOAD-PDF-${stamp}`);
+        result.pdfUpload = documentId.length > 0;
+        await this.waitForPreview(documentId);
+        result.pdfPreview = true;
+      }
+      result.success = kind === 'png' ? result.pngUpload && result.pngPreview : result.pdfUpload && result.pdfPreview;
+      result.message = result.success ? '通过' : '失败';
+    } catch (error) {
+      console.error('[HanglianPad] upload self test failed', error);
+      result.message = '失败';
+    } finally {
+      this.running = false;
+      this.emitUploadQaResult(result);
+    }
   }
 
   private async waitForPreview(documentId: string): Promise<void> {
@@ -347,6 +480,7 @@ struct TestLabPage {
     return {
       uri: cachePath,
       uploadUri: `internal://cache/${fileName}`,
+      fallbackUploadUri: fileUri.getUriFromPath(cachePath),
       cachePath,
       name: fileName,
       mimeType: 'image/png',
@@ -400,6 +534,7 @@ struct TestLabPage {
     return {
       uri: cachePath,
       uploadUri: `internal://cache/${fileName}`,
+      fallbackUploadUri: fileUri.getUriFromPath(cachePath),
       cachePath,
       name: fileName,
       mimeType: 'application/pdf',
@@ -507,6 +642,14 @@ struct TestLabPage {
       }
       .height(92)
       .width('100%')
+      Row({ space: 12 }) {
+        this.EnvCard('commit', this.buildCommit);
+        this.EnvCard('buildTime', this.buildTime);
+        this.EnvCard('appVersion', this.appVersion);
+        this.EnvCard('API', this.apiBaseUrl);
+      }
+      .height(92)
+      .width('100%')
 
       Row({ space: 10 }) {
         Button('打开客户与产品')
@@ -539,6 +682,35 @@ struct TestLabPage {
           .backgroundColor('#9C5725')
           .fontColor(Color.White)
           .onClick(() => this.openUploadPage())
+      }
+      .width('100%')
+
+      Row({ space: 10 }) {
+        Button('真机上传 PNG 自测')
+          .height(50)
+          .layoutWeight(1)
+          .backgroundColor('#2F6B4F')
+          .fontColor(Color.White)
+          .onClick(() => {
+            void this.runUploadSelfTest('png');
+          })
+        Button('真机上传 PDF 自测')
+          .height(50)
+          .layoutWeight(1)
+          .backgroundColor('#614C8A')
+          .fontColor(Color.White)
+          .onClick(() => {
+            void this.runUploadSelfTest('pdf');
+          })
+        Text(this.uploadQaStatus)
+          .height(50)
+          .layoutWeight(2)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#6F5845')
+          .padding({ left: 14, right: 14, top: 14, bottom: 10 })
+          .backgroundColor('#FFF8EC')
+          .borderRadius(8)
       }
       .width('100%')
 

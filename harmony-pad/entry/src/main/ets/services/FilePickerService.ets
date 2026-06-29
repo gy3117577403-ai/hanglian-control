@@ -1,5 +1,6 @@
 import common from '@ohos.app.ability.common';
 import fs from '@ohos.file.fs';
+import fileUri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import { SelectedUploadFile, UploadSource } from '../models/DocumentModels';
 
@@ -34,6 +35,7 @@ export class FilePickerService {
     return {
       uri,
       uploadUri: `internal://cache/${cacheName}`,
+      fallbackUploadUri: fileUri.getUriFromPath(cachePath),
       cachePath,
       name: displayName,
       mimeType: FilePickerService.mimeTypeFor(displayName),

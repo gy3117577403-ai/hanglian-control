@@ -146,6 +146,7 @@
     "qa:harmony-console": "node scripts/serve-harmony-qa-console.mjs",
     "qa:harmony-console:e2e": "playwright test tools/harmony-qa-console/e2e.spec.ts",
     "qa:harmony-device": "node scripts/harmony-device-qa.mjs",
+    "harmony:build-info": "node scripts/generate-harmony-build-info.mjs",
     "test:harmony-field": "node scripts/harmony-field-regression.mjs",
     "storage:legacy-scan": "node scripts/storage-legacy-scan.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",

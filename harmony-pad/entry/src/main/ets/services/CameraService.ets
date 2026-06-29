@@ -25,6 +25,7 @@ export class CameraService {
     return {
       uri: resultUri,
       uploadUri: `internal://cache/${fileName}`,
+      fallbackUploadUri: fileUri.getUriFromPath(cachePath),
       cachePath,
       name: fileName,
       mimeType: 'image/jpeg',

@@ -1,5 +1,6 @@
 import common from '@ohos.app.ability.common';
 import fs from '@ohos.file.fs';
+import pasteboard from '@ohos.pasteboard';
 import router from '@ohos.router';
 import { BusinessError } from '@ohos.base';
 import {
@@ -15,7 +16,7 @@ import {
 import { CameraService } from '../services/CameraService';
 import { FilePickerService } from '../services/FilePickerService';
 import { TokenStorageService } from '../services/TokenStorageService';
-import { UploadService } from '../services/UploadService';
+import { UploadFailedDetail, UploadService } from '../services/UploadService';
 
 interface UploadRouteParams {
   productId?: string;
@@ -40,8 +41,10 @@ struct DocumentUploadPage {
   @State private statusMessage: string = '请选择 PDF、JPG、PNG 或 WEBP 文件。';
   @State private isUploading: boolean = false;
   @State private canPreview: boolean = false;
+  @State private canCopyErrorSummary: boolean = false;
   private selectedFile: SelectedUploadFile | undefined = undefined;
   private uploadedDocumentId: string = '';
+  private lastUploadErrorSummary: string = '';
 
   aboutToAppear(): void {
     const params = router.getParams() as UploadRouteParams;
@@ -80,11 +83,12 @@ struct DocumentUploadPage {
 
   private documentTypeFor(file: SelectedUploadFile): DocumentType {
     const pdf = this.isPdf(file);
+    if (this.category === 'original_drawing') return pdf ? 'drawing_pdf' : 'finished_detail_image';
     if (this.category === 'sop') return pdf ? 'process_card' : 'sop_image';
     if (this.category === 'finished_image') return pdf ? 'drawing_pdf' : 'finished_detail_image';
     if (this.category === 'auxiliary_spec') return 'connector_manual';
     if (this.category === 'notice') return pdf ? 'process_card' : 'sop_image';
-    if (this.category === 'tooling') return pdf ? 'process_card' : 'finished_detail_image';
+    if (this.category === 'tooling') return 'process_card';
     return 'drawing_pdf';
   }
 
@@ -96,6 +100,8 @@ struct DocumentUploadPage {
   }
 
   private applySelectedFile(file: SelectedUploadFile | undefined): void {
+    this.lastUploadErrorSummary = '';
+    this.canCopyErrorSummary = false;
     if (!file) {
       this.selectedFile = undefined;
       this.selectedFileName = '未选择文件';
@@ -173,6 +179,7 @@ struct DocumentUploadPage {
     const process: RequiredProcess = 'common';
     return {
       productId: this.productId,
+      productModel: this.productModel,
       planId: this.planId.length > 0 ? this.planId : undefined,
       category: this.category,
       documentType: this.documentTypeFor(file),
@@ -183,6 +190,61 @@ struct DocumentUploadPage {
       remark: 'MatePad upload',
       file: file
     };
+  }
+
+  private requestPath(url: string): string {
+    const marker = '/documents/upload';
+    return url.indexOf(marker) >= 0 ? marker : '/documents/upload';
+  }
+
+  private uploadErrorType(detail: UploadFailedDetail | undefined, error: Object): string {
+    if (detail) {
+      const raw = `${detail.uploadTaskCode} ${detail.uploadTaskMessage} ${detail.osError} ${detail.rawError}`;
+      if (/(^|\D)17(\D|$)|Http protocol error/i.test(raw)) {
+        return 'Http protocol error';
+      }
+      if (detail.requestStatusCode > 0) {
+        return `HTTP ${detail.requestStatusCode}`;
+      }
+      return detail.step;
+    }
+    if (error instanceof Error) {
+      return error.name.length > 0 ? error.name : 'Error';
+    }
+    return 'Unknown';
+  }
+
+  private buildErrorSummary(error: Object, file: SelectedUploadFile): string {
+    const detail = UploadService.extractErrorDetail(error);
+    const statusCode = detail ? detail.requestStatusCode : 0;
+    const requestPath = detail ? this.requestPath(detail.url) : '/documents/upload';
+    const lines: string[] = [
+      `上传失败阶段：${detail ? detail.step : 'upload'}`,
+      `文件名：${file.name}`,
+      `文件类型：${file.mimeType}`,
+      `文件大小：${file.size}`,
+      `后端状态码：${statusCode > 0 ? statusCode : '-'}`,
+      `错误类型：${this.uploadErrorType(detail, error)}`,
+      `请求路径：${requestPath}`,
+      `时间：${detail ? detail.timestamp : new Date().toISOString()}`
+    ];
+    return lines.join('\n');
+  }
+
+  private async copyErrorSummary(): Promise<void> {
+    if (this.lastUploadErrorSummary.length === 0) {
+      this.statusMessage = '暂无可复制的错误摘要。';
+      return;
+    }
+
+    try {
+      const systemPasteboard = pasteboard.getSystemPasteboard();
+      await systemPasteboard.setData(pasteboard.createPlainTextData(this.lastUploadErrorSummary));
+      this.statusMessage = '错误摘要已复制，可粘贴给现场支持。';
+    } catch (error) {
+      console.error('[HanglianPad] copy upload error summary failed', error);
+      this.statusMessage = '复制失败，请稍后重试。';
+    }
   }
 
   private async upload(): Promise<void> {
@@ -197,6 +259,8 @@ struct DocumentUploadPage {
     const file = this.selectedFile as SelectedUploadFile;
     this.isUploading = true;
     this.canPreview = false;
+    this.canCopyErrorSummary = false;
+    this.lastUploadErrorSummary = '';
     this.uploadStatus = '正在上传';
     this.statusMessage = '资料正在上传，请稍候。';
     try {
@@ -206,10 +270,14 @@ struct DocumentUploadPage {
       });
       this.uploadedDocumentId = documentId;
       this.canPreview = true;
+      this.canCopyErrorSummary = false;
+      this.lastUploadErrorSummary = '';
       this.uploadStatus = '上传成功';
       this.statusMessage = '上传成功，资料已更新。';
     } catch (error) {
-      console.error('[HanglianPad] upload failed', JSON.stringify(error));
+      this.lastUploadErrorSummary = this.buildErrorSummary(error, file);
+      this.canCopyErrorSummary = true;
+      console.error('[HanglianPad] upload failed summary ' + this.lastUploadErrorSummary.replace(/\n/g, ' | '));
       this.canPreview = false;
       this.uploadStatus = '上传失败';
       this.statusMessage = '上传失败，请检查网络后重试。';
@@ -371,6 +439,17 @@ struct DocumentUploadPage {
           })
       }
       .width('100%')
+
+      if (this.canCopyErrorSummary) {
+        Button('复制错误摘要')
+          .height(48)
+          .width(180)
+          .backgroundColor('#8F3F1D')
+          .fontColor(Color.White)
+          .onClick(() => {
+            void this.copyErrorSummary();
+          })
+      }
 
       Blank()
     }

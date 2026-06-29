@@ -52,6 +52,7 @@ export interface ProductOption {
 export interface SelectedUploadFile {
   uri: string;
   uploadUri: string;
+  fallbackUploadUri?: string;
   cachePath?: string;
   name: string;
   mimeType: string;
@@ -62,6 +63,7 @@ export interface SelectedUploadFile {
 
 export interface UploadDocumentInput {
   productId: string;
+  productModel?: string;
   planId?: string;
   category: DocumentCategory;
   documentType: DocumentType;

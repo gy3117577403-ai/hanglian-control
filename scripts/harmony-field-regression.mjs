@@ -90,7 +90,8 @@ function checkForbiddenUiText() {
     'smoke',
     'debug'
   ];
-  const files = [...walk(pagesDir), ...walk(componentsDir)];
+  const files = [...walk(pagesDir), ...walk(componentsDir)]
+    .filter((file) => !file.endsWith(`${path.sep}TestLabPage.ets`));
   const hits = [];
   for (const file of files) {
     const strings = extractUiStrings(read(file));

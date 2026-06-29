@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-06-29T07:50:07.004Z",
+  "branch": "release-harmony-mvp-day1",
+  "sourceHead": "c6ba3e7",
+  "hapBuildInfo": {
+    "commit": "c6ba3e7",
+    "buildTime": "2026-06-29T07:40:47.171Z",
+    "appVersion": "1.0.0",
+    "apiBaseUrl": "https://fyeboolnlvqv.sealoshzh.site/api"
+  },
+  "apiE2e": {
+    "ran": true,
+    "passed": true,
+    "total": 22,
+    "failed": 0
+  },
+  "qaConsoleE2e": {
+    "ran": true,
+    "passed": true,
+    "screenshot": "reports/screenshots/harmony-qa-console-result.png"
+  },
+  "fieldRegression": {
+    "ran": true,
+    "passed": true,
+    "total": 8,
+    "failed": 0
+  },
+  "assembleHap": {
+    "ran": true,
+    "passed": true
+  },
+  "deviceQa": {
+    "ran": true,
+    "passed": true,
+    "report": "reports/harmony-device-qa.md",
+    "log": "reports/harmony-device-qa.log"
+  },
+  "upload": {
+    "capturedFieldUploadQaResult": true,
+    "pngUpload": true,
+    "pngPreview": true,
+    "pdfUpload": true,
+    "pdfPreview": true,
+    "uploadUriScheme": "internal",
+    "manuallySetMultipartContentType": false,
+    "hasChineseBusinessOnlyUiMessage": true,
+    "hasCopyErrorSummary": true,
+    "stillHasHttpProtocol17": false,
+    "finalCauseIfSeen": "not observed in final device QA log"
+  },
+  "stability": {
+    "recycleBinCrash": false,
+    "hilogHasRuntimeErrorOrJsError": false,
+    "workbenchGridClickIssue": false
+  },
+  "evidence": [
+    "reports/harmony-api-e2e.json",
+    "reports/harmony-api-e2e.md",
+    "reports/harmony-qa-console-result.json",
+    "reports/screenshots/harmony-qa-console-result.png",
+    "reports/harmony-field-regression.json",
+    "reports/harmony-device-qa.md",
+    "reports/harmony-device-qa.log"
+  ]
+}

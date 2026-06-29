@@ -4,6 +4,7 @@ import Want from '@ohos.app.ability.Want';
 import window from '@ohos.window';
 import hilog from '@ohos.hilog';
 import { BusinessError } from '@ohos.base';
+import { BuildInfo } from '../services/BuildInfo';
 import { TokenStorageService } from '../services/TokenStorageService';
 
 const DOMAIN: number = 0x0000;
@@ -12,6 +13,7 @@ const TAG: string = 'HanglianEntryAbility';
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     console.info('[HanglianPad] EntryAbility onCreate');
+    BuildInfo.log();
     TokenStorageService.init(this.context);
     hilog.info(DOMAIN, TAG, 'EntryAbility created.');
   }

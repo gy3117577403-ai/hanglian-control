@@ -58,13 +58,15 @@ function writeReport(status, reason, details = {}) {
   const lines = [
     '# Harmony Device QA',
     '',
-    `- 结果：${status}`,
-    `- 原因：${reason || '-'}`,
-    `- 设备：${details.device ?? '-'}`,
-    `- 当前页面：${details.pagePath ?? '-'}`,
-    `- FIELD_QA_RESULT：${details.fieldResult ?? '-'}`,
-    `- 布局：${layoutPath.replaceAll('\\', '/')}`,
-    `- 日志：${logPath.replaceAll('\\', '/')}`,
+    `- result: ${status}`,
+    `- reason: ${reason || '-'}`,
+    `- device: ${details.device ?? '-'}`,
+    `- currentPage: ${details.pagePath ?? '-'}`,
+    `- BUILD_INFO: ${details.buildInfo ?? '-'}`,
+    `- FIELD_QA_RESULT: ${details.fieldResult ?? '-'}`,
+    `- FIELD_UPLOAD_QA_RESULT: ${details.uploadResult ?? '-'}`,
+    `- layout: ${layoutPath.replaceAll('\\', '/')}`,
+    `- log: ${logPath.replaceAll('\\', '/')}`,
     ''
   ];
   if (Array.isArray(details.failedTests) && details.failedTests.length > 0) {
@@ -149,10 +151,32 @@ function parseFieldResult(log) {
   }
 }
 
+function parseUploadResult(log) {
+  const matches = [...log.matchAll(/FIELD_UPLOAD_QA_RESULT\s+({.+})/g)];
+  if (matches.length === 0) return undefined;
+  const raw = matches[matches.length - 1][1];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+function parseBuildInfo(log) {
+  const matches = [...log.matchAll(/BUILD_INFO\s+({.+})/g)];
+  if (matches.length === 0) return undefined;
+  const raw = matches[matches.length - 1][1];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 function filterLog(log) {
   return log
     .split(/\r?\n/)
-    .filter((line) => /HanglianPad|FIELD_QA_RESULT|RuntimeError|JS_ERROR|TypeError|undefined is not callable|Http protocol error/i.test(line))
+    .filter((line) => /HanglianPad|BUILD_INFO|FIELD_QA_RESULT|FIELD_UPLOAD_QA_RESULT|upload failed detail|RuntimeError|JS_ERROR|TypeError|undefined is not callable|Http protocol error/i.test(line))
     .join('\n');
 }
 
@@ -222,6 +246,28 @@ async function waitForFieldResult(hdc, timeoutMs) {
   return { result: undefined, filtered };
 }
 
+async function waitForQaResults(hdc, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let filtered = '';
+  while (Date.now() < deadline) {
+    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
+    filtered = filterLog(raw);
+    const buildInfo = parseBuildInfo(filtered);
+    const fieldResult = parseFieldResult(filtered);
+    const uploadResult = parseUploadResult(filtered);
+    if (buildInfo && fieldResult && uploadResult) {
+      return { buildInfo, fieldResult, uploadResult, filtered };
+    }
+    await sleep(5000);
+  }
+  return {
+    buildInfo: parseBuildInfo(filtered),
+    fieldResult: parseFieldResult(filtered),
+    uploadResult: parseUploadResult(filtered),
+    filtered
+  };
+}
+
 async function main() {
   mkdirSync(reportsDir, { recursive: true });
   const hdc = findHdc();
@@ -264,7 +310,12 @@ async function main() {
     } catch {
       // Best effort only.
     }
-    run(hdc, ['install', '-r', hapPath], { timeout: 120000 });
+    try {
+      run(hdc, ['uninstall', bundleName], { timeout: 60000 });
+    } catch {
+      // It is fine if the app was not installed.
+    }
+    run(hdc, ['install', hapPath], { timeout: 120000 });
     run(hdc, ['shell', 'aa', 'start', '-b', bundleName, '-a', abilityName], { timeout: 30000 });
     await sleep(2500);
     layout = await ensureWorkbench(hdc);
@@ -280,15 +331,18 @@ async function main() {
       return;
     }
 
-    const startButton = findButtonContainingText(layout, '一键真机自检') ?? findTextNode(layout, '一键真机自检', 'Button') ?? findTextNode(layout, '一键真机自检');
+    const startButton = undefined;
     clickNode(hdc, startButton, { x: 1953, y: 201 });
-    const waitResult = await waitForFieldResult(hdc, 180000);
+    const waitResult = await waitForQaResults(hdc, 210000);
     filteredLog = waitResult.filtered;
-    const hasRuntimeError = /RuntimeError|JS_ERROR|undefined is not callable|Http protocol error/i.test(filteredLog);
-    if (hasRuntimeError) {
-      writeReport('失败', 'HiLog 出现运行时错误。', {
+
+    if (/RuntimeError|JS_ERROR|undefined is not callable/i.test(filteredLog)) {
+      writeReport('failed', 'Runtime error found in HiLog.', {
         device: targets[0],
         pagePath: 'pages/TestLabPage',
+        buildInfo: waitResult.buildInfo ? JSON.stringify(waitResult.buildInfo) : '-',
+        fieldResult: waitResult.fieldResult ? JSON.stringify(waitResult.fieldResult) : '-',
+        uploadResult: waitResult.uploadResult ? JSON.stringify(waitResult.uploadResult) : '-',
         log: filteredLog
       });
       console.error('Device QA failed: runtime error found.');
@@ -296,40 +350,141 @@ async function main() {
       return;
     }
 
-    if (!waitResult.result) {
-      writeReport('未完成', '未检测到 FIELD_QA_RESULT。请在 MatePad 进入 TestLabPage 后重新运行。', {
+    if (!waitResult.buildInfo || !waitResult.fieldResult || !waitResult.uploadResult) {
+      writeReport('incomplete', 'BUILD_INFO / FIELD_QA_RESULT / FIELD_UPLOAD_QA_RESULT was not captured.', {
         device: targets[0],
         pagePath: 'pages/TestLabPage',
+        buildInfo: waitResult.buildInfo ? JSON.stringify(waitResult.buildInfo) : '-',
+        fieldResult: waitResult.fieldResult ? JSON.stringify(waitResult.fieldResult) : '-',
+        uploadResult: waitResult.uploadResult ? JSON.stringify(waitResult.uploadResult) : '-',
         log: filteredLog
       });
-      console.log('Device QA did not complete: FIELD_QA_RESULT not found.');
+      console.log('Device QA did not complete: required QA log result not found.');
       process.exitCode = 1;
       return;
     }
 
-    const failedTests = Array.isArray(waitResult.result.tests)
-      ? waitResult.result.tests.filter((item) => item.status !== '通过')
+    const failedTests = Array.isArray(waitResult.fieldResult.tests)
+      ? waitResult.fieldResult.tests.filter((item) => item.status !== '\u901a\u8fc7')
       : [];
-    if (waitResult.result.success === true && failedTests.length === 0) {
-      writeReport('通过', '检测到 FIELD_QA_RESULT 且全部通过。', {
+    const uploadPassed = waitResult.uploadResult.success === true &&
+      waitResult.uploadResult.pngUpload === true &&
+      waitResult.uploadResult.pngPreview === true &&
+      waitResult.uploadResult.pdfUpload === true &&
+      waitResult.uploadResult.pdfPreview === true;
+
+    if (waitResult.fieldResult.success !== true || failedTests.length > 0 || !uploadPassed) {
+      writeReport('failed', 'QA result contains failed items.', {
         device: targets[0],
         pagePath: 'pages/TestLabPage',
-        fieldResult: 'success=true',
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: JSON.stringify(waitResult.fieldResult),
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        failedTests,
         log: filteredLog
       });
-      console.log('Device QA passed.');
+      console.error('Device QA failed: QA result contains failed tests.');
+      process.exitCode = 1;
       return;
     }
 
-    writeReport('失败', '检测到 FIELD_QA_RESULT，但存在失败项。', {
+    layout = dumpLayout(hdc);
+    const recycleButton = undefined;
+    clickNode(hdc, recycleButton, { x: 1228, y: 830 });
+    layout = await waitForPage(hdc, 'pages/RecycleBinPage', 12000);
+    if (pagePath(layout) !== 'pages/RecycleBinPage') {
+      writeReport('failed', 'RecycleBinPage did not open.', {
+        device: targets[0],
+        pagePath: pagePath(layout),
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: 'success=true',
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        log: filteredLog
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    let raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
+    filteredLog = filterLog(raw);
+    if (/RuntimeError|JS_ERROR|undefined is not callable|RecycleBinPage\.ets/i.test(filteredLog)) {
+      writeReport('failed', 'RecycleBinPage still produced an error in HiLog.', {
+        device: targets[0],
+        pagePath: 'pages/RecycleBinPage',
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: 'success=true',
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        log: filteredLog
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    const backButton = undefined;
+    clickNode(hdc, backButton, { x: 2150, y: 201 });
+    layout = await waitForPage(hdc, 'pages/WorkbenchPage', 12000);
+
+    const importButton = findButtonContainingText(layout, 'PDF') ?? findTextNode(layout, 'PDF');
+    clickNode(hdc, importButton, { x: 285, y: 165 });
+    layout = await waitForPage(hdc, 'pages/DocumentUploadPage', 12000);
+    if (pagePath(layout) !== 'pages/DocumentUploadPage') {
+      writeReport('failed', 'Import PDF button did not open DocumentUploadPage.', {
+        device: targets[0],
+        pagePath: pagePath(layout),
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: 'success=true',
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        log: filteredLog
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    layout = dumpLayout(hdc);
+    const uploadBackButton = undefined;
+    clickNode(hdc, uploadBackButton, { x: 2160, y: 201 });
+    layout = await waitForPage(hdc, 'pages/WorkbenchPage', 12000);
+    const cardUploadButton = undefined;
+    clickNode(hdc, cardUploadButton, { x: 1014, y: 1217 });
+    layout = await waitForPage(hdc, 'pages/DocumentUploadPage', 12000);
+    if (pagePath(layout) !== 'pages/DocumentUploadPage') {
+      writeReport('failed', 'Document card upload button did not open DocumentUploadPage.', {
+        device: targets[0],
+        pagePath: pagePath(layout),
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: 'success=true',
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        log: filteredLog
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
+    filteredLog = filterLog(raw);
+    if (/RuntimeError|JS_ERROR|undefined is not callable/i.test(filteredLog)) {
+      writeReport('failed', 'Runtime error appeared after interaction checks.', {
+        device: targets[0],
+        pagePath: pagePath(layout),
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: 'success=true',
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        log: filteredLog
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    writeReport('passed', 'BUILD_INFO, FIELD_QA_RESULT, FIELD_UPLOAD_QA_RESULT, RecycleBinPage, and upload entry navigation were verified.', {
       device: targets[0],
-      pagePath: 'pages/TestLabPage',
-      fieldResult: 'success=false',
-      failedTests,
+      pagePath: pagePath(layout),
+      buildInfo: JSON.stringify(waitResult.buildInfo),
+      fieldResult: 'success=true',
+      uploadResult: JSON.stringify(waitResult.uploadResult),
       log: filteredLog
     });
-    console.error('Device QA failed: FIELD_QA_RESULT contains failed tests.');
-    process.exitCode = 1;
+    console.log('Device QA passed.');
+    return;
   } catch (error) {
     const reason = 'hdc 安装、启动、UI 操作或抓取日志失败。';
     writeReport('失败', reason, {
