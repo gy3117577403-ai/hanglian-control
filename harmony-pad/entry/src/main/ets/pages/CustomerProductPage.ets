@@ -10,27 +10,21 @@ export struct CustomerProductPage {
   @State private products: Product[] = [];
   @State private selectedCustomerId: string = '';
   @State private selectedProductId: string = '';
-  @State private lastAction: string = '等待操作';
+  @State private statusText: string = '客户与产品页已加载。';
   @State private errorText: string = '';
-  @State private loadingText: string = '客户与产品页已加载';
-  @State private sourceLabel: string = 'real API';
-  @State private tapCount: number = 0;
 
   aboutToAppear(): void {
     void this.refresh();
   }
 
-  private bump(action: string): void {
-    this.tapCount += 1;
-    this.lastAction = action;
+  private logAction(action: string): void {
     console.info(`[HanglianPad] ${action}`);
   }
 
-  private errorMessage(error: Object, fallback: string): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return fallback;
+  private showFailure(action: string, error: Object): void {
+    console.error(`[HanglianPad] ${action} failed`, error);
+    this.errorText = '操作失败，请稍后重试。';
+    this.statusText = this.errorText;
   }
 
   private nowSuffix(): string {
@@ -43,8 +37,8 @@ export struct CustomerProductPage {
   }
 
   private async refresh(): Promise<void> {
-    this.bump('customer product refresh clicked');
-    this.loadingText = '正在刷新客户与产品...';
+    this.logAction('customer product refresh clicked');
+    this.statusText = '正在刷新客户与产品...';
     this.errorText = '';
     try {
       const customerResult = await CustomerProductService.listCustomers();
@@ -57,48 +51,42 @@ export struct CustomerProductPage {
       if (this.selectedProductId.length === 0 && this.products.length > 0) {
         this.selectedProductId = this.products[0].id;
       }
-      this.sourceLabel = customerResult.source === 'api' && productResult.source === 'api' ? 'API 在线' : 'mock fallback';
-      this.loadingText = `${customerResult.message} / ${productResult.message}`;
-      this.lastAction = 'customer product refresh success';
+      this.statusText = '资料已更新。';
     } catch (error) {
-      this.errorText = this.errorMessage(error, '客户与产品刷新失败');
-      this.loadingText = '客户与产品刷新失败';
-      this.lastAction = `customer product refresh failed: ${this.errorText}`;
+      this.showFailure('customer product refresh', error);
     }
   }
 
-  private async createTestCustomer(): Promise<string> {
-    this.bump('create test customer clicked');
+  private async createCustomer(): Promise<string> {
+    this.logAction('create customer clicked');
     this.errorText = '';
     const suffix = this.nowSuffix();
     const payload: CustomerPayload = {
-      name: `测试客户-${suffix}`,
+      name: `现场客户-${suffix}`,
       code: `CUS-${suffix}`,
-      salesOwner: 'MatePad'
+      salesOwner: '现场'
     };
     try {
       const result = await CustomerProductService.createCustomer(payload);
       this.selectedCustomerId = result.data.id;
-      this.loadingText = `${result.message} / customerId: ${result.data.id}`;
-      this.lastAction = `create customer success: ${result.data.id}`;
+      this.statusText = '新增成功。';
       await this.refresh();
       return result.data.id;
     } catch (error) {
-      this.errorText = this.errorMessage(error, '新增测试客户失败');
-      this.lastAction = `create customer failed: ${this.errorText}`;
+      this.showFailure('create customer', error);
       return '';
     }
   }
 
-  private async createTestProduct(): Promise<void> {
-    this.bump('create test product clicked');
+  private async createProduct(): Promise<void> {
+    this.logAction('create product clicked');
     this.errorText = '';
     let customerId = this.selectedCustomerId;
     if (customerId.length === 0) {
-      customerId = await this.createTestCustomer();
+      customerId = await this.createCustomer();
     }
     if (customerId.length === 0) {
-      this.errorText = '没有可绑定的客户，无法新增产品。';
+      this.statusText = '请先新增客户。';
       return;
     }
 
@@ -106,8 +94,8 @@ export struct CustomerProductPage {
     const processSegment: ProcessSegment = '通用';
     const payload: ProductPayload = {
       customerId: customerId,
-      productCode: `HL-TEST-${suffix}`,
-      productName: `测试产品-${suffix}`,
+      productCode: `HL-${suffix}`,
+      productName: `线束产品-${suffix}`,
       currentVersion: 'V1.0',
       processSegment: processSegment
     };
@@ -115,57 +103,64 @@ export struct CustomerProductPage {
     try {
       const result = await CustomerProductService.createProduct(payload);
       this.selectedProductId = result.data.id;
-      this.loadingText = `${result.message} / productId: ${result.data.id}`;
-      this.lastAction = `create product success: ${result.data.id}`;
+      this.statusText = '新增成功。';
       await this.refresh();
     } catch (error) {
-      this.errorText = this.errorMessage(error, '新增测试产品失败');
-      this.lastAction = `create product failed: ${this.errorText}`;
+      this.showFailure('create product', error);
     }
   }
 
   private async deleteSelectedCustomer(): Promise<void> {
-    this.bump('delete selected customer clicked');
+    this.logAction('delete selected customer clicked');
     if (this.selectedCustomerId.length === 0) {
-      this.errorText = '请先选中一个客户。';
+      this.statusText = '请先选择客户。';
       return;
     }
     try {
-      const result = await CustomerProductService.deleteCustomer(this.selectedCustomerId);
-      this.loadingText = result.message;
-      this.lastAction = `delete customer success: ${this.selectedCustomerId}`;
+      await CustomerProductService.deleteCustomer(this.selectedCustomerId);
       this.selectedCustomerId = '';
+      this.statusText = '删除成功。';
       await this.refresh();
     } catch (error) {
-      this.errorText = this.errorMessage(error, '删除客户失败');
-      this.lastAction = `delete customer failed: ${this.errorText}`;
+      this.showFailure('delete customer', error);
     }
   }
 
   private async deleteSelectedProduct(): Promise<void> {
-    this.bump('delete selected product clicked');
+    this.logAction('delete selected product clicked');
     if (this.selectedProductId.length === 0) {
-      this.errorText = '请先选中一个产品。';
+      this.statusText = '请先选择产品。';
       return;
     }
     try {
-      const result = await CustomerProductService.deleteProduct(this.selectedProductId);
-      this.loadingText = result.message;
-      this.lastAction = `delete product success: ${this.selectedProductId}`;
+      await CustomerProductService.deleteProduct(this.selectedProductId);
       this.selectedProductId = '';
+      this.statusText = '删除成功。';
       await this.refresh();
     } catch (error) {
-      this.errorText = this.errorMessage(error, '删除产品失败');
-      this.lastAction = `delete product failed: ${this.errorText}`;
+      this.showFailure('delete product', error);
     }
   }
 
+  private editCustomer(customer: Customer): void {
+    this.logAction('edit customer clicked');
+    this.selectedCustomerId = customer.id;
+    this.statusText = '已选择客户，可继续新增产品或删除。';
+  }
+
+  private editProduct(product: Product): void {
+    this.logAction('edit product clicked');
+    this.selectedProductId = product.id;
+    this.selectedCustomerId = product.customerId;
+    this.statusText = '已选择产品，可返回工作台上传资料。';
+  }
+
   private returnWorkbench(): void {
-    this.bump('customer product return workbench clicked');
+    this.logAction('customer product return workbench clicked');
     router.replaceUrl({ url: 'pages/WorkbenchPage' })
       .catch((error: BusinessError) => {
-        this.errorText = `返回工作台失败：${error.code} / ${error.message}`;
-        this.lastAction = this.errorText;
+        console.error('[HanglianPad] return workbench failed', error);
+        this.statusText = '操作失败，请稍后重试。';
       });
   }
 
@@ -180,7 +175,7 @@ export struct CustomerProductPage {
       .layoutWeight(1)
       .width('100%')
 
-      this.Diagnostics();
+      this.StatusPanel();
     }
     .width('100%')
     .height('100%')
@@ -191,43 +186,35 @@ export struct CustomerProductPage {
   @Builder
   private Header() {
     Row({ space: 10 }) {
-      Column({ space: 4 }) {
-        Text('客户与产品')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#342316')
-        Text(`${this.loadingText} / ${this.sourceLabel}`)
-          .fontSize(13)
-          .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#76512A')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
+      Text('客户与产品')
+        .fontSize(26)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#342316')
+        .layoutWeight(1)
 
-      Button('刷新客户')
+      Button('新增客户')
         .height(46)
-        .width(110)
+        .width(120)
+        .backgroundColor('#C87934')
+        .fontColor(Color.White)
+        .onClick(() => {
+          void this.createCustomer();
+        })
+      Button('新增产品')
+        .height(46)
+        .width(120)
+        .backgroundColor('#614C8A')
+        .fontColor(Color.White)
+        .onClick(() => {
+          void this.createProduct();
+        })
+      Button('刷新')
+        .height(46)
+        .width(92)
         .backgroundColor('#2F6B4F')
         .fontColor(Color.White)
         .onClick(() => {
           void this.refresh();
-        })
-      Button('新增测试客户')
-        .height(46)
-        .width(140)
-        .backgroundColor('#C87934')
-        .fontColor(Color.White)
-        .onClick(() => {
-          void this.createTestCustomer();
-        })
-      Button('新增测试产品')
-        .height(46)
-        .width(140)
-        .backgroundColor('#614C8A')
-        .fontColor(Color.White)
-        .onClick(() => {
-          void this.createTestProduct();
         })
       Button('返回工作台')
         .height(46)
@@ -254,9 +241,9 @@ export struct CustomerProductPage {
           .fontWeight(FontWeight.Bold)
           .fontColor('#342316')
           .layoutWeight(1)
-        Button('删除/停用选中客户')
+        Button('删除')
           .height(42)
-          .width(160)
+          .width(86)
           .backgroundColor('#8F3F1D')
           .fontColor(Color.White)
           .onClick(() => {
@@ -275,21 +262,20 @@ export struct CustomerProductPage {
                   .fontColor('#342316')
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Text(`${customer.code} / ${customer.salesOwner || '-'} / 产品 ${customer.productCount ?? 0}`)
+                Text(`状态：启用 / 产品 ${customer.productCount ?? 0} / 创建时间：-`)
                   .fontSize(13)
                   .fontColor('#76512A')
               }
               .layoutWeight(1)
               .alignItems(HorizontalAlign.Start)
 
-              Button(this.selectedCustomerId === customer.id ? '已选中' : '选中')
+              Button(this.selectedCustomerId === customer.id ? '已选择' : '选择')
                 .height(42)
                 .width(86)
                 .backgroundColor(this.selectedCustomerId === customer.id ? '#C87934' : '#2F6B4F')
                 .fontColor(Color.White)
                 .onClick(() => {
-                  this.bump(`select customer clicked: ${customer.id}`);
-                  this.selectedCustomerId = customer.id;
+                  this.editCustomer(customer);
                 })
             }
             .width('100%')
@@ -319,9 +305,9 @@ export struct CustomerProductPage {
           .fontWeight(FontWeight.Bold)
           .fontColor('#342316')
           .layoutWeight(1)
-        Button('删除/停用选中产品')
+        Button('删除')
           .height(42)
-          .width(160)
+          .width(86)
           .backgroundColor('#8F3F1D')
           .fontColor(Color.White)
           .onClick(() => {
@@ -340,7 +326,7 @@ export struct CustomerProductPage {
                   .fontColor('#342316')
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Text(`${product.productName} / ${product.currentVersion} / ${product.customerName || product.customerId}`)
+                Text(`${product.productName} / ${product.currentVersion} / 状态：${product.isActive === false ? '停用' : '启用'} / 创建时间：-`)
                   .fontSize(13)
                   .fontColor('#76512A')
                   .maxLines(1)
@@ -349,15 +335,13 @@ export struct CustomerProductPage {
               .layoutWeight(1)
               .alignItems(HorizontalAlign.Start)
 
-              Button(this.selectedProductId === product.id ? '已选中' : '选中')
+              Button(this.selectedProductId === product.id ? '已选择' : '编辑')
                 .height(42)
                 .width(86)
                 .backgroundColor(this.selectedProductId === product.id ? '#C87934' : '#2F6B4F')
                 .fontColor(Color.White)
                 .onClick(() => {
-                  this.bump(`select product clicked: ${product.id}`);
-                  this.selectedProductId = product.id;
-                  this.selectedCustomerId = product.customerId;
+                  this.editProduct(product);
                 })
             }
             .width('100%')
@@ -379,27 +363,15 @@ export struct CustomerProductPage {
   }
 
   @Builder
-  private Diagnostics() {
-    Column({ space: 4 }) {
-      Text(`tapCount: ${this.tapCount} / lastAction: ${this.lastAction}`)
-        .fontSize(12)
-        .fontColor('#6F5845')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(`selectedCustomerId: ${this.selectedCustomerId || '-'} / selectedProductId: ${this.selectedProductId || '-'}`)
-        .fontSize(12)
-        .fontColor('#6F5845')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(this.errorText.length > 0 ? `errorText: ${this.errorText}` : 'errorText: -')
-        .fontSize(12)
-        .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .padding(12)
-    .backgroundColor('#FFF8EC')
-    .borderRadius(8)
+  private StatusPanel() {
+    Text(this.errorText.length > 0 ? this.errorText : this.statusText)
+      .width('100%')
+      .height(42)
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
+      .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+      .backgroundColor(this.errorText.length > 0 ? '#FFF0EC' : '#FFF8EC')
+      .borderRadius(8)
   }
 }

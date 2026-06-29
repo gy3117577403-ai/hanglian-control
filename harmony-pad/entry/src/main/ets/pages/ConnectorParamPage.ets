@@ -13,27 +13,21 @@ export struct ConnectorParamPage {
   @State private rows: ConnectorParam[] = [];
   @State private searchText: string = '';
   @State private selectedId: string = '';
-  @State private lastAction: string = '等待操作';
+  @State private statusText: string = '连接器参数页已加载。';
   @State private errorText: string = '';
-  @State private loadingText: string = '连接器参数页已加载';
-  @State private sourceLabel: string = 'real API';
-  @State private tapCount: number = 0;
 
   aboutToAppear(): void {
     void this.refresh();
   }
 
-  private bump(action: string): void {
-    this.tapCount += 1;
-    this.lastAction = action;
+  private logAction(action: string): void {
     console.info(`[HanglianPad] ${action}`);
   }
 
-  private errorMessage(error: Object, fallback: string): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return fallback;
+  private showFailure(action: string, error: Object): void {
+    console.error(`[HanglianPad] ${action} failed`, error);
+    this.errorText = '操作失败，请稍后重试。';
+    this.statusText = this.errorText;
   }
 
   private nowSuffix(): string {
@@ -45,108 +39,102 @@ export struct ConnectorParamPage {
   }
 
   private async refresh(): Promise<void> {
-    this.bump('connector refresh clicked');
+    this.logAction('connector refresh clicked');
     this.errorText = '';
-    this.loadingText = '正在刷新连接器参数...';
+    this.statusText = '正在刷新连接器参数...';
     try {
       const result = await ConnectorParamService.list();
       this.rows = result.data;
       if (this.selectedId.length === 0 && this.rows.length > 0) {
         this.selectedId = this.rows[0].id;
       }
-      this.sourceLabel = result.source === 'api' ? 'API 在线' : 'mock fallback';
-      this.loadingText = result.message;
-      this.lastAction = 'connector refresh success';
+      this.statusText = '资料已更新。';
     } catch (error) {
-      this.errorText = this.errorMessage(error, '连接器刷新失败');
-      this.loadingText = '连接器刷新失败';
-      this.lastAction = `connector refresh failed: ${this.errorText}`;
+      this.showFailure('connector refresh', error);
     }
   }
 
-  private async createTestConnector(): Promise<void> {
-    this.bump('create test connector clicked');
+  private async createConnector(): Promise<void> {
+    this.logAction('create connector clicked');
     this.errorText = '';
     const suffix = this.nowSuffix();
     const payload: ConnectorParamPayload = {
-      connectorModel: `CONN-TEST-${suffix}`,
+      connectorModel: `CONN-${suffix}`,
       inputLength: '10',
       outerStripLength: '5',
       innerStripLength: '3',
       status: this.activeStatus(),
-      remark: 'MatePad test'
+      remark: '现场录入'
     };
     try {
       const result = await ConnectorParamService.create(payload);
       this.selectedId = result.data.id;
-      this.loadingText = `${result.message} / id: ${result.data.id}`;
-      this.lastAction = `create connector success: ${result.data.id}`;
+      this.statusText = '新增成功。';
       await this.refresh();
     } catch (error) {
-      this.errorText = this.errorMessage(error, '新增连接器失败');
-      this.lastAction = `create connector failed: ${this.errorText}`;
+      this.showFailure('create connector', error);
     }
   }
 
   private async deleteSelected(): Promise<void> {
-    this.bump('delete selected connector clicked');
+    this.logAction('delete selected connector clicked');
     if (this.selectedId.length === 0) {
-      this.errorText = '请先选中一条连接器参数。';
+      this.statusText = '请先选择连接器参数。';
       return;
     }
     try {
-      const result = await ConnectorParamService.delete(this.selectedId);
-      this.loadingText = result.message;
-      this.lastAction = `delete connector success: ${this.selectedId}`;
+      await ConnectorParamService.delete(this.selectedId);
       this.selectedId = '';
+      this.statusText = '删除成功。';
       await this.refresh();
     } catch (error) {
-      this.errorText = this.errorMessage(error, '删除连接器失败');
-      this.lastAction = `delete connector failed: ${this.errorText}`;
+      this.showFailure('delete connector', error);
     }
   }
 
   private async importOne(): Promise<void> {
-    this.bump('connector import-one clicked');
+    this.logAction('connector import-one clicked');
     const suffix = this.nowSuffix();
     const payload: ConnectorImportOnePayload = {
-      connectorModel: `CONN-TEST-${suffix}`,
+      connectorModel: `CONN-${suffix}`,
       insertionLength: 10,
       outerStripLength: 5,
       innerStripLength: 3,
       status: 'active',
-      remark: 'MatePad test'
+      remark: '现场导入'
     };
     try {
       const result = await ConnectorParamService.importOne(payload);
       this.selectedId = result.data.id;
-      this.loadingText = result.message;
-      this.lastAction = `import-one success: ${result.data.id}`;
+      this.statusText = '单型号导入完成。';
       await this.refresh();
     } catch (error) {
-      this.errorText = this.errorMessage(error, '单型号导入失败');
-      this.lastAction = `import-one failed: ${this.errorText}`;
+      this.showFailure('connector import-one', error);
     }
   }
 
   private async exportCsv(): Promise<void> {
-    this.bump('connector export clicked');
+    this.logAction('connector export clicked');
     try {
-      const result = await ConnectorParamService.exportCsv();
-      this.loadingText = result.message;
-      this.lastAction = `export success: ${result.data}`;
+      await ConnectorParamService.exportCsv();
+      this.statusText = '导出已完成。';
     } catch (error) {
-      this.errorText = this.errorMessage(error, '导出接口失败');
-      this.lastAction = `export failed: ${this.errorText}`;
+      this.showFailure('connector export', error);
     }
   }
 
+  private selectRow(row: ConnectorParam): void {
+    this.logAction('connector edit clicked');
+    this.selectedId = row.id;
+    this.statusText = '已选择连接器参数。';
+  }
+
   private returnWorkbench(): void {
-    this.bump('connector return workbench clicked');
+    this.logAction('connector return workbench clicked');
     router.replaceUrl({ url: 'pages/WorkbenchPage' })
       .catch((error: BusinessError) => {
-        this.errorText = `返回工作台失败：${error.code} / ${error.message}`;
-        this.lastAction = this.errorText;
+        console.error('[HanglianPad] connector return workbench failed', error);
+        this.statusText = '操作失败，请稍后重试。';
       });
   }
 
@@ -175,7 +163,7 @@ export struct ConnectorParamPage {
       this.Header();
       this.Toolbar();
       this.ListPanel();
-      this.Diagnostics();
+      this.StatusPanel();
     }
     .width('100%')
     .height('100%')
@@ -186,19 +174,11 @@ export struct ConnectorParamPage {
   @Builder
   private Header() {
     Row({ space: 10 }) {
-      Column({ space: 4 }) {
-        Text('连接器参数')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#342316')
-        Text(`${this.loadingText} / ${this.sourceLabel}`)
-          .fontSize(13)
-          .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#76512A')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
+      Text('连接器参数')
+        .fontSize(26)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#342316')
+        .layoutWeight(1)
 
       Button('返回工作台')
         .height(46)
@@ -225,7 +205,7 @@ export struct ConnectorParamPage {
         .backgroundColor('#FFFCF4')
         .onChange((value: string) => {
           this.searchText = value;
-          this.bump(`connector search changed: ${value}`);
+          this.logAction('connector search changed');
         })
       Button('刷新')
         .height(46)
@@ -235,17 +215,17 @@ export struct ConnectorParamPage {
         .onClick(() => {
           void this.refresh();
         })
-      Button('新增测试连接器')
+      Button('新增')
         .height(46)
-        .width(150)
+        .width(92)
         .backgroundColor('#C87934')
         .fontColor(Color.White)
         .onClick(() => {
-          void this.createTestConnector();
+          void this.createConnector();
         })
-      Button('删除选中项')
+      Button('删除')
         .height(46)
-        .width(120)
+        .width(92)
         .backgroundColor('#8F3F1D')
         .fontColor(Color.White)
         .onClick(() => {
@@ -259,9 +239,9 @@ export struct ConnectorParamPage {
         .onClick(() => {
           void this.importOne();
         })
-      Button('导出 CSV')
+      Button('导出')
         .height(46)
-        .width(110)
+        .width(92)
         .backgroundColor('#9C5725')
         .fontColor(Color.White)
         .onClick(() => {
@@ -277,7 +257,7 @@ export struct ConnectorParamPage {
     Column({ space: 8 }) {
       Row({ space: 8 }) {
         ForEach(this.statusStats(), (item: StatusCount) => {
-          Text(`${item.label}: ${item.count}`)
+          Text(`${item.label}：${item.count}`)
             .fontSize(13)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
@@ -297,7 +277,7 @@ export struct ConnectorParamPage {
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#342316')
-                Text(`入长 ${row.inputLength} / 外剥 ${row.outerStripLength} / 内剥 ${row.innerStripLength} / ${row.remark || '-'}`)
+                Text(`入长 ${row.inputLength} / 外剥长度 ${row.outerStripLength} / 内剥长度 ${row.innerStripLength} / ${row.remark || '-'}`)
                   .fontSize(13)
                   .fontColor('#76512A')
                   .maxLines(1)
@@ -316,14 +296,13 @@ export struct ConnectorParamPage {
                 .backgroundColor(this.statusColor(row.status))
                 .borderRadius(6)
 
-              Button(this.selectedId === row.id ? '已选中' : '选中')
+              Button(this.selectedId === row.id ? '已选择' : '编辑')
                 .height(42)
                 .width(86)
                 .backgroundColor(this.selectedId === row.id ? '#C87934' : '#2F6B4F')
                 .fontColor(Color.White)
                 .onClick(() => {
-                  this.bump(`select connector clicked: ${row.id}`);
-                  this.selectedId = row.id;
+                  this.selectRow(row);
                 })
             }
             .width('100%')
@@ -345,25 +324,15 @@ export struct ConnectorParamPage {
   }
 
   @Builder
-  private Diagnostics() {
-    Column({ space: 4 }) {
-      Text(`tapCount: ${this.tapCount} / lastAction: ${this.lastAction}`)
-        .fontSize(12)
-        .fontColor('#6F5845')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(`selectedId: ${this.selectedId || '-'} / rows: ${this.visibleRows().length}`)
-        .fontSize(12)
-        .fontColor('#6F5845')
-      Text(this.errorText.length > 0 ? `errorText: ${this.errorText}` : 'errorText: -')
-        .fontSize(12)
-        .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .padding(12)
-    .backgroundColor('#FFF8EC')
-    .borderRadius(8)
+  private StatusPanel() {
+    Text(this.errorText.length > 0 ? this.errorText : this.statusText)
+      .width('100%')
+      .height(42)
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
+      .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+      .backgroundColor(this.errorText.length > 0 ? '#FFF0EC' : '#FFF8EC')
+      .borderRadius(8)
   }
 }

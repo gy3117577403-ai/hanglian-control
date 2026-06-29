@@ -13,27 +13,28 @@ export struct OrderOverviewPage {
   @State private completionStatus: StatusCount[] = [];
   @State private orderCount: number = 0;
   @State private customerCount: number = 0;
-  @State private lastAction: string = '等待操作';
+  @State private statusText: string = '订单总览页已加载。';
   @State private errorText: string = '';
-  @State private loadingText: string = '订单总览页已加载';
-  @State private sourceLabel: string = 'real API';
-  @State private tapCount: number = 0;
 
   aboutToAppear(): void {
     void this.refresh();
   }
 
-  private bump(action: string): void {
-    this.tapCount += 1;
-    this.lastAction = action;
+  private logAction(action: string): void {
     console.info(`[HanglianPad] ${action}`);
   }
 
-  private errorMessage(error: Object, fallback: string): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return fallback;
+  private showFailure(action: string, error: Object): void {
+    console.error(`[HanglianPad] ${action} failed`, error);
+    this.todayOrders = [];
+    this.weekOrders = [];
+    this.allOrders = [];
+    this.productionStatus = [];
+    this.completionStatus = [];
+    this.orderCount = 0;
+    this.customerCount = 0;
+    this.errorText = '网络异常，请稍后重试。';
+    this.statusText = this.errorText;
   }
 
   private applyOverview(data: OrderOverview): void {
@@ -47,35 +48,24 @@ export struct OrderOverviewPage {
   }
 
   private async refresh(): Promise<void> {
-    this.bump('order overview refresh clicked');
+    this.logAction('order overview refresh clicked');
     this.errorText = '';
-    this.loadingText = '正在加载订单总览...';
+    this.statusText = '正在加载订单总览...';
     try {
       const result = await OrderService.overview();
       this.applyOverview(result.data);
-      this.sourceLabel = result.source === 'api' ? 'API 在线' : 'mock fallback';
-      this.loadingText = result.message;
-      this.lastAction = 'order overview refresh success';
+      this.statusText = this.allOrders.length > 0 ? '资料已更新。' : '暂无订单。';
     } catch (error) {
-      this.todayOrders = [];
-      this.weekOrders = [];
-      this.allOrders = [];
-      this.productionStatus = [];
-      this.completionStatus = [];
-      this.orderCount = 0;
-      this.customerCount = 0;
-      this.errorText = this.errorMessage(error, '订单总览加载失败');
-      this.loadingText = '订单总览加载失败，已 fallback 空列表。';
-      this.lastAction = `order overview refresh failed: ${this.errorText}`;
+      this.showFailure('order overview refresh', error);
     }
   }
 
   private returnWorkbench(): void {
-    this.bump('order overview return workbench clicked');
+    this.logAction('order overview return workbench clicked');
     router.replaceUrl({ url: 'pages/WorkbenchPage' })
       .catch((error: BusinessError) => {
-        this.errorText = `返回工作台失败：${error.code} / ${error.message}`;
-        this.lastAction = this.errorText;
+        console.error('[HanglianPad] order overview return workbench failed', error);
+        this.statusText = '操作失败，请稍后重试。';
       });
   }
 
@@ -118,7 +108,7 @@ export struct OrderOverviewPage {
       .layoutWeight(1)
       .width('100%')
 
-      this.Diagnostics();
+      this.MessagePanel();
     }
     .width('100%')
     .height('100%')
@@ -129,19 +119,11 @@ export struct OrderOverviewPage {
   @Builder
   private Header() {
     Row({ space: 10 }) {
-      Column({ space: 4 }) {
-        Text('订单总览')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#342316')
-        Text(`${this.loadingText} / ${this.sourceLabel}`)
-          .fontSize(13)
-          .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#76512A')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
+      Text('订单总览')
+        .fontSize(26)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#342316')
+        .layoutWeight(1)
 
       Button('刷新')
         .height(46)
@@ -262,7 +244,7 @@ export struct OrderOverviewPage {
             ForEach(rows, (order: ProductionOrder) => {
               Column({ space: 4 }) {
                 Row({ space: 8 }) {
-                  Text(order.weekPlanNo || order.id)
+                  Text(order.weekPlanNo || order.productCode)
                     .fontSize(17)
                     .fontWeight(FontWeight.Bold)
                     .fontColor('#342316')
@@ -306,25 +288,15 @@ export struct OrderOverviewPage {
   }
 
   @Builder
-  private Diagnostics() {
-    Column({ space: 4 }) {
-      Text(`tapCount: ${this.tapCount} / lastAction: ${this.lastAction}`)
-        .fontSize(12)
-        .fontColor('#6F5845')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(`allOrders: ${this.allOrders.length} / today: ${this.todayOrders.length} / week: ${this.weekOrders.length}`)
-        .fontSize(12)
-        .fontColor('#6F5845')
-      Text(this.errorText.length > 0 ? `errorText: ${this.errorText}` : 'errorText: -')
-        .fontSize(12)
-        .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .padding(12)
-    .backgroundColor('#FFF8EC')
-    .borderRadius(8)
+  private MessagePanel() {
+    Text(this.errorText.length > 0 ? this.errorText : this.statusText)
+      .width('100%')
+      .height(42)
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
+      .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+      .backgroundColor(this.errorText.length > 0 ? '#FFF0EC' : '#FFF8EC')
+      .borderRadius(8)
   }
 }

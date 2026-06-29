@@ -25,6 +25,7 @@ export class CameraService {
     return {
       uri: resultUri,
       uploadUri: `internal://cache/${fileName}`,
+      cachePath,
       name: fileName,
       mimeType: 'image/jpeg',
       size: fileStat.size,

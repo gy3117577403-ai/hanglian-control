@@ -52,6 +52,7 @@ export interface ProductOption {
 export interface SelectedUploadFile {
   uri: string;
   uploadUri: string;
+  cachePath?: string;
   name: string;
   mimeType: string;
   size: number;

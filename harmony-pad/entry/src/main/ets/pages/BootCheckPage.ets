@@ -3,26 +3,24 @@ import router from '@ohos.router';
 @Entry
 @Component
 struct BootCheckPage {
-  private readonly apiBaseUrl: string = 'https://fyeboolnlvqv.sealoshzh.site/api';
-
   build() {
-    Column({ space: 28 }) {
-      Text('HANG LIAN BOOT OK')
+    Column({ space: 24 }) {
+      Text('航联资料工作台')
         .fontSize(42)
         .fontWeight(FontWeight.Bold)
-        .fontColor(Color.White)
+        .fontColor('#342316')
 
-      Text(`API: ${this.apiBaseUrl}`)
+      Text('正在启动...')
         .fontSize(20)
-        .fontColor('#E6FFE6')
+        .fontColor('#76512A')
         .textAlign(TextAlign.Center)
 
-      Button('进入登录页')
-        .height(64)
-        .width(240)
-        .fontSize(20)
-        .fontColor('#008000')
-        .backgroundColor(Color.White)
+      Button('进入登录')
+        .height(56)
+        .width(180)
+        .fontSize(18)
+        .fontColor(Color.White)
+        .backgroundColor('#2F6B4F')
         .onClick(() => {
           router.replaceUrl({
             url: 'pages/LoginPage'
@@ -34,6 +32,6 @@ struct BootCheckPage {
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .padding(32)
-    .backgroundColor('#008000')
+    .backgroundColor('#F7F2EA')
   }
 }

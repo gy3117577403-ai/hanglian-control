@@ -1,7 +1,6 @@
 import common from '@ohos.app.ability.common';
 import request from '@ohos.request';
 import {
-  categoryOptionFor,
   documentIdOf,
   ProductDocument,
   ProductDocumentCategoryGroup,
@@ -25,6 +24,7 @@ export class UploadService {
     input: UploadDocumentInput,
     onProgress?: UploadProgressHandler
   ): Promise<string> {
+    console.info('[HanglianPad] upload start', input.file.name, input.documentType);
     const token = TokenStorageService.getCachedAccessToken();
     const headers: UploadHeaders = {};
     if (token) {
@@ -75,13 +75,18 @@ export class UploadService {
               category: input.category,
               documentId
             });
+            console.info('[HanglianPad] upload success', documentId);
             resolve(documentId);
           }).catch((error: Error) => reject(error));
         });
         task.on('fail', (states: request.TaskState[]) => {
+          console.error('[HanglianPad] upload failed', UploadService.taskStateMessage(states));
           reject(new Error(UploadService.taskStateMessage(states) || '上传失败，请稍后重试。'));
         });
-      }).catch((error: Error) => reject(error));
+      }).catch((error: Error) => {
+        console.error('[HanglianPad] upload failed', JSON.stringify(error));
+        reject(error);
+      });
     });
   }
 
@@ -96,7 +101,7 @@ export class UploadService {
     const match = documents.find((document: ProductDocument) => {
       return document.title === input.title &&
         document.version === input.version &&
-        document.documentType === categoryOptionFor(input.category).documentType;
+        document.documentType === input.documentType;
     }) ?? documents[0];
     const fallbackDocumentId = match ? documentIdOf(match) : '';
     if (fallbackDocumentId) return fallbackDocumentId;

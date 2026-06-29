@@ -1,6 +1,4 @@
 import router from '@ohos.router';
-import { BusinessError } from '@ohos.base';
-import { ApiError } from '../services/ApiClient';
 import { AuthService } from '../services/AuthService';
 
 @Entry
@@ -18,7 +16,7 @@ struct LoginPage {
 
   private renderMarker(): string {
     console.info('[HanglianPad] LoginPage build/render');
-    return '登录页已加载';
+    return '航联资料工作台';
   }
 
   private canSubmit(): boolean {
@@ -41,7 +39,7 @@ struct LoginPage {
       await this.navigateToWorkbench();
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.statusText = '登录失败，请检查错误信息。';
+      this.statusText = this.errorText;
       console.error('[HanglianPad] LoginPage login failed', error);
     } finally {
       this.isSubmitting = false;
@@ -62,42 +60,15 @@ struct LoginPage {
         url: 'pages/WorkbenchPage'
       });
     } catch (error) {
-      this.errorText = `Workbench 跳转失败：${this.formatRouterError(error)}`;
-      this.statusText = '登录成功，但跳转工作台失败。';
+      this.errorText = '操作失败，请稍后重试。';
+      this.statusText = this.errorText;
       console.error('[HanglianPad] LoginPage workbench navigation failed', error);
     }
   }
 
   private formatError(error: Object): string {
-    if (error instanceof ApiError) {
-      let message = `HTTP ${error.statusCode}: ${error.message}`;
-      if (error.requestUrl.length > 0) {
-        message += `\nURL: ${error.requestUrl}`;
-      }
-      if (error.responseBody.length > 0) {
-        message += `\n响应: ${error.responseBody}`;
-      }
-      return message;
-    }
-
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return '登录失败：未知错误';
-  }
-
-  private formatRouterError(error: Object): string {
-    const businessError = error as BusinessError;
-    if (businessError.code !== undefined) {
-      return `${businessError.code} / ${businessError.message}`;
-    }
-
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return '未知错误';
+    console.error('[HanglianPad] LoginPage friendly error', error);
+    return '登录失败，请检查账号密码或平板网络。';
   }
 
   build() {
@@ -111,11 +82,11 @@ struct LoginPage {
           .fontSize(26)
           .fontWeight(FontWeight.Bold)
           .fontColor('#008000')
-        Text('MatePad 原生工作台')
+        Text('车间资料管理')
           .fontSize(28)
           .fontWeight(FontWeight.Medium)
           .fontColor('#1E40AF')
-        Text('API: https://fyeboolnlvqv.sealoshzh.site/api')
+        Text('图纸、SOP、成品图和工艺资料统一归档')
           .fontSize(16)
           .fontColor('#64748B')
           .lineHeight(24)
@@ -198,9 +169,10 @@ struct LoginPage {
         .height(64)
         .width('100%')
         .backgroundColor(this.canSubmit() ? '#2563EB' : '#CBD5E1')
-        .enabled(this.canSubmit())
         .onClick(() => {
-          void this.submit();
+          if (this.canSubmit()) {
+            void this.submit();
+          }
         })
       }
       .width(460)

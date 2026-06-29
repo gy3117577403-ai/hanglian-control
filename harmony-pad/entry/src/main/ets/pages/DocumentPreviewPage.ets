@@ -16,12 +16,10 @@ struct DocumentPreviewPage {
   @State private documentId: string = '';
   @State private title: string = '资料预览';
   @State private preview: DocumentPreviewResponse | undefined = undefined;
-  @State private loadingText: string = '预览页已加载';
+  @State private statusText: string = '预览页已加载。';
   @State private errorText: string = '';
-  @State private lastAction: string = '等待操作';
   @State private downloading: boolean = false;
   @State private downloadPercent: number = 0;
-  @State private tapCount: number = 0;
 
   aboutToAppear(): void {
     const params = router.getParams() as PreviewRouteParams;
@@ -31,17 +29,8 @@ struct DocumentPreviewPage {
     void this.loadPreview();
   }
 
-  private bump(action: string): void {
-    this.tapCount += 1;
-    this.lastAction = action;
+  private logAction(action: string): void {
     console.info(`[HanglianPad] ${action}`);
-  }
-
-  private errorMessage(error: Object, fallback: string): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return fallback;
   }
 
   private uiContext(): common.UIAbilityContext {
@@ -49,55 +38,59 @@ struct DocumentPreviewPage {
   }
 
   private async loadPreview(): Promise<void> {
-    this.bump('document preview refresh clicked');
+    this.logAction('document preview refresh clicked');
     this.errorText = '';
     if (this.documentId.length === 0) {
-      this.loadingText = '缺少 documentId';
-      this.lastAction = 'preview missing documentId';
+      this.statusText = '缺少资料信息，无法预览。';
       return;
     }
 
-    this.loadingText = '正在加载预览...';
+    this.statusText = '正在加载预览...';
     try {
       this.preview = await DocumentPreviewService.getPreview(this.documentId);
       this.title = this.preview.title || this.title;
-      this.loadingText = `预览状态：${this.preview.previewStatus}`;
-      this.lastAction = `preview load success: ${this.documentId}`;
+      if (this.preview.previewStatus === 'ready') {
+        this.statusText = '预览已加载。';
+      } else if (this.preview.previewStatus === 'pending') {
+        this.statusText = '资料转换中，请稍后刷新。';
+      } else {
+        this.statusText = '预览转换失败，请稍后重试。';
+      }
     } catch (error) {
-      this.errorText = this.errorMessage(error, '预览加载失败');
-      this.loadingText = '预览加载失败';
-      this.lastAction = `preview load failed: ${this.errorText}`;
+      console.error('[HanglianPad] preview load failed', error);
+      this.errorText = '网络异常，请稍后重试。';
+      this.statusText = this.errorText;
     }
   }
 
   private async downloadOriginal(): Promise<void> {
-    this.bump('download original clicked');
+    this.logAction('download original clicked');
     if (this.documentId.length === 0) {
-      this.errorText = '缺少 documentId，无法下载。';
+      this.statusText = '缺少资料信息，无法下载。';
       return;
     }
     this.downloading = true;
     this.downloadPercent = 0;
     try {
-      const filePath = await DownloadService.downloadOriginal(this.uiContext(), this.documentId, this.title, (progress: UploadProgress) => {
+      await DownloadService.downloadOriginal(this.uiContext(), this.documentId, this.title, (progress: UploadProgress) => {
         this.downloadPercent = progress.percent;
       });
-      this.loadingText = `已下载到：${filePath}`;
-      this.lastAction = `download success: ${filePath}`;
+      this.statusText = '已完成。';
     } catch (error) {
-      this.errorText = this.errorMessage(error, '下载失败');
-      this.lastAction = `download failed: ${this.errorText}`;
+      console.error('[HanglianPad] download failed', error);
+      this.errorText = '操作失败，请稍后重试。';
+      this.statusText = this.errorText;
     } finally {
       this.downloading = false;
     }
   }
 
   private returnWorkbench(): void {
-    this.bump('preview return workbench clicked');
+    this.logAction('preview return workbench clicked');
     router.replaceUrl({ url: 'pages/WorkbenchPage' })
       .catch((error: BusinessError) => {
-        this.errorText = `返回工作台失败：${error.code} / ${error.message}`;
-        this.lastAction = this.errorText;
+        console.error('[HanglianPad] preview return workbench failed', error);
+        this.statusText = '操作失败，请稍后重试。';
       });
   }
 
@@ -113,17 +106,17 @@ struct DocumentPreviewPage {
   private StatusPanel() {
     Column({ space: 12 }) {
       if (this.documentId.length === 0) {
-        Text('缺少 documentId')
+        Text('缺少资料信息，无法预览')
           .fontSize(22)
           .fontWeight(FontWeight.Bold)
           .fontColor('#B91C1C')
       } else if (!this.preview) {
-        Text(this.loadingText)
+        Text(this.statusText)
           .fontSize(18)
           .fontColor('#475569')
       } else if (this.preview.previewStatus === 'pending') {
         LoadingProgress()
-        Text('预览转换中，请稍后刷新')
+        Text('资料转换中，请稍后刷新')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor('#1E293B')
@@ -132,12 +125,8 @@ struct DocumentPreviewPage {
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor('#B91C1C')
-        Text(this.preview.errorMessage ?? '未返回失败原因')
-          .fontSize(14)
-          .fontColor('#64748B')
-          .textAlign(TextAlign.Center)
       } else {
-        Text('暂无预览页')
+        Text('当前资料暂无内容，请先上传')
           .fontSize(18)
           .fontColor('#475569')
       }
@@ -201,9 +190,9 @@ struct DocumentPreviewPage {
             .fontColor('#111827')
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.preview ? `${this.preview.fileType} / ${this.preview.pageCount} 页 / ${this.preview.previewStatus}` : `documentId: ${this.documentId || '-'}`)
+          Text(this.statusText)
             .fontSize(12)
-            .fontColor('#64748B')
+            .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#64748B')
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
@@ -235,22 +224,6 @@ struct DocumentPreviewPage {
       } else {
         this.StatusPanel()
       }
-
-      Column({ space: 4 }) {
-        Text(`tapCount: ${this.tapCount} / lastAction: ${this.lastAction}`)
-          .fontSize(12)
-          .fontColor('#6F5845')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.errorText.length > 0 ? `errorText: ${this.errorText}` : 'errorText: -')
-          .fontSize(12)
-          .fontColor(this.errorText.length > 0 ? '#B91C1C' : '#6F5845')
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .width('100%')
-      .padding(10)
-      .backgroundColor('#FFF8EC')
     }
     .width('100%')
     .height('100%')

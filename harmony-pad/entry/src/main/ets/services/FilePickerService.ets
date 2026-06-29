@@ -34,6 +34,7 @@ export class FilePickerService {
     return {
       uri,
       uploadUri: `internal://cache/${cacheName}`,
+      cachePath,
       name: displayName,
       mimeType: FilePickerService.mimeTypeFor(displayName),
       size: copiedSize,
@@ -63,7 +64,23 @@ export class FilePickerService {
   }
 
   static safeFileName(fileName: string): string {
-    const normalized = fileName.replace(/[\\/:*?"<>|\r\n]/g, '_').trim();
-    return normalized.length > 0 ? normalized : `document-${Date.now()}.pdf`;
+    const extension = FilePickerService.safeExtension(fileName);
+    const rawBase = extension.length > 0 ? fileName.substring(0, fileName.length - extension.length) : fileName;
+    const normalized = rawBase
+      .replace(/[^A-Za-z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const safeBase = normalized.length > 0 ? normalized : `document-${Date.now()}`;
+    return `${safeBase}${extension.length > 0 ? extension : '.pdf'}`;
+  }
+
+  static safeExtension(fileName: string): string {
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return '.pdf';
+    if (lower.endsWith('.jpg')) return '.jpg';
+    if (lower.endsWith('.jpeg')) return '.jpg';
+    if (lower.endsWith('.png')) return '.png';
+    if (lower.endsWith('.webp')) return '.webp';
+    return '';
   }
 }
