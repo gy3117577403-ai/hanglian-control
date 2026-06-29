@@ -42,7 +42,7 @@ export struct RecycleBinPage {
     this.statusText = '正在刷新回收站...';
     try {
       const result = await RecycleBinService.list(this.filter());
-      this.rows = result.data;
+      this.rows = Array.isArray(result.data) ? result.data : [];
       if (this.selectedId.length === 0 && this.rows.length > 0) {
         this.selectedId = this.rows[0].id;
       }
@@ -98,6 +98,42 @@ export struct RecycleBinPage {
     if (type === '产品') return '#9C5725';
     if (type === '工艺参数') return '#614C8A';
     return '#8F3F1D';
+  }
+
+  private recycleRows(): RecycleBinItem[] {
+    return Array.isArray(this.rows) ? this.rows : [];
+  }
+
+  private safeText(value: string | undefined, fallback: string = '-'): string {
+    if (value === undefined || value === null || value.length === 0) {
+      return fallback;
+    }
+    return value;
+  }
+
+  private itemType(item: RecycleBinItem): RecycleEntityType {
+    if (item.entityType === '客户' || item.entityType === '产品' || item.entityType === '工艺参数' || item.entityType === '资料') {
+      return item.entityType;
+    }
+    return '资料';
+  }
+
+  private itemTitle(item: RecycleBinItem): string {
+    return this.safeText(item.title, '已删除资料');
+  }
+
+  private itemMeta(item: RecycleBinItem): string {
+    return `${this.safeText(item.productName)} / 删除时间：${this.safeText(item.deletedAt)}`;
+  }
+
+  private isSelected(item: RecycleBinItem): boolean {
+    return this.selectedId.length > 0 && this.selectedId === this.safeText(item.id, '');
+  }
+
+  private selectRecycleItem(item: RecycleBinItem): void {
+    this.logAction('select recycle item clicked');
+    this.selectedId = this.safeText(item.id, '');
+    this.statusText = '已选择回收站资料。';
   }
 
   build() {
@@ -234,7 +270,7 @@ export struct RecycleBinPage {
   @Builder
   private ListPanel() {
     Column({ space: 8 }) {
-      if (this.rows.length === 0) {
+      if (this.recycleRows().length === 0) {
         Text('暂无回收站资料')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
@@ -247,48 +283,8 @@ export struct RecycleBinPage {
       } else {
         Scroll() {
           Column({ space: 8 }) {
-            ForEach(this.rows, (item: RecycleBinItem) => {
-              Row({ space: 10 }) {
-                Text(item.entityType)
-                  .width(86)
-                  .fontSize(13)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(Color.White)
-                  .textAlign(TextAlign.Center)
-                  .padding({ top: 8, bottom: 8 })
-                  .backgroundColor(this.typeColor(item.entityType))
-                  .borderRadius(6)
-                Column({ space: 4 }) {
-                  Text(item.title)
-                    .fontSize(18)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#342316')
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  Text(`${item.productName || '-'} / 删除时间：${item.deletedAt}`)
-                    .fontSize(13)
-                    .fontColor('#76512A')
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                }
-                .layoutWeight(1)
-                .alignItems(HorizontalAlign.Start)
-                Button(this.selectedId === item.id ? '已选择' : '选择')
-                  .height(42)
-                  .width(86)
-                  .backgroundColor(this.selectedId === item.id ? '#C87934' : '#2F6B4F')
-                  .fontColor(Color.White)
-                  .onClick(() => {
-                    this.logAction('select recycle item clicked');
-                    this.selectedId = item.id;
-                    this.statusText = '已选择回收站资料。';
-                  })
-              }
-              .width('100%')
-              .height(78)
-              .padding({ left: 12, right: 12 })
-              .backgroundColor(this.selectedId === item.id ? '#FFF0CF' : '#FFFCF4')
-              .border({ width: 1, color: this.selectedId === item.id ? '#C87934' : '#70482324', radius: 8 })
+            ForEach(this.recycleRows(), (item: RecycleBinItem) => {
+              this.RecycleItem(item);
             }, (item: RecycleBinItem) => item.id)
           }
         }
@@ -301,6 +297,49 @@ export struct RecycleBinPage {
     .padding(12)
     .backgroundColor('#FFF8EA')
     .border({ width: 1, color: '#70482336', radius: 8 })
+  }
+
+  @Builder
+  private RecycleItem(item: RecycleBinItem) {
+    Row({ space: 10 }) {
+      Text(this.itemType(item))
+        .width(86)
+        .fontSize(13)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(Color.White)
+        .textAlign(TextAlign.Center)
+        .padding({ top: 8, bottom: 8 })
+        .backgroundColor(this.typeColor(this.itemType(item)))
+        .borderRadius(6)
+      Column({ space: 4 }) {
+        Text(this.itemTitle(item))
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#342316')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(this.itemMeta(item))
+          .fontSize(13)
+          .fontColor('#76512A')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      Button(this.isSelected(item) ? '已选择' : '选择')
+        .height(42)
+        .width(86)
+        .backgroundColor(this.isSelected(item) ? '#C87934' : '#2F6B4F')
+        .fontColor(Color.White)
+        .onClick(() => {
+          this.selectRecycleItem(item);
+        })
+    }
+    .width('100%')
+    .height(78)
+    .padding({ left: 12, right: 12 })
+    .backgroundColor(this.isSelected(item) ? '#FFF0CF' : '#FFFCF4')
+    .border({ width: 1, color: this.isSelected(item) ? '#C87934' : '#70482324', radius: 8 })
   }
 
   @Builder
