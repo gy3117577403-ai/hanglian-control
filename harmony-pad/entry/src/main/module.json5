@@ -2,6 +2,8 @@
   "module": {
     "name": "entry",
     "type": "entry",
+    "deliveryWithInstall": true,
+    "installationFree": false,
     "description": "$string:module_desc",
     "mainElement": "EntryAbility",
     "deviceTypes": [
