@@ -41,6 +41,7 @@ struct WorkbenchPage {
   @State private selectedProductModel: string = '';
   @State private selectedCustomerId: string = '';
   @State private pendingDeleteDocumentId: string = '';
+  @State private labClicks: number = 0;
 
   aboutToAppear(): void {
     console.info('[HanglianPad] WorkbenchPage render');
@@ -144,7 +145,7 @@ struct WorkbenchPage {
         this.selectedOrder = null;
         this.categories = emptyDocumentCategories();
         const hasProduct = await this.ensureProductFromCatalog();
-        this.statusText = hasProduct ? `已选择产品：${this.currentProductText()}` : '暂无产品，请先进入客户与产品创建。';
+        this.statusText = hasProduct ? `已选择产品：${this.currentProductText()}` : '暂无产品，请先进入客户与产品创建产品。';
       }
     } catch (error) {
       this.errorText = this.friendlyError(error, '网络异常，请检查平板网络。');
@@ -408,6 +409,20 @@ struct WorkbenchPage {
       });
   }
 
+  private enterTestLab(): void {
+    this.labClicks += 1;
+    if (this.labClicks < 5) {
+      return;
+    }
+
+    this.labClicks = 0;
+    router.pushUrl({ url: 'pages/TestLabPage' })
+      .catch((error: BusinessError) => {
+        console.error('[HanglianPad] open test lab failed', error);
+        this.statusText = '操作失败，请稍后重试。';
+      });
+  }
+
   build() {
     Column({ space: 10 }) {
       this.TopBar();
@@ -473,6 +488,9 @@ struct WorkbenchPage {
         .textAlign(TextAlign.Center)
         .backgroundColor('#9C5725')
         .borderRadius(8)
+        .onClick(() => {
+          this.enterTestLab();
+        })
 
       Text('航联资料工作台')
         .fontSize(28)

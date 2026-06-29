@@ -11,6 +11,7 @@
     "pages/OrderOverviewPage",
     "pages/CustomerProductPage",
     "pages/ConnectorParamPage",
-    "pages/RecycleBinPage"
+    "pages/RecycleBinPage",
+    "pages/TestLabPage"
   ]
 }

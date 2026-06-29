@@ -92,6 +92,37 @@ export struct ConnectorParamPage {
     }
   }
 
+  private async editSelected(): Promise<void> {
+    this.logAction('edit selected connector clicked');
+    if (this.selectedId.length === 0) {
+      this.statusText = '请先选择连接器参数。';
+      return;
+    }
+
+    const current = this.rows.find((row: ConnectorParam) => row.id === this.selectedId);
+    if (!current) {
+      this.statusText = '请先选择连接器参数。';
+      return;
+    }
+
+    const payload: ConnectorParamPayload = {
+      connectorModel: current.connectorModel,
+      inputLength: current.inputLength,
+      outerStripLength: current.outerStripLength,
+      innerStripLength: current.innerStripLength,
+      status: current.status,
+      remark: current.remark.length > 0 ? `${current.remark}；已复核` : '已复核'
+    };
+
+    try {
+      await ConnectorParamService.update(this.selectedId, payload);
+      this.statusText = '编辑已完成。';
+      await this.refresh();
+    } catch (error) {
+      this.showFailure('edit connector', error);
+    }
+  }
+
   private async importOne(): Promise<void> {
     this.logAction('connector import-one clicked');
     const suffix = this.nowSuffix();
@@ -230,6 +261,14 @@ export struct ConnectorParamPage {
         .fontColor(Color.White)
         .onClick(() => {
           void this.deleteSelected();
+        })
+      Button('编辑')
+        .height(46)
+        .width(92)
+        .backgroundColor('#2F6B4F')
+        .fontColor(Color.White)
+        .onClick(() => {
+          void this.editSelected();
         })
       Button('单型号导入')
         .height(46)

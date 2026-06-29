@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>航联 Harmony API 自检</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="header">
+        <div>
+          <h1>航联 Harmony API 自检</h1>
+          <p>电脑端 QA Console，仅用于开发和现场验收前的 Sealos API 检查。</p>
+        </div>
+        <button id="runAll">一键 API 自检</button>
+      </section>
+
+      <section class="config">
+        <label>
+          API_BASE_URL
+          <input id="apiBaseUrl" value="https://fyeboolnlvqv.sealoshzh.site/api" />
+        </label>
+        <label>
+          账号
+          <input id="username" value="admin" />
+        </label>
+        <label>
+          密码
+          <input id="password" type="password" value="123" />
+        </label>
+        <label>
+          上传文件
+          <input id="uploadFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" />
+        </label>
+      </section>
+
+      <section class="summary" id="summary">等待自检。</section>
+      <section class="steps" id="steps"></section>
+    </main>
+
+    <script src="./qa.js"></script>
+  </body>
+</html>

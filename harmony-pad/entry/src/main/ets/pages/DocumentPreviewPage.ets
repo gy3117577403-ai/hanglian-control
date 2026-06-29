@@ -41,7 +41,7 @@ struct DocumentPreviewPage {
     this.logAction('document preview refresh clicked');
     this.errorText = '';
     if (this.documentId.length === 0) {
-      this.statusText = '缺少资料信息，无法预览。';
+      this.statusText = '当前资料暂无内容，请先上传';
       return;
     }
 
@@ -52,9 +52,9 @@ struct DocumentPreviewPage {
       if (this.preview.previewStatus === 'ready') {
         this.statusText = '预览已加载。';
       } else if (this.preview.previewStatus === 'pending') {
-        this.statusText = '资料转换中，请稍后刷新。';
+        this.statusText = '资料正在转换，请稍后刷新';
       } else {
-        this.statusText = '预览转换失败，请稍后重试。';
+        this.statusText = '资料预览失败，请重新上传或联系管理员';
       }
     } catch (error) {
       console.error('[HanglianPad] preview load failed', error);
@@ -66,7 +66,7 @@ struct DocumentPreviewPage {
   private async downloadOriginal(): Promise<void> {
     this.logAction('download original clicked');
     if (this.documentId.length === 0) {
-      this.statusText = '缺少资料信息，无法下载。';
+      this.statusText = '当前资料暂无内容，请先上传';
       return;
     }
     this.downloading = true;
@@ -106,7 +106,7 @@ struct DocumentPreviewPage {
   private StatusPanel() {
     Column({ space: 12 }) {
       if (this.documentId.length === 0) {
-        Text('缺少资料信息，无法预览')
+        Text('当前资料暂无内容，请先上传')
           .fontSize(22)
           .fontWeight(FontWeight.Bold)
           .fontColor('#B91C1C')
@@ -116,12 +116,12 @@ struct DocumentPreviewPage {
           .fontColor('#475569')
       } else if (this.preview.previewStatus === 'pending') {
         LoadingProgress()
-        Text('资料转换中，请稍后刷新')
+        Text('资料正在转换，请稍后刷新')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor('#1E293B')
       } else if (this.preview.previewStatus === 'failed') {
-        Text('预览转换失败')
+        Text('资料预览失败，请重新上传或联系管理员')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor('#B91C1C')

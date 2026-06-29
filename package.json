@@ -142,6 +142,8 @@
     "image-build:check": "node scripts/image-build-config-check.mjs",
     "sealos:deploy-dry-run": "node scripts/sealos-deploy-dry-run-check.mjs",
     "sealos:production-smoke": "node scripts/sealos-production-smoke.mjs",
+    "qa:harmony-console": "node scripts/serve-harmony-qa-console.mjs",
+    "test:harmony-field": "node scripts/harmony-field-regression.mjs",
     "storage:legacy-scan": "node scripts/storage-legacy-scan.mjs",
     "demo:check": "node scripts/demo-readiness-check.mjs",
     "demo:release-check": "node scripts/demo-release-check.mjs",

@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-06-29T06:12:02.131Z",
+  "passed": true,
+  "total": 8,
+  "failed": 0,
+  "results": [
+    {
+      "name": "AppConfig API_BASE_URL 保持 Sealos /api 地址",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "AppConfig API_PREFIX 为空",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "UI 文案不显示调试字段",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "main_pages.json 包含现场页面",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "业务页面均有返回工作台按钮",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "ArkTS API 路径未重复写 /api 前缀",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "RecycleBinPage 列表渲染安全",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Workbench 主交互区域不使用 Grid",
+      "passed": true,
+      "details": ""
+    }
+  ]
+}

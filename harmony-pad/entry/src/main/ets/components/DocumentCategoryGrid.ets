@@ -22,22 +22,22 @@ export struct DocumentCategoryGrid {
           .alignSelf(ItemAlign.End)
       }
 
-      Grid() {
+      Scroll() {
+        Column({ space: 12 }) {
         ForEach(this.categories, (category: DocumentCategoryState) => {
-          GridItem() {
-            DocumentCard({
-              category: category,
-              onUpload: this.onUpload,
-              onPreview: this.onPreview,
-              onDelete: this.onDelete
-            })
-          }
+          DocumentCard({
+            category: category,
+            onUpload: this.onUpload,
+            onPreview: this.onPreview,
+            onDelete: this.onDelete
+          })
+          .width('100%')
         }, (category: DocumentCategoryState) => category.category)
       }
-      .columnsTemplate('1fr 1fr 1fr')
-      .rowsGap(16)
-      .columnsGap(16)
+      .width('100%')
+      }
       .layoutWeight(1)
+      .width('100%')
     }
     .width('100%')
     .height('100%')

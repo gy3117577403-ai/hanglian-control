@@ -25,25 +25,28 @@ export class UploadService {
     onProgress?: UploadProgressHandler
   ): Promise<string> {
     console.info('[HanglianPad] upload start', input.file.name, input.documentType);
-    const token = TokenStorageService.getCachedAccessToken();
+    let token = TokenStorageService.getCachedAccessToken();
+    if (!token) {
+      token = await TokenStorageService.getAccessToken();
+    }
     const headers: UploadHeaders = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
 
     const data: request.RequestData[] = [
-      { name: 'productId', value: input.productId },
-      { name: 'documentType', value: input.documentType },
-      { name: 'title', value: input.title },
-      { name: 'version', value: input.version },
+      { name: 'productId', value: UploadService.asText(input.productId) },
+      { name: 'documentType', value: UploadService.asText(input.documentType) },
+      { name: 'title', value: UploadService.asText(input.title) },
+      { name: 'version', value: UploadService.asText(input.version) },
       { name: 'status', value: 'effective' },
-      { name: 'requiredForProcess', value: input.requiredForProcess },
-      { name: 'source', value: input.file.source }
+      { name: 'requiredForProcess', value: UploadService.asText(input.requiredForProcess) },
+      { name: 'source', value: UploadService.asText(input.file.source) }
     ];
-    if (input.planId) data.push({ name: 'planId', value: input.planId });
-    if (input.keywords) data.push({ name: 'keywords', value: input.keywords });
-    if (input.remark) data.push({ name: 'remark', value: input.remark });
-    if (input.file.captureSource) data.push({ name: 'captureSource', value: input.file.captureSource });
+    if (input.planId) data.push({ name: 'planId', value: UploadService.asText(input.planId) });
+    if (input.keywords) data.push({ name: 'keywords', value: UploadService.asText(input.keywords) });
+    if (input.remark) data.push({ name: 'remark', value: UploadService.asText(input.remark) });
+    if (input.file.captureSource) data.push({ name: 'captureSource', value: UploadService.asText(input.file.captureSource) });
 
     const files: request.File[] = [
       {
@@ -88,6 +91,10 @@ export class UploadService {
         reject(error);
       });
     });
+  }
+
+  private static asText(value: string): string {
+    return `${value}`;
   }
 
   private static async resolveUploadResult(input: UploadDocumentInput, states: request.TaskState[]): Promise<string> {
