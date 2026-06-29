@@ -1,4 +1,5 @@
 {
+  "modelVersion": "26.0.0",
   "name": "hanglian-harmony-pad",
   "version": "1.0.0",
   "description": "Hanglian MatePad native ArkTS app",
@@ -6,8 +7,5 @@
   "author": "hanglian",
   "license": "MIT",
   "dependencies": {},
-  "devDependencies": {
-    "@ohos/hvigor": "4.1.1",
-    "@ohos/hvigor-ohos-plugin": "4.1.1"
-  }
+  "devDependencies": {}
 }
