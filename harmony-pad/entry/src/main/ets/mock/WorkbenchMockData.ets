@@ -75,8 +75,7 @@ export const MOCK_TODAY_ORDERS: WorkbenchOrder[] = [
   }
 ]
 
-export const MOCK_WEEK_ORDERS: WorkbenchOrder[] = [
-  ...MOCK_TODAY_ORDERS,
+export const MOCK_WEEK_ORDERS: WorkbenchOrder[] = MOCK_TODAY_ORDERS.concat([
   {
     id: 'ORD-W-005',
     orderId: 'ORD-W-005',
@@ -109,7 +108,7 @@ export const MOCK_WEEK_ORDERS: WorkbenchOrder[] = [
     status: 'no_drawing',
     completed: false
   }
-]
+])
 
 function mockDocument(
   order: WorkbenchOrder,

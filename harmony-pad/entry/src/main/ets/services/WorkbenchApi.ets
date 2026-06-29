@@ -234,7 +234,7 @@ export class WorkbenchApiClient {
       return asArray<RemoteOrder>(response).map((row: RemoteOrder) => normalizeOrder(row));
     } catch (error) {
       if (!AppConfig.ENABLE_MOCK_FALLBACK) {
-        throw error;
+        throw WorkbenchApiClient.toThrowable(error, '订单加载失败');
       }
       this.source = 'mock';
       return scope === 'today' ? MOCK_TODAY_ORDERS : MOCK_WEEK_ORDERS;
@@ -248,7 +248,7 @@ export class WorkbenchApiClient {
       return asArray<RemoteOrder>(response).map((row: RemoteOrder) => normalizeOrder(row));
     } catch (error) {
       if (!AppConfig.ENABLE_MOCK_FALLBACK) {
-        throw error;
+        throw WorkbenchApiClient.toThrowable(error, '订单加载失败');
       }
       this.source = 'mock';
       return MOCK_WEEK_ORDERS;
@@ -273,10 +273,17 @@ export class WorkbenchApiClient {
       return normalizeProductDocuments(asObject<RemoteProductDocumentsResponse>(response));
     } catch (error) {
       if (!AppConfig.ENABLE_MOCK_FALLBACK) {
-        throw error;
+        throw WorkbenchApiClient.toThrowable(error, '产品资料加载失败');
       }
       this.source = 'mock';
       return mockDocumentCategories(order);
     }
+  }
+
+  private static toThrowable(error: Object, fallbackMessage: string): Error {
+    if (error instanceof Error) {
+      return error;
+    }
+    return new Error(fallbackMessage);
   }
 }

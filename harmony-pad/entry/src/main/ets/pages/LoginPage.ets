@@ -1,4 +1,5 @@
 import router from '@ohos.router';
+import { BusinessError } from '@ohos.base';
 import { ApiError } from '../services/ApiClient';
 import { AuthService } from '../services/AuthService';
 
@@ -36,15 +37,34 @@ struct LoginPage {
     try {
       await AuthService.login(this.username.trim(), this.password);
       this.statusText = '登录成功，正在进入工作台...';
-      await router.replaceUrl({
-        url: 'pages/WorkbenchPage'
-      });
+      await this.waitBeforeNavigation();
+      await this.navigateToWorkbench();
     } catch (error) {
       this.errorText = this.formatError(error);
       this.statusText = '登录失败，请检查错误信息。';
       console.error('[HanglianPad] LoginPage login failed', error);
     } finally {
       this.isSubmitting = false;
+    }
+  }
+
+  private waitBeforeNavigation(): Promise<void> {
+    return new Promise((resolve: () => void) => {
+      setTimeout(() => {
+        resolve();
+      }, 350);
+    });
+  }
+
+  private async navigateToWorkbench(): Promise<void> {
+    try {
+      await router.replaceUrl({
+        url: 'pages/WorkbenchPage'
+      });
+    } catch (error) {
+      this.errorText = `Workbench 跳转失败：${this.formatRouterError(error)}`;
+      this.statusText = '登录成功，但跳转工作台失败。';
+      console.error('[HanglianPad] LoginPage workbench navigation failed', error);
     }
   }
 
@@ -65,6 +85,19 @@ struct LoginPage {
     }
 
     return '登录失败：未知错误';
+  }
+
+  private formatRouterError(error: Object): string {
+    const businessError = error as BusinessError;
+    if (businessError.code !== undefined) {
+      return `${businessError.code} / ${businessError.message}`;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return '未知错误';
   }
 
   build() {
