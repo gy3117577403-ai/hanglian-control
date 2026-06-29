@@ -65,6 +65,7 @@ function writeReport(status, reason, details = {}) {
     `- BUILD_INFO: ${details.buildInfo ?? '-'}`,
     `- FIELD_QA_RESULT: ${details.fieldResult ?? '-'}`,
     `- FIELD_UPLOAD_QA_RESULT: ${details.uploadResult ?? '-'}`,
+    `- FIELD_MANUAL_UPLOAD_PAGE_RESULT: ${details.manualUploadPageResult ?? '-'}`,
     `- layout: ${layoutPath.replaceAll('\\', '/')}`,
     `- log: ${logPath.replaceAll('\\', '/')}`,
     ''
@@ -162,6 +163,17 @@ function parseUploadResult(log) {
   }
 }
 
+function parseManualUploadPageResult(log) {
+  const matches = [...log.matchAll(/FIELD_MANUAL_UPLOAD_PAGE_RESULT\s+({.+})/g)];
+  if (matches.length === 0) return undefined;
+  const raw = matches[matches.length - 1][1];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 function parseBuildInfo(log) {
   const matches = [...log.matchAll(/BUILD_INFO\s+({.+})/g)];
   if (matches.length === 0) return undefined;
@@ -176,7 +188,7 @@ function parseBuildInfo(log) {
 function filterLog(log) {
   return log
     .split(/\r?\n/)
-    .filter((line) => /HanglianPad|BUILD_INFO|FIELD_QA_RESULT|FIELD_UPLOAD_QA_RESULT|upload failed detail|RuntimeError|JS_ERROR|TypeError|undefined is not callable|Http protocol error/i.test(line))
+    .filter((line) => /HanglianPad|BUILD_INFO|FIELD_QA_RESULT|FIELD_UPLOAD_QA_RESULT|FIELD_MANUAL_UPLOAD_PAGE_RESULT|manual upload failed detail|upload failed detail|RuntimeError|JS_ERROR|TypeError|undefined is not callable|Http protocol error/i.test(line))
     .join('\n');
 }
 
@@ -266,6 +278,60 @@ async function waitForQaResults(hdc, timeoutMs) {
     uploadResult: parseUploadResult(filtered),
     filtered
   };
+}
+
+async function waitForManualUploadPageResult(hdc, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let filtered = '';
+  while (Date.now() < deadline) {
+    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
+    filtered = filterLog(raw);
+    const result = parseManualUploadPageResult(filtered);
+    if (result) return { result, filtered };
+    await sleep(5000);
+  }
+  return { result: parseManualUploadPageResult(filtered), filtered };
+}
+
+async function waitForManualUploadPagePass(hdc, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let filtered = '';
+  let result;
+  while (Date.now() < deadline) {
+    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
+    filtered = filterLog(raw);
+    result = parseManualUploadPageResult(filtered);
+    if (
+      result &&
+      result.filePickerPdfUpload === true &&
+      result.filePickerPdfPreview === true &&
+      result.cameraJpgUpload === true &&
+      result.cameraJpgPreview === true
+    ) {
+      return { result, filtered };
+    }
+    await sleep(5000);
+  }
+  return { result, filtered };
+}
+
+async function revealUploadPageQaButtons(hdc) {
+  let layout = dumpLayout(hdc);
+  const title = findTextNode(layout, 'PDF / 图片资料上传');
+  for (let index = 0; index < 5; index += 1) {
+    clickNode(hdc, title, { x: 220, y: 72 });
+    await sleep(250);
+  }
+
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    layout = dumpLayout(hdc);
+    if (findButtonContainingText(layout, '生成测试PDF并上传') && findButtonContainingText(layout, '生成测试图片并上传')) {
+      return layout;
+    }
+    await sleep(1000);
+  }
+  return layout;
 }
 
 async function main() {
@@ -440,47 +506,70 @@ async function main() {
       return;
     }
 
+    layout = await revealUploadPageQaButtons(hdc);
+    const pdfQaButton = findButtonContainingText(layout, '生成测试PDF并上传');
+    const imageQaButton = findButtonContainingText(layout, '生成测试图片并上传');
+    if (!pdfQaButton || !imageQaButton) {
+      writeReport('failed', 'DocumentUploadPage manual upload QA buttons were not revealed.', {
+        device: targets[0],
+        pagePath: pagePath(layout),
+        buildInfo: JSON.stringify(waitResult.buildInfo),
+        fieldResult: 'success=true',
+        uploadResult: JSON.stringify(waitResult.uploadResult),
+        log: filteredLog
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    clickNode(hdc, pdfQaButton, { x: 690, y: 1180 });
+    await waitForManualUploadPageResult(hdc, 160000);
     layout = dumpLayout(hdc);
-    const uploadBackButton = undefined;
-    clickNode(hdc, uploadBackButton, { x: 2160, y: 201 });
-    layout = await waitForPage(hdc, 'pages/WorkbenchPage', 12000);
-    const cardUploadButton = undefined;
-    clickNode(hdc, cardUploadButton, { x: 1014, y: 1217 });
-    layout = await waitForPage(hdc, 'pages/DocumentUploadPage', 12000);
-    if (pagePath(layout) !== 'pages/DocumentUploadPage') {
-      writeReport('failed', 'Document card upload button did not open DocumentUploadPage.', {
+    const nextImageQaButton = findButtonContainingText(layout, '生成测试图片并上传');
+    clickNode(hdc, nextImageQaButton, { x: 1710, y: 1180 });
+    const manualWaitResult = await waitForManualUploadPagePass(hdc, 180000);
+    filteredLog = manualWaitResult.filtered;
+    const manualUploadPassed = manualWaitResult.result &&
+      manualWaitResult.result.filePickerPdfUpload === true &&
+      manualWaitResult.result.filePickerPdfPreview === true &&
+      manualWaitResult.result.cameraJpgUpload === true &&
+      manualWaitResult.result.cameraJpgPreview === true;
+
+    if (!manualUploadPassed) {
+      writeReport('failed', 'DocumentUploadPage manual PDF/JPG upload QA did not pass.', {
         device: targets[0],
         pagePath: pagePath(layout),
         buildInfo: JSON.stringify(waitResult.buildInfo),
         fieldResult: 'success=true',
         uploadResult: JSON.stringify(waitResult.uploadResult),
+        manualUploadPageResult: manualWaitResult.result ? JSON.stringify(manualWaitResult.result) : '-',
         log: filteredLog
       });
       process.exitCode = 1;
       return;
     }
 
-    raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-    filteredLog = filterLog(raw);
-    if (/RuntimeError|JS_ERROR|undefined is not callable/i.test(filteredLog)) {
-      writeReport('failed', 'Runtime error appeared after interaction checks.', {
+    if (/RuntimeError|JS_ERROR|undefined is not callable|Http protocol error/i.test(filteredLog)) {
+      writeReport('failed', 'Runtime or upload protocol error appeared after manual upload page QA.', {
         device: targets[0],
         pagePath: pagePath(layout),
         buildInfo: JSON.stringify(waitResult.buildInfo),
         fieldResult: 'success=true',
         uploadResult: JSON.stringify(waitResult.uploadResult),
+        manualUploadPageResult: JSON.stringify(manualWaitResult.result),
         log: filteredLog
       });
       process.exitCode = 1;
       return;
     }
 
-    writeReport('passed', 'BUILD_INFO, FIELD_QA_RESULT, FIELD_UPLOAD_QA_RESULT, RecycleBinPage, and upload entry navigation were verified.', {
+    writeReport('passed', 'BUILD_INFO, FIELD_QA_RESULT, FIELD_UPLOAD_QA_RESULT, FIELD_MANUAL_UPLOAD_PAGE_RESULT, RecycleBinPage, and DocumentUploadPage manual upload paths were verified.', {
       device: targets[0],
       pagePath: pagePath(layout),
       buildInfo: JSON.stringify(waitResult.buildInfo),
       fieldResult: 'success=true',
       uploadResult: JSON.stringify(waitResult.uploadResult),
+      manualUploadPageResult: JSON.stringify(manualWaitResult.result),
       log: filteredLog
     });
     console.log('Device QA passed.');

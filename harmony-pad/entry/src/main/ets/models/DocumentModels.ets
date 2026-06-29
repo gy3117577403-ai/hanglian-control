@@ -15,7 +15,7 @@ export type DocumentType =
   'process_card';
 
 export type RequiredProcess = 'front' | 'back' | 'common';
-export type UploadSource = 'manual_upload' | 'camera_capture';
+export type UploadSource = 'test_lab' | 'file_picker' | 'camera';
 export type PreviewStatus = 'pending' | 'ready' | 'failed';
 
 export interface DocumentCategoryOption {
@@ -49,7 +49,7 @@ export interface ProductOption {
   currentVersion?: string;
 }
 
-export interface SelectedUploadFile {
+export interface NormalizedUploadFile {
   uri: string;
   uploadUri: string;
   fallbackUploadUri?: string;
@@ -60,6 +60,8 @@ export interface SelectedUploadFile {
   source: UploadSource;
   captureSource?: 'environment_camera';
 }
+
+export interface SelectedUploadFile extends NormalizedUploadFile {}
 
 export interface UploadDocumentInput {
   productId: string;

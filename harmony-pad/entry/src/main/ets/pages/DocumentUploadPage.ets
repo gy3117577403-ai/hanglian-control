@@ -1,5 +1,6 @@
 import common from '@ohos.app.ability.common';
 import fs from '@ohos.file.fs';
+import fileUri from '@ohos.file.fileuri';
 import pasteboard from '@ohos.pasteboard';
 import router from '@ohos.router';
 import { BusinessError } from '@ohos.base';
@@ -13,7 +14,9 @@ import {
   UploadProgress,
   safeDocumentTitle
 } from '../models/DocumentModels';
+import { BuildInfo } from '../services/BuildInfo';
 import { CameraService } from '../services/CameraService';
+import { DocumentPreviewService } from '../services/DocumentPreviewService';
 import { FilePickerService } from '../services/FilePickerService';
 import { TokenStorageService } from '../services/TokenStorageService';
 import { UploadFailedDetail, UploadService } from '../services/UploadService';
@@ -24,6 +27,17 @@ interface UploadRouteParams {
   planId?: string;
   category?: string;
   title?: string;
+  qaMode?: string;
+}
+
+interface ManualUploadPageResult {
+  filePickerPdfUpload: boolean;
+  filePickerPdfPreview: boolean;
+  cameraJpgUpload: boolean;
+  cameraJpgPreview: boolean;
+  uploadUriScheme: string;
+  requestUploadFile: boolean;
+  multipartFallback: boolean;
 }
 
 const MAX_UPLOAD_SIZE: number = 50 * 1024 * 1024;
@@ -42,9 +56,18 @@ struct DocumentUploadPage {
   @State private isUploading: boolean = false;
   @State private canPreview: boolean = false;
   @State private canCopyErrorSummary: boolean = false;
+  @State private showErrorSummaryText: boolean = false;
+  @State private showQaActions: boolean = false;
   private selectedFile: SelectedUploadFile | undefined = undefined;
   private uploadedDocumentId: string = '';
   private lastUploadErrorSummary: string = '';
+  private qaTapCount: number = 0;
+  private filePickerPdfUpload: boolean = false;
+  private filePickerPdfPreview: boolean = false;
+  private cameraJpgUpload: boolean = false;
+  private cameraJpgPreview: boolean = false;
+  private manualUploadUriScheme: string = 'none';
+  private multipartFallbackEnabled: boolean = false;
 
   aboutToAppear(): void {
     const params = router.getParams() as UploadRouteParams;
@@ -53,6 +76,7 @@ struct DocumentUploadPage {
     this.planId = params?.planId ?? '';
     this.category = this.normalizeCategory(params?.category ?? 'original_drawing');
     this.title = params?.title ?? categoryOptionFor(this.category).label;
+    this.showQaActions = params?.qaMode === 'true';
     console.info('[HanglianPad] DocumentUploadPage render');
   }
 
@@ -99,9 +123,30 @@ struct DocumentUploadPage {
     return fallback;
   }
 
+  private sourceAction(file: SelectedUploadFile): string {
+    if (file.source === 'camera') return 'camera';
+    if (file.source === 'file_picker') return 'file_picker';
+    return 'file_picker';
+  }
+
+  private sourceLabel(file: SelectedUploadFile): string {
+    return file.source === 'camera' ? '拍照' : '选择文件';
+  }
+
+  private uriScheme(value: string): string {
+    const index = value.indexOf(':');
+    if (index <= 0) return 'path';
+    return value.substring(0, index);
+  }
+
+  private cacheFileExists(file: SelectedUploadFile): boolean {
+    return this.cacheFileSize(file) > 0;
+  }
+
   private applySelectedFile(file: SelectedUploadFile | undefined): void {
     this.lastUploadErrorSummary = '';
     this.canCopyErrorSummary = false;
+    this.showErrorSummaryText = false;
     if (!file) {
       this.selectedFile = undefined;
       this.selectedFileName = '未选择文件';
@@ -177,10 +222,11 @@ struct DocumentUploadPage {
 
   private buildInput(file: SelectedUploadFile): UploadDocumentInput {
     const process: RequiredProcess = 'common';
+    const planId = this.uploadPlanId();
     return {
       productId: this.productId,
       productModel: this.productModel,
-      planId: this.planId.length > 0 ? this.planId : undefined,
+      planId: planId.length > 0 ? planId : undefined,
       category: this.category,
       documentType: this.documentTypeFor(file),
       title: this.title.length > 0 ? this.title : safeDocumentTitle(file.name, this.category),
@@ -192,9 +238,22 @@ struct DocumentUploadPage {
     };
   }
 
+  private uploadPlanId(): string {
+    const value = this.planId.trim();
+    if (value.length === 0) return '';
+    if (value.startsWith('product-')) return '';
+    if (value === this.productId) return '';
+    return value;
+  }
+
   private requestPath(url: string): string {
     const marker = '/documents/upload';
     return url.indexOf(marker) >= 0 ? marker : '/documents/upload';
+  }
+
+  private fileExt(fileName: string): string {
+    const index = fileName.lastIndexOf('.');
+    return index >= 0 ? fileName.substring(index).toLowerCase() : '';
   }
 
   private uploadErrorType(detail: UploadFailedDetail | undefined, error: Object): string {
@@ -217,18 +276,50 @@ struct DocumentUploadPage {
   private buildErrorSummary(error: Object, file: SelectedUploadFile): string {
     const detail = UploadService.extractErrorDetail(error);
     const statusCode = detail ? detail.requestStatusCode : 0;
-    const requestPath = detail ? this.requestPath(detail.url) : '/documents/upload';
+    const requestPath = detail ? (detail.requestPath || this.requestPath(detail.url)) : '/documents/upload';
+    const uploadUriScheme = detail ? detail.uploadUriScheme : this.uriScheme(file.uploadUri);
+    const errorMessage = detail ? (detail.osError || detail.uploadTaskMessage || detail.rawErrorMessage || '-') : this.errorMessage(error, '-');
+    this.multipartFallbackEnabled = detail ? detail.fallbackEnabled : false;
     const lines: string[] = [
-      `上传失败阶段：${detail ? detail.step : 'upload'}`,
+      `时间：${detail ? detail.timestamp : new Date().toISOString()}`,
+      `操作来源：${this.sourceLabel(file)}`,
       `文件名：${file.name}`,
       `文件类型：${file.mimeType}`,
       `文件大小：${file.size}`,
-      `后端状态码：${statusCode > 0 ? statusCode : '-'}`,
-      `错误类型：${this.uploadErrorType(detail, error)}`,
-      `请求路径：${requestPath}`,
-      `时间：${detail ? detail.timestamp : new Date().toISOString()}`
+      `资料类型：${this.categoryLabel()}`,
+      `上传阶段：${detail ? detail.step : 'upload'}`,
+      `状态码：${statusCode > 0 ? statusCode : '-'}`,
+      `错误码：${detail && detail.uploadTaskCode > 0 ? detail.uploadTaskCode : '-'}`,
+      `错误信息：${errorMessage}`,
+      `requestPath：${requestPath}`,
+      `uploadUriScheme：${uploadUriScheme}`,
+      `BUILD_INFO commit：${BuildInfo.COMMIT}`
     ];
     return lines.join('\n');
+  }
+
+  private logManualUploadFailure(error: Object, file: SelectedUploadFile): void {
+    const detail = UploadService.extractErrorDetail(error);
+    const payload = detail ?? new UploadFailedDetail();
+    payload.source = 'document_upload_page';
+    payload.action = this.sourceAction(file);
+    payload.step = detail ? detail.step : 'upload_file';
+    payload.fileName = file.name;
+    payload.fileExt = this.fileExt(file.name);
+    payload.mimeType = file.mimeType;
+    payload.fileSize = file.size;
+    payload.cacheFileExists = this.cacheFileExists(file);
+    payload.uploadUriScheme = detail ? detail.uploadUriScheme : this.uriScheme(file.uploadUri);
+    payload.uploadUriSample = detail ? detail.uploadUriSample : `${payload.uploadUriScheme}://.../${file.name}`;
+    payload.productModel = this.productModel;
+    payload.categoryLabel = this.categoryLabel();
+    payload.documentType = this.documentTypeFor(file);
+    payload.requestPath = detail ? (detail.requestPath || '/documents/upload') : '/documents/upload';
+    payload.rawErrorMessage = detail ? detail.rawErrorMessage : this.errorMessage(error, '-');
+    payload.timestamp = detail ? detail.timestamp : new Date().toISOString();
+    this.manualUploadUriScheme = payload.uploadUriScheme;
+    this.multipartFallbackEnabled = payload.fallbackEnabled;
+    console.error('[HanglianPad] manual upload failed detail ' + JSON.stringify(payload));
   }
 
   private async copyErrorSummary(): Promise<void> {
@@ -243,28 +334,31 @@ struct DocumentUploadPage {
       this.statusMessage = '错误摘要已复制，可粘贴给现场支持。';
     } catch (error) {
       console.error('[HanglianPad] copy upload error summary failed', error);
-      this.statusMessage = '复制失败，请稍后重试。';
+      this.showErrorSummaryText = true;
+      this.statusMessage = '复制失败，请长按下方错误摘要复制。';
     }
   }
 
-  private async upload(): Promise<void> {
+  private async upload(): Promise<boolean> {
     console.info('[HanglianPad] upload submit clicked');
     const validation = await this.validateBeforeUpload();
     if (validation.length > 0) {
       this.uploadStatus = '上传失败';
       this.statusMessage = validation;
-      return;
+      return false;
     }
 
     const file = this.selectedFile as SelectedUploadFile;
     this.isUploading = true;
     this.canPreview = false;
     this.canCopyErrorSummary = false;
+    this.showErrorSummaryText = false;
     this.lastUploadErrorSummary = '';
     this.uploadStatus = '正在上传';
     this.statusMessage = '资料正在上传，请稍候。';
     try {
       const input = this.buildInput(file);
+      this.manualUploadUriScheme = this.uriScheme(file.uploadUri);
       const documentId = await UploadService.uploadDocument(this.uiContext(), input, (progress: UploadProgress) => {
         this.statusMessage = `资料正在上传：${progress.percent}%`;
       });
@@ -274,15 +368,177 @@ struct DocumentUploadPage {
       this.lastUploadErrorSummary = '';
       this.uploadStatus = '上传成功';
       this.statusMessage = '上传成功，资料已更新。';
+      return true;
     } catch (error) {
       this.lastUploadErrorSummary = this.buildErrorSummary(error, file);
       this.canCopyErrorSummary = true;
+      this.logManualUploadFailure(error, file);
       console.error('[HanglianPad] upload failed summary ' + this.lastUploadErrorSummary.replace(/\n/g, ' | '));
       this.canPreview = false;
       this.uploadStatus = '上传失败';
       this.statusMessage = '上传失败，请检查网络后重试。';
+      return false;
     } finally {
       this.isUploading = false;
+    }
+  }
+
+  private revealQaActions(): void {
+    this.qaTapCount += 1;
+    if (this.qaTapCount >= 5) {
+      this.qaTapCount = 0;
+      this.showQaActions = true;
+      this.statusMessage = '现场自测入口已开启。';
+    }
+  }
+
+  private async runManualUploadPageQa(kind: string): Promise<void> {
+    if (this.isUploading) return;
+    const stamp = `${Date.now()}`;
+    try {
+      if (kind === 'pdf') {
+        this.applySelectedFile(this.createQaPdfFile(`manual-picker-${stamp}.pdf`));
+      } else {
+        this.applySelectedFile(this.createQaCameraImageFile(`camera-${stamp}.jpg`));
+      }
+      const uploaded = await this.upload();
+      let previewReady = false;
+      if (uploaded && this.uploadedDocumentId.length > 0) {
+        await this.waitForPreviewReady(this.uploadedDocumentId);
+        previewReady = true;
+      }
+
+      if (kind === 'pdf') {
+        this.filePickerPdfUpload = uploaded;
+        this.filePickerPdfPreview = previewReady;
+      } else {
+        this.cameraJpgUpload = uploaded;
+        this.cameraJpgPreview = previewReady;
+      }
+    } catch (error) {
+      console.error('[HanglianPad] manual upload page qa failed', error);
+      this.statusMessage = '上传失败，请检查网络后重试。';
+      if (kind === 'pdf') {
+        this.filePickerPdfUpload = false;
+        this.filePickerPdfPreview = false;
+      } else {
+        this.cameraJpgUpload = false;
+        this.cameraJpgPreview = false;
+      }
+    } finally {
+      this.emitManualUploadPageResult();
+    }
+  }
+
+  private emitManualUploadPageResult(): void {
+    const result: ManualUploadPageResult = {
+      filePickerPdfUpload: this.filePickerPdfUpload,
+      filePickerPdfPreview: this.filePickerPdfPreview,
+      cameraJpgUpload: this.cameraJpgUpload,
+      cameraJpgPreview: this.cameraJpgPreview,
+      uploadUriScheme: this.manualUploadUriScheme,
+      requestUploadFile: true,
+      multipartFallback: this.multipartFallbackEnabled
+    };
+    console.info('[HanglianPad] FIELD_MANUAL_UPLOAD_PAGE_RESULT ' + JSON.stringify(result));
+  }
+
+  private async waitForPreviewReady(documentId: string): Promise<void> {
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      const preview = await DocumentPreviewService.getPreview(documentId);
+      if (preview.previewStatus === 'ready') {
+        return;
+      }
+      if (preview.previewStatus === 'failed') {
+        throw new Error('preview failed');
+      }
+      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 2000));
+    }
+    throw new Error('preview timeout');
+  }
+
+  private createQaPdfFile(fileName: string): SelectedUploadFile {
+    const bytes: number[] = [
+      37, 80, 68, 70, 45, 49, 46, 52, 10, 49, 32, 48, 32, 111, 98, 106, 10,
+      60, 60, 32, 47, 84, 121, 112, 101, 32, 47, 67, 97, 116, 97, 108, 111,
+      103, 32, 47, 80, 97, 103, 101, 115, 32, 50, 32, 48, 32, 82, 32, 62, 62,
+      10, 101, 110, 100, 111, 98, 106, 10, 50, 32, 48, 32, 111, 98, 106, 10,
+      60, 60, 32, 47, 84, 121, 112, 101, 32, 47, 80, 97, 103, 101, 115, 32,
+      47, 75, 105, 100, 115, 32, 91, 51, 32, 48, 32, 82, 93, 32, 47, 67, 111,
+      117, 110, 116, 32, 49, 32, 62, 62, 10, 101, 110, 100, 111, 98, 106, 10,
+      51, 32, 48, 32, 111, 98, 106, 10, 60, 60, 32, 47, 84, 121, 112, 101,
+      32, 47, 80, 97, 103, 101, 32, 47, 80, 97, 114, 101, 110, 116, 32, 50,
+      32, 48, 32, 82, 32, 47, 77, 101, 100, 105, 97, 66, 111, 120, 32, 91,
+      48, 32, 48, 32, 51, 54, 48, 32, 49, 54, 48, 93, 32, 47, 82, 101, 115,
+      111, 117, 114, 99, 101, 115, 32, 60, 60, 32, 47, 70, 111, 110, 116,
+      32, 60, 60, 32, 47, 70, 49, 32, 53, 32, 48, 32, 82, 32, 62, 62, 32,
+      62, 62, 32, 47, 67, 111, 110, 116, 101, 110, 116, 115, 32, 52, 32, 48,
+      32, 82, 32, 62, 62, 10, 101, 110, 100, 111, 98, 106, 10, 52, 32, 48,
+      32, 111, 98, 106, 10, 60, 60, 32, 47, 76, 101, 110, 103, 116, 104, 32,
+      53, 49, 32, 62, 62, 10, 115, 116, 114, 101, 97, 109, 10, 66, 84, 32,
+      47, 70, 49, 32, 50, 48, 32, 84, 102, 32, 51, 54, 32, 57, 54, 32, 84,
+      100, 32, 40, 72, 97, 114, 109, 111, 110, 121, 32, 70, 105, 101, 108,
+      100, 32, 80, 68, 70, 32, 69, 50, 69, 41, 32, 84, 106, 32, 69, 84, 10,
+      101, 110, 100, 115, 116, 114, 101, 97, 109, 10, 101, 110, 100, 111, 98,
+      106, 10, 53, 32, 48, 32, 111, 98, 106, 10, 60, 60, 32, 47, 84, 121,
+      112, 101, 32, 47, 70, 111, 110, 116, 32, 47, 83, 117, 98, 116, 121,
+      112, 101, 32, 47, 84, 121, 112, 101, 49, 32, 47, 66, 97, 115, 101, 70,
+      111, 110, 116, 32, 47, 72, 101, 108, 118, 101, 116, 105, 99, 97, 32,
+      62, 62, 10, 101, 110, 100, 111, 98, 106, 10, 120, 114, 101, 102, 10,
+      48, 32, 54, 10, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 32, 54, 53,
+      53, 51, 53, 32, 102, 32, 10, 48, 48, 48, 48, 48, 48, 48, 48, 48, 57,
+      32, 48, 48, 48, 48, 48, 32, 110, 32, 10, 48, 48, 48, 48, 48, 48, 48,
+      48, 53, 56, 32, 48, 48, 48, 48, 48, 32, 110, 32, 10, 48, 48, 48, 48,
+      48, 48, 48, 49, 49, 53, 32, 48, 48, 48, 48, 48, 32, 110, 32, 10, 48,
+      48, 48, 48, 48, 48, 48, 50, 52, 49, 32, 48, 48, 48, 48, 48, 32, 110,
+      32, 10, 48, 48, 48, 48, 48, 48, 48, 51, 52, 50, 32, 48, 48, 48, 48,
+      48, 32, 110, 32, 10, 116, 114, 97, 105, 108, 101, 114, 10, 60, 60, 32,
+      47, 83, 105, 122, 101, 32, 54, 32, 47, 82, 111, 111, 116, 32, 49, 32,
+      48, 32, 82, 32, 62, 62, 10, 115, 116, 97, 114, 116, 120, 114, 101,
+      102, 10, 52, 49, 50, 10, 37, 37, 69, 79, 70, 10
+    ];
+    return this.createQaFile(fileName, 'application/pdf', bytes, 'file_picker');
+  }
+
+  private createQaCameraImageFile(fileName: string): SelectedUploadFile {
+    const bytes: number[] = [
+      137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+      0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, 144, 119, 83, 222,
+      0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80,
+      15, 0, 5, 131, 2, 127, 151, 15, 73, 63, 0, 0, 0, 0, 73, 69,
+      78, 68, 174, 66, 96, 130
+    ];
+    return this.createQaFile(fileName, 'image/jpeg', bytes, 'camera');
+  }
+
+  private createQaFile(fileName: string, mimeType: string, bytes: number[], source: 'file_picker' | 'camera'): SelectedUploadFile {
+    const cachePath = `${this.uiContext().cacheDir}/${fileName}`;
+    this.writeBytes(cachePath, bytes);
+    return {
+      uri: fileUri.getUriFromPath(cachePath),
+      uploadUri: `internal://cache/${fileName}`,
+      fallbackUploadUri: fileUri.getUriFromPath(cachePath),
+      cachePath,
+      name: fileName,
+      mimeType,
+      size: bytes.length,
+      source,
+      captureSource: source === 'camera' ? 'environment_camera' : undefined
+    };
+  }
+
+  private writeBytes(filePath: string, bytes: number[]): void {
+    const file = fs.openSync(filePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
+    try {
+      const buffer = new ArrayBuffer(bytes.length);
+      const view = new Uint8Array(buffer);
+      for (let index = 0; index < bytes.length; index += 1) {
+        view[index] = bytes[index];
+      }
+      fs.writeSync(file.fd, buffer);
+    } finally {
+      fs.closeSync(file);
     }
   }
 
@@ -321,6 +577,9 @@ struct DocumentUploadPage {
             .fontSize(26)
             .fontWeight(FontWeight.Bold)
             .fontColor('#342316')
+            .onClick(() => {
+              this.revealQaActions();
+            })
           Text(this.statusMessage)
             .fontSize(14)
             .fontColor(this.uploadStatus === '上传失败' ? '#B91C1C' : '#76512A')
@@ -449,6 +708,39 @@ struct DocumentUploadPage {
           .onClick(() => {
             void this.copyErrorSummary();
           })
+      }
+
+      if (this.showErrorSummaryText) {
+        Text(this.lastUploadErrorSummary)
+          .fontSize(12)
+          .fontColor('#6F5845')
+          .width('100%')
+          .maxLines(8)
+          .padding(12)
+          .backgroundColor('#FFF8EA')
+          .border({ width: 1, color: '#70482336', radius: 8 })
+      }
+
+      if (this.showQaActions) {
+        Row({ space: 12 }) {
+          Button('生成测试PDF并上传')
+            .height(48)
+            .layoutWeight(1)
+            .backgroundColor('#2F6B4F')
+            .fontColor(Color.White)
+            .onClick(() => {
+              void this.runManualUploadPageQa('pdf');
+            })
+          Button('生成测试图片并上传')
+            .height(48)
+            .layoutWeight(1)
+            .backgroundColor('#614C8A')
+            .fontColor(Color.White)
+            .onClick(() => {
+              void this.runManualUploadPageQa('image');
+            })
+        }
+        .width('100%')
       }
 
       Blank()

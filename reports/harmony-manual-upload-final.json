@@ -1,0 +1,81 @@
+{
+  "status": "passed",
+  "branch": "release-harmony-mvp-day1",
+  "verifiedHead": "756e457",
+  "buildInfo": {
+    "commit": "756e457",
+    "buildTime": "2026-06-29T08:47:34.624Z",
+    "appVersion": "1.0.0",
+    "apiBaseUrl": "https://fyeboolnlvqv.sealoshzh.site/api"
+  },
+  "hapHeadConsistency": {
+    "verifiedBeforeFinalCommit": true,
+    "note": "BUILD_INFO matched the verification HEAD before the final source/report commit. The final commit necessarily creates a one-commit difference because BUILD_INFO contains a commit hash."
+  },
+  "rootCause": "DocumentUploadPage could send a synthetic product-* planId, causing backend upload 500 responses that Harmony request.uploadFile surfaced as code 17 / Http protocol error.",
+  "fixes": [
+    "Unified TestLab, file picker, and camera upload objects with NormalizedUploadFile.",
+    "Copied picker and camera inputs into cache and verified non-empty files before upload.",
+    "Filtered synthetic planId values while preserving productId.",
+    "Kept upload data aligned to backend DTO fields.",
+    "Added sanitized manual upload failure details and copyable summaries.",
+    "Added a small-file multipart fallback for request.uploadFile code 17 failures.",
+    "Extended device QA to verify DocumentUploadPage manual upload paths."
+  ],
+  "tests": {
+    "qa:harmony-api-e2e": {
+      "passed": true,
+      "steps": 22,
+      "failed": 0
+    },
+    "qa:harmony-console:e2e": {
+      "passed": true
+    },
+    "test:harmony-field": {
+      "passed": true,
+      "steps": 8,
+      "failed": 0
+    },
+    "assembleHap": {
+      "passed": true,
+      "message": "BUILD SUCCESSFUL"
+    },
+    "qa:harmony-device": {
+      "passed": true
+    }
+  },
+  "fieldResults": {
+    "FIELD_QA_RESULT": true,
+    "FIELD_UPLOAD_QA_RESULT": {
+      "success": true,
+      "pngUpload": true,
+      "pngPreview": true,
+      "pdfUpload": true,
+      "pdfPreview": true,
+      "uploadUriScheme": "internal"
+    },
+    "FIELD_MANUAL_UPLOAD_PAGE_RESULT": {
+      "filePickerPdfUpload": true,
+      "filePickerPdfPreview": true,
+      "cameraJpgUpload": true,
+      "cameraJpgPreview": true,
+      "uploadUriScheme": "internal",
+      "requestUploadFile": true,
+      "multipartFallback": false
+    }
+  },
+  "failureSignals": {
+    "runtimeErrorOrJsError": false,
+    "undefinedIsNotCallable": false,
+    "httpProtocolError17": false,
+    "recycleBinCrash": false,
+    "workbenchGridClickIssue": false,
+    "normalUiDebugFields": false
+  },
+  "copyErrorSummary": {
+    "available": true,
+    "sanitized": true
+  },
+  "remainingManualTest": "Take one physical photo through the MatePad system camera from DocumentUploadPage and upload it once.",
+  "blocked": false
+}

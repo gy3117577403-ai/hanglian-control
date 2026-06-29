@@ -14,7 +14,7 @@ export class FilePickerService {
     options.fileSuffixFilters = SUPPORTED_SUFFIXES;
     const result = await documentPicker.select(options);
     if (!result || result.length === 0) return undefined;
-    return FilePickerService.preparePickedFile(context, result[0], 'manual_upload');
+    return FilePickerService.preparePickedFile(context, result[0], 'file_picker');
   }
 
   static async preparePickedFile(context: common.UIAbilityContext, uri: string, source: UploadSource): Promise<SelectedUploadFile> {
@@ -30,6 +30,10 @@ export class FilePickerService {
       copiedSize = fs.statSync(cachePath).size;
     } finally {
       if (sourceFile) fs.closeSync(sourceFile);
+    }
+
+    if (copiedSize <= 0) {
+      throw new Error('Selected file was empty after cache copy.');
     }
 
     return {
@@ -62,7 +66,7 @@ export class FilePickerService {
     const lastSlash = clean.lastIndexOf('/');
     const rawName = lastSlash >= 0 ? clean.substring(lastSlash + 1) : clean;
     if (FilePickerService.isSupported(rawName)) return rawName;
-    return source === 'camera_capture' ? `camera-${Date.now()}.jpg` : `document-${Date.now()}.pdf`;
+    return source === 'camera' ? `camera-${Date.now()}.jpg` : `document-${Date.now()}.pdf`;
   }
 
   static safeFileName(fileName: string): string {
@@ -80,7 +84,7 @@ export class FilePickerService {
     const lower = fileName.toLowerCase();
     if (lower.endsWith('.pdf')) return '.pdf';
     if (lower.endsWith('.jpg')) return '.jpg';
-    if (lower.endsWith('.jpeg')) return '.jpg';
+    if (lower.endsWith('.jpeg')) return '.jpeg';
     if (lower.endsWith('.png')) return '.png';
     if (lower.endsWith('.webp')) return '.webp';
     return '';

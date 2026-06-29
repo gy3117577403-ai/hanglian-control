@@ -485,7 +485,7 @@ struct TestLabPage {
       name: fileName,
       mimeType: 'image/png',
       size: bytes.length,
-      source: 'manual_upload'
+      source: 'test_lab'
     };
   }
 
@@ -539,7 +539,7 @@ struct TestLabPage {
       name: fileName,
       mimeType: 'application/pdf',
       size: bytes.length,
-      source: 'manual_upload'
+      source: 'test_lab'
     };
   }
 

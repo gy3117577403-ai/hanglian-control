@@ -1,22 +1,29 @@
-06-29 16:06:41.151 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] WorkbenchPage render
-06-29 16:06:41.151 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] refresh today orders clicked
-06-29 16:06:45.340 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] BUILD_INFO {"commit":"39db5d2","buildTime":"2026-06-29T07:51:34.803Z","appVersion":"1.0.0","apiBaseUrl":"https://fyeboolnlvqv.sealoshzh.site/api"}
-06-29 16:06:47.620 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start field-image-1782720407030.png finished_detail_image
-06-29 16:06:47.858 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received finished_image
-06-29 16:06:47.858 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782720407785-0d18127b-a913-443a-81c2-baf778d84cfd
-06-29 16:06:47.900 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start field-pdf-1782720407030.pdf drawing_pdf
-06-29 16:06:48.147 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
-06-29 16:06:48.147 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782720408075-66dab0e7-29d7-4d9b-81e3-136976162561
-06-29 16:06:48.182 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_QA_RESULT {"success":true,"tests":[{"name":"登录状态","status":"通过","message":"正常"},{"name":"当前用户","status":"通过","message":"正常"},{"name":"客户列表","status":"通过","message":"正常"},{"name":"新增客户","status":"通过","message":"正常"},{"name":"产品列表","status":"通过","message":"正常"},{"name":"新增产品","status":"通过","message":"正常"},{"name":"今日订单","status":"通过","message":"正常"},{"name":"连接器列表","status":"通过","message":"正常"},{"name":"新增连接器","status":"通过","message":"正常"},{"name":"删除连接器","status":"通过","message":"正常"},{"name":"回收站","status":"通过","message":"正常"},{"name":"产品资料","status":"通过","message":"正常"},{"name":"创建图片文件","status":"通过","message":"正常"},{"name":"上传图片资料","status":"通过","message":"正常"},{"name":"图片预览","status":"通过","message":"正常"},{"name":"创建PDF文件","status":"通过","message":"正常"},{"name":"上传PDF资料","status":"通过","message":"正常"},{"name":"PDF预览","status":"通过","message":"正常"}]}
-06-29 16:06:48.182 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_UPLOAD_QA_RESULT {"success":true,"pngUpload":true,"pngPreview":true,"pdfUpload":true,"pdfPreview":true,"uploadUriScheme":"internal","message":"全部通过"}
-06-29 16:06:53.901 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] test lab open page 回收站
-06-29 16:06:57.984 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] WorkbenchPage render
-06-29 16:06:57.984 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] refresh today orders clicked
-06-29 16:06:59.356 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] import pdf clicked
-06-29 16:06:59.356 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload category clicked
-06-29 16:06:59.362 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] DocumentUploadPage render
-06-29 16:07:01.736 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload return workbench clicked
-06-29 16:07:01.739 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] WorkbenchPage render
-06-29 16:07:01.739 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] refresh today orders clicked
-06-29 16:07:03.105 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload category clicked
-06-29 16:07:03.109 30801 30801 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] DocumentUploadPage render
+06-29 16:59:07.126  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] WorkbenchPage render
+06-29 16:59:07.126  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] refresh today orders clicked
+06-29 16:59:11.387  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] BUILD_INFO {"commit":"756e457","buildTime":"2026-06-29T08:47:34.624Z","appVersion":"1.0.0","apiBaseUrl":"https://fyeboolnlvqv.sealoshzh.site/api"}
+06-29 16:59:13.409  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start field-image-1782723553039.png finished_detail_image
+06-29 16:59:13.614  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received finished_image
+06-29 16:59:13.615  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782723553513-29661219-384f-423f-b0e9-bf04d6b7e1dd
+06-29 16:59:13.826  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start field-pdf-1782723553039.pdf drawing_pdf
+06-29 16:59:14.036  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
+06-29 16:59:14.036  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782723553944-ab091d7b-fd11-4be6-8f32-fdac2935cc1f
+06-29 16:59:14.073  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_QA_RESULT {"success":true,"tests":[{"name":"登录状态","status":"通过","message":"正常"},{"name":"当前用户","status":"通过","message":"正常"},{"name":"客户列表","status":"通过","message":"正常"},{"name":"新增客户","status":"通过","message":"正常"},{"name":"产品列表","status":"通过","message":"正常"},{"name":"新增产品","status":"通过","message":"正常"},{"name":"今日订单","status":"通过","message":"正常"},{"name":"连接器列表","status":"通过","message":"正常"},{"name":"新增连接器","status":"通过","message":"正常"},{"name":"删除连接器","status":"通过","message":"正常"},{"name":"回收站","status":"通过","message":"正常"},{"name":"产品资料","status":"通过","message":"正常"},{"name":"创建图片文件","status":"通过","message":"正常"},{"name":"上传图片资料","status":"通过","message":"正常"},{"name":"图片预览","status":"通过","message":"正常"},{"name":"创建PDF文件","status":"通过","message":"正常"},{"name":"上传PDF资料","status":"通过","message":"正常"},{"name":"PDF预览","status":"通过","message":"正常"}]}
+06-29 16:59:14.073  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_UPLOAD_QA_RESULT {"success":true,"pngUpload":true,"pngPreview":true,"pdfUpload":true,"pdfPreview":true,"uploadUriScheme":"internal","message":"全部通过"}
+06-29 16:59:19.832  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] test lab open page 回收站
+06-29 16:59:21.343  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] WorkbenchPage render
+06-29 16:59:21.343  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] refresh today orders clicked
+06-29 16:59:22.690  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] import pdf clicked
+06-29 16:59:22.690  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload category clicked
+06-29 16:59:22.696  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] DocumentUploadPage render
+06-29 16:59:29.060  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload submit clicked
+06-29 16:59:29.060  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start manual-picker-1782723569058.pdf drawing_pdf
+06-29 16:59:29.269  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
+06-29 16:59:29.270  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
+06-29 16:59:29.270  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782723569179-508e24b9-72c3-47ce-a765-393edcaa5ed3
+06-29 16:59:29.311  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_MANUAL_UPLOAD_PAGE_RESULT {"filePickerPdfUpload":true,"filePickerPdfPreview":true,"cameraJpgUpload":false,"cameraJpgPreview":false,"uploadUriScheme":"internal","requestUploadFile":true,"multipartFallback":false}
+06-29 16:59:35.806  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload submit clicked
+06-29 16:59:35.806  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start camera-1782723575805.jpg finished_detail_image
+06-29 16:59:35.972  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
+06-29 16:59:35.973  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
+06-29 16:59:35.973  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782723575903-bff3a68a-7bc9-49b4-956e-03862becc6cf
+06-29 16:59:36.019  4987  4987 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_MANUAL_UPLOAD_PAGE_RESULT {"filePickerPdfUpload":true,"filePickerPdfPreview":true,"cameraJpgUpload":true,"cameraJpgPreview":true,"uploadUriScheme":"internal","requestUploadFile":true,"multipartFallback":false}

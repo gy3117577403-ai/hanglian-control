@@ -19,19 +19,43 @@ export class CameraService {
     };
     const result = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], profile);
     const resultUri = result?.resultUri ?? saveUri;
-    const fileStat = fs.statSync(cachePath);
-    if (fileStat.size <= 0) return undefined;
+    let fileSize = CameraService.cacheFileSize(cachePath);
+    if (fileSize <= 0 && resultUri !== saveUri) {
+      CameraService.copyUriToCache(resultUri, cachePath);
+      fileSize = CameraService.cacheFileSize(cachePath);
+    }
+    if (fileSize <= 0) {
+      throw new Error('Camera photo cache file is empty.');
+    }
 
     return {
-      uri: resultUri,
+      uri: saveUri,
       uploadUri: `internal://cache/${fileName}`,
       fallbackUploadUri: fileUri.getUriFromPath(cachePath),
       cachePath,
       name: fileName,
       mimeType: 'image/jpeg',
-      size: fileStat.size,
-      source: 'camera_capture',
+      size: fileSize,
+      source: 'camera',
       captureSource: 'environment_camera'
     };
+  }
+
+  private static cacheFileSize(cachePath: string): number {
+    try {
+      return fs.statSync(cachePath).size;
+    } catch {
+      return 0;
+    }
+  }
+
+  private static copyUriToCache(uri: string, cachePath: string): void {
+    let sourceFile: fs.File | undefined = undefined;
+    try {
+      sourceFile = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      fs.copyFileSync(sourceFile.fd, cachePath);
+    } finally {
+      if (sourceFile) fs.closeSync(sourceFile);
+    }
   }
 }

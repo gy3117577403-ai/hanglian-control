@@ -8,8 +8,8 @@ export interface BuildInfoSnapshot {
 }
 
 export class BuildInfo {
-  static readonly COMMIT: string = '39db5d2';
-  static readonly BUILD_TIME: string = '2026-06-29T07:51:34.803Z';
+  static readonly COMMIT: string = '756e457';
+  static readonly BUILD_TIME: string = '2026-06-29T08:47:34.624Z';
   static readonly APP_VERSION: string = '1.0.0';
 
   static snapshot(): BuildInfoSnapshot {
