@@ -29,13 +29,15 @@ export interface LoginResponse extends AuthResponseData {
   data?: AuthResponseData;
 }
 
+export interface RefreshResponseData {
+  accessToken?: string;
+  refreshToken?: string;
+}
+
 export interface RefreshResponse {
   accessToken?: string;
   refreshToken?: string;
-  data?: {
-    accessToken?: string;
-    refreshToken?: string;
-  };
+  data?: RefreshResponseData;
 }
 
 export interface MeResponseData extends UserInfo {
