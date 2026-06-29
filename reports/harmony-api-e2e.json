@@ -1,0 +1,217 @@
+{
+  "generatedAt": "2026-06-29T06:43:58.201Z",
+  "success": true,
+  "apiBaseUrl": "https://fyeboolnlvqv.sealoshzh.site/api",
+  "steps": [
+    {
+      "name": "GET /health",
+      "method": "GET",
+      "path": "/health",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /auth/login",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /auth/me",
+      "method": "GET",
+      "path": "/auth/me",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /customers",
+      "method": "GET",
+      "path": "/customers",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /customers",
+      "method": "POST",
+      "path": "/customers",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /products",
+      "method": "GET",
+      "path": "/products",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /products",
+      "method": "POST",
+      "path": "/products",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "PATCH /products/:id",
+      "method": "PATCH",
+      "path": "/products/:id",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /products/:id/documents",
+      "method": "GET",
+      "path": "/products/:id/documents",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /connector-params",
+      "method": "GET",
+      "path": "/connector-params",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /connector-params",
+      "method": "POST",
+      "path": "/connector-params",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "PATCH /connector-params/:id",
+      "method": "PATCH",
+      "path": "/connector-params/:id",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "DELETE /connector-params/:id",
+      "method": "DELETE",
+      "path": "/connector-params/:id",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /connector-params/import-one",
+      "method": "POST",
+      "path": "/connector-params/import-one",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /connector-params/export",
+      "method": "GET",
+      "path": "/connector-params/export",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /recycle-bin",
+      "method": "GET",
+      "path": "/recycle-bin",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /documents/upload PDF",
+      "method": "POST",
+      "path": "/documents/upload",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /documents/:id/preview PDF",
+      "method": "GET",
+      "path": "/documents/:id/preview",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET preview page",
+      "method": "GET",
+      "path": "/documents/:id/preview-pages/:pageNo",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "POST /documents/upload PNG",
+      "method": "POST",
+      "path": "/documents/upload",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET image preview",
+      "method": "GET",
+      "path": "/documents/:id/preview",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    },
+    {
+      "name": "GET /products/:id/documents final",
+      "method": "GET",
+      "path": "/products/:id/documents",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "通过",
+      "responseBody": ""
+    }
+  ],
+  "summary": {
+    "customerCreated": true,
+    "productCreated": true,
+    "productPatched": true,
+    "connectorCrudVerified": true,
+    "importOneVerified": true,
+    "pdfUploaded": true,
+    "pngUploaded": true,
+    "previewPageFetched": true,
+    "productDocumentsRefreshed": true
+  },
+  "failureMessage": ""
+}

@@ -11,6 +11,14 @@ const state = {
 const stepsEl = document.querySelector('#steps');
 const summaryEl = document.querySelector('#summary');
 const runAllButton = document.querySelector('#runAll');
+window.__HARMONY_QA_DONE = false;
+window.__HARMONY_QA_RESULT = {
+  startedAt: '',
+  finishedAt: '',
+  success: false,
+  failed: 0,
+  steps: []
+};
 
 function valueOf(id) {
   return document.querySelector(`#${id}`).value.trim();
@@ -50,7 +58,8 @@ function headers(json = true) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${apiBaseUrl()}${path}`, options);
+  const target = `${apiBaseUrl()}${path}`;
+  const response = await fetch(`/_qa_proxy?target=${encodeURIComponent(target)}`, options);
   const text = await response.text();
   let body = {};
   if (text) {
@@ -72,7 +81,9 @@ function firstArray(value) {
 }
 
 function firstId(value) {
-  return value?.id ?? value?.data?.id ?? value?.item?.id ?? '';
+  return value?.id ?? value?.productId ?? value?.customerId ?? value?.documentId ??
+    value?.data?.id ?? value?.data?.productId ?? value?.data?.customerId ?? value?.data?.documentId ??
+    value?.item?.id ?? value?.item?.productId ?? value?.item?.documentId ?? '';
 }
 
 function firstDocumentId(value) {
@@ -81,13 +92,29 @@ function firstDocumentId(value) {
 }
 
 async function runStep(definition) {
-  const row = stepRow(definition.name, definition.method, definition.pathLabel || definition.path);
+  const pathLabel = definition.pathLabel || definition.path;
+  const row = stepRow(definition.name, definition.method, pathLabel);
+  const record = {
+    name: definition.name,
+    method: definition.method,
+    path: pathLabel,
+    status: 'fail',
+    httpStatus: 0,
+    message: ''
+  };
+  window.__HARMONY_QA_RESULT.steps.push(record);
   try {
     const result = await definition.run();
+    record.status = 'pass';
+    record.httpStatus = result.status;
+    record.message = definition.success;
     mark(row, true, result.status, definition.success);
     return result.body;
   } catch (error) {
     console.error(`[Harmony QA] ${definition.name} failed`, error);
+    record.status = 'fail';
+    record.httpStatus = error.status || 0;
+    record.message = definition.failure;
     mark(row, false, error.status, definition.failure);
     return undefined;
   }
@@ -111,7 +138,7 @@ async function uploadDocument() {
   form.append('version', 'V1.0');
   form.append('status', 'effective');
   form.append('requiredForProcess', 'common');
-  form.append('source', 'qa_console');
+  form.append('source', 'manual_upload');
   form.append('file', file, file.name);
   return request('/documents/upload', {
     method: 'POST',
@@ -129,6 +156,14 @@ async function runAll() {
   state.productId = '';
   state.connectorId = '';
   state.documentId = '';
+  window.__HARMONY_QA_DONE = false;
+  window.__HARMONY_QA_RESULT = {
+    startedAt: new Date().toISOString(),
+    finishedAt: '',
+    success: false,
+    failed: 0,
+    steps: []
+  };
 
   const stamp = Date.now();
   const definitions = [
@@ -224,6 +259,24 @@ async function runAll() {
       }
     },
     {
+      name: '编辑产品',
+      method: 'PATCH',
+      pathLabel: '/products/:id',
+      success: '产品编辑接口正常',
+      failure: '产品编辑失败',
+      run: () => request(`/products/${encodeURIComponent(state.productId)}`, {
+        method: 'PATCH',
+        headers: headers(),
+        body: JSON.stringify({
+          productCode: `QA-HL-${stamp}`,
+          productModel: `QA-HL-${stamp}-R1`,
+          productName: `QA线束产品-${stamp}`,
+          currentVersion: 'V1.1',
+          processSegment: '通用'
+        })
+      })
+    },
+    {
       name: '产品资料',
       method: 'GET',
       pathLabel: '/products/:id/documents',
@@ -255,11 +308,11 @@ async function runAll() {
           headers: headers(),
           body: JSON.stringify({
             connectorModel: `QA-CONN-${stamp}`,
-            inputLength: '10',
-            outerStripLength: '5',
-            innerStripLength: '3',
+            insertionLength: 10,
+            outerStripLength: 5,
+            innerStripLength: 3,
             remark: 'QA自检',
-            status: '启用'
+            status: 'active'
           })
         });
         state.connectorId = firstId(result.body);
@@ -277,11 +330,11 @@ async function runAll() {
         headers: headers(),
         body: JSON.stringify({
           connectorModel: `QA-CONN-${stamp}`,
-          inputLength: '11',
-          outerStripLength: '5',
-          innerStripLength: '3',
+          insertionLength: 11,
+          outerStripLength: 5,
+          innerStripLength: 3,
           remark: 'QA自检已编辑',
-          status: '启用'
+          status: 'active'
         })
       })
     },
@@ -294,6 +347,25 @@ async function runAll() {
       run: () => request(`/connector-params/${encodeURIComponent(state.connectorId)}`, {
         method: 'DELETE',
         headers: headers(false)
+      })
+    },
+    {
+      name: '单型号导入',
+      method: 'POST',
+      path: '/connector-params/import-one',
+      success: '单型号导入接口正常',
+      failure: '单型号导入失败',
+      run: () => request('/connector-params/import-one', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          connectorModel: `QA-CONN-IMPORT-${stamp}`,
+          insertionLength: 12,
+          outerStripLength: 5,
+          innerStripLength: 3,
+          remark: 'QA自检单型号导入',
+          status: 'active'
+        })
       })
     },
     {
@@ -340,6 +412,10 @@ async function runAll() {
 
   const failed = stepsEl.querySelectorAll('.badge.fail').length;
   summaryEl.textContent = failed === 0 ? 'API 自检完成：全部通过。' : `API 自检完成：${failed} 项失败，请查看对应步骤。`;
+  window.__HARMONY_QA_RESULT.failed = failed;
+  window.__HARMONY_QA_RESULT.success = failed === 0;
+  window.__HARMONY_QA_RESULT.finishedAt = new Date().toISOString();
+  window.__HARMONY_QA_DONE = true;
   runAllButton.disabled = false;
 }
 

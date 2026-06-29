@@ -1,0 +1,15 @@
+06-29 14:42:30.352 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] EntryAbility onCreate
+06-29 14:42:30.373 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] EntryAbility onWindowStageCreate
+06-29 14:42:30.375 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] loading LoginPage
+06-29 14:42:30.441 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] LoginPage loadContent success
+06-29 14:42:30.454 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] LoginPage aboutToAppear
+06-29 14:42:30.455 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] LoginPage build/render
+06-29 14:42:36.375 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] WorkbenchPage render
+06-29 14:42:36.375 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] refresh today orders clicked
+06-29 14:42:42.351 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start field-image-1782715362009.png finished_detail_image
+06-29 14:42:42.516 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received finished_image
+06-29 14:42:42.516 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782715362446-0e3483de-266a-4465-b02a-de5107260331
+06-29 14:42:42.559 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload start field-pdf-1782715362009.pdf drawing_pdf
+06-29 14:42:42.773 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] Workbench refresh event received original_drawing
+06-29 14:42:42.773 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] upload success UPDOC-1782715362690-b4f4552c-6c3c-4e09-a0ac-8ee877081244
+06-29 14:42:42.812 40572 40572 I A03D00/com.hanglian.pad/JSAPP: [HanglianPad] FIELD_QA_RESULT {"success":true,"tests":[{"name":"登录状态","status":"通过","message":"正常"},{"name":"当前用户","status":"通过","message":"正常"},{"name":"客户列表","status":"通过","message":"正常"},{"name":"新增客户","status":"通过","message":"正常"},{"name":"产品列表","status":"通过","message":"正常"},{"name":"新增产品","status":"通过","message":"正常"},{"name":"今日订单","status":"通过","message":"正常"},{"name":"连接器列表","status":"通过","message":"正常"},{"name":"新增连接器","status":"通过","message":"正常"},{"name":"删除连接器","status":"通过","message":"正常"},{"name":"回收站","status":"通过","message":"正常"},{"name":"产品资料","status":"通过","message":"正常"},{"name":"创建图片文件","status":"通过","message":"正常"},{"name":"上传图片资料","status":"通过","message":"正常"},{"name":"图片预览","status":"通过","message":"正常"},{"name":"创建PDF文件","status":"通过","message":"正常"},{"name":"上传PDF资料","status":"通过","message":"正常"},{"name":"PDF预览","status":"通过","message":"正常"}]}

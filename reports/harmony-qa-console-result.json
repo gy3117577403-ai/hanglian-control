@@ -1,0 +1,152 @@
+{
+  "startedAt": "2026-06-29T06:44:08.275Z",
+  "finishedAt": "2026-06-29T06:44:10.279Z",
+  "success": true,
+  "failed": 0,
+  "steps": [
+    {
+      "name": "健康检查",
+      "method": "GET",
+      "path": "/health",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "后端健康接口正常"
+    },
+    {
+      "name": "登录",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "登录成功，token 已安全保存"
+    },
+    {
+      "name": "当前用户",
+      "method": "GET",
+      "path": "/auth/me",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "当前用户接口正常"
+    },
+    {
+      "name": "客户列表",
+      "method": "GET",
+      "path": "/customers",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "客户列表可读取"
+    },
+    {
+      "name": "新增客户",
+      "method": "POST",
+      "path": "/customers",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "已创建 QA 客户"
+    },
+    {
+      "name": "产品列表",
+      "method": "GET",
+      "path": "/products",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "产品列表可读取"
+    },
+    {
+      "name": "新增产品",
+      "method": "POST",
+      "path": "/products",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "已创建 QA 产品"
+    },
+    {
+      "name": "编辑产品",
+      "method": "PATCH",
+      "path": "/products/:id",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "产品编辑接口正常"
+    },
+    {
+      "name": "产品资料",
+      "method": "GET",
+      "path": "/products/:id/documents",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "产品资料接口正常"
+    },
+    {
+      "name": "连接器列表",
+      "method": "GET",
+      "path": "/connector-params",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "连接器列表可读取"
+    },
+    {
+      "name": "新增连接器",
+      "method": "POST",
+      "path": "/connector-params",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "已创建 QA 连接器"
+    },
+    {
+      "name": "编辑连接器",
+      "method": "PATCH",
+      "path": "/connector-params/:id",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "连接器编辑接口正常"
+    },
+    {
+      "name": "删除连接器",
+      "method": "DELETE",
+      "path": "/connector-params/:id",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "连接器删除接口正常"
+    },
+    {
+      "name": "单型号导入",
+      "method": "POST",
+      "path": "/connector-params/import-one",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "单型号导入接口正常"
+    },
+    {
+      "name": "连接器导出",
+      "method": "GET",
+      "path": "/connector-params/export",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "连接器导出接口正常"
+    },
+    {
+      "name": "回收站",
+      "method": "GET",
+      "path": "/recycle-bin",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "回收站接口正常"
+    },
+    {
+      "name": "资料上传",
+      "method": "POST",
+      "path": "/documents/upload",
+      "status": "pass",
+      "httpStatus": 201,
+      "message": "上传接口正常"
+    },
+    {
+      "name": "资料预览",
+      "method": "GET",
+      "path": "/documents/:id/preview",
+      "status": "pass",
+      "httpStatus": 200,
+      "message": "预览接口正常"
+    }
+  ]
+}

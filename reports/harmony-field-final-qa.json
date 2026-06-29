@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-06-29T06:46:12.775Z",
+  "branch": "release-harmony-mvp-day1",
+  "apiE2e": {
+    "ran": true,
+    "passed": true,
+    "steps": 22,
+    "failed": 0,
+    "report": "reports/harmony-api-e2e.json"
+  },
+  "qaConsole": {
+    "ran": true,
+    "passed": true,
+    "failed": 0,
+    "report": "reports/harmony-qa-console-result.json",
+    "screenshot": "reports/screenshots/harmony-qa-console-result.png"
+  },
+  "fieldRegression": {
+    "ran": true,
+    "passed": true,
+    "total": 8,
+    "failed": 0,
+    "report": "reports/harmony-field-regression.json"
+  },
+  "assembleHap": {
+    "ran": true,
+    "passed": true,
+    "command": "& \"C:\\Users\\DevEco Studio\\tools\\node\\node.exe\" \"C:\\Users\\DevEco Studio\\tools\\hvigor\\bin\\hvigorw.js\" --mode module -p product=default assembleHap --analyze=normal --parallel --incremental --daemon"
+  },
+  "deviceQa": {
+    "ran": true,
+    "passed": true,
+    "report": "reports/harmony-device-qa.md",
+    "log": "reports/harmony-device-qa.log",
+    "layout": "reports/harmony-device-layout.json",
+    "fieldResult": {
+      "success": true,
+      "tests": [
+        {
+          "name": "登录状态",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "当前用户",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "客户列表",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "新增客户",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "产品列表",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "新增产品",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "今日订单",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "连接器列表",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "新增连接器",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "删除连接器",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "回收站",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "产品资料",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "创建图片文件",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "上传图片资料",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "图片预览",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "创建PDF文件",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "上传PDF资料",
+          "status": "通过",
+          "message": "正常"
+        },
+        {
+          "name": "PDF预览",
+          "status": "通过",
+          "message": "正常"
+        }
+      ]
+    }
+  },
+  "fixes": [
+    "Added and executed public API E2E for health/login/me, customer/product CRUD, connector CRUD/import/export, upload, preview, and document refresh.",
+    "Added QA Console Playwright E2E evidence with a local proxy for browser CORS, JSON result, and screenshot.",
+    "Expanded TestLabPage to run native ArkTS UploadService PNG/PDF uploads and emit FIELD_QA_RESULT.",
+    "Changed the TestLab PDF fixture to a valid one-page PDF so device PDF preview passes.",
+    "Added qa:harmony-device automation using hdc + uitest to install, launch, login, enter Workbench, open TestLabPage, and validate FIELD_QA_RESULT.",
+    "Kept RecycleBinPage safety under test:harmony-field and verified device logs contain no undefined is not callable or RuntimeError."
+  ],
+  "notFullyAutomated": [
+    "Standard /recycle-bin restore/permanent-delete was not fully automated because /documents/:id/archive does not create /recycle-bin entries; list/page stability is covered.",
+    "Full visual order overview interaction still benefits from manual MatePad acceptance; /orders/today is covered by API and device QA."
+  ],
+  "manualAcceptance": [
+    "Install the latest HAP on MatePad, login with the agreed test admin account, and confirm Workbench opens.",
+    "Open Customer/Product, Connector Params, Recycle Bin, and Order Overview from Workbench and confirm no white screen or crash.",
+    "When a real recycle-bin item exists, manually validate restore and permanent delete.",
+    "Open TestLabPage and run the one-click device QA; confirm all items pass."
+  ]
+}
