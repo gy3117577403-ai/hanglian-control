@@ -6,6 +6,7 @@
     "installationFree": false,
     "description": "$string:module_desc",
     "mainElement": "EntryAbility",
+    "pages": "$profile:main_pages",
     "deviceTypes": [
       "tablet"
     ],

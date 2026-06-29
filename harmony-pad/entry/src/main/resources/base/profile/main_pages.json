@@ -1,9 +1,5 @@
 {
   "src": [
-    "pages/BootCheckPage",
-    "pages/SplashPage",
-    "pages/LoginPage",
-    "pages/WorkbenchPage",
-    "pages/DocumentPreviewPage"
+    "pages/Index"
   ]
 }

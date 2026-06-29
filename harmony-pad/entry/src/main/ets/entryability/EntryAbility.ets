@@ -20,6 +20,7 @@ export default class EntryAbility extends UIAbility {
     console.info('[HanglianPad] EntryAbility onWindowStageCreate');
     try {
       const mainWindow = windowStage.getMainWindowSync();
+      mainWindow.setWindowBackgroundColor('#008000');
       mainWindow.setPreferredOrientation(window.Orientation.LANDSCAPE).catch((error: BusinessError) => {
         hilog.warn(DOMAIN, TAG, 'Failed to set landscape orientation: %{public}s', error.message);
       });
@@ -27,16 +28,16 @@ export default class EntryAbility extends UIAbility {
       hilog.warn(DOMAIN, TAG, 'Landscape orientation setup skipped.');
     }
 
-    console.info('[HanglianPad] loading BootCheckPage');
-    windowStage.loadContent('pages/BootCheckPage', (error: BusinessError) => {
+    console.info('[HanglianPad] loading Index');
+    windowStage.loadContent('pages/Index', (error: BusinessError) => {
       if (error.code) {
-        console.error('[HanglianPad] BootCheckPage loadContent failed', error);
+        console.error('[HanglianPad] Index loadContent failed', error);
         hilog.error(DOMAIN, TAG, 'Failed to load content: %{public}d %{public}s', error.code, error.message);
         return;
       }
 
-      console.info('[HanglianPad] BootCheckPage loadContent success');
-      hilog.info(DOMAIN, TAG, 'BootCheckPage loaded.');
+      console.info('[HanglianPad] Index loadContent success');
+      hilog.info(DOMAIN, TAG, 'Index loaded.');
     });
   }
 }
