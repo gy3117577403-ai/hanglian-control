@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-06-29T16:06:43.6406333+08:00",
+  "branch": "release-harmony-mvp-day1",
+  "verificationHead": {
+    "short": "4b1854b",
+    "full": "4b1854b3ad020800bf3a62f8ec02c4717c35003f"
+  },
+  "hapBuildInfo": {
+    "commit": "39db5d2",
+    "buildTime": "2026-06-29T07:51:34.803Z",
+    "appVersion": "1.0.0",
+    "apiBaseUrl": "https://fyeboolnlvqv.sealoshzh.site/api"
+  },
+  "headMatchesBuildInfo": false,
+  "mismatchReason": "39db5d2 is the last functional harmony-pad upload/runtime fix commit that was built into the HAP and verified on device. 4b1854b only refreshed BuildInfo/report QA evidence after that verified build; it does not contain harmony-pad business logic changes. A later report-only lock commit likewise documents evidence and does not change the HAP business version.",
+  "diff39db5d2To4b1854b": {
+    "containsHarmonyPadBusinessCodeChanges": false,
+    "summary": "Only harmony-pad/entry/src/main/ets/services/BuildInfo.ets metadata and reports/QA evidence changed in 39db5d2..4b1854b."
+  },
+  "hapRebuiltToAlignWithHead": false,
+  "assembleHap": {
+    "ran": true,
+    "passed": true,
+    "note": "Final compile verification passed without changing BUILD_INFO source."
+  },
+  "qa": {
+    "harmonyApiE2e": {
+      "ran": true,
+      "passed": true,
+      "total": 22,
+      "failed": 0,
+      "report": "reports/harmony-api-e2e.json"
+    },
+    "harmonyConsoleE2e": {
+      "ran": true,
+      "passed": true,
+      "report": "reports/harmony-qa-console-result.json"
+    },
+    "harmonyField": {
+      "ran": true,
+      "passed": true,
+      "total": 8,
+      "failed": 0,
+      "report": "reports/harmony-field-regression.json"
+    },
+    "harmonyDevice": {
+      "ran": true,
+      "passed": true,
+      "report": "reports/harmony-device-qa.md",
+      "log": "reports/harmony-device-qa.log"
+    }
+  },
+  "fieldQaResult": {
+    "captured": true,
+    "success": true
+  },
+  "fieldUploadQaResult": {
+    "captured": true,
+    "success": true,
+    "pngUpload": true,
+    "pngPreview": true,
+    "pdfUpload": true,
+    "pdfPreview": true,
+    "uploadUriScheme": "internal"
+  },
+  "stability": {
+    "runtimeErrorOrJsErrorObserved": false,
+    "undefinedIsNotCallableObserved": false,
+    "httpProtocol17Observed": false
+  },
+  "appConfig": {
+    "apiBaseUrl": "https://fyeboolnlvqv.sealoshzh.site/api",
+    "apiPrefix": "",
+    "keptUnchanged": true
+  },
+  "notCommitted": [
+    "harmony-pad/build-profile.json5",
+    "harmony-pad/local.properties"
+  ],
+  "sensitiveFilesCommitted": false,
+  "recommendPush": true
+}
