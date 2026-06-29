@@ -1,45 +1,21 @@
-import promptAction from '@ohos.promptAction';
-import router from '@ohos.router';
-import { AuthService } from '../services/AuthService';
-import { AppConfig } from '../services/AppConfig';
-
 @Entry
 @Component
 struct LoginPage {
   @State username: string = '';
   @State password: string = '';
   @State errorText: string = '';
-  @State isSubmitting: boolean = false;
 
   aboutToAppear(): void {
     console.info('[HanglianPad] LoginPage aboutToAppear');
   }
 
-  private canSubmit(): boolean {
-    return this.username.trim().length > 0 && this.password.length > 0 && !this.isSubmitting;
+  private renderMarker(): string {
+    console.info('[HanglianPad] LoginPage build/render');
+    return '登录页已加载';
   }
 
-  private async submit(): Promise<void> {
-    if (!this.canSubmit()) {
-      return;
-    }
-
-    this.errorText = '';
-    this.isSubmitting = true;
-
-    try {
-      await AuthService.login(this.username.trim(), this.password);
-      promptAction.showToast({
-        message: '登录成功'
-      });
-      router.replaceUrl({
-        url: 'pages/WorkbenchPage'
-      });
-    } catch (error) {
-      this.errorText = error instanceof Error ? error.message : '登录失败，请检查账号、密码和网络。';
-    } finally {
-      this.isSubmitting = false;
-    }
+  private submit(): void {
+    this.errorText = '登录页首屏渲染正常，登录链路待恢复。';
   }
 
   build() {
@@ -49,19 +25,19 @@ struct LoginPage {
           .fontSize(52)
           .fontWeight(FontWeight.Bold)
           .fontColor('#0F172A')
+        Text(this.renderMarker())
+          .fontSize(26)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#008000')
         Text('MatePad 原生工作台')
           .fontSize(28)
           .fontWeight(FontWeight.Medium)
           .fontColor('#1E40AF')
-        Text('轻量登录入口，连接 Sealos 公网 HTTPS 后端。')
-          .fontSize(18)
+        Text('API: https://fyeboolnlvqv.sealoshzh.site/api')
+          .fontSize(16)
           .fontColor('#64748B')
-          .lineHeight(28)
-          .width(420)
-        Text(`API: ${AppConfig.API_BASE_URL}`)
-          .fontSize(14)
-          .fontColor('#94A3B8')
-          .margin({ top: 20 })
+          .lineHeight(24)
+          .width(460)
       }
       .layoutWeight(1)
       .height('100%')
@@ -126,15 +102,14 @@ struct LoginPage {
         }
 
         Button({ type: ButtonType.Capsule, stateEffect: true }) {
-          Text(this.isSubmitting ? '登录中...' : '登录')
+          Text('登录诊断')
             .fontSize(22)
             .fontWeight(FontWeight.Medium)
             .fontColor(Color.White)
         }
         .height(64)
         .width('100%')
-        .backgroundColor(this.canSubmit() ? '#2563EB' : '#CBD5E1')
-        .enabled(this.canSubmit())
+        .backgroundColor('#2563EB')
         .onClick(() => {
           this.submit();
         })
