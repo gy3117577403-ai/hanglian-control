@@ -2,9 +2,11 @@
   "src": [
     "pages/Index",
     "pages/LoginSmokePage",
+    "pages/BootCheckPage",
     "pages/LoginPage",
     "pages/SplashPage",
     "pages/WorkbenchPage",
+    "pages/DocumentUploadPage",
     "pages/DocumentPreviewPage",
     "pages/OrderOverviewPage",
     "pages/CustomerProductPage",

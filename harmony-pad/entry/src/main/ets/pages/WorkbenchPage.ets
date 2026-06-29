@@ -2,13 +2,13 @@ import router from '@ohos.router';
 import { BusinessError } from '@ohos.base';
 import { DocumentCategoryGrid } from '../components/DocumentCategoryGrid';
 import { OrderSidebar } from '../components/OrderSidebar';
-import { UploadDocumentDialog } from '../components/UploadDocumentDialog';
 import { AuthService } from '../services/AuthService';
+import { ApiClient } from '../services/ApiClient';
 import { CatalogService } from '../services/CatalogService';
 import { TokenStorageService } from '../services/TokenStorageService';
 import { WorkbenchApiClient } from '../services/WorkbenchApi';
 import { WorkbenchRefreshBus } from '../services/WorkbenchRefreshBus';
-import { DocumentCategory, ProductOption, WorkbenchRefreshEvent } from '../models/DocumentModels';
+import { ProductOption, WorkbenchRefreshEvent } from '../models/DocumentModels';
 import { UserInfo } from '../models/AuthModels';
 import {
   DocumentCategoryDefinition,
@@ -17,6 +17,7 @@ import {
   documentCategoryByKey,
   emptyDocumentCategories,
   OrderScope,
+  WorkbenchDocument,
   WorkbenchOrder
 } from '../model/WorkbenchTypes';
 
@@ -24,12 +25,10 @@ import {
 @Component
 struct WorkbenchPage {
   private api: WorkbenchApiClient = new WorkbenchApiClient();
-  private uploadDialog: CustomDialogController | undefined = undefined;
   private unsubscribeRefresh: (() => void) | undefined = undefined;
 
   @State private displayName: string = '已登录用户';
   @State private userSubtitle: string = '登录态已保存';
-  @State private isLoggingOut: boolean = false;
   @State private scope: OrderScope = 'today';
   @State private orders: WorkbenchOrder[] = [];
   @State private selectedOrder: WorkbenchOrder | null = null;
@@ -37,8 +36,8 @@ struct WorkbenchPage {
   @State private searchKeyword: string = '';
   @State private ordersLoading: boolean = false;
   @State private documentsLoading: boolean = false;
-  @State private errorMessage: string = '';
-  @State private actionMessage: string = '工作台正在加载...';
+  @State private errorText: string = '';
+  @State private loadingText: string = '工作台正在加载...';
   @State private tapCount: number = 0;
   @State private lastAction: string = '等待操作';
   @State private selectedProductId: string = '';
@@ -46,11 +45,11 @@ struct WorkbenchPage {
   @State private selectedCustomerId: string = '';
 
   aboutToAppear(): void {
-    console.info('[HanglianPad] WorkbenchPage aboutToAppear');
+    console.info('[HanglianPad] WorkbenchPage render');
     this.unsubscribeRefresh = WorkbenchRefreshBus.subscribe((event: WorkbenchRefreshEvent) => {
+      console.info('[HanglianPad] Workbench refresh event received');
       if (this.selectedProductId.length === 0 || this.selectedProductId === event.productId) {
-        console.info('[HanglianPad] upload success');
-        this.lastAction = `上传成功：${event.category}`;
+        this.lastAction = `上传成功，刷新资料：${event.documentId}`;
         void this.refreshSelectedDocuments();
       }
     });
@@ -65,58 +64,55 @@ struct WorkbenchPage {
     }
   }
 
-  private renderTitle(): string {
-    console.info('[HanglianPad] WorkbenchPage render');
-    return '航联资料工作台';
-  }
-
   private bump(action: string): void {
     this.tapCount += 1;
     this.lastAction = action;
+    console.info(`[HanglianPad] ${action}`);
+  }
+
+  private errorMessage(error: Object, fallback: string): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return fallback;
   }
 
   private async loadUserInfo(): Promise<void> {
     try {
       const userInfo = await TokenStorageService.getUserInfo();
-      this.applyUserInfo(userInfo);
+      if (userInfo) {
+        this.applyUserInfo(userInfo);
+      }
     } catch (error) {
+      this.errorText = this.errorMessage(error, '登录态读取失败');
       console.error('[HanglianPad] WorkbenchPage load user failed', error);
-      this.userSubtitle = this.errorText(error, '登录态读取失败');
     }
   }
 
-  private applyUserInfo(userInfo?: UserInfo): void {
-    if (!userInfo) {
-      return;
-    }
-
+  private applyUserInfo(userInfo: UserInfo): void {
     this.displayName = userInfo.displayName ?? userInfo.name ?? userInfo.username ?? '已登录用户';
     this.userSubtitle = userInfo.username ? `账号：${userInfo.username}` : '登录态已保存';
   }
 
   private async logout(): Promise<void> {
-    if (this.isLoggingOut) {
-      return;
-    }
-
-    this.bump('退出登录');
-    this.isLoggingOut = true;
+    this.bump('logout clicked');
+    this.loadingText = '正在退出登录...';
     try {
       await AuthService.logout();
     } catch (error) {
       console.error('[HanglianPad] WorkbenchPage logout failed', error);
-    } finally {
-      this.isLoggingOut = false;
-      await router.replaceUrl({
-        url: 'pages/LoginPage'
-      });
     }
+    await router.replaceUrl({ url: 'pages/LoginPage' });
+  }
+
+  private modeText(): string {
+    return this.api.isMockMode() ? 'mock fallback' : 'real API';
   }
 
   private filteredOrders(): WorkbenchOrder[] {
     const keyword = this.searchKeyword.trim().toLowerCase();
     const activeOrders = this.orders.filter((order: WorkbenchOrder) => !order.completed);
-    if (!keyword) {
+    if (keyword.length === 0) {
       return activeOrders;
     }
 
@@ -137,26 +133,15 @@ struct WorkbenchPage {
   }
 
   private currentProductText(): string {
-    return this.selectedProductModel.length > 0 ? this.selectedProductModel : '未选择产品型号';
-  }
-
-  private modeText(): string {
-    return this.api.isMockMode() ? 'mock fallback' : 'real API';
-  }
-
-  private errorText(error: Object, fallback: string): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return fallback;
+    return this.selectedProductModel.length > 0 ? this.selectedProductModel : '未选择产品';
   }
 
   private async refreshOrders(scope: OrderScope): Promise<void> {
-    console.info('[HanglianPad] WorkbenchPage load data start');
+    this.bump(scope === 'today' ? 'refresh today orders clicked' : 'refresh week orders clicked');
     this.scope = scope;
     this.ordersLoading = true;
-    this.errorMessage = '';
-    this.actionMessage = scope === 'today' ? '正在加载今日订单...' : '正在加载本周订单...';
+    this.errorText = '';
+    this.loadingText = scope === 'today' ? '正在加载今日订单...' : '正在加载本周订单...';
 
     try {
       const rows = await this.api.loadOrders(scope);
@@ -166,21 +151,24 @@ struct WorkbenchPage {
       const selected = firstWithProduct ?? (visible.length > 0 ? visible[0] : null);
       if (selected) {
         await this.openOrder(selected);
+        this.lastAction = `已自动选择产品：${this.selectedProductModel}`;
       } else {
         this.selectedOrder = null;
         this.categories = emptyDocumentCategories();
-        await this.ensureProductFromCatalog();
-        this.errorMessage = '暂无订单，已从产品列表选择测试产品。';
+        const selectedProduct = await this.ensureProductFromCatalog();
+        if (!selectedProduct) {
+          this.lastAction = '暂无产品，请先进入客户与产品创建产品。';
+        }
       }
-      this.actionMessage = `订单已刷新：${scope === 'today' ? '今日订单' : '本周订单'} / ${this.modeText()}`;
+      this.loadingText = `订单已刷新：${this.modeText()}`;
     } catch (error) {
       console.error('[HanglianPad] WorkbenchPage load data failed', error);
-      this.errorMessage = this.errorText(error, '订单接口失败');
-      this.actionMessage = '订单接口失败，正在尝试从产品列表选择测试产品。';
+      this.errorText = this.errorMessage(error, '订单接口失败');
       this.orders = [];
       this.selectedOrder = null;
       this.categories = emptyDocumentCategories();
       await this.ensureProductFromCatalog();
+      this.loadingText = '订单接口失败，已尝试 fallback 产品列表。';
     } finally {
       this.ordersLoading = false;
     }
@@ -197,7 +185,7 @@ struct WorkbenchPage {
         this.selectedProductId = '';
         this.selectedProductModel = '';
         this.selectedCustomerId = '';
-        this.actionMessage = '暂无产品，请先进入客户与产品创建产品。';
+        this.loadingText = '暂无产品，请先进入客户与产品创建产品。';
         return false;
       }
 
@@ -206,12 +194,12 @@ struct WorkbenchPage {
       this.selectedOrder = order;
       this.applyProductSelection(order);
       await this.refreshSelectedDocuments();
-      this.actionMessage = `已从产品列表选择测试产品：${this.selectedProductModel}`;
+      this.loadingText = `无订单，已从产品列表选择：${this.selectedProductModel}`;
       return true;
     } catch (error) {
-      console.error('[HanglianPad] WorkbenchPage load data failed', error);
-      this.errorMessage = this.errorText(error, '产品列表加载失败');
-      this.actionMessage = '产品列表加载失败，请进入客户与产品页面检查。';
+      this.errorText = this.errorMessage(error, '产品列表加载失败');
+      this.loadingText = '产品列表加载失败，请进入客户与产品页面检查。';
+      console.error('[HanglianPad] WorkbenchPage product fallback failed', error);
       return false;
     }
   }
@@ -253,6 +241,7 @@ struct WorkbenchPage {
   }
 
   private async openOrder(order: WorkbenchOrder): Promise<void> {
+    this.bump(`order selected: ${order.productModel}`);
     this.selectedOrder = order;
     this.applyProductSelection(order);
     if (this.selectedProductId.length === 0) {
@@ -264,31 +253,30 @@ struct WorkbenchPage {
 
   private async refreshSelectedDocuments(): Promise<void> {
     this.documentsLoading = true;
-    this.errorMessage = '';
+    this.errorText = '';
+    this.loadingText = this.selectedProductId.length > 0 ? '正在刷新产品资料...' : '暂无产品，无法加载资料。';
     try {
       this.categories = await this.api.loadDocumentCategories(this.selectedOrder);
-      if (this.selectedProductId.length > 0) {
-        this.actionMessage = `${this.currentProductText()} 资料已刷新`;
-      }
+      this.loadingText = this.selectedProductId.length > 0 ? `${this.currentProductText()} 资料已刷新。` : '暂无产品资料。';
     } catch (error) {
-      console.error('[HanglianPad] WorkbenchPage load data failed', error);
-      this.errorMessage = this.errorText(error, '产品资料接口失败');
+      this.errorText = this.errorMessage(error, '产品资料接口失败');
       this.categories = emptyDocumentCategories();
-      this.actionMessage = '产品资料接口失败，资料卡片已保留，可点击重试。';
+      this.loadingText = '产品资料接口失败，资料卡片已保留。';
+      console.error('[HanglianPad] WorkbenchPage documents load failed', error);
     } finally {
       this.documentsLoading = false;
     }
   }
 
   private completeOrder(order: WorkbenchOrder): void {
-    this.bump(`完成订单：${order.productModel}`);
+    this.bump(`complete order clicked: ${order.productModel}`);
     this.orders = this.orders.map((item: WorkbenchOrder): WorkbenchOrder => {
       if (item.orderId !== order.orderId) {
         return item;
       }
       return this.completedOrder(item);
     });
-    this.actionMessage = `${order.productModel} 已在本地标记完成`;
+    this.loadingText = `${order.productModel} 已在本地标记完成。`;
   }
 
   private completedOrder(order: WorkbenchOrder): WorkbenchOrder {
@@ -311,20 +299,19 @@ struct WorkbenchPage {
   }
 
   private search(keyword: string): void {
-    this.bump(`搜索：${keyword}`);
+    this.bump(`search clicked: ${keyword}`);
     this.searchKeyword = keyword;
     const visible = this.filteredOrders();
     if (visible.length > 0) {
       void this.openOrder(visible[0]);
-      this.actionMessage = `已按 "${keyword}" 筛选订单`;
+      this.loadingText = `已按 "${keyword}" 筛选订单。`;
     } else {
-      this.actionMessage = keyword.trim().length > 0 ? `未找到 "${keyword}" 相关订单` : '已清空搜索';
+      this.loadingText = keyword.trim().length > 0 ? `未找到 "${keyword}" 相关订单。` : '已清空搜索。';
     }
   }
 
   private async openImportPdf(): Promise<void> {
-    console.info('[HanglianPad] click import pdf');
-    this.bump('导入 PDF 图纸');
+    this.bump('import pdf clicked');
     if (this.selectedProductId.length === 0) {
       await this.ensureProductFromCatalog();
     }
@@ -354,71 +341,92 @@ struct WorkbenchPage {
   }
 
   private openUpload(category: DocumentCategoryState): void {
-    console.info(`[HanglianPad] click upload category ${category.category}`);
-    this.bump(`上传 ${category.label}`);
+    this.bump(`upload category clicked: ${category.category}`);
     if (this.selectedProductId.length === 0) {
-      this.actionMessage = '未选择产品，无法上传。请进入客户与产品创建或选择产品。';
-      this.errorMessage = 'selectedProductId 为空';
+      this.errorText = 'selectedProductId 为空';
+      this.loadingText = '请先创建或选择产品，再上传资料。';
       return;
     }
 
     const definition: DocumentCategoryDefinition = documentCategoryByKey(category.category);
-    console.info('[HanglianPad] upload dialog open');
-    this.uploadDialog = new CustomDialogController({
-      builder: UploadDocumentDialog({
-        initialCustomerId: this.selectedCustomerId,
-        initialProductId: this.selectedProductId,
-        initialPlanId: this.selectedOrder ? this.selectedOrder.orderId : undefined,
-        initialCategory: definition.category as DocumentCategory,
-        onUploaded: (event: WorkbenchRefreshEvent) => {
-          console.info('[HanglianPad] upload success');
-          this.actionMessage = `上传成功：${event.documentId}`;
-          void this.refreshSelectedDocuments();
-        }
-      }),
-      autoCancel: false,
-      alignment: DialogAlignment.Center
+    router.pushUrl({
+      url: 'pages/DocumentUploadPage',
+      params: {
+        productId: this.selectedProductId,
+        planId: this.selectedOrder ? this.selectedOrder.orderId : '',
+        category: definition.category,
+        title: definition.label
+      }
+    }).then(() => {
+      this.lastAction = `上传页已打开：${definition.category}`;
+    }).catch((error: BusinessError) => {
+      this.errorText = `上传页跳转失败：${error.code} / ${error.message}`;
+      this.lastAction = this.errorText;
     });
-    this.uploadDialog.open();
   }
 
   private openPreview(category: DocumentCategoryState): void {
-    this.bump(`预览 ${category.label}`);
+    this.bump(`preview clicked: ${category.category}`);
     if (category.documents.length === 0) {
-      this.actionMessage = '当前分类暂无资料，请先上传。';
+      this.loadingText = '当前分类暂无资料，请先上传。';
       return;
     }
 
-    const document = category.documents[0];
+    const document: WorkbenchDocument = category.documents[0];
     if (document.documentId.length === 0) {
-      this.actionMessage = '当前资料缺少 documentId，无法预览。';
+      this.loadingText = '当前资料缺少 documentId，无法预览。';
       return;
     }
 
-    console.info('[HanglianPad] preview document');
     router.pushUrl({
       url: 'pages/DocumentPreviewPage',
       params: {
         documentId: document.documentId,
         title: document.title
       }
+    }).then(() => {
+      this.lastAction = `预览页已打开：${document.documentId}`;
+    }).catch((error: BusinessError) => {
+      this.errorText = `预览跳转失败：${error.code} / ${error.message}`;
+      this.lastAction = this.errorText;
     });
   }
 
-  private deleteDocument(category: DocumentCategoryState): void {
-    this.bump(`删除 ${category.label}`);
-    this.actionMessage = '删除功能待确认';
+  private async deleteDocument(category: DocumentCategoryState): Promise<void> {
+    this.bump(`delete clicked: ${category.category}`);
+    if (category.documents.length === 0) {
+      this.loadingText = '当前分类暂无资料，删除入口已点击。';
+      return;
+    }
+
+    const document: WorkbenchDocument = category.documents[0];
+    if (document.documentId.length === 0) {
+      this.loadingText = '当前资料缺少 documentId，无法删除。';
+      return;
+    }
+
+    this.documentsLoading = true;
+    try {
+      await ApiClient.delete<object>(`/documents/${encodeURIComponent(document.documentId)}`);
+      this.lastAction = `删除成功：${document.documentId}`;
+      await this.refreshSelectedDocuments();
+    } catch (error) {
+      this.errorText = this.errorMessage(error, '删除资料失败');
+      this.lastAction = `delete failed: ${this.errorText}`;
+    } finally {
+      this.documentsLoading = false;
+    }
   }
 
   private routeTo(label: string, url: string): void {
-    this.bump(label);
+    this.bump(`${label} clicked`);
     router.pushUrl({ url: url })
       .then(() => {
-        this.lastAction = `${label} 已打开`;
+        this.lastAction = `${label} success`;
       })
       .catch((error: BusinessError) => {
-        this.lastAction = `${label} 跳转失败：${error.code} / ${error.message}`;
-        this.actionMessage = this.lastAction;
+        this.errorText = `${label} failed: ${error.code} / ${error.message}`;
+        this.lastAction = this.errorText;
       });
   }
 
@@ -433,13 +441,11 @@ struct WorkbenchPage {
           selectedOrderId: this.selectedOrderId(),
           scope: this.scope,
           isLoading: this.ordersLoading,
-          errorMessage: this.errorMessage,
+          errorMessage: this.errorText,
           onScopeChange: (nextScope: OrderScope) => {
-            this.bump(nextScope === 'today' ? '今日订单' : '本周订单');
             void this.refreshOrders(nextScope);
           },
           onOrderSelect: (order: WorkbenchOrder) => {
-            this.bump(`选择订单：${order.productModel}`);
             void this.openOrder(order);
           },
           onCompleteOrder: (order: WorkbenchOrder) => {
@@ -449,7 +455,6 @@ struct WorkbenchPage {
 
         Column({ space: 12 }) {
           this.SelectionPanel();
-
           DocumentCategoryGrid({
             categories: this.categories,
             isLoading: this.documentsLoading,
@@ -460,18 +465,17 @@ struct WorkbenchPage {
               this.openPreview(category);
             },
             onDelete: (category: DocumentCategoryState) => {
-              this.deleteDocument(category);
+              void this.deleteDocument(category);
             }
           })
           .layoutWeight(1);
-
           this.Diagnostics();
         }
         .layoutWeight(1)
-        .height('100%')
+        .height('100%');
       }
       .layoutWeight(1)
-      .width('100%')
+      .width('100%');
     }
     .width('100%')
     .height('100%')
@@ -493,13 +497,13 @@ struct WorkbenchPage {
         .borderRadius(8)
 
       Column({ space: 4 }) {
-        Text(this.renderTitle())
+        Text('航联资料工作台')
           .fontSize(28)
           .fontWeight(FontWeight.Bold)
           .fontColor('#342316')
-        Text(this.actionMessage)
+        Text(this.loadingText)
           .fontSize(13)
-          .fontColor(this.errorMessage.length > 0 ? '#A33F34' : '#76512A')
+          .fontColor(this.errorText.length > 0 ? '#A33F34' : '#76512A')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
@@ -511,18 +515,17 @@ struct WorkbenchPage {
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
           .fontColor('#342316')
-        Text(this.userSubtitle)
+        Text(`${this.userSubtitle} / API: ${this.modeText()}`)
           .fontSize(12)
           .fontColor('#76512A')
       }
-      .width(220)
+      .width(280)
       .alignItems(HorizontalAlign.End)
 
-      Button(this.isLoggingOut ? '退出中...' : '退出登录')
+      Button('退出登录')
         .height(46)
         .width(116)
         .backgroundColor('#342316')
-        .enabled(!this.isLoggingOut)
         .onClick(() => {
           void this.logout();
         })
@@ -552,7 +555,6 @@ struct WorkbenchPage {
         .backgroundColor('#2F6B4F')
         .fontColor(Color.White)
         .onClick(() => {
-          console.info('[HanglianPad] click customer product');
           this.routeTo('客户与产品', 'pages/CustomerProductPage');
         })
 
@@ -562,7 +564,6 @@ struct WorkbenchPage {
         .backgroundColor('#2F6B4F')
         .fontColor(Color.White)
         .onClick(() => {
-          console.info('[HanglianPad] click connector params');
           this.routeTo('连接器参数', 'pages/ConnectorParamPage');
         })
 
@@ -572,7 +573,6 @@ struct WorkbenchPage {
         .backgroundColor('#8F3F1D')
         .fontColor(Color.White)
         .onClick(() => {
-          console.info('[HanglianPad] click recycle bin');
           this.routeTo('回收站', 'pages/RecycleBinPage');
         })
 
@@ -582,8 +582,16 @@ struct WorkbenchPage {
         .backgroundColor('#614C8A')
         .fontColor(Color.White)
         .onClick(() => {
-          console.info('[HanglianPad] click order overview');
           this.routeTo('订单总览', 'pages/OrderOverviewPage');
+        })
+
+      Button('刷新数据')
+        .layoutWeight(1)
+        .height(48)
+        .backgroundColor('#9C5725')
+        .fontColor(Color.White)
+        .onClick(() => {
+          void this.refreshOrders(this.scope);
         })
     }
     .width('100%')
@@ -642,24 +650,6 @@ struct WorkbenchPage {
         .onClick(() => {
           this.search(this.searchKeyword);
         })
-
-      Button('重试')
-        .height(44)
-        .width(88)
-        .backgroundColor('#9C5725')
-        .fontColor(Color.White)
-        .onClick(() => {
-          this.bump('重试加载');
-          void this.refreshOrders(this.scope);
-        })
-
-      Text(this.modeText())
-        .fontSize(13)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.api.isMockMode() ? '#9B5A25' : '#2F6F66')
-        .padding({ left: 12, right: 12, top: 7, bottom: 7 })
-        .backgroundColor(this.api.isMockMode() ? '#FFF3E4' : '#E8F3EE')
-        .borderRadius(999)
     }
     .width('100%')
     .height(82)
@@ -679,6 +669,11 @@ struct WorkbenchPage {
       Text(`selectedProductId: ${this.selectedProductId || '-'}    selectedProductModel: ${this.selectedProductModel || '-'}`)
         .fontSize(12)
         .fontColor('#6F5845')
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+      Text(this.errorText.length > 0 ? `errorText: ${this.errorText}` : 'errorText: -')
+        .fontSize(12)
+        .fontColor(this.errorText.length > 0 ? '#A33F34' : '#6F5845')
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }

@@ -106,7 +106,7 @@ export struct DocumentCard {
           .backgroundColor(this.hasDocument() ? '#e8f1ed' : '#eef0ed')
           .borderRadius(13)
           .onClick(() => {
-            if (this.hasDocument()) this.onPreview(this.category)
+            this.onPreview(this.category)
           })
         Button('删除')
           .height(38)
@@ -117,7 +117,7 @@ export struct DocumentCard {
           .backgroundColor(this.hasDocument() ? '#fff0ec' : '#f0f1ef')
           .borderRadius(13)
           .onClick(() => {
-            if (this.hasDocument()) this.onDelete(this.category)
+            this.onDelete(this.category)
           })
       }
       .width('100%')

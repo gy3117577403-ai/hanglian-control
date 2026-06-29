@@ -24,6 +24,10 @@ export struct TopSearchBar {
           .backgroundColor('#eaf2ec')
           .fontColor('#284941')
           .borderRadius(12)
+          .onClick(() => {
+            console.info('[HanglianPad] top menu clicked')
+            this.onOpenCustomerProduct()
+          })
       }
       .height(48)
       .padding({ left: 16, right: 10 })
@@ -50,6 +54,10 @@ export struct TopSearchBar {
         .backgroundColor('#f4ede3')
         .fontColor('#81512a')
         .borderRadius(16)
+        .onClick(() => {
+          console.info('[HanglianPad] top voice placeholder clicked')
+          this.keyword = ''
+        })
 
       Button('搜索')
         .height(48)

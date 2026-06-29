@@ -1,4 +1,4 @@
-import { ApiClient } from './ApiClient';
+import { ApiClient, ApiError } from './ApiClient';
 import { buildId, MockStore } from './MockData';
 import { Customer, ProcessSegment, Product, ServiceResult } from './DomainModels';
 
@@ -43,6 +43,16 @@ function refreshCustomerProductCount(): void {
   });
 }
 
+function serviceErrorText(error: Object): string {
+  if (error instanceof ApiError) {
+    return `${error.statusCode} ${error.message} ${error.responseBody}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'unknown error';
+}
+
 export class CustomerProductService {
   static async listCustomers(): Promise<ServiceResult<Customer[]>> {
     try {
@@ -50,7 +60,7 @@ export class CustomerProductService {
       return { data: rows, source: 'api', message: '已连接 GET /customers' };
     } catch (error) {
       refreshCustomerProductCount();
-      return { data: MockStore.customers, source: 'mock', message: '客户接口不可用，使用本地 mock fallback' };
+      return { data: MockStore.customers, source: 'mock', message: `GET /customers failed: ${serviceErrorText(error)}; using mock fallback` };
     }
   }
 
@@ -67,7 +77,7 @@ export class CustomerProductService {
         productCount: 0
       };
       MockStore.customers.unshift(customer);
-      return { data: customer, source: 'mock', message: '新增客户已写入本地 mock fallback' };
+      return { data: customer, source: 'mock', message: `POST /customers failed: ${serviceErrorText(error)}; wrote mock fallback` };
     }
   }
 
@@ -130,7 +140,7 @@ export class CustomerProductService {
       return { data: rows, source: 'api', message: '已连接 GET /products' };
     } catch (error) {
       const rows = MockStore.products.filter((product: Product) => product.isActive !== false).map((product: Product) => attachCustomerName(product));
-      return { data: rows, source: 'mock', message: '产品接口不可用，使用本地 mock fallback' };
+      return { data: rows, source: 'mock', message: `GET /products failed: ${serviceErrorText(error)}; using mock fallback` };
     }
   }
 
@@ -152,7 +162,7 @@ export class CustomerProductService {
       };
       MockStore.products.unshift(product);
       refreshCustomerProductCount();
-      return { data: product, source: 'mock', message: '新增产品已写入本地 mock fallback' };
+      return { data: product, source: 'mock', message: `POST /products failed: ${serviceErrorText(error)}; wrote mock fallback` };
     }
   }
 

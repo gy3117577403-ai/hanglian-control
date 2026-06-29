@@ -1,4 +1,4 @@
-import { ApiClient } from './ApiClient';
+import { ApiClient, ApiError } from './ApiClient';
 import { buildId, currentTimeLabel, MockStore } from './MockData';
 import { ConnectorParam, ConnectorParamStatus, ServiceResult, StatusCount } from './DomainModels';
 
@@ -9,6 +9,25 @@ export interface ConnectorParamPayload {
   innerStripLength: string;
   remark: string;
   status: ConnectorParamStatus;
+}
+
+export interface ConnectorImportOnePayload {
+  connectorModel: string;
+  insertionLength: number;
+  outerStripLength: number;
+  innerStripLength: number;
+  status: string;
+  remark: string;
+}
+
+function connectorErrorText(error: Object): string {
+  if (error instanceof ApiError) {
+    return `${error.statusCode} ${error.message} ${error.responseBody}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'unknown error';
 }
 
 export class ConnectorParamService {
@@ -92,6 +111,36 @@ export class ConnectorParamService {
     } catch (error) {
       MockStore.connectorParams = MockStore.connectorParams.filter((item: ConnectorParam) => item.id !== id);
       return { data: id, source: 'mock', message: '参数已从本地 mock fallback 删除' };
+    }
+  }
+
+  static async importOne(payload: ConnectorImportOnePayload): Promise<ServiceResult<ConnectorParam>> {
+    try {
+      const row = await ApiClient.post<ConnectorParam>('/connector-params/import-one', payload);
+      return { data: row, source: 'api', message: '已调用 POST /connector-params/import-one' };
+    } catch (error) {
+      const activeStatus: ConnectorParamStatus = '启用';
+      const row: ConnectorParam = {
+        id: buildId('CONN'),
+        connectorModel: payload.connectorModel,
+        inputLength: `${payload.insertionLength}`,
+        outerStripLength: `${payload.outerStripLength}`,
+        innerStripLength: `${payload.innerStripLength}`,
+        remark: `${payload.remark}; import-one fallback: ${connectorErrorText(error)}`,
+        status: activeStatus,
+        updatedAt: currentTimeLabel()
+      };
+      MockStore.connectorParams.unshift(row);
+      return { data: row, source: 'mock', message: `POST /connector-params/import-one failed: ${connectorErrorText(error)}; wrote mock fallback` };
+    }
+  }
+
+  static async exportCsv(): Promise<ServiceResult<string>> {
+    try {
+      await ApiClient.get<object>('/connector-params/export');
+      return { data: 'export responded', source: 'api', message: '已调用 GET /connector-params/export' };
+    } catch (error) {
+      return { data: 'export failed', source: 'mock', message: `GET /connector-params/export failed: ${connectorErrorText(error)}` };
     }
   }
 
