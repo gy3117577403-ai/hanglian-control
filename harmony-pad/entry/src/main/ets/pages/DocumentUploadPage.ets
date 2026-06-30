@@ -11,6 +11,7 @@ import {
   RequiredProcess,
   SelectedUploadFile,
   UploadDocumentInput,
+  UploadSource,
   UploadProgress,
   safeDocumentTitle
 } from '../models/DocumentModels';
@@ -68,6 +69,8 @@ struct DocumentUploadPage {
   private cameraJpgPreview: boolean = false;
   private manualUploadUriScheme: string = 'none';
   private multipartFallbackEnabled: boolean = false;
+  private manualQaActive: boolean = false;
+  private manualQaVersion: string = '';
 
   aboutToAppear(): void {
     const params = router.getParams() as UploadRouteParams;
@@ -223,6 +226,9 @@ struct DocumentUploadPage {
   private buildInput(file: SelectedUploadFile): UploadDocumentInput {
     const process: RequiredProcess = 'common';
     const planId = this.uploadPlanId();
+    const qaKeywords = this.manualQaActive ? 'field-qa' : this.category;
+    const qaRemark = this.manualQaActive ? 'MatePad field QA' : 'MatePad upload';
+    const version = this.manualQaActive && this.manualQaVersion.length > 0 ? this.manualQaVersion : 'V1.0';
     return {
       productId: this.productId,
       productModel: this.productModel,
@@ -230,10 +236,10 @@ struct DocumentUploadPage {
       category: this.category,
       documentType: this.documentTypeFor(file),
       title: this.title.length > 0 ? this.title : safeDocumentTitle(file.name, this.category),
-      version: 'V1.0',
+      version,
       requiredForProcess: process,
-      keywords: this.category,
-      remark: 'MatePad upload',
+      keywords: qaKeywords,
+      remark: qaRemark,
       file: file
     };
   }
@@ -354,6 +360,7 @@ struct DocumentUploadPage {
     this.canCopyErrorSummary = false;
     this.showErrorSummaryText = false;
     this.lastUploadErrorSummary = '';
+    this.multipartFallbackEnabled = false;
     this.uploadStatus = '正在上传';
     this.statusMessage = '资料正在上传，请稍候。';
     try {
@@ -395,11 +402,18 @@ struct DocumentUploadPage {
   private async runManualUploadPageQa(kind: string): Promise<void> {
     if (this.isUploading) return;
     const stamp = `${Date.now()}`;
+    const previousTitle = this.title;
+    const previousQaActive = this.manualQaActive;
+    const previousQaVersion = this.manualQaVersion;
     try {
+      this.manualQaActive = true;
+      this.manualQaVersion = `V1.0-${stamp}`;
       if (kind === 'pdf') {
-        this.applySelectedFile(this.createQaPdfFile(`manual-picker-${stamp}.pdf`));
+        this.title = `FIELD-UPLOAD-PDF-${stamp}`;
+        this.applySelectedFile(this.createQaPdfFile(`field-pdf-${stamp}.pdf`));
       } else {
-        this.applySelectedFile(this.createQaCameraImageFile(`camera-${stamp}.jpg`));
+        this.title = `FIELD-UPLOAD-IMAGE-${stamp}`;
+        this.applySelectedFile(this.createQaCameraImageFile(`field-camera-${stamp}.jpg`));
       }
       const uploaded = await this.upload();
       let previewReady = false;
@@ -426,6 +440,9 @@ struct DocumentUploadPage {
         this.cameraJpgPreview = false;
       }
     } finally {
+      this.title = previousTitle;
+      this.manualQaActive = previousQaActive;
+      this.manualQaVersion = previousQaVersion;
       this.emitManualUploadPageResult();
     }
   }
@@ -498,25 +515,42 @@ struct DocumentUploadPage {
       48, 32, 82, 32, 62, 62, 10, 115, 116, 97, 114, 116, 120, 114, 101,
       102, 10, 52, 49, 50, 10, 37, 37, 69, 79, 70, 10
     ];
-    return this.createQaFile(fileName, 'application/pdf', bytes, 'file_picker');
+    return this.createQaFile(fileName, 'application/pdf', bytes, 'test_lab');
   }
 
   private createQaCameraImageFile(fileName: string): SelectedUploadFile {
     const bytes: number[] = [
-      137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
-      0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, 144, 119, 83, 222,
-      0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80,
-      15, 0, 5, 131, 2, 127, 151, 15, 73, 63, 0, 0, 0, 0, 73, 69,
-      78, 68, 174, 66, 96, 130
+      255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0,
+      255, 219, 0, 67, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 219,
+      0, 67, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 192, 0, 17, 8, 0, 1, 0,
+      1, 3, 1, 34, 0, 2, 17, 1, 3, 17, 1, 255, 196, 0, 21, 0, 1, 1, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 255, 196, 0, 20, 16, 1,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 218, 0, 12,
+      3, 1, 0, 2, 16, 3, 16, 0, 0, 1, 218, 63, 255, 196, 0, 20, 16, 1,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 218, 0, 8,
+      1, 1, 0, 1, 5, 2, 127, 255, 196, 0, 20, 17, 1, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 255, 218, 0, 8, 1, 3, 1, 1, 63,
+      1, 63, 255, 196, 0, 20, 17, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 16, 255, 218, 0, 8, 1, 2, 1, 1, 63, 1, 63, 255, 196,
+      0, 20, 16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      255, 218, 0, 8, 1, 1, 0, 6, 63, 2, 127, 255, 217
     ];
     return this.createQaFile(fileName, 'image/jpeg', bytes, 'camera');
   }
 
-  private createQaFile(fileName: string, mimeType: string, bytes: number[], source: 'file_picker' | 'camera'): SelectedUploadFile {
+  private createQaFile(fileName: string, mimeType: string, bytes: number[], source: UploadSource): SelectedUploadFile {
     const cachePath = `${this.uiContext().cacheDir}/${fileName}`;
     this.writeBytes(cachePath, bytes);
     return {
-      uri: fileUri.getUriFromPath(cachePath),
+      uri: cachePath,
       uploadUri: `internal://cache/${fileName}`,
       fallbackUploadUri: fileUri.getUriFromPath(cachePath),
       cachePath,

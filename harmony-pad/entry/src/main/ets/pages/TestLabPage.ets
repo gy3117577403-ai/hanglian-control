@@ -577,11 +577,18 @@ struct TestLabPage {
 
   private openUploadPage(): void {
     console.info('[HanglianPad] test lab open upload');
+    if (this.qaProductId.length === 0) {
+      this.statusText = '请先运行一键真机自检，再打开上传页。';
+      return;
+    }
     router.pushUrl({
       url: 'pages/DocumentUploadPage',
       params: {
+        productId: this.qaProductId,
         productModel: this.currentProduct,
-        title: '原图'
+        category: 'original_drawing',
+        title: '原图',
+        qaMode: 'true'
       }
     }).catch((error: BusinessError) => {
       console.error('[HanglianPad] test lab upload route failed', error);

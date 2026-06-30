@@ -1,40 +1,97 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const repoRoot = process.cwd();
+const repoRoot = dirname(fileURLToPath(import.meta.url)).endsWith('scripts')
+  ? join(dirname(fileURLToPath(import.meta.url)), '..')
+  : process.cwd();
 const reportsDir = join(repoRoot, 'reports');
 const logPath = join(reportsDir, 'harmony-device-qa.log');
 const mdPath = join(reportsDir, 'harmony-device-qa.md');
+const jsonPath = join(reportsDir, 'harmony-device-qa.json');
 const layoutPath = join(reportsDir, 'harmony-device-layout.json');
 const hapPath = join(repoRoot, 'harmony-pad', 'entry', 'build', 'default', 'outputs', 'default', 'entry-default-signed.hap');
 const bundleName = 'com.hanglian.pad';
 const abilityName = 'EntryAbility';
+const moduleName = 'entry';
 const remoteLayoutPath = '/data/local/tmp/hanglian-device-qa-layout.json';
 const maxBuffer = 64 * 1024 * 1024;
+const sourceCommit = process.env.HAP_SOURCE_COMMIT || git(['rev-parse', '--short', 'HEAD']);
+
+const forbiddenLogPatterns = [
+  /RuntimeError/i,
+  /JS_ERROR/i,
+  /TypeError/i,
+  /undefined is not callable/i,
+  /RecycleBinPage\.ets/i,
+  /Click gesture judge reject/i,
+  /Touch test result is empty/i,
+  /17 Http protocol error/i,
+  /Http protocol error/i
+];
+
+function git(args) {
+  return execFileSync('git', args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore']
+  }).trim();
+}
+
+function commandWorks(command) {
+  try {
+    const result = spawnSync(command, ['version'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      shell: false
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function findOnPath() {
+  const result = spawnSync('where.exe', ['hdc'], {
+    encoding: 'utf8',
+    timeout: 5000,
+    shell: false
+  });
+  if (result.status !== 0) {
+    return '';
+  }
+  const rows = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  return rows.find((candidate) => commandWorks(candidate)) ?? '';
+}
 
 function findHdc() {
+  if (process.env.HDC_PATH && process.env.HDC_PATH.trim().length > 0) {
+    const hdcPath = process.env.HDC_PATH.trim();
+    if (!commandWorks(hdcPath)) {
+      throw new Error(`HDC_PATH is not executable: ${hdcPath}`);
+    }
+    return hdcPath;
+  }
+
+  const pathHdc = findOnPath();
+  if (pathHdc.length > 0) {
+    return pathHdc;
+  }
+
   const candidates = [
-    process.env.HDC_PATH,
-    'hdc',
     'C:\\Users\\DevEco Studio\\sdk\\default\\openharmony\\toolchains\\hdc.exe',
     'C:\\Users\\DevEco Studio\\sdk\\default\\hmscore\\toolchains\\hdc.exe',
     'C:\\Users\\DevEco Studio\\tools\\hdc\\hdc.exe'
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    try {
-      const result = spawnSync(candidate, ['version'], { encoding: 'utf8', timeout: 5000 });
-      if (result.status === 0 || result.stdout || result.stderr) return candidate;
-    } catch {
-      // Try the next candidate.
-    }
-  }
-  return '';
+  ];
+  return candidates.find((candidate) => commandWorks(candidate)) ?? '';
 }
 
-function run(hdc, args, options = {}) {
+function runRaw(hdc, args, options = {}) {
   try {
     return execFileSync(hdc, args, {
       encoding: 'utf8',
@@ -50,45 +107,125 @@ function run(hdc, args, options = {}) {
   }
 }
 
-function writeReport(status, reason, details = {}) {
+function runTarget(hdc, target, args, options = {}) {
+  return runRaw(hdc, ['-t', target, ...args], options);
+}
+
+function parseTargetRows(output) {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !/^\[/.test(line) && !/empty/i.test(line));
+}
+
+function chooseTarget(hdc) {
+  const rows = parseTargetRows(runRaw(hdc, ['list', 'targets'], { timeout: 10000 }));
+  if (rows.length === 0) {
+    throw new Error('hdc list targets returned empty.');
+  }
+
+  if (process.env.HDC_TARGET && process.env.HDC_TARGET.trim().length > 0) {
+    return process.env.HDC_TARGET.trim();
+  }
+
+  try {
+    const verboseRows = parseTargetRows(runRaw(hdc, ['list', 'targets', '-v'], { timeout: 10000 }));
+    const usbReady = verboseRows.find((line) => /\bUSB\b/i.test(line) && /\bReady\b/i.test(line));
+    if (usbReady) {
+      return usbReady.split(/\s+/)[0];
+    }
+  } catch {
+    // Fall back to normal target output.
+  }
+
+  return rows[0].split(/\s+/)[0];
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function mkdirReports() {
   mkdirSync(reportsDir, { recursive: true });
+}
+
+function formatJson(value) {
+  return value ? JSON.stringify(value) : '-';
+}
+
+function writeReport(status, reason, details = {}) {
+  mkdirReports();
   const log = details.log ?? '';
   writeFileSync(logPath, log || reason || '', 'utf8');
+
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    status,
+    reason,
+    hdc: details.hdc ?? '',
+    device: details.device ?? '',
+    hapPath,
+    hapSourceCommit: sourceCommit,
+    currentPage: details.pagePath ?? '',
+    buildInfo: details.buildInfo ?? null,
+    fieldQaResult: details.fieldResult ?? null,
+    fieldUploadQaResult: details.uploadResult ?? null,
+    fieldManualUploadPageResult: details.manualUploadPageResult ?? null,
+    forbiddenSignals: details.forbiddenSignals ?? [],
+    failedTests: details.failedTests ?? [],
+    staticScan: details.staticScan ?? null,
+    logPath,
+    layoutPath
+  };
+  writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 
   const lines = [
     '# Harmony Device QA',
     '',
     `- result: ${status}`,
     `- reason: ${reason || '-'}`,
+    `- hdc: ${details.hdc ?? '-'}`,
     `- device: ${details.device ?? '-'}`,
+    `- HAP_SOURCE_COMMIT: ${sourceCommit}`,
     `- currentPage: ${details.pagePath ?? '-'}`,
-    `- BUILD_INFO: ${details.buildInfo ?? '-'}`,
-    `- FIELD_QA_RESULT: ${details.fieldResult ?? '-'}`,
-    `- FIELD_UPLOAD_QA_RESULT: ${details.uploadResult ?? '-'}`,
-    `- FIELD_MANUAL_UPLOAD_PAGE_RESULT: ${details.manualUploadPageResult ?? '-'}`,
+    `- BUILD_INFO: ${formatJson(details.buildInfo)}`,
+    `- FIELD_QA_RESULT: ${details.fieldResult ? `success=${details.fieldResult.success === true}` : '-'}`,
+    `- FIELD_UPLOAD_QA_RESULT: ${formatJson(details.uploadResult)}`,
+    `- FIELD_MANUAL_UPLOAD_PAGE_RESULT: ${formatJson(details.manualUploadPageResult)}`,
+    `- forbiddenSignals: ${(details.forbiddenSignals ?? []).join(', ') || '-'}`,
     `- layout: ${layoutPath.replaceAll('\\', '/')}`,
     `- log: ${logPath.replaceAll('\\', '/')}`,
     ''
   ];
-  if (Array.isArray(details.failedTests) && details.failedTests.length > 0) {
-    lines.push('## 失败项', '');
-    for (const item of details.failedTests) {
-      lines.push(`- ${item.name}: ${item.message ?? item.status ?? '失败'}`);
-    }
-    lines.push('');
-  }
   writeFileSync(mdPath, `${lines.join('\n')}\n`, 'utf8');
 }
 
-function parseTargets(output) {
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !/^\[/.test(line) && !/empty/i.test(line));
+function printSummary(status, reason, details = {}) {
+  const lines = [
+    '=== HARMONY_DEVICE_QA_RESULT_START ===',
+    `status=${status}`,
+    `reason=${reason}`,
+    `hapSourceCommit=${sourceCommit}`,
+    `buildInfo=${formatJson(details.buildInfo)}`,
+    `fieldQaResult=${details.fieldResult ? `success=${details.fieldResult.success === true}` : '-'}`,
+    `fieldUploadQaResult=${formatJson(details.uploadResult)}`,
+    `fieldManualUploadPageResult=${formatJson(details.manualUploadPageResult)}`,
+    `forbiddenSignals=${(details.forbiddenSignals ?? []).join(', ') || '-'}`,
+    `report=${mdPath}`,
+    '=== HARMONY_DEVICE_QA_RESULT_END ==='
+  ];
+  console.log(lines.join('\n'));
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function fail(reason, details = {}) {
+  writeReport('failed', reason, details);
+  printSummary('failed', reason, details);
+  process.exitCode = 1;
+}
+
+function pass(reason, details = {}) {
+  writeReport('passed', reason, details);
+  printSummary('passed', reason, details);
 }
 
 function boundsCenter(bounds) {
@@ -141,30 +278,96 @@ function findButtonContainingText(layout, text) {
   });
 }
 
-function parseFieldResult(log) {
-  const matches = [...log.matchAll(/FIELD_QA_RESULT\s+({.+})/g)];
-  if (matches.length === 0) return undefined;
-  const raw = matches[matches.length - 1][1];
+function keepDeviceAwake(hdc, target) {
   try {
-    return JSON.parse(raw);
+    runTarget(hdc, target, ['shell', 'power-shell', 'wakeup'], { timeout: 10000 });
   } catch {
-    return undefined;
+    // Best effort only; older devices may not expose power-shell.
+  }
+  try {
+    runTarget(hdc, target, ['shell', 'power-shell', 'timeout', '-o', '900000'], { timeout: 10000 });
+  } catch {
+    // Best effort only; foreground checks below still guard clicks.
   }
 }
 
-function parseUploadResult(log) {
-  const matches = [...log.matchAll(/FIELD_UPLOAD_QA_RESULT\s+({.+})/g)];
-  if (matches.length === 0) return undefined;
-  const raw = matches[matches.length - 1][1];
+function restoreDeviceTimeout(hdc, target) {
   try {
-    return JSON.parse(raw);
+    runTarget(hdc, target, ['shell', 'power-shell', 'timeout', '-r'], { timeout: 10000 });
   } catch {
-    return undefined;
+    // Keep cleanup best effort so it never hides the QA result.
   }
 }
 
-function parseManualUploadPageResult(log) {
-  const matches = [...log.matchAll(/FIELD_MANUAL_UPLOAD_PAGE_RESULT\s+({.+})/g)];
+function appIsForeground(hdc, target) {
+  try {
+    const dump = runTarget(hdc, target, ['shell', 'aa', 'dump', '-l'], { timeout: 30000 });
+    const marker = `bundle name [${bundleName}]`;
+    const index = dump.indexOf(marker);
+    if (index < 0) return false;
+    const block = dump.slice(Math.max(0, index - 300), index + 500);
+    return /state #FOREGROUND/.test(block) && /app state #FOREGROUND/.test(block);
+  } catch {
+    return false;
+  }
+}
+
+function ensureAppForeground(hdc, target) {
+  keepDeviceAwake(hdc, target);
+  if (appIsForeground(hdc, target)) return;
+  runTarget(hdc, target, ['shell', 'aa', 'start', '-b', bundleName, '-a', abilityName, '-m', moduleName], { timeout: 30000 });
+}
+
+function clickNode(hdc, target, node, fallback) {
+  ensureAppForeground(hdc, target);
+  const center = boundsCenter(node?.attributes?.bounds) ?? fallback;
+  if (!center) {
+    throw new Error(`Cannot click node: ${nodeText(node)}`);
+  }
+  runTarget(hdc, target, ['shell', 'uitest', 'uiInput', 'click', String(center.x), String(center.y)], { timeout: 10000 });
+}
+
+function readLayout() {
+  return JSON.parse(readFileSync(layoutPath, 'utf8'));
+}
+
+function dumpLayout(hdc, target) {
+  runTarget(hdc, target, ['shell', 'uitest', 'dumpLayout', '-b', bundleName, '-p', remoteLayoutPath], { timeout: 20000 });
+  runTarget(hdc, target, ['file', 'recv', remoteLayoutPath, layoutPath], { timeout: 20000 });
+  return readLayout();
+}
+
+async function waitForPage(hdc, target, expectedPage, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let layout = dumpLayout(hdc, target);
+  while (Date.now() < deadline) {
+    if (pagePath(layout) === expectedPage) return layout;
+    await sleep(1200);
+    layout = dumpLayout(hdc, target);
+  }
+  return layout;
+}
+
+function readNewLog(hdc, target) {
+  return runTarget(hdc, target, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
+}
+
+function filterLog(log) {
+  return log
+    .split(/\r?\n/)
+    .filter((line) => /HanglianPad|BUILD_INFO|FIELD_QA_RESULT|FIELD_UPLOAD_QA_RESULT|FIELD_MANUAL_UPLOAD_PAGE_RESULT|manual upload failed detail|upload failed detail|RuntimeError|JS_ERROR|TypeError|undefined is not callable|RecycleBinPage\.ets|Click gesture judge reject|Touch test result is empty|17 Http protocol error|Http protocol error/i.test(line))
+    .join('\n');
+}
+
+function forbiddenSignals(log) {
+  return forbiddenLogPatterns
+    .filter((pattern) => pattern.test(log))
+    .map((pattern) => pattern.source.replaceAll('\\', ''));
+}
+
+function parseLastJson(log, marker) {
+  const expression = new RegExp(`${marker}\\s+({.+})`, 'g');
+  const matches = [...log.matchAll(expression)];
   if (matches.length === 0) return undefined;
   const raw = matches[matches.length - 1][1];
   try {
@@ -175,139 +378,60 @@ function parseManualUploadPageResult(log) {
 }
 
 function parseBuildInfo(log) {
-  const matches = [...log.matchAll(/BUILD_INFO\s+({.+})/g)];
-  if (matches.length === 0) return undefined;
-  const raw = matches[matches.length - 1][1];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return undefined;
-  }
+  return parseLastJson(log, 'BUILD_INFO');
 }
 
-function filterLog(log) {
-  return log
-    .split(/\r?\n/)
-    .filter((line) => /HanglianPad|BUILD_INFO|FIELD_QA_RESULT|FIELD_UPLOAD_QA_RESULT|FIELD_MANUAL_UPLOAD_PAGE_RESULT|manual upload failed detail|upload failed detail|RuntimeError|JS_ERROR|TypeError|undefined is not callable|Http protocol error/i.test(line))
-    .join('\n');
+function parseFieldResult(log) {
+  return parseLastJson(log, 'FIELD_QA_RESULT');
 }
 
-function readLayout() {
-  return JSON.parse(readFileSync(layoutPath, 'utf8'));
+function parseUploadResult(log) {
+  return parseLastJson(log, 'FIELD_UPLOAD_QA_RESULT');
 }
 
-function dumpLayout(hdc) {
-  run(hdc, ['shell', 'uitest', 'dumpLayout', '-b', bundleName, '-p', remoteLayoutPath], { timeout: 20000 });
-  run(hdc, ['file', 'recv', remoteLayoutPath, layoutPath], { timeout: 20000 });
-  return readLayout();
+function parseManualUploadPageResult(log) {
+  return parseLastJson(log, 'FIELD_MANUAL_UPLOAD_PAGE_RESULT');
 }
 
-function clickNode(hdc, node, fallback) {
-  const center = boundsCenter(node?.attributes?.bounds) ?? fallback;
-  if (!center) throw new Error(`Cannot click node: ${nodeText(node)}`);
-  run(hdc, ['shell', 'uitest', 'uiInput', 'click', String(center.x), String(center.y)], { timeout: 10000 });
-}
-
-async function waitForPage(hdc, expectedPage, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  let layout = dumpLayout(hdc);
-  while (Date.now() < deadline) {
-    if (pagePath(layout) === expectedPage) return layout;
-    await sleep(1500);
-    layout = dumpLayout(hdc);
-  }
-  return layout;
-}
-
-async function ensureWorkbench(hdc) {
-  let layout = dumpLayout(hdc);
-  const currentPage = pagePath(layout);
-  if (currentPage === 'pages/WorkbenchPage') return layout;
-  if (currentPage === 'pages/TestLabPage') return layout;
-
-  if (currentPage === 'pages/LoginPage') {
-    const loginButton = findButtonContainingText(layout, '登录') ?? findTextNode(layout, '登录', 'Button');
-    clickNode(hdc, loginButton, { x: 1780, y: 1184 });
-    layout = await waitForPage(hdc, 'pages/WorkbenchPage', 20000);
-  }
-  return layout;
-}
-
-async function ensureTestLab(hdc, layout) {
-  if (pagePath(layout) === 'pages/TestLabPage') return layout;
-  if (pagePath(layout) !== 'pages/WorkbenchPage') return layout;
-
-  const hlNode = findTextNode(layout, 'HL');
-  for (let index = 0; index < 5; index += 1) {
-    clickNode(hdc, hlNode, { x: 122, y: 190 });
-    await sleep(250);
-  }
-  return waitForPage(hdc, 'pages/TestLabPage', 10000);
-}
-
-async function waitForFieldResult(hdc, timeoutMs) {
+async function waitForBuildInfo(hdc, target, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   let filtered = '';
   while (Date.now() < deadline) {
-    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-    filtered = filterLog(raw);
-    const result = parseFieldResult(filtered);
-    if (result) return { result, filtered };
-    await sleep(5000);
-  }
-  return { result: undefined, filtered };
-}
-
-async function waitForQaResults(hdc, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  let filtered = '';
-  while (Date.now() < deadline) {
-    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-    filtered = filterLog(raw);
+    filtered = filterLog(readNewLog(hdc, target));
     const buildInfo = parseBuildInfo(filtered);
+    if (buildInfo) return { buildInfo, filtered };
+    await sleep(1500);
+  }
+  return { buildInfo: parseBuildInfo(filtered), filtered };
+}
+
+async function waitForQaResults(hdc, target, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let filtered = '';
+  while (Date.now() < deadline) {
+    filtered = filterLog(readNewLog(hdc, target));
     const fieldResult = parseFieldResult(filtered);
     const uploadResult = parseUploadResult(filtered);
-    if (buildInfo && fieldResult && uploadResult) {
-      return { buildInfo, fieldResult, uploadResult, filtered };
+    if (fieldResult && uploadResult) {
+      return { fieldResult, uploadResult, filtered };
     }
     await sleep(5000);
   }
   return {
-    buildInfo: parseBuildInfo(filtered),
     fieldResult: parseFieldResult(filtered),
     uploadResult: parseUploadResult(filtered),
     filtered
   };
 }
 
-async function waitForManualUploadPageResult(hdc, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  let filtered = '';
-  while (Date.now() < deadline) {
-    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-    filtered = filterLog(raw);
-    const result = parseManualUploadPageResult(filtered);
-    if (result) return { result, filtered };
-    await sleep(5000);
-  }
-  return { result: parseManualUploadPageResult(filtered), filtered };
-}
-
-async function waitForManualUploadPagePass(hdc, timeoutMs) {
+async function waitForManualUploadPageResult(hdc, target, timeoutMs, predicate) {
   const deadline = Date.now() + timeoutMs;
   let filtered = '';
   let result;
   while (Date.now() < deadline) {
-    const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-    filtered = filterLog(raw);
+    filtered = filterLog(readNewLog(hdc, target));
     result = parseManualUploadPageResult(filtered);
-    if (
-      result &&
-      result.filePickerPdfUpload === true &&
-      result.filePickerPdfPreview === true &&
-      result.cameraJpgUpload === true &&
-      result.cameraJpgPreview === true
-    ) {
+    if (result && predicate(result)) {
       return { result, filtered };
     }
     await sleep(5000);
@@ -315,17 +439,129 @@ async function waitForManualUploadPagePass(hdc, timeoutMs) {
   return { result, filtered };
 }
 
-async function revealUploadPageQaButtons(hdc) {
-  let layout = dumpLayout(hdc);
-  const title = findTextNode(layout, 'PDF / 图片资料上传');
+async function waitForManualUploadPagePass(hdc, target, timeoutMs) {
+  return waitForManualUploadPageResult(hdc, target, timeoutMs, (result) => (
+    result.filePickerPdfUpload === true &&
+    result.filePickerPdfPreview === true &&
+    result.cameraJpgUpload === true &&
+    result.cameraJpgPreview === true
+  ));
+}
+
+function staticScan() {
+  const files = [
+    join(repoRoot, 'harmony-pad', 'entry', 'src', 'main', 'ets', 'pages', 'WorkbenchPage.ets'),
+    join(repoRoot, 'harmony-pad', 'entry', 'src', 'main', 'ets', 'components', 'DocumentCategoryGrid.ets'),
+    join(repoRoot, 'harmony-pad', 'entry', 'src', 'main', 'ets', 'pages', 'RecycleBinPage.ets')
+  ];
+  const gridHits = [];
+  const unsafeForEachHits = [];
+  for (const file of files) {
+    if (!existsSync(file)) continue;
+    const content = readFileSync(file, 'utf8');
+    if (/\bGrid\s*\(/.test(content)) {
+      gridHits.push(file.replace(repoRoot, '').replaceAll('\\', '/'));
+    }
+    if (file.endsWith('RecycleBinPage.ets')) {
+      if (/\.forEach\s*\(/.test(content)) unsafeForEachHits.push('array.forEach');
+      if (/ForEach\s*\([^,]+,\s*this\./s.test(content)) unsafeForEachHits.push('ForEach itemGenerator uses this method reference');
+      if (/ForEach\s*\([^,]+,[\s\S]*?,\s*this\./.test(content)) unsafeForEachHits.push('ForEach keyGenerator uses this method reference');
+      if (!/@State\s+private\s+recycleItems\s*:\s*RecycleBinItem\[\]\s*=\s*\[\]/.test(content)) {
+        unsafeForEachHits.push('recycleItems is not initialized as []');
+      }
+    }
+  }
+  return {
+    passed: gridHits.length === 0 && unsafeForEachHits.length === 0,
+    gridHits,
+    unsafeForEachHits
+  };
+}
+
+async function clickLogin(hdc, target) {
+  let layout = await waitForPage(hdc, target, 'pages/LoginPage', 12000);
+  if (pagePath(layout) === 'pages/WorkbenchPage') return layout;
+  if (pagePath(layout) !== 'pages/LoginPage') {
+    throw new Error(`Expected LoginPage, got ${pagePath(layout) || 'unknown'}`);
+  }
+  const loginButton = findButtonContainingText(layout, '登录') ?? findTextNode(layout, '登录');
+  clickNode(hdc, target, loginButton, { x: 1780, y: 1184 });
+  layout = await waitForPage(hdc, target, 'pages/WorkbenchPage', 25000);
+  if (pagePath(layout) !== 'pages/WorkbenchPage') {
+    throw new Error(`Login did not enter WorkbenchPage, got ${pagePath(layout) || 'unknown'}`);
+  }
+  return layout;
+}
+
+async function enterTestLab(hdc, target, layout) {
+  let current = layout;
+  if (pagePath(current) !== 'pages/WorkbenchPage') {
+    current = await waitForPage(hdc, target, 'pages/WorkbenchPage', 12000);
+  }
+  const logo = findTextNode(current, 'HL');
   for (let index = 0; index < 5; index += 1) {
-    clickNode(hdc, title, { x: 220, y: 72 });
+    clickNode(hdc, target, logo, { x: 122, y: 190 });
+    await sleep(250);
+  }
+  current = await waitForPage(hdc, target, 'pages/TestLabPage', 12000);
+  if (pagePath(current) !== 'pages/TestLabPage') {
+    throw new Error(`Could not enter TestLabPage, got ${pagePath(current) || 'unknown'}`);
+  }
+  return current;
+}
+
+async function returnWorkbench(hdc, target, layout) {
+  const backButton = findButtonContainingText(layout, '返回工作台') ?? findTextNode(layout, '返回工作台');
+  clickNode(hdc, target, backButton, { x: 2150, y: 201 });
+  const next = await waitForPage(hdc, target, 'pages/WorkbenchPage', 15000);
+  if (pagePath(next) !== 'pages/WorkbenchPage') {
+    throw new Error(`Return workbench failed, got ${pagePath(next) || 'unknown'}`);
+  }
+  return next;
+}
+
+async function verifyConnectorNavigation(hdc, target, layout) {
+  const button = findButtonContainingText(layout, '连接器参数') ?? findTextNode(layout, '连接器参数');
+  clickNode(hdc, target, button, { x: 1020, y: 166 });
+  let next = await waitForPage(hdc, target, 'pages/ConnectorParamPage', 15000);
+  if (pagePath(next) !== 'pages/ConnectorParamPage') {
+    throw new Error(`ConnectorParamPage did not open, got ${pagePath(next) || 'unknown'}`);
+  }
+  next = await returnWorkbench(hdc, target, next);
+  return next;
+}
+
+async function verifyRecycleBin(hdc, target, layout) {
+  const button = findButtonContainingText(layout, '回收站') ?? findTextNode(layout, '回收站');
+  clickNode(hdc, target, button, { x: 1228, y: 166 });
+  let next = await waitForPage(hdc, target, 'pages/RecycleBinPage', 15000);
+  if (pagePath(next) !== 'pages/RecycleBinPage') {
+    throw new Error(`RecycleBinPage did not open, got ${pagePath(next) || 'unknown'}`);
+  }
+  await sleep(2500);
+  const filtered = filterLog(readNewLog(hdc, target));
+  const signals = forbiddenSignals(filtered);
+  if (signals.length > 0) {
+    const error = new Error('RecycleBinPage produced forbidden HiLog signals.');
+    error.filteredLog = filtered;
+    error.forbiddenSignals = signals;
+    throw error;
+  }
+  next = await returnWorkbench(hdc, target, next);
+  return next;
+}
+
+async function revealUploadPageQaButtons(hdc, target) {
+  let layout = dumpLayout(hdc, target);
+  const title = findTextNode(layout, 'PDF / 图片资料上传') ?? findTextNode(layout, '资料上传');
+  for (let index = 0; index < 5; index += 1) {
+    clickNode(hdc, target, title, { x: 220, y: 72 });
     await sleep(250);
   }
 
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
-    layout = dumpLayout(hdc);
+    layout = dumpLayout(hdc, target);
     if (findButtonContainingText(layout, '生成测试PDF并上传') && findButtonContainingText(layout, '生成测试图片并上传')) {
       return layout;
     }
@@ -334,255 +570,201 @@ async function revealUploadPageQaButtons(hdc) {
   return layout;
 }
 
+async function verifyManualUploadPage(hdc, target, layout) {
+  const button = pagePath(layout) === 'pages/TestLabPage'
+    ? (findButtonContainingText(layout, '打开上传页') ?? findTextNode(layout, '打开上传页'))
+    : (findButtonContainingText(layout, '导入 PDF 图纸') ?? findTextNode(layout, 'PDF'));
+  clickNode(hdc, target, button, pagePath(layout) === 'pages/TestLabPage' ? { x: 2180, y: 760 } : { x: 285, y: 166 });
+  let next = await waitForPage(hdc, target, 'pages/DocumentUploadPage', 15000);
+  if (pagePath(next) !== 'pages/DocumentUploadPage') {
+    throw new Error(`DocumentUploadPage did not open, got ${pagePath(next) || 'unknown'}`);
+  }
+
+  next = await revealUploadPageQaButtons(hdc, target);
+  const pdfButton = findButtonContainingText(next, '生成测试PDF并上传');
+  const imageButton = findButtonContainingText(next, '生成测试图片并上传');
+  if (!pdfButton || !imageButton) {
+    throw new Error('DocumentUploadPage manual upload QA buttons were not revealed.');
+  }
+
+  clickNode(hdc, target, pdfButton, { x: 690, y: 1180 });
+  const pdfWait = await waitForManualUploadPageResult(hdc, target, 180000, (result) => (
+    result.filePickerPdfUpload === true &&
+    result.filePickerPdfPreview === true
+  ));
+  let signals = forbiddenSignals(pdfWait.filtered);
+  if (signals.length > 0) {
+    const error = new Error('Manual upload page produced forbidden HiLog signals.');
+    error.filteredLog = pdfWait.filtered;
+    error.forbiddenSignals = signals;
+    error.manualUploadPageResult = pdfWait.result;
+    throw error;
+  }
+  if (!pdfWait.result || pdfWait.result.filePickerPdfUpload !== true || pdfWait.result.filePickerPdfPreview !== true) {
+    const error = new Error('DocumentUploadPage PDF manual upload QA did not pass.');
+    error.filteredLog = pdfWait.filtered;
+    error.manualUploadPageResult = pdfWait.result;
+    throw error;
+  }
+
+  next = dumpLayout(hdc, target);
+  const nextImageButton = findButtonContainingText(next, '生成测试图片并上传') ?? imageButton;
+  clickNode(hdc, target, nextImageButton, { x: 1710, y: 1180 });
+  const waitResult = await waitForManualUploadPagePass(hdc, target, 240000);
+  signals = forbiddenSignals(waitResult.filtered);
+  if (signals.length > 0) {
+    const error = new Error('Manual upload page produced forbidden HiLog signals.');
+    error.filteredLog = waitResult.filtered;
+    error.forbiddenSignals = signals;
+    error.manualUploadPageResult = waitResult.result;
+    throw error;
+  }
+  if (!waitResult.result) {
+    const error = new Error('FIELD_MANUAL_UPLOAD_PAGE_RESULT was not captured.');
+    error.filteredLog = waitResult.filtered;
+    throw error;
+  }
+  return { layout: dumpLayout(hdc, target), manualUploadPageResult: waitResult.result, filtered: waitResult.filtered };
+}
+
 async function main() {
-  mkdirSync(reportsDir, { recursive: true });
-  const hdc = findHdc();
-  if (!hdc) {
-    const reason = '真机自动测试未执行：未检测到 hdc 或设备。';
-    writeReport('未执行', reason);
-    console.log(reason);
+  mkdirReports();
+  const scan = staticScan();
+  if (!scan.passed) {
+    fail('Static scan failed: Grid or unsafe RecycleBin ForEach is still present.', { staticScan: scan });
     return;
   }
 
-  let targets = [];
-  try {
-    targets = parseTargets(run(hdc, ['list', 'targets'], { timeout: 10000 }));
-  } catch (error) {
-    const reason = '真机自动测试未执行：hdc 无法读取设备。';
-    writeReport('未执行', reason, { log: error.output ?? error.message });
-    console.log(reason);
-    return;
-  }
-
-  if (targets.length === 0) {
-    const reason = '真机自动测试未执行：未检测到 hdc 或设备。';
-    writeReport('未执行', reason);
-    console.log(reason);
-    return;
-  }
-
-  if (!existsSync(hapPath)) {
-    const reason = `真机自动测试未执行：未找到 HAP：${hapPath}`;
-    writeReport('未执行', reason, { device: targets[0] });
-    console.log(reason);
-    return;
-  }
-
+  let hdc = '';
+  let target = '';
   let filteredLog = '';
+  let buildInfo;
+  let fieldResult;
+  let uploadResult;
+  let manualUploadPageResult;
   let layout;
+
   try {
+    hdc = findHdc();
+    if (!hdc) {
+      fail('hdc executable was not found.', { staticScan: scan });
+      return;
+    }
+
+    target = chooseTarget(hdc);
+    keepDeviceAwake(hdc, target);
+    if (!existsSync(hapPath)) {
+      fail(`Current HAP was not found: ${hapPath}`, { hdc, device: target, staticScan: scan });
+      return;
+    }
+
     try {
-      run(hdc, ['shell', 'hilog', '-r'], { timeout: 10000 });
+      runTarget(hdc, target, ['shell', 'hilog', '-r'], { timeout: 10000 });
     } catch {
-      // Best effort only.
+      // Clear is best effort before uninstall; we clear again before launch.
     }
+
     try {
-      run(hdc, ['uninstall', bundleName], { timeout: 60000 });
+      runTarget(hdc, target, ['uninstall', bundleName], { timeout: 60000 });
     } catch {
-      // It is fine if the app was not installed.
+      // The app may not be installed.
     }
-    run(hdc, ['install', hapPath], { timeout: 120000 });
-    run(hdc, ['shell', 'aa', 'start', '-b', bundleName, '-a', abilityName], { timeout: 30000 });
-    await sleep(2500);
-    layout = await ensureWorkbench(hdc);
-    layout = await ensureTestLab(hdc, layout);
+    runTarget(hdc, target, ['install', hapPath], { timeout: 120000 });
+    runTarget(hdc, target, ['shell', 'hilog', '-r'], { timeout: 10000 });
+    runTarget(hdc, target, ['shell', 'aa', 'start', '-b', bundleName, '-a', abilityName, '-m', moduleName], { timeout: 30000 });
 
-    if (pagePath(layout) !== 'pages/TestLabPage') {
-      const reason = `真机自动测试未完成：未能进入 TestLabPage，当前页面 ${pagePath(layout) || 'unknown'}。`;
-      const raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-      filteredLog = filterLog(raw);
-      writeReport('未完成', reason, { device: targets[0], pagePath: pagePath(layout), log: filteredLog });
-      console.log(reason);
-      process.exitCode = 1;
+    const buildWait = await waitForBuildInfo(hdc, target, 30000);
+    buildInfo = buildWait.buildInfo;
+    filteredLog = buildWait.filtered;
+    let signals = forbiddenSignals(filteredLog);
+    if (signals.length > 0) {
+      fail('Forbidden HiLog signal appeared during startup.', { hdc, device: target, buildInfo, forbiddenSignals: signals, log: filteredLog, staticScan: scan });
+      return;
+    }
+    if (!buildInfo) {
+      fail('BUILD_INFO was not captured after app startup.', { hdc, device: target, log: filteredLog, staticScan: scan });
+      return;
+    }
+    if (buildInfo.commit !== sourceCommit) {
+      fail(`BUILD_INFO.commit ${buildInfo.commit} does not match HAP_SOURCE_COMMIT ${sourceCommit}.`, { hdc, device: target, buildInfo, log: filteredLog, staticScan: scan });
       return;
     }
 
-    const startButton = undefined;
-    clickNode(hdc, startButton, { x: 1953, y: 201 });
-    const waitResult = await waitForQaResults(hdc, 210000);
-    filteredLog = waitResult.filtered;
-
-    if (/RuntimeError|JS_ERROR|undefined is not callable/i.test(filteredLog)) {
-      writeReport('failed', 'Runtime error found in HiLog.', {
-        device: targets[0],
-        pagePath: 'pages/TestLabPage',
-        buildInfo: waitResult.buildInfo ? JSON.stringify(waitResult.buildInfo) : '-',
-        fieldResult: waitResult.fieldResult ? JSON.stringify(waitResult.fieldResult) : '-',
-        uploadResult: waitResult.uploadResult ? JSON.stringify(waitResult.uploadResult) : '-',
-        log: filteredLog
-      });
-      console.error('Device QA failed: runtime error found.');
-      process.exitCode = 1;
+    layout = await clickLogin(hdc, target);
+    layout = await enterTestLab(hdc, target, layout);
+    const startButton = findButtonContainingText(layout, '一键真机自检') ?? findTextNode(layout, '一键真机自检');
+    clickNode(hdc, target, startButton, { x: 1953, y: 201 });
+    const qaWait = await waitForQaResults(hdc, target, 240000);
+    filteredLog = qaWait.filtered;
+    fieldResult = qaWait.fieldResult;
+    uploadResult = qaWait.uploadResult;
+    signals = forbiddenSignals(filteredLog);
+    if (signals.length > 0) {
+      fail('Forbidden HiLog signal appeared during TestLab QA.', { hdc, device: target, buildInfo, fieldResult, uploadResult, forbiddenSignals: signals, log: filteredLog, staticScan: scan });
       return;
     }
-
-    if (!waitResult.buildInfo || !waitResult.fieldResult || !waitResult.uploadResult) {
-      writeReport('incomplete', 'BUILD_INFO / FIELD_QA_RESULT / FIELD_UPLOAD_QA_RESULT was not captured.', {
-        device: targets[0],
-        pagePath: 'pages/TestLabPage',
-        buildInfo: waitResult.buildInfo ? JSON.stringify(waitResult.buildInfo) : '-',
-        fieldResult: waitResult.fieldResult ? JSON.stringify(waitResult.fieldResult) : '-',
-        uploadResult: waitResult.uploadResult ? JSON.stringify(waitResult.uploadResult) : '-',
-        log: filteredLog
-      });
-      console.log('Device QA did not complete: required QA log result not found.');
-      process.exitCode = 1;
+    if (!fieldResult || !uploadResult) {
+      fail('FIELD_QA_RESULT or FIELD_UPLOAD_QA_RESULT was not captured.', { hdc, device: target, buildInfo, fieldResult, uploadResult, log: filteredLog, staticScan: scan });
       return;
     }
-
-    const failedTests = Array.isArray(waitResult.fieldResult.tests)
-      ? waitResult.fieldResult.tests.filter((item) => item.status !== '\u901a\u8fc7')
+    const failedTests = Array.isArray(fieldResult.tests)
+      ? fieldResult.tests.filter((item) => item.status !== '通过')
       : [];
-    const uploadPassed = waitResult.uploadResult.success === true &&
-      waitResult.uploadResult.pngUpload === true &&
-      waitResult.uploadResult.pngPreview === true &&
-      waitResult.uploadResult.pdfUpload === true &&
-      waitResult.uploadResult.pdfPreview === true;
-
-    if (waitResult.fieldResult.success !== true || failedTests.length > 0 || !uploadPassed) {
-      writeReport('failed', 'QA result contains failed items.', {
-        device: targets[0],
-        pagePath: 'pages/TestLabPage',
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: JSON.stringify(waitResult.fieldResult),
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        failedTests,
-        log: filteredLog
-      });
-      console.error('Device QA failed: QA result contains failed tests.');
-      process.exitCode = 1;
+    const uploadPassed = uploadResult.success === true &&
+      uploadResult.pngUpload === true &&
+      uploadResult.pngPreview === true &&
+      uploadResult.pdfUpload === true &&
+      uploadResult.pdfPreview === true;
+    if (fieldResult.success !== true || failedTests.length > 0 || !uploadPassed) {
+      fail('FIELD QA result contains failed items.', { hdc, device: target, buildInfo, fieldResult, uploadResult, failedTests, log: filteredLog, staticScan: scan });
       return;
     }
 
-    layout = dumpLayout(hdc);
-    const recycleButton = undefined;
-    clickNode(hdc, recycleButton, { x: 1228, y: 830 });
-    layout = await waitForPage(hdc, 'pages/RecycleBinPage', 12000);
-    if (pagePath(layout) !== 'pages/RecycleBinPage') {
-      writeReport('failed', 'RecycleBinPage did not open.', {
-        device: targets[0],
-        pagePath: pagePath(layout),
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: 'success=true',
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        log: filteredLog
-      });
-      process.exitCode = 1;
+    layout = dumpLayout(hdc, target);
+    const manualResult = await verifyManualUploadPage(hdc, target, layout);
+    manualUploadPageResult = manualResult.manualUploadPageResult;
+    filteredLog = manualResult.filtered;
+    layout = await returnWorkbench(hdc, target, manualResult.layout);
+    layout = await verifyConnectorNavigation(hdc, target, layout);
+    layout = await verifyRecycleBin(hdc, target, layout);
+    filteredLog = filterLog(readNewLog(hdc, target));
+
+    signals = forbiddenSignals(filteredLog);
+    if (signals.length > 0) {
+      fail('Forbidden HiLog signal appeared in final log.', { hdc, device: target, buildInfo, fieldResult, uploadResult, manualUploadPageResult, forbiddenSignals: signals, log: filteredLog, staticScan: scan });
       return;
     }
 
-    let raw = run(hdc, ['shell', 'hilog', '-x', '-t', 'app'], { timeout: 30000 });
-    filteredLog = filterLog(raw);
-    if (/RuntimeError|JS_ERROR|undefined is not callable|RecycleBinPage\.ets/i.test(filteredLog)) {
-      writeReport('failed', 'RecycleBinPage still produced an error in HiLog.', {
-        device: targets[0],
-        pagePath: 'pages/RecycleBinPage',
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: 'success=true',
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        log: filteredLog
-      });
-      process.exitCode = 1;
-      return;
-    }
-
-    const backButton = undefined;
-    clickNode(hdc, backButton, { x: 2150, y: 201 });
-    layout = await waitForPage(hdc, 'pages/WorkbenchPage', 12000);
-
-    const importButton = findButtonContainingText(layout, 'PDF') ?? findTextNode(layout, 'PDF');
-    clickNode(hdc, importButton, { x: 285, y: 165 });
-    layout = await waitForPage(hdc, 'pages/DocumentUploadPage', 12000);
-    if (pagePath(layout) !== 'pages/DocumentUploadPage') {
-      writeReport('failed', 'Import PDF button did not open DocumentUploadPage.', {
-        device: targets[0],
-        pagePath: pagePath(layout),
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: 'success=true',
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        log: filteredLog
-      });
-      process.exitCode = 1;
-      return;
-    }
-
-    layout = await revealUploadPageQaButtons(hdc);
-    const pdfQaButton = findButtonContainingText(layout, '生成测试PDF并上传');
-    const imageQaButton = findButtonContainingText(layout, '生成测试图片并上传');
-    if (!pdfQaButton || !imageQaButton) {
-      writeReport('failed', 'DocumentUploadPage manual upload QA buttons were not revealed.', {
-        device: targets[0],
-        pagePath: pagePath(layout),
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: 'success=true',
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        log: filteredLog
-      });
-      process.exitCode = 1;
-      return;
-    }
-
-    clickNode(hdc, pdfQaButton, { x: 690, y: 1180 });
-    await waitForManualUploadPageResult(hdc, 160000);
-    layout = dumpLayout(hdc);
-    const nextImageQaButton = findButtonContainingText(layout, '生成测试图片并上传');
-    clickNode(hdc, nextImageQaButton, { x: 1710, y: 1180 });
-    const manualWaitResult = await waitForManualUploadPagePass(hdc, 180000);
-    filteredLog = manualWaitResult.filtered;
-    const manualUploadPassed = manualWaitResult.result &&
-      manualWaitResult.result.filePickerPdfUpload === true &&
-      manualWaitResult.result.filePickerPdfPreview === true &&
-      manualWaitResult.result.cameraJpgUpload === true &&
-      manualWaitResult.result.cameraJpgPreview === true;
-
-    if (!manualUploadPassed) {
-      writeReport('failed', 'DocumentUploadPage manual PDF/JPG upload QA did not pass.', {
-        device: targets[0],
-        pagePath: pagePath(layout),
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: 'success=true',
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        manualUploadPageResult: manualWaitResult.result ? JSON.stringify(manualWaitResult.result) : '-',
-        log: filteredLog
-      });
-      process.exitCode = 1;
-      return;
-    }
-
-    if (/RuntimeError|JS_ERROR|undefined is not callable|Http protocol error/i.test(filteredLog)) {
-      writeReport('failed', 'Runtime or upload protocol error appeared after manual upload page QA.', {
-        device: targets[0],
-        pagePath: pagePath(layout),
-        buildInfo: JSON.stringify(waitResult.buildInfo),
-        fieldResult: 'success=true',
-        uploadResult: JSON.stringify(waitResult.uploadResult),
-        manualUploadPageResult: JSON.stringify(manualWaitResult.result),
-        log: filteredLog
-      });
-      process.exitCode = 1;
-      return;
-    }
-
-    writeReport('passed', 'BUILD_INFO, FIELD_QA_RESULT, FIELD_UPLOAD_QA_RESULT, FIELD_MANUAL_UPLOAD_PAGE_RESULT, RecycleBinPage, and DocumentUploadPage manual upload paths were verified.', {
-      device: targets[0],
+    pass('Device QA passed with current HAP and fresh HiLog.', {
+      hdc,
+      device: target,
       pagePath: pagePath(layout),
-      buildInfo: JSON.stringify(waitResult.buildInfo),
-      fieldResult: 'success=true',
-      uploadResult: JSON.stringify(waitResult.uploadResult),
-      manualUploadPageResult: JSON.stringify(manualWaitResult.result),
-      log: filteredLog
+      buildInfo,
+      fieldResult,
+      uploadResult,
+      manualUploadPageResult,
+      forbiddenSignals: [],
+      log: filteredLog,
+      staticScan: scan
     });
-    console.log('Device QA passed.');
-    return;
   } catch (error) {
-    const reason = 'hdc 安装、启动、UI 操作或抓取日志失败。';
-    writeReport('失败', reason, {
-      device: targets[0],
+    const signals = forbiddenSignals(`${filteredLog}\n${error.filteredLog ?? ''}\n${error.output ?? ''}\n${error.message ?? ''}`);
+    fail(error.message || 'Device QA failed.', {
+      hdc,
+      device: target,
       pagePath: layout ? pagePath(layout) : '',
-      log: `${filteredLog}\n${error.output ?? error.message}`
+      buildInfo,
+      fieldResult,
+      uploadResult,
+      manualUploadPageResult: error.manualUploadPageResult ?? manualUploadPageResult,
+      forbiddenSignals: error.forbiddenSignals ?? signals,
+      log: `${filteredLog}\n${error.filteredLog ?? ''}\n${error.output ?? ''}\n${error.stack ?? error.message}`,
+      staticScan: scan
     });
-    console.error('Device QA failed.');
-    process.exitCode = 1;
+  } finally {
+    if (hdc && target) {
+      restoreDeviceTimeout(hdc, target);
+    }
   }
 }
 

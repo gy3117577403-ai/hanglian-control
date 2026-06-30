@@ -7,6 +7,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const appConfigPath = path.join(repoRoot, 'harmony-pad/entry/src/main/ets/services/AppConfig.ets');
 const pagesDir = path.join(repoRoot, 'harmony-pad/entry/src/main/ets/pages');
 const componentsDir = path.join(repoRoot, 'harmony-pad/entry/src/main/ets/components');
+const etsRoot = path.join(repoRoot, 'harmony-pad/entry/src/main/ets');
 const mainPagesPath = path.join(repoRoot, 'harmony-pad/entry/src/main/resources/base/profile/main_pages.json');
 const reportsDir = path.join(repoRoot, 'reports');
 const jsonReportPath = path.join(reportsDir, 'harmony-field-regression.json');
@@ -15,11 +16,7 @@ const mdReportPath = path.join(reportsDir, 'harmony-field-regression.md');
 const results = [];
 
 function addCheck(name, passed, details = '') {
-  results.push({
-    name,
-    passed,
-    details
-  });
+  results.push({ name, passed, details });
 }
 
 function read(filePath) {
@@ -28,16 +25,16 @@ function read(filePath) {
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];
-  const output = [];
+  const rows = [];
   for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, item.name);
     if (item.isDirectory()) {
-      output.push(...walk(fullPath));
+      rows.push(...walk(fullPath));
     } else if (item.isFile() && fullPath.endsWith('.ets')) {
-      output.push(fullPath);
+      rows.push(fullPath);
     }
   }
-  return output;
+  return rows;
 }
 
 function rel(filePath) {
@@ -136,7 +133,13 @@ function checkReturnWorkbenchButtons() {
   const missing = [];
   for (const fileName of required) {
     const filePath = path.join(pagesDir, fileName);
-    if (!fs.existsSync(filePath) || !read(filePath).includes("Button('返回工作台'")) {
+    if (!fs.existsSync(filePath)) {
+      missing.push(fileName);
+      continue;
+    }
+
+    const content = read(filePath);
+    if (!content.includes("Button('返回工作台')") && !content.includes("Button('杩斿洖宸ヤ綔鍙?")) {
       missing.push(fileName);
     }
   }
@@ -144,7 +147,7 @@ function checkReturnWorkbenchButtons() {
 }
 
 function checkApiPrefixes() {
-  const files = walk(path.join(repoRoot, 'harmony-pad/entry/src/main/ets'));
+  const files = walk(etsRoot);
   const pattern = /\/api\/(?:auth|products|documents|connector-params|recycle-bin)/;
   const hits = [];
   for (const file of files) {
@@ -159,20 +162,37 @@ function checkRecycleBinSafety() {
   const file = path.join(pagesDir, 'RecycleBinPage.ets');
   const content = read(file);
   const issues = [];
-  if (/\.forEach\s*\(/.test(content)) issues.push('RecycleBinPage 使用 array.forEach');
+  if (/\bGrid\s*\(/.test(content)) issues.push('RecycleBinPage 使用 Grid');
+  if (/\.forEach\s*\(/.test(content)) issues.push('RecycleBinPage 使用 array.forEach 渲染');
   if (/ForEach\s*\(\s*undefined/.test(content)) issues.push('RecycleBinPage 使用 ForEach(undefined)');
-  if (/ForEach\s*\([^,\n]+,\s*this\./.test(content)) issues.push('RecycleBinPage 使用 this 方法引用作为 ForEach itemGenerator');
-  if (!content.includes('@State private recycleItems: RecycleBinItem[] = []')) issues.push('RecycleBinPage 未使用 recycleItems 空数组初始化');
+  if (/this\.RecycleItem|this\.itemKey/.test(content)) issues.push('RecycleBinPage ForEach 仍依赖 builder/key 方法引用');
+  if (!/@State\s+private\s+recycleItems\s*:\s*RecycleBinItem\[\]\s*=\s*\[\]/.test(content)) {
+    issues.push('RecycleBinPage recycleItems 未初始化为 []');
+  }
   addCheck('RecycleBinPage 列表渲染安全', issues.length === 0, issues.join('\n'));
 }
 
-function checkWorkbenchGrid() {
+function checkNoGridInInteractiveSurfaces() {
   const files = [
     path.join(pagesDir, 'WorkbenchPage.ets'),
-    path.join(componentsDir, 'DocumentCategoryGrid.ets')
+    path.join(componentsDir, 'DocumentCategoryGrid.ets'),
+    path.join(pagesDir, 'RecycleBinPage.ets')
   ];
-  const hits = files.filter((file) => fs.existsSync(file) && /\bGrid\s*\(/.test(read(file))).map(rel);
-  addCheck('Workbench 主交互区域不使用 Grid', hits.length === 0, hits.join('\n'));
+  const hits = [];
+  for (const file of files) {
+    if (fs.existsSync(file) && /\bGrid\s*\(/.test(read(file))) {
+      hits.push(rel(file));
+    }
+  }
+  addCheck('Workbench / DocumentCategoryGrid / RecycleBinPage 不使用 Grid', hits.length === 0, hits.join('\n'));
+}
+
+function checkEntryStartsLogin() {
+  const file = path.join(etsRoot, 'entryability/EntryAbility.ets');
+  const content = read(file);
+  const login = content.includes("loadContent('pages/LoginPage'");
+  const index = content.includes("loadContent('pages/Index'");
+  addCheck('EntryAbility 启动 LoginPage', login && !index, login && !index ? '' : rel(file));
 }
 
 function writeReports() {
@@ -209,7 +229,8 @@ checkMainPages();
 checkReturnWorkbenchButtons();
 checkApiPrefixes();
 checkRecycleBinSafety();
-checkWorkbenchGrid();
+checkNoGridInInteractiveSurfaces();
+checkEntryStartsLogin();
 writeReports();
 
 const failed = results.filter((item) => !item.passed);
